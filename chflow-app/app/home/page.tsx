@@ -24,6 +24,16 @@ interface UserInfo {
   plain_name: string | null;
 }
 
+interface MyDepartment {
+  id: string;
+  department_id: string;
+  category: string;
+  name: string;
+  icon: string | null;
+  status: string;
+  member_role: string;
+}
+
 // 공통 메뉴 (모든 사용자가 접근 가능)
 const COMMON_MENUS = [
   { id: "bulletin",   label: "주보 보기",       icon: "📖", color: "#0ea5e9", desc: "주간 교회 주보" },
@@ -48,6 +58,7 @@ export default function HomePage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState<UserInfo | null>(null);
+  const [myDepartments, setMyDepartments] = useState<MyDepartment[]>([]);
   const [activeMenu, setActiveMenu] = useState<string>("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -67,6 +78,10 @@ export default function HomePage() {
       }
       setUser(profile);
       setAuthChecked(true);
+
+      // 내가 가입한 부서 로드
+      const { data: depts } = await supabase.rpc("get_my_departments");
+      if (depts) setMyDepartments(depts);
     })();
   }, [router]);
 
@@ -147,11 +162,19 @@ export default function HomePage() {
             <>
               <button
                 onClick={() => router.push("/admin/pending")}
-                title="가입 대기자"
+                title="회원가입 대기자"
                 style={adminBtnStyle("#fef3c7", "#92400e")}
               >
                 <span>⏳</span>
-                <span className="admin-btn-label">대기자</span>
+                <span className="admin-btn-label">가입자</span>
+              </button>
+              <button
+                onClick={() => router.push("/admin/dept-pending")}
+                title="부서 가입 승인"
+                style={adminBtnStyle("#fce7f3", "#9d174d")}
+              >
+                <span>🏢</span>
+                <span className="admin-btn-label">부서승인</span>
               </button>
               <button
                 onClick={() => router.push("/admin/members")}
@@ -222,13 +245,19 @@ export default function HomePage() {
       <div style={{ display: "flex", minHeight: "calc(100vh - 145px)" }}>
         {/* === 데스크탑 사이드바 === */}
         <div className="sidebar-desktop" style={{
-          width: 200,
+          width: 220,
           background: "#fff",
           borderRight: "1px solid #e2e8f0",
           padding: "20px 12px",
           flexShrink: 0,
         }}>
-          <SidebarContent user={user} activeMenu={activeMenu} setActiveMenu={setActiveMenu} />
+          <SidebarContent
+            user={user}
+            myDepartments={myDepartments}
+            activeMenu={activeMenu}
+            setActiveMenu={setActiveMenu}
+            router={router}
+          />
         </div>
 
         {/* === 모바일 사이드바 오버레이 === */}
@@ -249,8 +278,11 @@ export default function HomePage() {
                 }}>✕</button>
               </div>
               <SidebarContent
-                user={user} activeMenu={activeMenu}
+                user={user}
+                myDepartments={myDepartments}
+                activeMenu={activeMenu}
                 setActiveMenu={(m) => { setActiveMenu(m); setSidebarOpen(false); }}
+                router={router}
               />
             </div>
           </div>
@@ -312,25 +344,109 @@ export default function HomePage() {
 }
 
 // =====================================
-function SidebarContent({ user, activeMenu, setActiveMenu }: { user: UserInfo; activeMenu: string; setActiveMenu: (m: string) => void }) {
-  // 향후: 사역/부서 정보를 DB에서 가져옴
-  // 지금은 임시로 사용자가 속한 목장만 표시
-  const myDepartments: { id: string; label: string }[] = [];
+type RouterType = ReturnType<typeof useRouter>;
+
+function SidebarContent({
+  user,
+  myDepartments,
+  activeMenu,
+  setActiveMenu,
+  router,
+}: {
+  user: UserInfo;
+  myDepartments: MyDepartment[];
+  activeMenu: string;
+  setActiveMenu: (m: string) => void;
+  router: RouterType;
+}) {
+  // 카테고리별 그룹핑 (승인된 것만)
+  const approvedDepts = myDepartments.filter((d) => d.status === "approved");
+  const pendingDepts = myDepartments.filter((d) => d.status === "pending");
+
+  const grouped: Record<string, MyDepartment[]> = {};
+  approvedDepts.forEach((d) => {
+    if (!grouped[d.category]) grouped[d.category] = [];
+    grouped[d.category].push(d);
+  });
 
   return (
     <>
       <div style={sidebarLabelStyle}>내 사역 · 부서</div>
-      {myDepartments.length === 0 ? (
+
+      {Object.keys(grouped).length === 0 ? (
         <div style={{ padding: "10px 12px", fontSize: 11, color: "#cbd5e1", fontStyle: "italic" }}>
           배정된 사역이 없습니다
         </div>
       ) : (
-        myDepartments.map(d => (
-          <SidebarItem key={d.id} active={activeMenu === d.id} onClick={() => setActiveMenu(d.id)}>
-            {d.label}
-          </SidebarItem>
+        Object.entries(grouped).map(([category, depts]) => (
+          <div key={category} style={{ marginBottom: 8 }}>
+            <div style={{
+              padding: "4px 12px",
+              fontSize: 10,
+              fontWeight: 700,
+              color: "#6366f1",
+              letterSpacing: 0.5,
+            }}>
+              📁 {category}
+            </div>
+            {depts.map((d) => (
+              <SidebarItem
+                key={d.id}
+                active={activeMenu === `dept-${d.department_id}`}
+                onClick={() => {
+                  setActiveMenu(`dept-${d.department_id}`);
+                  router.push(`/departments/d/${d.department_id}`);
+                }}
+              >
+                <span style={{ marginRight: 6 }}>{d.icon || "📁"}</span>
+                {d.name}
+              </SidebarItem>
+            ))}
+          </div>
         ))
       )}
+
+      {/* 승인 대기 표시 */}
+      {pendingDepts.length > 0 && (
+        <div style={{ marginTop: 4, marginBottom: 8 }}>
+          {pendingDepts.map((d) => (
+            <div key={d.id} style={{
+              padding: "6px 12px",
+              fontSize: 10,
+              color: "#92400e",
+              background: "#fef3c7",
+              borderRadius: 6,
+              marginBottom: 3,
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+            }}>
+              <span>⏳</span>
+              <span style={{ flex: 1 }}>{d.name}</span>
+              <span style={{ fontSize: 9, opacity: 0.7 }}>대기</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 가입 메뉴 링크 */}
+      <div
+        onClick={() => router.push("/departments")}
+        style={{
+          marginTop: 6,
+          padding: "10px 12px",
+          background: "linear-gradient(135deg, #eef2ff, #ede9fe)",
+          border: "1.5px dashed #c7d2fe",
+          borderRadius: 8,
+          fontSize: 11,
+          fontWeight: 700,
+          color: "#6366f1",
+          cursor: "pointer",
+          textAlign: "center",
+        }}
+      >
+        ➕ 사역 · 부서 가입
+      </div>
 
       {user.pasture_name && (
         <>
@@ -344,7 +460,7 @@ function SidebarContent({ user, activeMenu, setActiveMenu }: { user: UserInfo; a
 
       <div style={{ height: 1, background: "#e2e8f0", margin: "16px 0" }} />
       <div style={sidebarLabelStyle}>공통</div>
-      {COMMON_MENUS.slice(0, 6).map(menu => (
+      {COMMON_MENUS.slice(0, 6).map((menu) => (
         <SidebarItem key={menu.id} active={activeMenu === menu.id} onClick={() => setActiveMenu(menu.id)}>
           <span style={{ marginRight: 6 }}>{menu.icon}</span>
           {menu.label}
