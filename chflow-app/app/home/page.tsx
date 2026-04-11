@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getRoleImageByLabel } from "@/lib/roles";
 import NotificationBell from "@/components/NotificationBell";
+import PhotoAvatar from "@/components/PhotoAvatar";
 
 interface UserInfo {
   id: string;
@@ -58,6 +59,7 @@ export default function HomePage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState<UserInfo | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [myDepartments, setMyDepartments] = useState<MyDepartment[]>([]);
   const [activeMenu, setActiveMenu] = useState<string>("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -82,6 +84,12 @@ export default function HomePage() {
       // 내가 가입한 부서 로드
       const { data: depts } = await supabase.rpc("get_my_departments");
       if (depts) setMyDepartments(depts);
+
+      // 내 사진 (avatar_url 또는 member.photo_url)
+      const { data: photos } = await supabase.rpc("get_my_photos");
+      if (photos && photos[0]) {
+        setPhotoUrl(photos[0].avatar_url || photos[0].member_photo_url || null);
+      }
     })();
   }, [router]);
 
@@ -216,17 +224,53 @@ export default function HomePage() {
         alignItems: "center",
         gap: 16,
       }}>
-        <img
-          src={userImage}
-          alt={user.name}
-          style={{
-            width: 56, height: 56, borderRadius: "50%",
-            background: "#fff", padding: 2,
-            objectFit: "cover", objectPosition: "top",
-            border: "2px solid rgba(255,255,255,0.4)",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-          }}
-        />
+        {/* 사진 2개: 직분 아바타 + 요람 사진 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+          {/* 1. 직분 아바타 (PPT 캐릭터) */}
+          <div style={{ position: "relative" }}>
+            <img
+              src={userImage}
+              alt={user.sub_role || "직분"}
+              title="선택한 직분 아바타"
+              style={{
+                width: 64, height: 64, borderRadius: "50%",
+                background: "#fff", padding: 2,
+                objectFit: "cover", objectPosition: "top",
+                border: "2px solid rgba(255,255,255,0.4)",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              }}
+            />
+            <div style={{
+              position: "absolute", bottom: -2, right: -2,
+              background: "#fff", color: "#6366f1",
+              fontSize: 9, fontWeight: 800,
+              padding: "1px 6px", borderRadius: 8,
+              border: "1.5px solid #6366f1",
+              whiteSpace: "nowrap",
+            }}>직분</div>
+          </div>
+
+          {/* 2. 요람 사진 (실제 본인 사진) */}
+          <div style={{ position: "relative" }}>
+            <PhotoAvatar
+              userId={user.id}
+              photoUrl={photoUrl}
+              size={64}
+              label="요람 사진"
+              onUpdate={(url) => setPhotoUrl(url)}
+            />
+            <div style={{
+              position: "absolute", bottom: -2, left: -2,
+              background: "#fff", color: "#10b981",
+              fontSize: 9, fontWeight: 800,
+              padding: "1px 6px", borderRadius: 8,
+              border: "1.5px solid #10b981",
+              whiteSpace: "nowrap",
+              pointerEvents: "none",
+            }}>요람</div>
+          </div>
+        </div>
+
         <div style={{ flex: 1, color: "#fff", minWidth: 0 }}>
           <div className="welcome-text-full" style={{ fontSize: 18, fontWeight: 800 }}>
             <strong>{user.name}</strong>님 환영합니다! 🙏
