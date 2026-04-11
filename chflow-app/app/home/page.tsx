@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getRoleImageByLabel } from "@/lib/roles";
+import NotificationBell from "@/components/NotificationBell";
 
 interface UserInfo {
   id: string;
@@ -140,6 +141,8 @@ export default function HomePage() {
         </div>
 
         <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* 알림 종 */}
+          <NotificationBell userId={user.id} />
           {isAdmin && (
             <>
               <button
