@@ -63,6 +63,7 @@ export default function HomePage() {
   const [myDepartments, setMyDepartments] = useState<MyDepartment[]>([]);
   const [activeMenu, setActiveMenu] = useState<string>("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -92,6 +93,76 @@ export default function HomePage() {
       }
     })();
   }, [router]);
+
+  // === 뒤로가기 인터셉트 + 종료 확인 ===
+  useEffect(() => {
+    if (!authChecked) return;
+
+    // 현재 위치에 가짜 history state 추가 (뒤로가기 잡을 수 있게)
+    window.history.pushState({ home: true }, "", window.location.href);
+
+    const handlePopState = (e: PopStateEvent) => {
+      // 사이드바가 열려있으면 사이드바부터 닫음
+      if (sidebarOpen) {
+        setSidebarOpen(false);
+        window.history.pushState({ home: true }, "", window.location.href);
+        return;
+      }
+      // 종료 확인 모달 표시
+      setShowExitModal(true);
+      window.history.pushState({ home: true }, "", window.location.href);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [authChecked, sidebarOpen]);
+
+  // === 페이지 닫힘 시 자동 로그아웃 (로그인 유지 미체크) ===
+  useEffect(() => {
+    if (!authChecked) return;
+    const handleBeforeUnload = () => {
+      const remember = localStorage.getItem("smartms_remember_me");
+      if (remember !== "1") {
+        // 동기 sign out (sendBeacon 또는 supabase.auth.signOut() 비동기)
+        // localStorage에서 supabase 세션 토큰 제거
+        try {
+          const keys = Object.keys(localStorage);
+          keys.forEach((k) => {
+            if (k.startsWith("sb-") && k.includes("auth-token")) {
+              localStorage.removeItem(k);
+            }
+          });
+        } catch {}
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handleBeforeUnload);
+    };
+  }, [authChecked]);
+
+  const handleExitConfirm = async () => {
+    setShowExitModal(false);
+    const remember = typeof window !== "undefined" ? localStorage.getItem("smartms_remember_me") : null;
+    if (remember !== "1") {
+      // 로그인 유지 미체크 → 로그아웃
+      await supabase.auth.signOut();
+    }
+    // 종료 시도: window.close (TWA에선 작동), 안 되면 about:blank
+    try {
+      window.close();
+    } catch {}
+    // window.close 실패 시 (일반 브라우저) → 빈 페이지로
+    setTimeout(() => {
+      window.location.href = "about:blank";
+    }, 100);
+  };
+
+  const handleExitCancel = () => {
+    setShowExitModal(false);
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -396,6 +467,85 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* === 종료 확인 모달 === */}
+      {showExitModal && (
+        <div
+          onClick={handleExitCancel}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 300,
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 20,
+              padding: "32px 28px",
+              maxWidth: 360,
+              width: "100%",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: 56, marginBottom: 16 }}>👋</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#1e293b", marginBottom: 10 }}>
+              종료하시겠습니까?
+            </div>
+            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 24, lineHeight: 1.6 }}>
+              {typeof window !== "undefined" && localStorage.getItem("smartms_remember_me") === "1" ? (
+                <>다음에 앱을 열면<br /><strong>자동으로 로그인</strong>됩니다</>
+              ) : (
+                <>다음에 앱을 열면<br /><strong>로그인 화면</strong>으로 이동합니다</>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={handleExitCancel}
+                style={{
+                  flex: 1,
+                  padding: "14px",
+                  background: "#f1f5f9",
+                  color: "#475569",
+                  border: "none",
+                  borderRadius: 12,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                취소
+              </button>
+              <button
+                onClick={handleExitConfirm}
+                style={{
+                  flex: 1,
+                  padding: "14px",
+                  background: "linear-gradient(135deg, #ef4444, #dc2626)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 12,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  boxShadow: "0 6px 16px rgba(239, 68, 68, 0.3)",
+                }}
+              >
+                종료
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

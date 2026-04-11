@@ -97,6 +97,11 @@ function LoginContent() {
       return;
     }
 
+    // 로그인 유지 선택 저장
+    if (typeof window !== "undefined") {
+      localStorage.setItem("smartms_remember_me", remember ? "1" : "0");
+    }
+
     router.push("/home");
   };
 
