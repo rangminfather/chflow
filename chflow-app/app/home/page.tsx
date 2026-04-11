@@ -143,71 +143,28 @@ export default function HomePage() {
     };
   }, [authChecked]);
 
-  // === 페이지 닫힘 시 자동 로그아웃 (로그인 유지 미체크) ===
-  useEffect(() => {
-    if (!authChecked) return;
-    const handleBeforeUnload = () => {
-      const remember = localStorage.getItem("smartms_remember_me");
-      if (remember !== "1") {
-        // 동기 sign out (sendBeacon 또는 supabase.auth.signOut() 비동기)
-        // localStorage에서 supabase 세션 토큰 제거
-        try {
-          const keys = Object.keys(localStorage);
-          keys.forEach((k) => {
-            if (k.startsWith("sb-") && k.includes("auth-token")) {
-              localStorage.removeItem(k);
-            }
-          });
-        } catch {}
-      }
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    window.addEventListener("pagehide", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      window.removeEventListener("pagehide", handleBeforeUnload);
-    };
-  }, [authChecked]);
+  // 주의: beforeunload/pagehide에서 토큰 제거하면 페이지 이동 시 로그아웃됨 → 제거
+  // 종료는 명시적으로 handleExitConfirm에서만 처리
 
   const handleExitConfirm = async () => {
     setShowExitModal(false);
     const remember = typeof window !== "undefined" ? localStorage.getItem("smartms_remember_me") : null;
+
     if (remember !== "1") {
-      // 로그인 유지 미체크 → 로그아웃 (토큰 제거)
+      // 로그인 유지 미체크 → 로그아웃
       try {
         await supabase.auth.signOut();
       } catch {}
-      // 추가로 localStorage 직접 정리
-      try {
-        const keys = Object.keys(localStorage);
-        keys.forEach((k) => {
-          if (k.startsWith("sb-") && k.includes("auth-token")) {
-            localStorage.removeItem(k);
-          }
-        });
-      } catch {}
     }
+    // 로그인 유지 체크된 경우 → 토큰 그대로 유지 (다음 접속 시 자동 로그인)
 
-    // 종료 시도 - 여러 방법 시도
-    // 1. TWA/PWA standalone에서는 window.close()가 작동할 수 있음
+    // 종료: 모바일 PWA/브라우저는 about:blank로 이동 (창 닫기 효과)
+    // window.close()는 스크립트로 열린 창만 닫을 수 있어서 모바일에서 작동 안 함
     try {
-      window.close();
-    } catch {}
-
-    // 2. Android 뒤로가기와 동일하게 history 뒤로 (앱이 종료되거나 이전 페이지로)
-    setTimeout(() => {
-      try {
-        // 가짜 entry + 진짜 home + login 까지 모두 뒤로
-        window.history.go(-3);
-      } catch {}
-    }, 100);
-
-    // 3. 그래도 안 닫히면 about:blank
-    setTimeout(() => {
-      try {
-        window.location.replace("about:blank");
-      } catch {}
-    }, 300);
+      window.location.replace("about:blank");
+    } catch {
+      window.location.href = "about:blank";
+    }
   };
 
   const handleExitCancel = () => {
@@ -299,11 +256,11 @@ export default function HomePage() {
               </button>
               <button
                 onClick={() => router.push("/admin/dept-pending")}
-                title="부서 가입 승인"
+                title="사역 / 부서 관리"
                 style={adminBtnStyle("#fce7f3", "#9d174d")}
               >
                 <span>🏢</span>
-                <span className="admin-btn-label">부서승인</span>
+                <span className="admin-btn-label">사역·부서</span>
               </button>
               <button
                 onClick={() => router.push("/admin/members")}
