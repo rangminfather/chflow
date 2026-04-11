@@ -194,10 +194,17 @@ export default function HomePage() {
               </button>
             </>
           )}
-          <button onClick={handleLogout} title="로그아웃" style={{
-            width: 36, height: 36, borderRadius: 8, background: "#f1f5f9", border: "none",
-            cursor: "pointer", fontSize: 16, color: "#475569",
-          }}>⏏</button>
+          <button onClick={handleLogout} style={{
+            display: "flex", alignItems: "center", gap: 5,
+            padding: "8px 14px", borderRadius: 8,
+            background: "#fef2f2", border: "1.5px solid #fecaca",
+            color: "#b91c1c", cursor: "pointer",
+            fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+            whiteSpace: "nowrap",
+          }}>
+            <span>🚪</span>
+            <span>로그아웃</span>
+          </button>
         </div>
       </div>
 

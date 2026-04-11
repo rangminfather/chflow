@@ -42,13 +42,27 @@ function LoginContent() {
       return;
     }
 
+    // 1. 먼저 아이디가 DB에 존재하는지 확인 (check_username_available은 사용 가능 여부 = 없으면 true)
+    const { data: isAvailable } = await supabase.rpc("check_username_available", {
+      p_username: lowerUsername,
+    });
+
+    if (isAvailable === true) {
+      // username이 DB에 없음 → 등록되지 않은 아이디
+      setError("등록되지 않은 아이디입니다. 아이디를 다시 확인하세요.");
+      setLoading(false);
+      return;
+    }
+
+    // 2. 아이디는 존재함 → 로그인 시도
     const { data, error: authError } = await supabase.auth.signInWithPassword({
       email: usernameToEmail(lowerUsername),
       password,
     });
 
     if (authError) {
-      setError("아이디 또는 비밀번호가 올바르지 않습니다");
+      // 아이디는 있는데 로그인 실패 = 비밀번호 오류
+      setError("비밀번호가 일치하지 않습니다. 다시 입력해주세요.");
       setLoading(false);
       return;
     }
