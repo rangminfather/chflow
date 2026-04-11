@@ -308,6 +308,12 @@ export default function HomePage() {
               </div>
             </div>
 
+            {/* === 내 사역·부서 섹션 (노령자 배려 - 상단 잘 보이는 위치) === */}
+            <div style={{ marginBottom: 28 }}>
+              <SectionTitle icon="📁" title="내 사역 · 부서" subtitle="가입된 부서 / 사역" />
+              <MyDepartmentsSection myDepartments={myDepartments} router={router} />
+            </div>
+
             {/* 가정교회 섹션 */}
             {user.pasture_name && (
               <div style={{ marginBottom: 28 }}>
@@ -504,6 +510,156 @@ function SectionTitle({ icon, title, subtitle }: { icon: string; title: string; 
       {subtitle && (
         <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2, marginLeft: 28 }}>{subtitle}</div>
       )}
+    </div>
+  );
+}
+
+function MyDepartmentsSection({
+  myDepartments,
+  router,
+}: {
+  myDepartments: MyDepartment[];
+  router: RouterType;
+}) {
+  const approved = myDepartments.filter((d) => d.status === "approved");
+  const pending = myDepartments.filter((d) => d.status === "pending");
+
+  // 가입된 부서가 없는 경우 - 큰 안내 카드
+  if (approved.length === 0 && pending.length === 0) {
+    return (
+      <div
+        onClick={() => router.push("/departments")}
+        style={{
+          background: "linear-gradient(135deg, #fef3c7, #fde68a)",
+          border: "2px dashed #f59e0b",
+          borderRadius: 16,
+          padding: "32px 24px",
+          textAlign: "center",
+          cursor: "pointer",
+          transition: "all 0.2s",
+        }}
+        onMouseOver={(e) => {
+          e.currentTarget.style.transform = "translateY(-3px)";
+          e.currentTarget.style.boxShadow = "0 12px 24px rgba(245, 158, 11, 0.2)";
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "none";
+        }}
+      >
+        <div style={{ fontSize: 56, marginBottom: 12 }}>📭</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: "#92400e", marginBottom: 8 }}>
+          배정된 사역이 없습니다
+        </div>
+        <div style={{ fontSize: 13, color: "#a16207", marginBottom: 20, lineHeight: 1.6 }}>
+          관심 있는 사역·부서에 가입하시면<br />
+          여기에 표시됩니다
+        </div>
+        <button
+          style={{
+            padding: "14px 28px",
+            background: "linear-gradient(135deg, #f59e0b, #d97706)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 12,
+            fontSize: 15,
+            fontWeight: 800,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            boxShadow: "0 6px 16px rgba(245, 158, 11, 0.4)",
+          }}
+        >
+          ➕ 사역 · 부서 가입하기
+        </button>
+      </div>
+    );
+  }
+
+  // 가입된 부서가 있는 경우 - 카드 그리드
+  return (
+    <div>
+      <div className="menu-grid" style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+        gap: 12,
+        marginBottom: 12,
+      }}>
+        {approved.map((d) => (
+          <div
+            key={d.id}
+            onClick={() => router.push(`/departments/d/${d.department_id}`)}
+            style={{
+              background: "#fff",
+              border: "2px solid #c7d2fe",
+              borderRadius: 14,
+              padding: "18px 16px",
+              cursor: "pointer",
+              transition: "all 0.2s",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = "#6366f1";
+              e.currentTarget.style.transform = "translateY(-3px)";
+              e.currentTarget.style.boxShadow = "0 12px 24px rgba(99, 102, 241, 0.2)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = "#c7d2fe";
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
+            }}
+          >
+            <div style={{ fontSize: 32, marginBottom: 8 }}>{d.icon || "📁"}</div>
+            <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>{d.category}</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b" }}>{d.name}</div>
+          </div>
+        ))}
+      </div>
+
+      {pending.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          {pending.map((d) => (
+            <div
+              key={d.id}
+              style={{
+                padding: "12px 16px",
+                background: "#fef3c7",
+                border: "1px solid #fcd34d",
+                borderRadius: 10,
+                fontSize: 12,
+                color: "#92400e",
+                marginBottom: 6,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <span style={{ fontSize: 18 }}>⏳</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700 }}>{d.category} / {d.name}</div>
+                <div style={{ fontSize: 10, opacity: 0.8 }}>관리자 승인 대기 중</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        onClick={() => router.push("/departments")}
+        style={{
+          width: "100%",
+          padding: "12px",
+          background: "linear-gradient(135deg, #eef2ff, #ede9fe)",
+          border: "1.5px dashed #c7d2fe",
+          borderRadius: 10,
+          fontSize: 13,
+          fontWeight: 700,
+          color: "#6366f1",
+          cursor: "pointer",
+          fontFamily: "inherit",
+        }}
+      >
+        ➕ 다른 사역 · 부서 가입하기
+      </button>
     </div>
   );
 }
