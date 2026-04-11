@@ -103,6 +103,9 @@ export default function HomePage() {
   const showExitModalRef = useRef(showExitModal);
   useEffect(() => { showExitModalRef.current = showExitModal; }, [showExitModal]);
 
+  // 종료 확정 시 popstate가 계속 뒤로 이동하도록 하는 플래그
+  const exitingRef = useRef(false);
+
   // popstate 인터셉트 - authChecked 후 한 번만 등록
   const popstateInitialized = useRef(false);
   useEffect(() => {
@@ -120,6 +123,11 @@ export default function HomePage() {
     }
 
     const handlePopState = () => {
+      // 종료 확정 상태: 아무것도 하지 않음 (fake entry 재push 금지)
+      // 실제 종료는 handleExitConfirm의 window.close()가 담당
+      if (exitingRef.current) {
+        return;
+      }
       // 사이드바 열려있으면 사이드바부터 닫음
       if (sidebarOpenRef.current) {
         setSidebarOpen(false);
@@ -158,13 +166,10 @@ export default function HomePage() {
     }
     // 로그인 유지 체크된 경우 → 토큰 그대로 유지 (다음 접속 시 자동 로그인)
 
-    // 종료: 모바일 PWA/브라우저는 about:blank로 이동 (창 닫기 효과)
-    // window.close()는 스크립트로 열린 창만 닫을 수 있어서 모바일에서 작동 안 함
-    try {
-      window.location.replace("about:blank");
-    } catch {
-      window.location.href = "about:blank";
-    }
+    // 종료: TWA(Chrome Custom Tab 기반)에서는 window.close()가 실제로 Activity를 종료시킴
+    // popstate 재진입 방지용 플래그 설정
+    exitingRef.current = true;
+    window.close();
   };
 
   const handleExitCancel = () => {
