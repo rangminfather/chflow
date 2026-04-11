@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Noto Sans KR', -apple-system, sans-serif;
+}
+
+/* 비밀번호 입력 점(•)이 잘 보이도록 강제 */
+input[type="password"] {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+  font-weight: 700 !important;
+  letter-spacing: 2px !important;
+  font-size: 16px !important;
+  caret-color: #6366f1 !important;
+}
+
+/* 일반 텍스트 입력도 진하게 */
+input[type="text"],
+input[type="tel"],
+input[type="email"] {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+/* 자동완성 시 배경색 흰색 유지 */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #0f172a !important;
+  -webkit-box-shadow: 0 0 0 30px white inset !important;
+  font-weight: 600 !important;
+}
+
+/* placeholder는 회색으로 */
+input::placeholder {
+  color: #94a3b8 !important;
+  font-weight: 400 !important;
+  letter-spacing: normal !important;
+  -webkit-text-fill-color: #94a3b8 !important;
+}

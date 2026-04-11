@@ -1,0 +1,17 @@
+{
+  "name": "스마트명성 - 교회 통합 관리",
+  "short_name": "스마트명성",
+  "description": "스마트명성 - 교회 통합 관리 시스템",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f1f5f9",
+  "theme_color": "#6366f1",
+  "lang": "ko",
+  "icons": [
+    { "src": "/icon-96.png", "sizes": "96x96", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

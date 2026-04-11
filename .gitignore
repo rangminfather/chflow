@@ -1,0 +1,101 @@
+# =============================================================
+# 환경 변수 / 시크릿 (절대 commit 금지)
+# =============================================================
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+*.p8
+*.p12
+*.pem
+secrets/
+.vercel/
+
+# =============================================================
+# 의존성 / 빌드 산출물
+# =============================================================
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+.cache/
+
+# Android / Gradle
+chflow-twa/android/.gradle/
+chflow-twa/android/build/
+chflow-twa/android/app/build/
+chflow-twa/android/local.properties
+chflow-twa/android/captures/
+chflow-twa/*.apk
+chflow-twa/*.aab
+chflow-twa/twa-manifest.json
+chflow-twa/android/gradle/wrapper/gradle-wrapper.jar
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# =============================================================
+# Supabase
+# =============================================================
+**/supabase/.branches/
+**/supabase/.temp/
+**/supabase/.env
+
+# =============================================================
+# 개인정보가 포함된 파일 (절대 commit 금지)
+# =============================================================
+MS_AX/parsed-data/
+MS_AX/db-pdf-images/
+MS_AX/pptx-images/
+MS_AX/backup/
+MS_AX/raw_data*.json
+MS_AX/raw_data_v3.json
+MS_AX/photo-test/
+MS_AX/*.xlsx
+MS_AX/*.pptx
+**/Gemini_Generated_Image_*.png
+**/KakaoTalk_*.png
+**/image_*.png
+**/*.xlsx
+**/*.xls
+chflow-app/public/roles/
+chflow-app/public/photos/
+
+# 원본 자료 (PDF, 한글 파일 등 - 개인정보)
+자료/
+*.hwp
+*.hwpx
+*.docx
+
+# 루트의 잡다한 자료
+chflow_요구정의서_*.pdf
+교회_통합관리시스템_*.pdf
+구상도*.png
+구성화면.*
+스크린샷*.png
+image001.bmp
+ms_edu_check_sql.txt
+철도*.pdf
+
+# =============================================================
+# IDE / OS
+# =============================================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# 로그
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

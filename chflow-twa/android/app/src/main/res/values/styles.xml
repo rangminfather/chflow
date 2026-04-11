@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.SmartMyungsung" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#6366f1</item>
+        <item name="android:navigationBarColor">#1e293b</item>
+    </style>
+    <style name="Theme.SmartMyungsung.Splash" parent="Theme.SmartMyungsung">
+        <item name="android:windowBackground">#f1f5f9</item>
+    </style>
+</resources>

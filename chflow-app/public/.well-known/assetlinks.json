@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.smartmyungsung.app",
+    "sha256_cert_fingerprints": [
+      "07:49:3D:76:A8:A0:57:44:A9:BD:73:DB:57:B9:A7:66:BD:62:03:74:26:74:87:BD:4A:11:CB:A0:9C:9A:37:3D"
+    ]
+  }
+}]

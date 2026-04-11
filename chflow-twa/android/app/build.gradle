@@ -1,0 +1,61 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.smartmyungsung.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.smartmyungsung.app"
+        minSdk 21
+        targetSdk 34
+        versionCode 2
+        versionName "1.0.1"
+
+        manifestPlaceholders = [
+            hostName: "chflow-app.vercel.app",
+            defaultUrl: "https://chflow-app.vercel.app",
+            launcherName: "스마트명성",
+            assetStatements: '[{"relation": ["delegate_permission/common.handle_all_urls"],' +
+                '"target": {"namespace": "android_app",' +
+                '"package_name": "com.smartmyungsung.app",' +
+                '"sha256_cert_fingerprints": ["07:49:3D:76:A8:A0:57:44:A9:BD:73:DB:57:B9:A7:66:BD:62:03:74:26:74:87:BD:4A:11:CB:A0:9C:9A:37:3D"]}}]'
+        ]
+    }
+
+    signingConfigs {
+        release {
+            // 키스토어와 비밀번호는 환경변수로 관리
+            // 빌드 전 다음 환경변수 설정 필요:
+            //   KEYSTORE_PATH, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
+            def ksPath = System.getenv("KEYSTORE_PATH") ?: "../../smart-myungsung.keystore"
+            def ksPwd = System.getenv("KEYSTORE_PASSWORD") ?: ""
+            def kAlias = System.getenv("KEY_ALIAS") ?: "smart-myungsung"
+            def kPwd = System.getenv("KEY_PASSWORD") ?: ""
+            if (file(ksPath).exists() && !ksPwd.isEmpty()) {
+                storeFile file(ksPath)
+                storePassword ksPwd
+                keyAlias kAlias
+                keyPassword kPwd
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.browser:browser:1.8.0'
+}
