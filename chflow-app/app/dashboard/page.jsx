@@ -1192,12 +1192,20 @@ export default function App() {
               </div>
             </div>
             {currentUser && ['admin','office','pastor'].includes(currentUser.role) && (
-              <button onClick={() => router.push('/admin/members')} title="회원 관리" style={{
-                width: 32, height: 32, borderRadius: 8, background: "#eef2ff", border: "none",
-                cursor: "pointer", fontSize: 14, color: "#6366f1", display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                👥
-              </button>
+              <>
+                <button onClick={() => router.push('/admin/pending')} title="가입 대기자" style={{
+                  width: 32, height: 32, borderRadius: 8, background: "#fef3c7", border: "none",
+                  cursor: "pointer", fontSize: 14, color: "#92400e", display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  ⏳
+                </button>
+                <button onClick={() => router.push('/admin/members')} title="회원 관리" style={{
+                  width: 32, height: 32, borderRadius: 8, background: "#eef2ff", border: "none",
+                  cursor: "pointer", fontSize: 14, color: "#6366f1", display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  👥
+                </button>
+              </>
             )}
             <button onClick={handleLogout} title="로그아웃" style={{
               width: 32, height: 32, borderRadius: 8, background: "#f1f5f9", border: "none",

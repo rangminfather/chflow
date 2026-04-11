@@ -105,10 +105,16 @@ export default function AdminMembersPage() {
             <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>회원 관리</div>
             <div style={{ fontSize: 11, color: "#94a3b8" }}>명성교회 성도 데이터베이스</div>
           </div>
-          <button onClick={() => router.push("/dashboard")} style={{
-            padding: "8px 14px", background: "#f1f5f9", border: "none",
-            borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit",
-          }}>← 대시보드</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => router.push("/admin/pending")} style={{
+              padding: "8px 14px", background: "#fef3c7", color: "#92400e", border: "none",
+              borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}>⏳ 가입 대기자</button>
+            <button onClick={() => router.push("/dashboard")} style={{
+              padding: "8px 14px", background: "#f1f5f9", border: "none",
+              borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit",
+            }}>← 대시보드</button>
+          </div>
         </div>
 
         {/* Search Bar */}
