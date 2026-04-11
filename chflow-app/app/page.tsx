@@ -28,13 +28,14 @@ export default function SplashPage() {
           supabase.rpc("get_my_status").then(({ data }) => {
             const profile = data?.[0];
             if (profile?.status === "active") {
-              router.replace("/home");
+              // replace 대신 push로 history entry 보존 (뒤로가기 인터셉트용)
+              router.push("/home");
             } else {
-              router.replace("/login?notice=pending");
+              router.push("/login?notice=pending");
             }
           });
         } else {
-          router.replace("/login");
+          router.push("/login");
         }
       }, 500);
     }, 3000);

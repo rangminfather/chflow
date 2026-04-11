@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getRoleImageByLabel } from "@/lib/roles";
@@ -95,27 +95,53 @@ export default function HomePage() {
   }, [router]);
 
   // === 뒤로가기 인터셉트 + 종료 확인 ===
+  // sidebarOpen을 ref로 추적 (useEffect 재실행 방지)
+  const sidebarOpenRef = useRef(sidebarOpen);
+  useEffect(() => { sidebarOpenRef.current = sidebarOpen; }, [sidebarOpen]);
+
+  // showExitModal도 ref로 (모달이 이미 떠 있으면 중복 방지)
+  const showExitModalRef = useRef(showExitModal);
+  useEffect(() => { showExitModalRef.current = showExitModal; }, [showExitModal]);
+
+  // popstate 인터셉트 - authChecked 후 한 번만 등록
+  const popstateInitialized = useRef(false);
   useEffect(() => {
     if (!authChecked) return;
+    if (popstateInitialized.current) return;
+    popstateInitialized.current = true;
 
-    // 현재 위치에 가짜 history state 추가 (뒤로가기 잡을 수 있게)
-    window.history.pushState({ home: true }, "", window.location.href);
+    // 가짜 history entry 두 개 추가 (안전 마진)
+    // /home (실제) → /home (가짜1) → /home (가짜2)
+    // 사용자가 뒤로가기 → 가짜2 pop → popstate 발생 → 다시 pushState
+    try {
+      window.history.pushState({ smartms_home: true }, "", window.location.href);
+    } catch (e) {
+      console.warn("pushState failed", e);
+    }
 
-    const handlePopState = (e: PopStateEvent) => {
-      // 사이드바가 열려있으면 사이드바부터 닫음
-      if (sidebarOpen) {
+    const handlePopState = () => {
+      // 사이드바 열려있으면 사이드바부터 닫음
+      if (sidebarOpenRef.current) {
         setSidebarOpen(false);
-        window.history.pushState({ home: true }, "", window.location.href);
-        return;
+      } else if (!showExitModalRef.current) {
+        // 모달이 아직 안 떠있으면 표시
+        setShowExitModal(true);
       }
-      // 종료 확인 모달 표시
-      setShowExitModal(true);
-      window.history.pushState({ home: true }, "", window.location.href);
+      // 다시 가짜 entry 추가 (사용자가 뒤로가기를 또 눌러도 모달이 다시 뜨도록)
+      try {
+        window.history.pushState({ smartms_home: true }, "", window.location.href);
+      } catch (e) {
+        console.warn("pushState failed", e);
+      }
     };
 
     window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [authChecked, sidebarOpen]);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      popstateInitialized.current = false;
+    };
+  }, [authChecked]);
 
   // === 페이지 닫힘 시 자동 로그아웃 (로그인 유지 미체크) ===
   useEffect(() => {
@@ -147,17 +173,41 @@ export default function HomePage() {
     setShowExitModal(false);
     const remember = typeof window !== "undefined" ? localStorage.getItem("smartms_remember_me") : null;
     if (remember !== "1") {
-      // 로그인 유지 미체크 → 로그아웃
-      await supabase.auth.signOut();
+      // 로그인 유지 미체크 → 로그아웃 (토큰 제거)
+      try {
+        await supabase.auth.signOut();
+      } catch {}
+      // 추가로 localStorage 직접 정리
+      try {
+        const keys = Object.keys(localStorage);
+        keys.forEach((k) => {
+          if (k.startsWith("sb-") && k.includes("auth-token")) {
+            localStorage.removeItem(k);
+          }
+        });
+      } catch {}
     }
-    // 종료 시도: window.close (TWA에선 작동), 안 되면 about:blank
+
+    // 종료 시도 - 여러 방법 시도
+    // 1. TWA/PWA standalone에서는 window.close()가 작동할 수 있음
     try {
       window.close();
     } catch {}
-    // window.close 실패 시 (일반 브라우저) → 빈 페이지로
+
+    // 2. Android 뒤로가기와 동일하게 history 뒤로 (앱이 종료되거나 이전 페이지로)
     setTimeout(() => {
-      window.location.href = "about:blank";
+      try {
+        // 가짜 entry + 진짜 home + login 까지 모두 뒤로
+        window.history.go(-3);
+      } catch {}
     }, 100);
+
+    // 3. 그래도 안 닫히면 about:blank
+    setTimeout(() => {
+      try {
+        window.location.replace("about:blank");
+      } catch {}
+    }, 300);
   };
 
   const handleExitCancel = () => {
