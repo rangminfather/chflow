@@ -65,7 +65,6 @@ MS_AX/*.pptx
 **/image_*.png
 **/*.xlsx
 **/*.xls
-chflow-app/public/roles/
 chflow-app/public/photos/
 
 # 원본 자료 (PDF, 한글 파일 등 - 개인정보)

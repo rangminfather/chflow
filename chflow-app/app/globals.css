@@ -52,3 +52,50 @@ input::placeholder {
   letter-spacing: normal !important;
   -webkit-text-fill-color: #94a3b8 !important;
 }
+
+/* ========================================
+   토스트 알림 컨테이너 (NotificationBell)
+   ======================================== */
+@media (max-width: 768px) {
+  .toast-container-pc {
+    display: none !important;
+  }
+  .toast-container-mobile {
+    display: flex !important;
+  }
+  .notif-dropdown {
+    position: fixed !important;
+    top: 60px !important;
+    right: 12px !important;
+    left: 12px !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+}
+@media (min-width: 769px) {
+  .toast-container-mobile {
+    display: none !important;
+  }
+}
+
+/* 토스트 애니메이션 */
+@keyframes toastSlideInRight {
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes toastSlideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

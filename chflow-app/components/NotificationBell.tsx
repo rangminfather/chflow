@@ -305,29 +305,6 @@ export default function NotificationBell({ userId }: { userId: string }) {
         ))}
       </div>
 
-      <style jsx>{`
-        @media (max-width: 768px) {
-          .toast-container-pc {
-            display: none !important;
-          }
-          .toast-container-mobile {
-            display: flex !important;
-          }
-          .notif-dropdown {
-            position: fixed !important;
-            top: 60px !important;
-            right: 12px !important;
-            left: 12px !important;
-            width: auto !important;
-            max-width: none !important;
-          }
-        }
-        @media (min-width: 769px) {
-          .toast-container-mobile {
-            display: none !important;
-          }
-        }
-      `}</style>
     </>
   );
 }
@@ -358,7 +335,7 @@ function ToastCard({
         display: "flex",
         gap: 12,
         alignItems: "flex-start",
-        animation: mobile ? "slideDown 0.4s ease" : "slideInRight 0.4s ease",
+        animation: mobile ? "toastSlideDown 0.4s ease" : "toastSlideInRight 0.4s ease",
         marginBottom: mobile ? 0 : 8,
         borderBottom: mobile ? "1px solid rgba(255,255,255,0.2)" : "none",
       }}
@@ -397,29 +374,6 @@ function ToastCard({
       >
         ✕
       </button>
-
-      <style jsx>{`
-        @keyframes slideInRight {
-          from {
-            transform: translateX(120%);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
-        @keyframes slideDown {
-          from {
-            transform: translateY(-100%);
-            opacity: 0;
-          }
-          to {
-            transform: translateY(0);
-            opacity: 1;
-          }
-        }
-      `}</style>
     </div>
   );
 }
@@ -456,7 +410,11 @@ const mobileToastContainerStyle: React.CSSProperties = {
   left: 0,
   right: 0,
   zIndex: 100,
-  display: "none",
+  display: "none",  // 기본 none, 모바일 미디어쿼리로 flex
   flexDirection: "column",
   pointerEvents: "auto",
 };
+
+// 주의: display는 globals.css의 미디어 쿼리에서 제어함
+// PC: .toast-container-pc display:flex (기본), .toast-container-mobile display:none
+// Mobile: .toast-container-pc display:none !important, .toast-container-mobile display:flex !important
