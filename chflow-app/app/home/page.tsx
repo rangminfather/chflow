@@ -545,16 +545,12 @@ export default function HomePage() {
               textAlign: "center",
             }}
           >
-            <div style={{ fontSize: 56, marginBottom: 16 }}>👋</div>
+            <div style={{ fontSize: 56, marginBottom: 16 }}>🙏</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: "#1e293b", marginBottom: 10 }}>
               종료하시겠습니까?
             </div>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 24, lineHeight: 1.6 }}>
-              {typeof window !== "undefined" && localStorage.getItem("smartms_remember_me") === "1" ? (
-                <>다음에 앱을 열면<br /><strong>자동으로 로그인</strong>됩니다</>
-              ) : (
-                <>다음에 앱을 열면<br /><strong>로그인 화면</strong>으로 이동합니다</>
-              )}
+            <div style={{ fontSize: 13, color: "#64748b", marginBottom: 24, lineHeight: 1.7 }}>
+              오늘 하루도 주 안에서<br />평안하세요
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button

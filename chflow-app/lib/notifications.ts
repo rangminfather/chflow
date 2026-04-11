@@ -50,8 +50,20 @@ export function setAppBadge(count: number): void {
   try {
     if (count > 0) {
       nav.setAppBadge?.(count);
+      // Service Worker에도 알림 (Service Worker가 더 안정적)
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "SET_BADGE",
+          count: count,
+        });
+      }
     } else {
       nav.clearAppBadge?.();
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "CLEAR_BADGE",
+        });
+      }
     }
   } catch {
     // Badging API not supported
@@ -63,5 +75,26 @@ export function clearAppBadge(): void {
   const nav = navigator as BadgeNavigator;
   try {
     nav.clearAppBadge?.();
+    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: "CLEAR_BADGE",
+      });
+    }
   } catch {}
+}
+
+// 사용자에게 알림 권한 요청 (PWA 배지에 도움)
+export async function requestNotificationPermission(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  if (!("Notification" in window)) return false;
+
+  if (Notification.permission === "granted") return true;
+  if (Notification.permission === "denied") return false;
+
+  try {
+    const result = await Notification.requestPermission();
+    return result === "granted";
+  } catch {
+    return false;
+  }
 }

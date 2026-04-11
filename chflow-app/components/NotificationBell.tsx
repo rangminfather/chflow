@@ -35,10 +35,11 @@ export default function NotificationBell({ userId }: { userId: string }) {
     refresh();
   }, []);
 
-  // Realtime 구독
+  // === Realtime 구독 (즉시) + 폴링 백업 (10초마다) ===
   useEffect(() => {
     if (!userId) return;
 
+    // 1. Realtime
     const channel = supabase
       .channel(`notif:${userId}`)
       .on(
@@ -51,28 +52,58 @@ export default function NotificationBell({ userId }: { userId: string }) {
         },
         (payload) => {
           const newNotif = payload.new as Notification & { user_id: string };
-          // 새 알림 → 토스트 표시 + 카운트 증가
-          showToast({
-            id: newNotif.id,
-            title: newNotif.title,
-            body: newNotif.body || "",
-            type: newNotif.type,
-            createdAt: Date.now(),
-          });
-          setNotifications((prev) => [newNotif, ...prev]);
-          setUnreadCount((c) => {
-            const next = c + 1;
-            setAppBadge(next);
-            return next;
-          });
+          handleNewNotification(newNotif);
         }
       )
       .subscribe();
 
+    // 2. 폴링 백업 (10초마다 새 알림 확인 - Realtime이 안 작동할 때 대비)
+    const pollInterval = setInterval(async () => {
+      try {
+        const list = await fetchNotifications(30);
+        const newCount = await getUnreadCount();
+        // 새 알림 감지: 기존에 보지 못한 ID
+        const newNotifs = list.filter((n) => !seenIdsRef.current.has(n.id) && !n.is_read);
+        for (const n of newNotifs) {
+          handleNewNotification(n);
+        }
+        // 카운트와 목록 업데이트
+        setNotifications(list);
+        setUnreadCount(newCount);
+        setAppBadge(newCount);
+      } catch (e) {
+        // ignore
+      }
+    }, 10000);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
   }, [userId]);
+
+  const handleNewNotification = (n: Notification) => {
+    if (seenIdsRef.current.has(n.id)) return;
+
+    showToast({
+      id: n.id,
+      title: n.title,
+      body: n.body || "",
+      type: n.type,
+      createdAt: Date.now(),
+    });
+
+    setNotifications((prev) => {
+      // 중복 방지
+      if (prev.find((p) => p.id === n.id)) return prev;
+      return [n, ...prev];
+    });
+    setUnreadCount((c) => {
+      const next = c + 1;
+      setAppBadge(next);
+      return next;
+    });
+  };
 
   const refresh = async () => {
     const [list, count] = await Promise.all([fetchNotifications(30), getUnreadCount()]);
