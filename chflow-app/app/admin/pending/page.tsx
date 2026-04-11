@@ -36,7 +36,7 @@ export default function AdminPendingPage() {
       const { data } = await supabase.rpc("get_my_status");
       const profile = data?.[0];
       if (!profile || !["admin", "office", "pastor"].includes(profile.role)) {
-        router.replace("/dashboard");
+        router.replace("/home");
         return;
       }
       setAuthChecked(true);
@@ -112,10 +112,10 @@ export default function AdminPendingPage() {
               padding: "8px 14px", background: "#eef2ff", color: "#6366f1", border: "none",
               borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
             }}>회원 관리</button>
-            <button onClick={() => router.push("/dashboard")} style={{
+            <button onClick={() => router.push("/home")} style={{
               padding: "8px 14px", background: "#f1f5f9", border: "none",
               borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit",
-            }}>← 대시보드</button>
+            }}>← 홈</button>
           </div>
         </div>
 

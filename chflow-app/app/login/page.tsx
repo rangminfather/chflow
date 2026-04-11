@@ -83,7 +83,7 @@ function LoginContent() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push("/home");
   };
 
   return (

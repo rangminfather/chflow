@@ -28,7 +28,7 @@ export default function SplashPage() {
           supabase.rpc("get_my_status").then(({ data }) => {
             const profile = data?.[0];
             if (profile?.status === "active") {
-              router.replace("/dashboard");
+              router.replace("/home");
             } else {
               router.replace("/login?notice=pending");
             }

@@ -41,7 +41,7 @@ export default function AdminMembersPage() {
       const { data } = await supabase.rpc("get_my_status");
       const profile = data?.[0];
       if (!profile || !["admin", "office", "pastor"].includes(profile.role)) {
-        router.replace("/dashboard");
+        router.replace("/home");
         return;
       }
       setAuthChecked(true);
@@ -110,10 +110,10 @@ export default function AdminMembersPage() {
               padding: "8px 14px", background: "#fef3c7", color: "#92400e", border: "none",
               borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
             }}>⏳ 가입 대기자</button>
-            <button onClick={() => router.push("/dashboard")} style={{
+            <button onClick={() => router.push("/home")} style={{
               padding: "8px 14px", background: "#f1f5f9", border: "none",
               borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit",
-            }}>← 대시보드</button>
+            }}>← 홈</button>
           </div>
         </div>
 
