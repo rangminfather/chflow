@@ -64,6 +64,7 @@ export default function HomePage() {
   const [activeMenu, setActiveMenu] = useState<string>("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
+  const [showExitToast, setShowExitToast] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -123,8 +124,8 @@ export default function HomePage() {
     }
 
     const handlePopState = () => {
-      // 종료 확정 상태: 아무것도 하지 않음 (fake entry 재push 금지)
-      // 실제 종료는 handleExitConfirm의 window.close()가 담당
+      // 종료 확정 상태: fake entry 재push 금지 → webview 첫 entry(/home)에 도달
+      // → 다음 물리 뒤로가기에서 Chrome이 canGoBack=false 감지하고 TWA Activity 종료
       if (exitingRef.current) {
         return;
       }
@@ -154,22 +155,30 @@ export default function HomePage() {
   // 주의: beforeunload/pagehide에서 토큰 제거하면 페이지 이동 시 로그아웃됨 → 제거
   // 종료는 명시적으로 handleExitConfirm에서만 처리
 
-  const handleExitConfirm = async () => {
+  const handleExitConfirm = () => {
+    // 중요: 이 함수는 반드시 동기 실행되어야 함
+    // (await가 끼면 user activation이 끊겨 window.close() 등 일부 API가 막힘)
     setShowExitModal(false);
-    const remember = typeof window !== "undefined" ? localStorage.getItem("smartms_remember_me") : null;
+    exitingRef.current = true;
 
+    // 로그아웃: supabase.auth.signOut() 대신 localStorage 직접 정리 (동기)
+    const remember = typeof window !== "undefined" ? localStorage.getItem("smartms_remember_me") : null;
     if (remember !== "1") {
-      // 로그인 유지 미체크 → 로그아웃
       try {
-        await supabase.auth.signOut();
+        Object.keys(localStorage).forEach((k) => {
+          if (k.startsWith("sb-")) localStorage.removeItem(k);
+        });
       } catch {}
     }
-    // 로그인 유지 체크된 경우 → 토큰 그대로 유지 (다음 접속 시 자동 로그인)
 
-    // 종료: TWA(Chrome Custom Tab 기반)에서는 window.close()가 실제로 Activity를 종료시킴
-    // popstate 재진입 방지용 플래그 설정
-    exitingRef.current = true;
-    window.close();
+    // 가짜 history entry pop → 현재 webview 위치가 /home(첫 entry)이 됨
+    // 사용자가 물리 뒤로가기 버튼을 한 번 누르면 canGoBack=false → TWA Activity 종료
+    try {
+      window.history.back();
+    } catch {}
+
+    // 안내 토스트 표시
+    setShowExitToast(true);
   };
 
   const handleExitCancel = () => {
@@ -552,6 +561,30 @@ export default function HomePage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* === 종료 안내 토스트 (뒤로가기 한 번 더 요청) === */}
+      {showExitToast && (
+        <div
+          style={{
+            position: "fixed",
+            left: "50%",
+            bottom: 80,
+            transform: "translateX(-50%)",
+            background: "rgba(15, 23, 42, 0.92)",
+            color: "#fff",
+            padding: "14px 22px",
+            borderRadius: 999,
+            fontSize: 14,
+            fontWeight: 600,
+            boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+            zIndex: 400,
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+          }}
+        >
+          뒤로가기 버튼을 한 번 더 누르시면 종료됩니다
         </div>
       )}
     </div>

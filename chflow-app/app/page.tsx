@@ -28,14 +28,15 @@ export default function SplashPage() {
           supabase.rpc("get_my_status").then(({ data }) => {
             const profile = data?.[0];
             if (profile?.status === "active") {
-              // replace 대신 push로 history entry 보존 (뒤로가기 인터셉트용)
-              router.push("/home");
+              // /home을 webview 첫 entry로 만들기 위해 replace 사용
+              // (뒤로가기 종료 시 canGoBack=false → TWA Activity 종료)
+              router.replace("/home");
             } else {
-              router.push("/login?notice=pending");
+              router.replace("/login?notice=pending");
             }
           });
         } else {
-          router.push("/login");
+          router.replace("/login");
         }
       }, 500);
     }, 3000);

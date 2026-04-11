@@ -102,7 +102,8 @@ function LoginContent() {
       localStorage.setItem("smartms_remember_me", remember ? "1" : "0");
     }
 
-    router.push("/home");
+    // replace 사용: /home이 webview 첫 entry가 되어야 종료 시 TWA Activity가 닫힘
+    router.replace("/home");
   };
 
   return (
