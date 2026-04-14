@@ -10,8 +10,8 @@ android {
         applicationId "com.smartmyungsung.app"
         minSdk 21
         targetSdk 34
-        versionCode 2
-        versionName "1.0.1"
+        versionCode 3
+        versionName "1.0.2"
 
         manifestPlaceholders = [
             hostName: "chflow-app.vercel.app",
@@ -20,7 +20,7 @@ android {
             assetStatements: '[{"relation": ["delegate_permission/common.handle_all_urls"],' +
                 '"target": {"namespace": "android_app",' +
                 '"package_name": "com.smartmyungsung.app",' +
-                '"sha256_cert_fingerprints": ["07:49:3D:76:A8:A0:57:44:A9:BD:73:DB:57:B9:A7:66:BD:62:03:74:26:74:87:BD:4A:11:CB:A0:9C:9A:37:3D"]}}]'
+                '"sha256_cert_fingerprints": ["58:BA:4F:CB:E6:84:27:08:F9:F6:D5:7E:58:B3:60:0B:43:D4:99:8D:03:40:12:F1:5E:52:6D:03:CA:1F:46:4C"]}}]'
         ]
     }
 
@@ -45,8 +45,9 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
-            minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            // R8/ProGuard 비활성화: 커스텀 LauncherActivity가 androidx.browser.trusted.*
+            // 클래스를 직접 사용하는데 keep 규칙이 없어 1.0.1에서 런치 직후 크래시 발생함.
+            minifyEnabled false
         }
     }
 
