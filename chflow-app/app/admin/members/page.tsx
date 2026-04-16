@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import MemberCardModal from "@/components/MemberCardModal";
@@ -41,7 +41,15 @@ interface Household {
 
 const PAGE_SIZE = 50;
 
-export default function AdminMembersPage() {
+export default function AdminMembersPageWrapper() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9" }}>로딩 중...</div>}>
+      <AdminMembersPage />
+    </Suspense>
+  );
+}
+
+function AdminMembersPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [authChecked, setAuthChecked] = useState(false);

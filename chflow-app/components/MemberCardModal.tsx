@@ -39,6 +39,8 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   const [edit, setEdit] = useState<any>({});
   const [uploading, setUploading] = useState(false);
   const [showRelAdd, setShowRelAdd] = useState(false);
+  const [showParents, setShowParents] = useState(false);   // 부모보기 (기본 off)
+  const [showChildren, setShowChildren] = useState(true);  // 자녀보기 (기본 on)
   const fileRef = useRef<HTMLInputElement>(null);
 
   const navigateTo = async (targetId: string, candidateName?: string, isChildDummy?: boolean) => {
@@ -226,7 +228,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" }}>
             {editing ? (
               <>
                 <button onClick={() => { setEdit(m); setEditing(false); }} style={btnGhost}>취소</button>
@@ -235,6 +237,15 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
             ) : (
               <button onClick={() => setEditing(true)} style={btnPrimary}>✏️ 정보 수정</button>
             )}
+            <div style={{ flex: 1 }} />
+            <label style={toggleStyle}>
+              <input type="checkbox" checked={showParents} onChange={(e) => setShowParents(e.target.checked)} />
+              👴 부모보기
+            </label>
+            <label style={toggleStyle}>
+              <input type="checkbox" checked={showChildren} onChange={(e) => setShowChildren(e.target.checked)} />
+              👶 자녀보기
+            </label>
           </div>
 
           {/* 같은 가족 */}
@@ -255,37 +266,41 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
             </Section>
           )}
 
-          {/* 부모/조상 */}
-          <Section title="👴 부모·조부모" action={
-            <button onClick={() => setShowRelAdd(true)} style={btnMiniPrimary}>+ 추가</button>
-          }>
-            {data.relations && data.relations.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {data.relations.map((r: any, i: number) => (
-                  <RelationRow key={i} relation={r}
-                    onClick={() => navigateTo(r.relative_id)}
-                    onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "ancestor")} />
-                ))}
-              </div>
-            ) : (
-              <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>등록된 부모·조부모가 없습니다</div>
-            )}
-          </Section>
+          {/* 부모/조상 (토글) */}
+          {showParents && (
+            <Section title="👴 부모·조부모" action={
+              <button onClick={() => setShowRelAdd(true)} style={btnMiniPrimary}>+ 추가</button>
+            }>
+              {data.relations && data.relations.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {data.relations.map((r: any, i: number) => (
+                    <RelationRow key={i} relation={r}
+                      onClick={() => navigateTo(r.relative_id)}
+                      onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "ancestor")} />
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>등록된 부모·조부모가 없습니다</div>
+              )}
+            </Section>
+          )}
 
-          {/* 자녀/후손 */}
-          <Section title="👶 자녀·손주">
-            {data.descendants && data.descendants.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {data.descendants.map((r: any, i: number) => (
-                  <RelationRow key={i} relation={r} reversed
-                    onClick={() => navigateTo(r.relative_id)}
-                    onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "descendant")} />
-                ))}
-              </div>
-            ) : (
-              <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>등록된 자녀·손주가 없습니다</div>
-            )}
-          </Section>
+          {/* 자녀/후손 (토글) */}
+          {showChildren && (
+            <Section title="👶 자녀·손주">
+              {data.descendants && data.descendants.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {data.descendants.map((r: any, i: number) => (
+                    <RelationRow key={i} relation={r} reversed
+                      onClick={() => navigateTo(r.relative_id)}
+                      onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "descendant")} />
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>등록된 자녀·손주가 없습니다</div>
+              )}
+            </Section>
+          )}
         </div>
       </div>
 
@@ -571,4 +586,10 @@ const btnMiniPrimary: React.CSSProperties = {
   padding: "4px 10px", background: "#6366f1", color: "#fff",
   border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
+};
+const toggleStyle: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 4,
+  padding: "6px 10px", background: "#f1f5f9", borderRadius: 8,
+  fontSize: 11, fontWeight: 600, color: "#475569", cursor: "pointer",
+  userSelect: "none",
 };
