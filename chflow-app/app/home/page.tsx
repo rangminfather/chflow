@@ -285,6 +285,14 @@ export default function HomePage() {
                 <span className="admin-btn-label">회원관리</span>
               </button>
               <button
+                onClick={() => router.push("/admin/rearrange")}
+                title="초원 재편성"
+                style={adminBtnStyle("#f1f5f9", "#0f172a")}
+              >
+                <span>🔀</span>
+                <span className="admin-btn-label">재편성</span>
+              </button>
+              <button
                 onClick={() => router.push("/dashboard")}
                 title="와이어프레임"
                 style={adminBtnStyle("#f0fdf4", "#15803d")}

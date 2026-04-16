@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import MemberCardModal from "@/components/MemberCardModal";
 
 interface Member {
   id: string;
@@ -63,6 +64,7 @@ export default function AdminMembersPage() {
   const [editing, setEditing] = useState<Member | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Member | null>(null);
+  const [cardMemberId, setCardMemberId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -164,6 +166,7 @@ export default function AdminMembersPage() {
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => setCreating(true)} style={btnPrimary}>+ 회원 추가</button>
+            <button onClick={() => router.push("/admin/rearrange")} style={{ ...btnGhost, background: "#e0e7ff", color: "#4338ca" }}>🔀 재편성</button>
             <button onClick={() => router.push("/admin/pending")} style={btnWarning}>⏳ 가입 대기자</button>
             <button onClick={() => router.push("/home")} style={btnGhost}>← 홈</button>
           </div>
@@ -225,13 +228,18 @@ export default function AdminMembersPage() {
               </thead>
               <tbody>
                 {members.map((m) => (
-                  <tr key={m.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={tdStyle}>{m.plain_name || "-"}</td>
-                    <td style={tdStyle}>{m.grassland_name || "-"}</td>
-                    <td style={tdStyle}>{m.pasture_name || "-"}</td>
+                  <tr key={m.id} style={{ borderBottom: "1px solid #f1f5f9", cursor: "default" }}>
+                    <td style={{ ...tdStyle, textAlign: "center", fontWeight: 700, color: "#6366f1" }}>{m.plain_name || "-"}</td>
+                    <td style={{ ...tdStyle, textAlign: "center" }}>{m.grassland_name || "-"}</td>
+                    <td style={{ ...tdStyle, textAlign: "center" }}>{m.pasture_name || "-"}</td>
                     <td style={{ ...tdStyle, fontWeight: 700, color: "#1e293b" }}>
-                      {m.photo_url && <img src={m.photo_url} alt="" style={{ width: 22, height: 22, borderRadius: "50%", objectFit: "cover", marginRight: 6, verticalAlign: "middle" }} />}
-                      {m.name}
+                      <span onClick={() => setCardMemberId(m.id)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+                        title="성도 카드 열기">
+                        {m.photo_url
+                          ? <img src={m.photo_url} alt="" style={{ width: 22, height: 22, borderRadius: "50%", objectFit: "cover" }} />
+                          : <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#e2e8f0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>{m.gender === "F" ? "👩" : "👨"}</span>}
+                        <span style={{ color: "#6366f1", textDecoration: "underline", textUnderlineOffset: 3, textDecorationColor: "#c7d2fe" }}>{m.name}</span>
+                      </span>
                     </td>
                     <td style={tdStyle}>{m.gender === "M" ? "남" : m.gender === "F" ? "여" : "-"}</td>
                     <td style={tdStyle}>{m.is_child ? "👶" : ""}</td>
@@ -302,6 +310,15 @@ export default function AdminMembersPage() {
           dirTree={dirTree}
           onClose={() => setCreating(false)}
           onCreated={() => { setCreating(false); doSearch(page, query, filterPlain, filterGrassland, filterPasture); }}
+        />
+      )}
+
+      {/* Member Card Modal */}
+      {cardMemberId && (
+        <MemberCardModal
+          memberId={cardMemberId}
+          onClose={() => setCardMemberId(null)}
+          onChanged={() => doSearch(page, query, filterPlain, filterGrassland, filterPasture)}
         />
       )}
     </div>
