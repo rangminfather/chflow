@@ -14,6 +14,7 @@ interface SignupBody {
   systemRole: string;
   subRole: string;
   matchedMemberId?: string | null;
+  noPhone?: boolean;
 }
 
 function usernameToEmail(username: string): string {
@@ -33,11 +34,14 @@ function validateUsername(username: string): { valid: boolean; error?: string } 
 export async function POST(req: NextRequest) {
   try {
     const body: SignupBody = await req.json();
-    const { username, password, name, phone, systemRole, subRole, matchedMemberId } = body;
+    const { username, password, name, phone, systemRole, subRole, matchedMemberId, noPhone } = body;
 
-    // Validation
-    if (!username || !password || !name || !phone) {
+    // Validation (phone은 noPhone 체크 시 선택)
+    if (!username || !password || !name) {
       return NextResponse.json({ error: "필수 정보가 누락되었습니다" }, { status: 400 });
+    }
+    if (!noPhone && !phone) {
+      return NextResponse.json({ error: "전화번호를 입력하세요" }, { status: 400 });
     }
     const v = validateUsername(username);
     if (!v.valid) return NextResponse.json({ error: v.error }, { status: 400 });

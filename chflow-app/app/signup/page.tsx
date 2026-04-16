@@ -26,6 +26,11 @@ interface MatchedMember {
   plain_name: string;
   address: string;
   has_account: boolean;
+  // 자녀 매칭 시 부모 정보
+  parent_id?: string;
+  parent_name?: string;
+  parent_phone?: string;
+  matched_as_child?: boolean;
 }
 
 export default function SignupPage() {
@@ -35,6 +40,9 @@ export default function SignupPage() {
   // === 입력 데이터 ===
   const [lookupName, setLookupName] = useState("");
   const [lookupPhone, setLookupPhone] = useState("");
+  const [noPhone, setNoPhone] = useState(false);
+  const [parentName, setParentName] = useState("");
+  const [parentPhone, setParentPhone] = useState("");
   const [matched, setMatched] = useState<MatchedMember | null>(null);
 
   // 직분
@@ -64,15 +72,55 @@ export default function SignupPage() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // ============ Step 1: 이름+휴대폰 lookup ============
+  // ============ Step 1: 이름+휴대폰 lookup (+ 자녀 가입 분기) ============
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     if (!lookupName.trim()) return setError("이름을 입력하세요");
-    if (!lookupPhone.trim()) return setError("휴대폰 번호를 입력하세요");
+    if (!noPhone && !lookupPhone.trim()) return setError("휴대폰 번호를 입력하세요");
+    if (noPhone && !parentName.trim()) return setError("부모님 이름을 입력하세요");
+    if (noPhone && !parentPhone.trim()) return setError("부모님 휴대폰 번호를 입력하세요");
 
     setLoading(true);
     try {
+      // === 자녀 분기: 부모 정보로 매칭 ===
+      if (noPhone) {
+        const pNorm = normalizePhone(parentPhone);
+        const pFormatted = pNorm.length >= 10
+          ? `${pNorm.slice(0, 3)}-${pNorm.slice(3, 7)}-${pNorm.slice(7, 11)}`
+          : parentPhone;
+
+        const { data, error: rpcError } = await supabase.rpc("find_child_for_signup", {
+          p_child_name: lookupName.trim(),
+          p_parent_name: parentName.trim(),
+          p_parent_phone: pFormatted,
+        });
+        if (rpcError) {
+          setError(`조회 오류: ${rpcError.message}`);
+          setLoading(false);
+          return;
+        }
+        if (data && data.length > 0) {
+          const member = { ...(data[0] as MatchedMember), matched_as_child: true };
+          if (member.has_account) {
+            setError("이미 가입된 회원입니다. 로그인 또는 비밀번호 찾기를 이용하세요.");
+            setLoading(false);
+            return;
+          }
+          setMatched(member);
+          setStep("confirm");
+        } else {
+          // 부모 매칭 실패 또는 해당 가족 내 자녀 이름 없음 → 신규 가입
+          setMatched(null);
+          setName(lookupName.trim());
+          setPhone(""); // 자녀는 핸드폰 없음
+          setStep("role");
+        }
+        setLoading(false);
+        return;
+      }
+
+      // === 성인 분기 (기존 로직) ===
       const phoneNormalized = normalizePhone(lookupPhone);
       const phoneFormatted = phoneNormalized.length >= 10
         ? `${phoneNormalized.slice(0, 3)}-${phoneNormalized.slice(3, 7)}-${phoneNormalized.slice(7, 11)}`
@@ -215,7 +263,7 @@ export default function SignupPage() {
     if (!pv.valid) return setError(pv.error!);
     if (password !== passwordConfirm) return setError("비밀번호가 일치하지 않습니다");
     if (!name.trim()) return setError("이름을 입력하세요");
-    if (!phone.trim()) return setError("전화번호를 입력하세요");
+    if (!noPhone && !phone.trim()) return setError("전화번호를 입력하세요");
     if (!selectedRole) return setError("직분을 선택하세요");
 
     setLoading(true);
@@ -227,10 +275,11 @@ export default function SignupPage() {
           username: lower,
           password,
           name: name.trim(),
-          phone: normalizePhone(phone),
+          phone: phone ? normalizePhone(phone) : "",
           systemRole: mapToSystemRole(selectedRole.id),
           subRole: selectedSubRole || selectedRole.label,
           matchedMemberId: matched?.id || null,
+          noPhone,
         }),
       });
       const result = await res.json();
@@ -301,16 +350,62 @@ export default function SignupPage() {
               />
             </div>
 
-            <div style={{ marginBottom: 18 }}>
-              <label style={labelStyle}>휴대폰 번호 *</label>
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>휴대폰 번호 {noPhone ? "" : "*"}</label>
               <input
                 type="tel"
                 value={lookupPhone}
                 onChange={(e) => setLookupPhone(e.target.value)}
                 placeholder="010-0000-0000"
-                style={{ ...inputStyle, marginTop: 6 }}
+                disabled={noPhone}
+                style={{
+                  ...inputStyle,
+                  marginTop: 6,
+                  background: noPhone ? "#f1f5f9" : "#fff",
+                  color: noPhone ? "#94a3b8" : "#0f172a",
+                }}
               />
+              <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontWeight: 600 }}>
+                <input
+                  type="checkbox"
+                  checked={noPhone}
+                  onChange={(e) => { setNoPhone(e.target.checked); if (e.target.checked) setLookupPhone(""); }}
+                  style={{ width: 16, height: 16, accentColor: "#6366f1" }}
+                />
+                휴대폰 없음 (청소년/어린이)
+              </label>
             </div>
+
+            {noPhone && (
+              <div style={{ padding: "14px", background: "#fefce8", border: "1.5px dashed #fde047", borderRadius: 12, marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#854d0e", marginBottom: 10 }}>
+                  👨‍👩‍👧 부모님 정보 (본인 확인용)
+                </div>
+                <div style={{ marginBottom: 10 }}>
+                  <label style={labelStyle}>부모님 이름 *</label>
+                  <input
+                    type="text"
+                    value={parentName}
+                    onChange={(e) => setParentName(e.target.value)}
+                    placeholder="부 또는 모 성함"
+                    style={{ ...inputStyle, marginTop: 6 }}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>부모님 휴대폰 *</label>
+                  <input
+                    type="tel"
+                    value={parentPhone}
+                    onChange={(e) => setParentPhone(e.target.value)}
+                    placeholder="010-0000-0000"
+                    style={{ ...inputStyle, marginTop: 6 }}
+                  />
+                </div>
+                <div style={{ fontSize: 10, color: "#a16207", marginTop: 8, lineHeight: 1.5 }}>
+                  할아버지/할머니/아버지/어머니 중 누구의 이름이든 가능합니다.
+                </div>
+              </div>
+            )}
 
             {error && (
               <div style={errorStyle}>⚠️ {error}</div>
@@ -589,9 +684,10 @@ export default function SignupPage() {
           </div>
 
           <div style={{ marginBottom: 18 }}>
-            <label style={labelStyle}>전화번호 *</label>
+            <label style={labelStyle}>전화번호 {noPhone ? "(선택)" : "*"}</label>
             <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-              placeholder="010-0000-0000" style={{ ...inputStyle, marginTop: 6 }} />
+              placeholder={noPhone ? "휴대폰 없으시면 비워두셔도 됩니다" : "010-0000-0000"}
+              style={{ ...inputStyle, marginTop: 6 }} />
           </div>
 
           {error && <div style={errorStyle}>⚠️ {error}</div>}
