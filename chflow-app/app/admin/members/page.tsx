@@ -100,25 +100,24 @@ export default function AdminMembersPage() {
   const runSearch = () => { setPage(1); doSearch(1, query, filterPlain, filterGrassland, filterPasture); };
   const goPage = (p: number) => { setPage(p); doSearch(p, query, filterPlain, filterGrassland, filterPasture); };
 
-  // 평원 → 초원 목록
+  // 평원 → 초원 목록 (평원 미선택 시 전체)
   const grasslandOptions = useMemo(() => {
-    if (!filterPlain) return [];
     const set = new Set<string>();
     dirTree.forEach(r => {
-      if (r.plain_name === filterPlain && r.grassland_name) set.add(r.grassland_name);
+      if ((!filterPlain || r.plain_name === filterPlain) && r.grassland_name) set.add(r.grassland_name);
     });
-    return Array.from(set);
+    return Array.from(set).sort();
   }, [dirTree, filterPlain]);
 
+  // 초원 → 목장 목록 (평원/초원 미선택 시 전체)
   const pastureOptions = useMemo(() => {
-    if (!filterPlain) return [];
     const set = new Set<string>();
     dirTree.forEach(r => {
-      if (r.plain_name === filterPlain
+      if ((!filterPlain || r.plain_name === filterPlain)
           && (!filterGrassland || r.grassland_name === filterGrassland)
           && r.pasture_name) set.add(r.pasture_name);
     });
-    return Array.from(set);
+    return Array.from(set).sort();
   }, [dirTree, filterPlain, filterGrassland]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -190,15 +189,13 @@ export default function AdminMembersPage() {
             </select>
             <select value={filterGrassland}
               onChange={(e) => { setFilterGrassland(e.target.value); setFilterPasture(""); }}
-              disabled={!filterPlain}
-              style={{ ...selectStyle, minWidth: 120, background: filterPlain ? "#fff" : "#f1f5f9" }}>
+              style={{ ...selectStyle, minWidth: 120 }}>
               <option value="">전체 초원</option>
               {grasslandOptions.map(g => <option key={g} value={g}>{g}</option>)}
             </select>
             <select value={filterPasture}
               onChange={(e) => setFilterPasture(e.target.value)}
-              disabled={!filterPlain}
-              style={{ ...selectStyle, minWidth: 120, background: filterPlain ? "#fff" : "#f1f5f9" }}>
+              style={{ ...selectStyle, minWidth: 120 }}>
               <option value="">전체 목장</option>
               {pastureOptions.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
