@@ -266,41 +266,49 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
             </Section>
           )}
 
-          {/* 부모/조상 (토글) */}
-          {showParents && (
-            <Section title="👴 부모·조부모" action={
-              <button onClick={() => setShowRelAdd(true)} style={btnMiniPrimary}>+ 추가</button>
-            }>
-              {data.relations && data.relations.length > 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {data.relations.map((r: any, i: number) => (
-                    <RelationRow key={i} relation={r}
-                      onClick={() => navigateTo(r.relative_id)}
-                      onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "ancestor")} />
-                  ))}
-                </div>
-              ) : (
-                <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>등록된 부모·조부모가 없습니다</div>
-              )}
-            </Section>
-          )}
+          {/* 부모/조상 (토글) — 부모·조부모·증조부모만, 배우자/형제자매 제외 */}
+          {showParents && (() => {
+            const ancestors = (data.relations || []).filter((r: any) =>
+              ["parent", "grandparent", "great_grandparent"].includes(r.kind));
+            return (
+              <Section title="👴 부모·조부모" action={
+                <button onClick={() => setShowRelAdd(true)} style={btnMiniPrimary}>+ 추가</button>
+              }>
+                {ancestors.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {ancestors.map((r: any, i: number) => (
+                      <RelationRow key={i} relation={r}
+                        onClick={() => navigateTo(r.relative_id)}
+                        onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "ancestor")} />
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>등록된 부모·조부모가 없습니다</div>
+                )}
+              </Section>
+            );
+          })()}
 
-          {/* 자녀/후손 (토글) */}
-          {showChildren && (
-            <Section title="👶 자녀·손주">
-              {data.descendants && data.descendants.length > 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {data.descendants.map((r: any, i: number) => (
-                    <RelationRow key={i} relation={r} reversed
-                      onClick={() => navigateTo(r.relative_id)}
-                      onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "descendant")} />
-                  ))}
-                </div>
-              ) : (
-                <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>등록된 자녀·손주가 없습니다</div>
-              )}
-            </Section>
-          )}
+          {/* 자녀/후손 (토글) — 자녀·손주·증손주만 */}
+          {showChildren && (() => {
+            const desc = (data.descendants || []).filter((r: any) =>
+              ["parent", "grandparent", "great_grandparent"].includes(r.kind));
+            return (
+              <Section title="👶 자녀·손주">
+                {desc.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {desc.map((r: any, i: number) => (
+                      <RelationRow key={i} relation={r} reversed
+                        onClick={() => navigateTo(r.relative_id)}
+                        onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "descendant")} />
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>등록된 자녀·손주가 없습니다</div>
+                )}
+              </Section>
+            );
+          })()}
         </div>
       </div>
 
