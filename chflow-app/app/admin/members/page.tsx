@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import MemberCardModal from "@/components/MemberCardModal";
 
@@ -43,13 +43,14 @@ const PAGE_SIZE = 50;
 
 export default function AdminMembersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [authChecked, setAuthChecked] = useState(false);
 
-  // 필터/검색
+  // 필터/검색 (URL query로 초기화 지원)
   const [query, setQuery] = useState("");
-  const [filterPlain, setFilterPlain] = useState("");
-  const [filterGrassland, setFilterGrassland] = useState("");
-  const [filterPasture, setFilterPasture] = useState("");
+  const [filterPlain, setFilterPlain] = useState(searchParams.get("plain") || "");
+  const [filterGrassland, setFilterGrassland] = useState(searchParams.get("grassland") || "");
+  const [filterPasture, setFilterPasture] = useState(searchParams.get("pasture") || "");
 
   // 데이터
   const [members, setMembers] = useState<Member[]>([]);
@@ -78,7 +79,11 @@ export default function AdminMembersPage() {
       setAuthChecked(true);
       const { data: tree } = await supabase.rpc("directory_tree");
       if (tree) setDirTree(tree);
-      doSearch(1, "", "", "", "");
+      // URL param으로 초기 필터 전달된 경우 그 값으로 검색
+      const initPlain = searchParams.get("plain") || "";
+      const initGrass = searchParams.get("grassland") || "";
+      const initPast = searchParams.get("pasture") || "";
+      doSearch(1, "", initPlain, initGrass, initPast);
     })();
   }, []);
 

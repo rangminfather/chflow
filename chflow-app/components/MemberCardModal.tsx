@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 interface Props {
@@ -27,6 +28,11 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default function MemberCardModal({ memberId, onClose, onChanged }: Props) {
+  const router = useRouter();
+  // 성도 카드 내부 네비게이션 히스토리 (마지막 원소 = 현재 보는 member)
+  const [stack, setStack] = useState<string[]>([memberId]);
+  const currentId = stack[stack.length - 1];
+
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -35,30 +41,57 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   const [showRelAdd, setShowRelAdd] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const navigateTo = async (targetId: string, candidateName?: string, isChildDummy?: boolean) => {
+    // 자녀 더미(= is_child=true, 본인 카드가 아님) 클릭 시 동명 성인 있으면 그쪽으로 우선
+    if (isChildDummy && candidateName) {
+      const { data: cands } = await supabase.rpc("search_member_candidates", {
+        p_name: candidateName, p_phone: null, p_limit: 10,
+      });
+      const adults = (cands || []).filter((c: any) => !c.is_child);
+      if (adults.length === 1) { setStack(prev => [...prev, adults[0].id]); return; }
+      if (adults.length > 1) {
+        // 여러 명이면 그 중 전화번호/가족 힌트 없으니 첫 번째로. 필요시 선택 UI 확장.
+        setStack(prev => [...prev, adults[0].id]); return;
+      }
+      // 성인 버전 없으면 자녀 더미 그대로
+    }
+    setStack(prev => [...prev, targetId]);
+  };
+  const goBack = () => setStack(prev => prev.length > 1 ? prev.slice(0, -1) : prev);
+
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.rpc("admin_member_profile", { p_member_id: memberId });
+    const { data, error } = await supabase.rpc("admin_member_profile", { p_member_id: currentId });
     if (!error && data) {
       setData(data);
       setEdit(data.member);
     }
     setLoading(false);
+    setEditing(false);
   };
 
-  useEffect(() => { load(); }, [memberId]);
+  useEffect(() => { load(); }, [currentId]);
+
+  const goToPasture = () => {
+    if (!data?.member?.pasture_name) return;
+    const pn = encodeURIComponent(data.member.pasture_name);
+    const pl = data.member.plain_name ? `&plain=${encodeURIComponent(data.member.plain_name)}` : "";
+    const gr = data.member.grassland_name ? `&grassland=${encodeURIComponent(data.member.grassland_name)}` : "";
+    router.push(`/admin/members?pasture=${pn}${pl}${gr}`);
+    onClose();
+  };
 
   const handlePhotoUpload = async (file: File) => {
     setUploading(true);
     try {
       const ext = file.name.split(".").pop() || "png";
-      const path = `${memberId}/profile.${ext}`;
+      const path = `${currentId}/profile.${ext}`;
       const { error: upErr } = await supabase.storage.from("member-photos")
         .upload(path, file, { upsert: true, contentType: file.type });
       if (upErr) { alert(`업로드 실패: ${upErr.message}`); return; }
       const { data: { publicUrl } } = supabase.storage.from("member-photos").getPublicUrl(path);
-      // 캐시 버스터 추가
       const url = `${publicUrl}?t=${Date.now()}`;
-      const { error: rpcErr } = await supabase.rpc("admin_set_member_photo", { p_member_id: memberId, p_photo_url: url });
+      const { error: rpcErr } = await supabase.rpc("admin_set_member_photo", { p_member_id: currentId, p_photo_url: url });
       if (rpcErr) { alert(`저장 실패: ${rpcErr.message}`); return; }
       await load();
       onChanged?.();
@@ -69,7 +102,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
 
   const handleSaveEdit = async () => {
     const { error } = await supabase.rpc("admin_update_member", {
-      p_member_id: memberId,
+      p_member_id: currentId,
       p_name: edit.name, p_phone: edit.phone,
       p_family_church: edit.family_church, p_sub_role: edit.sub_role,
       p_spouse_name: edit.spouse_name,
@@ -83,8 +116,8 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
 
   const handleRemoveRelation = async (relativeId: string, kind: string, direction: string) => {
     if (!confirm("이 관계를 제거하시겠습니까?")) return;
-    const subject = direction === "descendant" ? relativeId : memberId;
-    const relative = direction === "descendant" ? memberId : relativeId;
+    const subject = direction === "descendant" ? relativeId : currentId;
+    const relative = direction === "descendant" ? currentId : relativeId;
     const { error } = await supabase.rpc("remove_member_relation", {
       p_subject_id: subject, p_relative_id: relative, p_kind: kind,
     });
@@ -109,7 +142,18 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
       <div onClick={(e) => e.stopPropagation()} style={cardStyle}>
         {/* 헤더 */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid #e2e8f0" }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>성도 카드</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {stack.length > 1 && (
+              <button onClick={goBack} title="이전 카드"
+                style={{ width: 28, height: 28, borderRadius: 8, background: "#f1f5f9", border: "none", fontSize: 14, cursor: "pointer", color: "#475569", fontFamily: "inherit" }}>←</button>
+            )}
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>성도 카드</div>
+            {stack.length > 1 && (
+              <span style={{ fontSize: 10, color: "#94a3b8", padding: "2px 8px", background: "#f1f5f9", borderRadius: 10 }}>
+                {stack.length}단계 깊이
+              </span>
+            )}
+          </div>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#64748b" }}>×</button>
         </div>
 
@@ -165,8 +209,16 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                     {m.spouse_name && ` · 배우자 ${m.spouse_name}`}
                   </div>
                   <div style={{ fontSize: 13, color: "#475569", marginBottom: 2 }}>📞 {m.phone || "연락처 없음"}</div>
-                  <div style={{ fontSize: 12, color: "#64748b" }}>
-                    📍 {m.plain_name ? `${m.plain_name}평원 · ${m.grassland_name}초원 · ` : ""}<strong>{m.pasture_name}</strong> 목장
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                    <div style={{ fontSize: 12, color: "#64748b" }}>
+                      📍 {m.plain_name ? `${m.plain_name}평원 · ${m.grassland_name}초원 · ` : ""}<strong>{m.pasture_name || "소속 없음"}</strong> 목장
+                    </div>
+                    {m.pasture_name && (
+                      <button onClick={goToPasture} title="이 목장 전체 회원 보기"
+                        style={{ fontSize: 10, padding: "2px 8px", background: "#e0e7ff", color: "#4338ca", border: "none", borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontWeight: 700 }}>
+                        목장 전체 →
+                      </button>
+                    )}
                   </div>
                   {m.address && <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>🏠 {m.address}</div>}
                 </>
@@ -191,9 +243,15 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {data.household_members.map((hm: any) => (
                   <MemberChip key={hm.id} name={hm.name} photoUrl={hm.photo_url}
-                    subtitle={hm.is_child ? "자녀" : (hm.sub_role || hm.family_church)} />
+                    subtitle={hm.is_child ? "자녀" : (hm.sub_role || hm.family_church)}
+                    onClick={() => navigateTo(hm.id, hm.name, hm.is_child)} />
                 ))}
               </div>
+              {data.household_members.some((hm: any) => hm.is_child) && (
+                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 6 }}>
+                  💡 자녀를 클릭하면 같은 이름의 성인 성도가 있을 경우 그 성도 카드로 이동합니다.
+                </div>
+              )}
             </Section>
           )}
 
@@ -205,6 +263,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {data.relations.map((r: any, i: number) => (
                   <RelationRow key={i} relation={r}
+                    onClick={() => navigateTo(r.relative_id)}
                     onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "ancestor")} />
                 ))}
               </div>
@@ -219,6 +278,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {data.descendants.map((r: any, i: number) => (
                   <RelationRow key={i} relation={r} reversed
+                    onClick={() => navigateTo(r.relative_id)}
                     onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "descendant")} />
                 ))}
               </div>
@@ -231,7 +291,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
 
       {/* 관계 추가 모달 */}
       {showRelAdd && (
-        <RelationAddModal subjectId={memberId} onClose={() => setShowRelAdd(false)}
+        <RelationAddModal subjectId={currentId} onClose={() => setShowRelAdd(false)}
           onAdded={() => { setShowRelAdd(false); load(); }} />
       )}
     </div>
@@ -252,9 +312,17 @@ function Section({ title, children, action }: { title: string; children: React.R
   );
 }
 
-function MemberChip({ name, photoUrl, subtitle }: { name: string; photoUrl?: string | null; subtitle?: string }) {
+function MemberChip({ name, photoUrl, subtitle, onClick }: { name: string; photoUrl?: string | null; subtitle?: string; onClick?: () => void }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px 4px 4px", background: "#fff", borderRadius: 20, border: "1px solid #e2e8f0" }}>
+    <div onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 6, padding: "4px 10px 4px 4px",
+        background: "#fff", borderRadius: 20, border: "1px solid #e2e8f0",
+        cursor: onClick ? "pointer" : "default",
+        transition: "all 0.15s",
+      }}
+      onMouseOver={(e) => { if (onClick) { e.currentTarget.style.borderColor = "#6366f1"; e.currentTarget.style.background = "#eef2ff"; } }}
+      onMouseOut={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "#fff"; }}>
       <div style={{ width: 28, height: 28, borderRadius: "50%", overflow: "hidden", background: "#e2e8f0", flexShrink: 0 }}>
         {photoUrl && <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
       </div>
@@ -266,10 +334,18 @@ function MemberChip({ name, photoUrl, subtitle }: { name: string; photoUrl?: str
   );
 }
 
-function RelationRow({ relation, reversed, onRemove }: { relation: any; reversed?: boolean; onRemove: () => void }) {
+function RelationRow({ relation, reversed, onRemove, onClick }: { relation: any; reversed?: boolean; onRemove: () => void; onClick?: () => void }) {
   const roleLabel = ROLE_LABELS[relation.role] || relation.role || relation.kind;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+    <div onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+        background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0",
+        cursor: onClick ? "pointer" : "default",
+        transition: "all 0.15s",
+      }}
+      onMouseOver={(e) => { if (onClick) { e.currentTarget.style.borderColor = "#6366f1"; e.currentTarget.style.background = "#eef2ff"; } }}
+      onMouseOut={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "#fff"; }}>
       <div style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", background: "#e2e8f0", flexShrink: 0 }}>
         {relation.photo_url && <img src={relation.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
       </div>
@@ -284,7 +360,8 @@ function RelationRow({ relation, reversed, onRemove }: { relation: any; reversed
           {relation.phone || "연락처 없음"} · {relation.plain_name ? `${relation.plain_name}평원 · ` : ""}{relation.pasture_name || "소속 없음"} 목장
         </div>
       </div>
-      <button onClick={onRemove} style={{ padding: "4px 8px", background: "#fee2e2", color: "#b91c1c", border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>제거</button>
+      <button onClick={(e) => { e.stopPropagation(); onRemove(); }}
+        style={{ padding: "4px 8px", background: "#fee2e2", color: "#b91c1c", border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>제거</button>
     </div>
   );
 }
