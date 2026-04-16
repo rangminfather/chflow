@@ -249,7 +249,7 @@ export default function RearrangePage() {
       </div>
 
       {/* 4 평원 가로 배치 */}
-      <div style={{ maxWidth: 1800, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+      <div style={{ maxWidth: 1800, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 18 }}>
         {plainsSorted.map(pl => {
           const plainGrasslands = grasslands.filter(g => g.plain_id === pl.id).sort((a, b) => a.order_no - b.order_no);
           const plainPastureCnt = pastures.filter(p => p.grassland_id && plainGrasslands.some(g => g.id === p.grassland_id)).length;
@@ -261,19 +261,29 @@ export default function RearrangePage() {
               style={{
                 background: dragOver === `plain:${pl.id}` ? "rgba(99,102,241,0.18)" : "#1e293b",
                 border: `2px solid ${dragOver === `plain:${pl.id}` ? "#6366f1" : "#334155"}`,
-                borderRadius: 14, padding: 12, minHeight: 400,
+                borderRadius: 14, padding: "20px 16px 28px", minHeight: 640,
+                display: "flex", flexDirection: "column",
               }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#a5b4fc" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#a5b4fc" }}>
                   {pl.display_name || `${pl.name}평원`}
                 </div>
                 <div style={{ fontSize: 10, color: "#64748b" }}>
                   초원 {plainGrasslands.length} · 목장 {plainPastureCnt}
                 </div>
               </div>
-              <button onClick={() => addGrassland(pl.id)} style={{ width: "100%", marginBottom: 10, padding: "6px", background: "#334155", color: "#cbd5e1", border: "1px dashed #475569", borderRadius: 8, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>+ 새 초원</button>
+              {/* 평원 drop hint: 다른 평원에서 초원을 끌어다 놓을 수 있는 상단 영역 */}
+              <div style={{
+                fontSize: 10, color: "#475569", textAlign: "center",
+                padding: "12px 8px", marginBottom: 14,
+                border: `1.5px dashed ${dragOver === `plain:${pl.id}` ? "#6366f1" : "#334155"}`,
+                borderRadius: 10, background: dragOver === `plain:${pl.id}` ? "rgba(99,102,241,0.12)" : "transparent",
+              }}>
+                ↓ 여기에 초원을 끌어다 놓으면 이 평원으로 이동합니다
+              </div>
+              <button onClick={() => addGrassland(pl.id)} style={{ width: "100%", marginBottom: 14, padding: "8px", background: "#334155", color: "#cbd5e1", border: "1px dashed #475569", borderRadius: 8, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>+ 새 초원</button>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
                 {plainGrasslands.map(g => {
                   const gp = pastures.filter(p => p.grassland_id === g.id);
                   return (
