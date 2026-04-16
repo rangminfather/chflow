@@ -5,6 +5,8 @@
 .env.*
 !.env.example
 *.keystore
+*.keystore.*
+chflow_keystore.txt
 *.jks
 *.p8
 *.p12
@@ -66,6 +68,7 @@ MS_AX/*.pptx
 **/*.xlsx
 **/*.xls
 chflow-app/public/photos/
+test-excel/
 
 # 원본 자료 (PDF, 한글 파일 등 - 개인정보)
 자료/
@@ -88,6 +91,7 @@ ms_edu_check_sql.txt
 # =============================================================
 .vscode/
 .idea/
+.claude/
 .DS_Store
 Thumbs.db
 *.swp
