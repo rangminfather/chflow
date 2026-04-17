@@ -209,43 +209,54 @@ export default function RearrangePage() {
     }).filter(pl => pl.grasslands.length > 0);
   };
 
-  // PDF 출력: 인쇄 가능한 HTML 창 열고 자동 프린트
+  // PDF 출력: 인쇄 가능한 HTML 창 열고 자동 프린트 (평원·초원·목장 한 표로 이어붙임)
   const exportPDF = () => {
     const data = buildExportData();
     if (data.length === 0) { alert("선택된 평원에 목장이 없습니다."); return; }
     const year = new Date().getFullYear();
+
+    const rows = data.flatMap(pl =>
+      pl.grasslands.map((g, gi) => ({
+        plain: pl.plain,
+        plainRowspan: gi === 0 ? pl.grasslands.length : 0,
+        grassland: g.name,
+        pastures: g.pastures,
+      }))
+    );
+
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>초원 재편성 ${year}</title>
 <style>
-  @page { size: A4; margin: 18mm; }
-  body { font-family: 'Malgun Gothic', 'Noto Sans KR', sans-serif; color: #111; margin: 0; }
-  .page { page-break-after: always; }
-  .page:last-child { page-break-after: auto; }
-  h1 { font-size: 20pt; margin: 0 0 4pt; }
-  .sub { font-size: 10pt; color: #555; margin-bottom: 14pt; }
-  table { width: 100%; border-collapse: collapse; font-size: 11pt; }
-  th, td { border: 1px solid #333; padding: 8pt 10pt; vertical-align: top; text-align: left; }
-  th { background: #e5e7eb; font-weight: 700; width: 22%; }
-  td.pastures { line-height: 1.7; }
+  @page { size: A4; margin: 14mm; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: 'Malgun Gothic', 'Noto Sans KR', sans-serif; color: #111; }
+  h1 { font-size: 18pt; margin: 0 0 10pt; text-align: center; }
+  table { width: 100%; border-collapse: collapse; font-size: 10.5pt; table-layout: fixed; }
+  th, td { border: 1px solid #333; padding: 5pt 8pt; vertical-align: middle; text-align: left; word-break: keep-all; }
+  th { background: #e5e7eb; font-weight: 700; text-align: center; }
+  col.plain { width: 13%; }
+  col.grass { width: 15%; }
+  col.past  { width: 72%; }
+  td.plain { background: #f1f5f9; font-weight: 700; text-align: center; font-size: 11pt; }
+  td.grass { font-weight: 600; text-align: center; }
+  td.pastures { line-height: 1.65; }
   .pasture { display: inline-block; margin-right: 10pt; white-space: nowrap; }
-  @media print { button { display: none; } }
-  .print-btn { position: fixed; top: 10px; right: 10px; padding: 8px 16px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  tr { page-break-inside: avoid; }
+  @media print { .print-btn { display: none; } }
+  .print-btn { position: fixed; top: 10px; right: 10px; padding: 8px 16px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; z-index: 999; }
 </style></head><body>
 <button class="print-btn" onclick="window.print()">🖨️ 인쇄</button>
-${data.map(pl => `
-<div class="page">
-  <h1>${year}년 초원 재편성 — ${pl.plain}</h1>
-  <div class="sub">초원 ${pl.grasslands.length} · 목장 ${pl.grasslands.reduce((s, g) => s + g.pastures.length, 0)}</div>
-  <table>
-    <thead><tr><th>초원</th><th>목장</th></tr></thead>
-    <tbody>
-      ${pl.grasslands.map(g => `
-        <tr>
-          <td><strong>${g.name}</strong> 초원</td>
-          <td class="pastures">${g.pastures.map(n => `<span class="pasture">${n} 목장</span>`).join("")}</td>
-        </tr>`).join("")}
-    </tbody>
-  </table>
-</div>`).join("")}
+<h1>${year}년 초원 재편성</h1>
+<table>
+  <colgroup><col class="plain"><col class="grass"><col class="past"></colgroup>
+  <thead><tr><th>평원</th><th>초원</th><th>목장</th></tr></thead>
+  <tbody>
+    ${rows.map(r => `<tr>${
+      r.plainRowspan > 0 ? `<td class="plain" rowspan="${r.plainRowspan}">${r.plain}</td>` : ""
+    }<td class="grass">${r.grassland}</td><td class="pastures">${
+      r.pastures.map(n => `<span class="pasture">${n} 목장</span>`).join("")
+    }</td></tr>`).join("")}
+  </tbody>
+</table>
 <script>window.onload = () => setTimeout(() => window.print(), 300);</script>
 </body></html>`;
     const w = window.open("", "_blank");
