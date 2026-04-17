@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import * as XLSX from "xlsx";
 
 interface TreeRow {
   plain_id: string;  plain_name: string;  plain_order: number;
@@ -64,6 +65,10 @@ export default function RearrangePage() {
   const [saving, setSaving] = useState(false);
   const [unplacedWarn, setUnplacedWarn] = useState<string[]>([]);
   const [dirty, setDirty] = useState(false);
+
+  // 내보내기 모달
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportPlains, setExportPlains] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     (async () => {
@@ -173,6 +178,108 @@ export default function RearrangePage() {
     setDirty(true);
   };
 
+  // 내보내기 모달 열기 (기본: 1·2·3 평원 체크, 젊은이 미체크)
+  const openExport = () => {
+    const initial: Record<string, boolean> = {};
+    plains.forEach(p => { initial[p.id] = p.name !== "젊은이"; });
+    setExportPlains(initial);
+    setExportOpen(true);
+  };
+
+  // 선택된 평원의 데이터 구성
+  const buildExportData = () => {
+    const sorted = [...plains].sort((a, b) =>
+      PLAIN_ORDER.indexOf(a.name) - PLAIN_ORDER.indexOf(b.name) || a.order_no - b.order_no);
+    const selectedPlains = sorted.filter(pl => exportPlains[pl.id]);
+    return selectedPlains.map(pl => {
+      const gs = grasslands
+        .filter(g => g.plain_id === pl.id)
+        .sort((a, b) => a.order_no - b.order_no)
+        .map(g => ({
+          name: g.name,
+          pastures: pastures
+            .filter(p => p.grassland_id === g.id)
+            .map(p => p.name),
+        }))
+        .filter(g => g.pastures.length > 0);
+      return {
+        plain: pl.display_name || `${pl.name}평원`,
+        grasslands: gs,
+      };
+    }).filter(pl => pl.grasslands.length > 0);
+  };
+
+  // PDF 출력: 인쇄 가능한 HTML 창 열고 자동 프린트
+  const exportPDF = () => {
+    const data = buildExportData();
+    if (data.length === 0) { alert("선택된 평원에 목장이 없습니다."); return; }
+    const year = new Date().getFullYear();
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>초원 재편성 ${year}</title>
+<style>
+  @page { size: A4; margin: 18mm; }
+  body { font-family: 'Malgun Gothic', 'Noto Sans KR', sans-serif; color: #111; margin: 0; }
+  .page { page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  h1 { font-size: 20pt; margin: 0 0 4pt; }
+  .sub { font-size: 10pt; color: #555; margin-bottom: 14pt; }
+  table { width: 100%; border-collapse: collapse; font-size: 11pt; }
+  th, td { border: 1px solid #333; padding: 8pt 10pt; vertical-align: top; text-align: left; }
+  th { background: #e5e7eb; font-weight: 700; width: 22%; }
+  td.pastures { line-height: 1.7; }
+  .pasture { display: inline-block; margin-right: 10pt; white-space: nowrap; }
+  @media print { button { display: none; } }
+  .print-btn { position: fixed; top: 10px; right: 10px; padding: 8px 16px; background: #6366f1; color: #fff; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; }
+</style></head><body>
+<button class="print-btn" onclick="window.print()">🖨️ 인쇄</button>
+${data.map(pl => `
+<div class="page">
+  <h1>${year}년 초원 재편성 — ${pl.plain}</h1>
+  <div class="sub">초원 ${pl.grasslands.length} · 목장 ${pl.grasslands.reduce((s, g) => s + g.pastures.length, 0)}</div>
+  <table>
+    <thead><tr><th>초원</th><th>목장</th></tr></thead>
+    <tbody>
+      ${pl.grasslands.map(g => `
+        <tr>
+          <td><strong>${g.name}</strong> 초원</td>
+          <td class="pastures">${g.pastures.map(n => `<span class="pasture">${n} 목장</span>`).join("")}</td>
+        </tr>`).join("")}
+    </tbody>
+  </table>
+</div>`).join("")}
+<script>window.onload = () => setTimeout(() => window.print(), 300);</script>
+</body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) { alert("팝업이 차단되었습니다. 팝업을 허용해주세요."); return; }
+    w.document.write(html);
+    w.document.close();
+    setExportOpen(false);
+  };
+
+  // Excel 출력
+  const exportExcel = () => {
+    const data = buildExportData();
+    if (data.length === 0) { alert("선택된 평원에 목장이 없습니다."); return; }
+    const year = new Date().getFullYear();
+    const wb = XLSX.utils.book_new();
+    data.forEach(pl => {
+      const rows: (string | number)[][] = [
+        [`${year}년 초원 재편성 — ${pl.plain}`],
+        [],
+        ["초원", "목장"],
+      ];
+      pl.grasslands.forEach(g => {
+        rows.push([`${g.name} 초원`, g.pastures.map(n => `${n} 목장`).join(", ")]);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws["!cols"] = [{ wch: 16 }, { wch: 80 }];
+      ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+      const sheetName = pl.plain.replace(/[:\\/?*[\]]/g, "").slice(0, 31);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+    XLSX.writeFile(wb, `초원재편성_${year}.xlsx`);
+    setExportOpen(false);
+  };
+
   // 저장
   const handleSave = async () => {
     const unplaced = pastures.filter(p => p.grassland_id === null);
@@ -217,6 +324,7 @@ export default function RearrangePage() {
           {dirty && <span style={{ fontSize: 11, color: "#fbbf24", fontWeight: 600 }}>● 변경사항 있음</span>}
           <button onClick={() => router.push("/admin/members")} style={{ padding: "8px 14px", background: "#334155", color: "#e2e8f0", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>← 회원 관리</button>
           <button onClick={loadTree} style={{ padding: "8px 14px", background: "#334155", color: "#e2e8f0", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>↻ 되돌리기</button>
+          <button onClick={openExport} style={{ padding: "8px 14px", background: "#0891b2", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>📄 내보내기</button>
           <button onClick={handleSave} disabled={saving} style={{ padding: "8px 18px", background: "linear-gradient(135deg, #22c55e, #16a34a)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>{saving ? "저장 중..." : "💾 저장"}</button>
         </div>
       </div>
@@ -333,6 +441,40 @@ export default function RearrangePage() {
           );
         })}
       </div>
+
+      {/* 내보내기 모달 */}
+      {exportOpen && (
+        <div onClick={() => setExportOpen(false)} style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20,
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: "#fff", color: "#0f172a", borderRadius: 16, padding: 24,
+            width: "100%", maxWidth: 420,
+          }}>
+            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>📄 초원 재편성 내보내기</div>
+            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>출력할 평원을 선택하세요</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
+              {plainsSorted.map(pl => (
+                <label key={pl.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: exportPlains[pl.id] ? "#eef2ff" : "#f8fafc", border: `1.5px solid ${exportPlains[pl.id] ? "#6366f1" : "#e2e8f0"}`, borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!exportPlains[pl.id]}
+                    onChange={(e) => setExportPlains(s => ({ ...s, [pl.id]: e.target.checked }))}
+                    style={{ width: 16, height: 16, cursor: "pointer" }}
+                  />
+                  {pl.display_name || `${pl.name}평원`}
+                </label>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={exportPDF} style={{ flex: 1, padding: "12px", background: "#ef4444", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>PDF (인쇄)</button>
+              <button onClick={exportExcel} style={{ flex: 1, padding: "12px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Excel</button>
+              <button onClick={() => setExportOpen(false)} style={{ padding: "12px 16px", background: "#e2e8f0", color: "#334155", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>취소</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 미배치 경고 모달 */}
       {unplacedWarn.length > 0 && (
