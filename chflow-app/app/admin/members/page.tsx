@@ -252,7 +252,7 @@ function AdminMembersPage() {
               />
               자녀 보기
             </label>
-            <span style={{ color: "#94a3b8", fontSize: 11 }}>체크 해제 시 해당 구분 회원이 목록에서 숨겨집니다</span>
+            <span style={{ color: "#94a3b8", fontSize: 11 }}>체크 해제 시 같은 목장 안의 부모/자녀만 숨깁니다 (다른 목장 가족은 유지)</span>
           </div>
         </div>
 
