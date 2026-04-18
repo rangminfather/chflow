@@ -59,6 +59,8 @@ function AdminMembersPage() {
   const [filterPlain, setFilterPlain] = useState(searchParams.get("plain") || "");
   const [filterGrassland, setFilterGrassland] = useState(searchParams.get("grassland") || "");
   const [filterPasture, setFilterPasture] = useState(searchParams.get("pasture") || "");
+  const [showChildren, setShowChildren] = useState(true);
+  const [showParents, setShowParents] = useState(true);
 
   // 데이터
   const [members, setMembers] = useState<Member[]>([]);
@@ -91,11 +93,11 @@ function AdminMembersPage() {
       const initPlain = searchParams.get("plain") || "";
       const initGrass = searchParams.get("grassland") || "";
       const initPast = searchParams.get("pasture") || "";
-      doSearch(1, "", initPlain, initGrass, initPast);
+      doSearch(1, "", initPlain, initGrass, initPast, true, true);
     })();
   }, []);
 
-  const doSearch = async (p: number, q: string, plain: string, grass: string, past: string) => {
+  const doSearch = async (p: number, q: string, plain: string, grass: string, past: string, showCh: boolean, showPa: boolean) => {
     setLoading(true);
     const { data, error } = await supabase.rpc("admin_search_members_paged", {
       p_query: q || null,
@@ -104,6 +106,8 @@ function AdminMembersPage() {
       p_pasture: past || null,
       p_offset: (p - 1) * PAGE_SIZE,
       p_limit: PAGE_SIZE,
+      p_show_children: showCh,
+      p_show_parents: showPa,
     });
     if (!error && data) {
       setMembers(data);
@@ -112,8 +116,8 @@ function AdminMembersPage() {
     setLoading(false);
   };
 
-  const runSearch = () => { setPage(1); doSearch(1, query, filterPlain, filterGrassland, filterPasture); };
-  const goPage = (p: number) => { setPage(p); doSearch(p, query, filterPlain, filterGrassland, filterPasture); };
+  const runSearch = () => { setPage(1); doSearch(1, query, filterPlain, filterGrassland, filterPasture, showChildren, showParents); };
+  const goPage = (p: number) => { setPage(p); doSearch(p, query, filterPlain, filterGrassland, filterPasture, showChildren, showParents); };
 
   // 평원 → 초원 목록 (평원 미선택 시 전체)
   const grasslandOptions = useMemo(() => {
@@ -151,7 +155,7 @@ function AdminMembersPage() {
     });
     if (error) { alert(`수정 실패: ${error.message}`); return; }
     setEditing(null);
-    doSearch(page, query, filterPlain, filterGrassland, filterPasture);
+    doSearch(page, query, filterPlain, filterGrassland, filterPasture, showChildren, showParents);
   };
 
   const handleDelete = async () => {
@@ -159,7 +163,7 @@ function AdminMembersPage() {
     const { error } = await supabase.rpc("admin_delete_member", { p_member_id: deleting.id });
     if (error) { alert(`삭제 실패: ${error.message}`); return; }
     setDeleting(null);
-    doSearch(page, query, filterPlain, filterGrassland, filterPasture);
+    doSearch(page, query, filterPlain, filterGrassland, filterPasture, showChildren, showParents);
   };
 
   if (!authChecked) {
@@ -218,8 +222,37 @@ function AdminMembersPage() {
             <button onClick={runSearch} disabled={loading} style={btnPrimary}>
               {loading ? "조회 중..." : "🔍 검색"}
             </button>
-            <button onClick={() => { setQuery(""); setFilterPlain(""); setFilterGrassland(""); setFilterPasture(""); setPage(1); doSearch(1, "", "", "", ""); }}
+            <button onClick={() => { setQuery(""); setFilterPlain(""); setFilterGrassland(""); setFilterPasture(""); setShowChildren(true); setShowParents(true); setPage(1); doSearch(1, "", "", "", "", true, true); }}
               style={btnGhost}>초기화</button>
+          </div>
+          <div style={{ display: "flex", gap: 16, marginTop: 10, alignItems: "center", fontSize: 12, color: "#475569" }}>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
+              <input
+                type="checkbox"
+                checked={showParents}
+                onChange={(e) => {
+                  const v = e.target.checked;
+                  setShowParents(v);
+                  setPage(1);
+                  doSearch(1, query, filterPlain, filterGrassland, filterPasture, showChildren, v);
+                }}
+              />
+              부모 보기
+            </label>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
+              <input
+                type="checkbox"
+                checked={showChildren}
+                onChange={(e) => {
+                  const v = e.target.checked;
+                  setShowChildren(v);
+                  setPage(1);
+                  doSearch(1, query, filterPlain, filterGrassland, filterPasture, v, showParents);
+                }}
+              />
+              자녀 보기
+            </label>
+            <span style={{ color: "#94a3b8", fontSize: 11 }}>체크 해제 시 해당 구분 회원이 목록에서 숨겨집니다</span>
           </div>
         </div>
 
@@ -322,7 +355,7 @@ function AdminMembersPage() {
         <CreateModal
           dirTree={dirTree}
           onClose={() => setCreating(false)}
-          onCreated={() => { setCreating(false); doSearch(page, query, filterPlain, filterGrassland, filterPasture); }}
+          onCreated={() => { setCreating(false); doSearch(page, query, filterPlain, filterGrassland, filterPasture, showChildren, showParents); }}
         />
       )}
 
@@ -331,7 +364,7 @@ function AdminMembersPage() {
         <MemberCardModal
           memberId={cardMemberId}
           onClose={() => setCardMemberId(null)}
-          onChanged={() => doSearch(page, query, filterPlain, filterGrassland, filterPasture)}
+          onChanged={() => doSearch(page, query, filterPlain, filterGrassland, filterPasture, showChildren, showParents)}
         />
       )}
     </div>
