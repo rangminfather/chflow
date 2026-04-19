@@ -37,6 +37,7 @@ interface MyDepartment {
 
 // 공통 메뉴 (모든 사용자가 접근 가능)
 const COMMON_MENUS = [
+  { id: "vote",      label: "투표",            icon: "🗳️", color: "#6366f1", desc: "항존직 선거 · 각종 투표", href: "/vote" },
   { id: "bulletin",   label: "주보 보기",       icon: "📖", color: "#0ea5e9", desc: "주간 교회 주보" },
   { id: "events",     label: "행사 공지",       icon: "📢", color: "#0ea5e9", desc: "교회 행사/공지사항" },
   { id: "calendar",   label: "행사 달력",       icon: "📅", color: "#0ea5e9", desc: "월간 교회 행사" },
@@ -283,6 +284,14 @@ export default function HomePage() {
               >
                 <span>👥</span>
                 <span className="admin-btn-label">회원관리</span>
+              </button>
+              <button
+                onClick={() => router.push("/admin/votes")}
+                title="투표 관리"
+                style={adminBtnStyle("#f5f3ff", "#5b21b6")}
+              >
+                <span>🗳️</span>
+                <span className="admin-btn-label">투표관리</span>
               </button>
               <button
                 onClick={() => router.push("/admin/rearrange")}
@@ -908,9 +917,16 @@ function MyDepartmentsSection({
 }
 
 function MenuCard({ menu }: { menu: typeof COMMON_MENUS[0] }) {
+  const router = useRouter();
   return (
     <div
-      onClick={() => alert(`${menu.label} - 곧 구현됩니다!`)}
+      onClick={() => {
+        if ("href" in menu && menu.href) {
+          router.push(menu.href);
+        } else {
+          alert(`${menu.label} - 곧 구현됩니다!`);
+        }
+      }}
       style={{
         background: "#fff",
         border: "1px solid #e2e8f0",
