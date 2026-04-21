@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -22,6 +22,15 @@ interface Candidate {
   name: string;
   description: string | null;
   display_order: number;
+}
+
+interface MemberSearchResult {
+  id: string;
+  name: string;
+  phone: string | null;
+  pasture_name: string | null;
+  grassland_name: string | null;
+  plain_name: string | null;
 }
 
 interface ResultRow {
@@ -79,6 +88,12 @@ export default function AdminVotesPage() {
   const [candDesc, setCandDesc] = useState("");
   const [candSaving, setCandSaving] = useState(false);
 
+  // 후보 이름 DB 검색
+  const [memberResults, setMemberResults] = useState<MemberSearchResult[]>([]);
+  const [memberSearched, setMemberSearched] = useState(false);
+  const [memberSearching, setMemberSearching] = useState(false);
+  const skipMemberSearchRef = useRef(false);
+
   // 결과
   const [results, setResults] = useState<ResultRow[]>([]);
   const [resultsLoading, setResultsLoading] = useState(false);
@@ -127,14 +142,59 @@ export default function AdminVotesPage() {
 
   async function openCandidates(vote: Vote) {
     setModal({ type: "candidates", vote });
+    skipMemberSearchRef.current = true;
     setCandName("");
     setCandDesc("");
+    setMemberResults([]);
+    setMemberSearched(false);
     const { data } = await supabase
       .from("vote_candidates")
       .select("*")
       .eq("vote_id", vote.id)
       .order("display_order");
     setCandidates(data || []);
+  }
+
+  // 후보 이름 입력 → DB 검색 (debounce 250ms)
+  useEffect(() => {
+    if (modal?.type !== "candidates") return;
+    if (skipMemberSearchRef.current) {
+      skipMemberSearchRef.current = false;
+      return;
+    }
+    const q = candName.trim();
+    if (!q) {
+      setMemberResults([]);
+      setMemberSearched(false);
+      setMemberSearching(false);
+      return;
+    }
+    setMemberSearching(true);
+    const handle = setTimeout(async () => {
+      const { data } = await supabase.rpc("admin_search_members_paged", {
+        p_query: q,
+        p_plain: null,
+        p_grassland: null,
+        p_pasture: null,
+        p_offset: 0,
+        p_limit: 10,
+        p_show_children: true,
+        p_show_parents: true,
+      });
+      setMemberResults((data as MemberSearchResult[]) || []);
+      setMemberSearched(true);
+      setMemberSearching(false);
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [candName, modal]);
+
+  function pickMember(m: MemberSearchResult) {
+    skipMemberSearchRef.current = true;
+    setCandName(m.name);
+    setMemberResults([]);
+    setMemberSearched(false);
+    const scope = [m.plain_name, m.grassland_name, m.pasture_name].filter(Boolean).join(" / ");
+    if (scope && !candDesc.trim()) setCandDesc(scope);
   }
 
   async function openResults(vote: Vote) {
@@ -212,8 +272,11 @@ export default function AdminVotesPage() {
       .eq("vote_id", modal.vote.id)
       .order("display_order");
     setCandidates(data || []);
+    skipMemberSearchRef.current = true;
     setCandName("");
     setCandDesc("");
+    setMemberResults([]);
+    setMemberSearched(false);
     setCandSaving(false);
     await loadVotes();
   }
@@ -266,7 +329,8 @@ export default function AdminVotesPage() {
           }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>🗳️</div>
             <div style={{ fontWeight: 700 }}>등록된 투표가 없습니다</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>상단 버튼으로 새 투표를 만들어보세요.</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>상단 <b style={{ color: "#6366f1" }}>+ 새 투표 만들기</b> 버튼으로 먼저 투표를 생성해 주세요.</div>
+            <div style={{ fontSize: 12, marginTop: 6, color: "#64748b" }}>후보자 등록은 투표 만들기 후 등록 가능합니다.</div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -439,10 +503,55 @@ export default function AdminVotesPage() {
             <input
               value={candName}
               onChange={e => setCandName(e.target.value)}
-              placeholder="후보자 이름"
-              style={inputStyle}
+              placeholder="후보자 이름 (DB에서 검색)"
+              style={{ ...inputStyle, marginBottom: 4 }}
               onKeyDown={e => { if (e.key === "Enter") handleAddCandidate(); }}
             />
+
+            {/* 검색 결과 / 검색 상태 */}
+            {candName.trim() && (
+              <div style={{ marginBottom: 12 }}>
+                {memberSearching ? (
+                  <div style={{ fontSize: 11, color: "#94a3b8", padding: "6px 4px" }}>검색 중...</div>
+                ) : memberResults.length > 0 ? (
+                  <div style={{
+                    border: "1px solid #e2e8f0", borderRadius: 10,
+                    maxHeight: 180, overflowY: "auto", background: "#fff",
+                  }}>
+                    {memberResults.map(m => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => pickMember(m)}
+                        style={{
+                          display: "block", width: "100%", textAlign: "left",
+                          padding: "8px 12px", background: "transparent",
+                          border: "none", borderBottom: "1px solid #f1f5f9",
+                          cursor: "pointer", fontFamily: "inherit",
+                        }}
+                      >
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                          {m.name}
+                          {m.phone && <span style={{ fontSize: 11, fontWeight: 400, color: "#94a3b8", marginLeft: 8 }}>{m.phone}</span>}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#64748b" }}>
+                          {[m.plain_name, m.grassland_name, m.pasture_name].filter(Boolean).join(" / ") || "-"}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : memberSearched ? (
+                  <div style={{
+                    fontSize: 12, color: "#94a3b8",
+                    background: "#f8fafc", border: "1px solid #e2e8f0",
+                    borderRadius: 8, padding: "8px 12px",
+                  }}>
+                    등록된 교인이 없습니다. 그래도 등록하시겠습니까?
+                  </div>
+                ) : null}
+              </div>
+            )}
+
             <label style={labelStyle}>설명 (선택)</label>
             <input
               value={candDesc}
