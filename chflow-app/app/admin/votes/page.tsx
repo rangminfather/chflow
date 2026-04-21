@@ -22,15 +22,18 @@ interface Candidate {
   name: string;
   description: string | null;
   display_order: number;
+  photo_url: string | null;
 }
 
 interface MemberSearchResult {
   id: string;
   name: string;
   phone: string | null;
+  sub_role: string | null;
   pasture_name: string | null;
   grassland_name: string | null;
   plain_name: string | null;
+  photo_url: string | null;
 }
 
 interface ResultRow {
@@ -45,7 +48,8 @@ interface ResultRow {
 type Modal =
   | { type: "create" }
   | { type: "edit"; vote: Vote }
-  | { type: "candidates"; vote: Vote }
+  | { type: "add_candidate"; vote: Vote }
+  | { type: "manage_candidates"; vote: Vote }
   | { type: "results"; vote: Vote }
   | null;
 
@@ -82,10 +86,11 @@ export default function AdminVotesPage() {
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
-  // 후보자 관리
+  // 후보자 등록/관리
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [candName, setCandName] = useState("");
   const [candDesc, setCandDesc] = useState("");
+  const [candPhotoUrl, setCandPhotoUrl] = useState<string | null>(null);
   const [candSaving, setCandSaving] = useState(false);
 
   // 후보 이름 DB 검색
@@ -93,6 +98,12 @@ export default function AdminVotesPage() {
   const [memberSearched, setMemberSearched] = useState(false);
   const [memberSearching, setMemberSearching] = useState(false);
   const skipMemberSearchRef = useRef(false);
+
+  // 후보 수정 (후보 관리 모달 내)
+  const [editingCandId, setEditingCandId] = useState<string | null>(null);
+  const [editCandName, setEditCandName] = useState("");
+  const [editCandDesc, setEditCandDesc] = useState("");
+  const [editCandPhotoUrl, setEditCandPhotoUrl] = useState<string | null>(null);
 
   // 결과
   const [results, setResults] = useState<ResultRow[]>([]);
@@ -140,24 +151,55 @@ export default function AdminVotesPage() {
     setModal({ type: "edit", vote });
   }
 
-  async function openCandidates(vote: Vote) {
-    setModal({ type: "candidates", vote });
-    skipMemberSearchRef.current = true;
-    setCandName("");
-    setCandDesc("");
-    setMemberResults([]);
-    setMemberSearched(false);
+  async function loadCandidates(voteId: string) {
     const { data } = await supabase
       .from("vote_candidates")
       .select("*")
-      .eq("vote_id", vote.id)
+      .eq("vote_id", voteId)
       .order("display_order");
     setCandidates(data || []);
   }
 
+  async function openAddCandidate(vote: Vote) {
+    setModal({ type: "add_candidate", vote });
+    skipMemberSearchRef.current = true;
+    setCandName("");
+    setCandDesc("");
+    setCandPhotoUrl(null);
+    setMemberResults([]);
+    setMemberSearched(false);
+    await loadCandidates(vote.id);
+  }
+
+  async function openManageCandidates(vote: Vote) {
+    setModal({ type: "manage_candidates", vote });
+    setEditingCandId(null);
+    await loadCandidates(vote.id);
+  }
+
+  function startEditCandidate(c: Candidate) {
+    setEditingCandId(c.id);
+    setEditCandName(c.name);
+    setEditCandDesc(c.description || "");
+    setEditCandPhotoUrl(c.photo_url);
+  }
+
+  async function saveEditCandidate() {
+    if (!editingCandId || !editCandName.trim()) return;
+    await supabase.rpc("admin_update_vote_candidate", {
+      p_candidate_id: editingCandId,
+      p_name: editCandName.trim(),
+      p_description: editCandDesc.trim() || null,
+      p_photo_url: editCandPhotoUrl,
+    });
+    const voteId = modal?.type === "manage_candidates" ? modal.vote.id : null;
+    if (voteId) await loadCandidates(voteId);
+    setEditingCandId(null);
+  }
+
   // 후보 이름 입력 → DB 검색 (debounce 250ms)
   useEffect(() => {
-    if (modal?.type !== "candidates") return;
+    if (modal?.type !== "add_candidate") return;
     if (skipMemberSearchRef.current) {
       skipMemberSearchRef.current = false;
       return;
@@ -191,10 +233,16 @@ export default function AdminVotesPage() {
   function pickMember(m: MemberSearchResult) {
     skipMemberSearchRef.current = true;
     setCandName(m.name);
+    setCandPhotoUrl(m.photo_url);
     setMemberResults([]);
     setMemberSearched(false);
-    const scope = [m.plain_name, m.grassland_name, m.pasture_name].filter(Boolean).join(" / ");
-    if (scope && !candDesc.trim()) setCandDesc(scope);
+    if (!candDesc.trim()) {
+      const parts: string[] = [];
+      if (m.sub_role) parts.push(m.sub_role);
+      const scope = [m.plain_name, m.grassland_name, m.pasture_name].filter(Boolean).join(" / ");
+      if (scope) parts.push(scope);
+      if (parts.length > 0) setCandDesc(parts.join(" · "));
+    }
   }
 
   async function openResults(vote: Vote) {
@@ -257,7 +305,7 @@ export default function AdminVotesPage() {
   }
 
   async function handleAddCandidate() {
-    if (!candName.trim() || modal?.type !== "candidates") return;
+    if (!candName.trim() || modal?.type !== "add_candidate") return;
     setCandSaving(true);
     const nextOrder = candidates.length;
     await supabase.rpc("admin_add_vote_candidate", {
@@ -265,16 +313,13 @@ export default function AdminVotesPage() {
       p_name: candName.trim(),
       p_description: candDesc.trim() || null,
       p_display_order: nextOrder,
+      p_photo_url: candPhotoUrl,
     });
-    const { data } = await supabase
-      .from("vote_candidates")
-      .select("*")
-      .eq("vote_id", modal.vote.id)
-      .order("display_order");
-    setCandidates(data || []);
+    await loadCandidates(modal.vote.id);
     skipMemberSearchRef.current = true;
     setCandName("");
     setCandDesc("");
+    setCandPhotoUrl(null);
     setMemberResults([]);
     setMemberSearched(false);
     setCandSaving(false);
@@ -396,14 +441,26 @@ export default function AdminVotesPage() {
                       >
                         {vote.is_active ? "⏸ 비활성" : "▶ 활성화"}
                       </button>
-                      <button onClick={() => openCandidates(vote)} style={smallBtnStyle}>
-                        👤 후보관리
+                      <button onClick={() => openAddCandidate(vote)} style={smallBtnStyle}>
+                        ➕ 후보 등록
+                      </button>
+                      <button onClick={() => openManageCandidates(vote)} style={smallBtnStyle}>
+                        👤 후보 관리
                       </button>
                       <button onClick={() => openResults(vote)} style={{ ...smallBtnStyle, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe" }}>
                         📊 결과보기
                       </button>
+                      {running && (
+                        <button
+                          onClick={() => router.push(`/vote/${vote.id}`)}
+                          style={{ ...smallBtnStyle, background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0" }}
+                          title="투표 페이지로 이동하여 직접 참여"
+                        >
+                          🗳 참여
+                        </button>
+                      )}
                       <button onClick={() => openEdit(vote)} style={smallBtnStyle}>
-                        ✏️ 수정
+                        ✏️ 투표제목수정
                       </button>
                       <button onClick={() => handleDeleteVote(vote)} style={{ ...smallBtnStyle, background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca" }}>
                         🗑 삭제
@@ -417,11 +474,11 @@ export default function AdminVotesPage() {
         )}
       </div>
 
-      {/* 투표 생성/수정 모달 */}
+      {/* 투표 생성/투표제목수정 모달 */}
       {(modal?.type === "create" || modal?.type === "edit") && (
         <ModalOverlay onClose={() => setModal(null)}>
           <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 20 }}>
-            {modal.type === "create" ? "새 투표 만들기" : "투표 수정"}
+            {modal.type === "create" ? "새 투표 만들기" : "투표제목수정"}
           </div>
 
           <label style={labelStyle}>투표 제목 *</label>
@@ -440,6 +497,16 @@ export default function AdminVotesPage() {
             rows={3}
             style={{ ...inputStyle, resize: "vertical" }}
           />
+          {modal.type === "create" && (
+            <div style={{
+              fontSize: 12, color: "#64748b",
+              background: "#f8fafc", border: "1px solid #e2e8f0",
+              borderRadius: 8, padding: "10px 12px",
+              marginTop: -4, marginBottom: 12,
+            }}>
+              💡 후보자 등록은 투표 만들기를 한 후 <b>➕ 후보 등록</b> 버튼에서 가능합니다.
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: 12 }}>
             <div style={{ flex: 1 }}>
@@ -463,42 +530,40 @@ export default function AdminVotesPage() {
         </ModalOverlay>
       )}
 
-      {/* 후보자 관리 모달 */}
-      {modal?.type === "candidates" && (
+      {/* 후보 등록 모달 */}
+      {modal?.type === "add_candidate" && (
         <ModalOverlay onClose={() => setModal(null)}>
           <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 4 }}>
-            👤 후보자 관리
+            ➕ 후보 등록
           </div>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>{modal.vote.title}</div>
+          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+            {modal.vote.title} · 현재 {candidates.length}명 등록됨
+          </div>
 
-          {/* 기존 후보 목록 */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20, maxHeight: 260, overflowY: "auto" }}>
-            {candidates.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 20, color: "#94a3b8", fontSize: 13 }}>후보자가 없습니다</div>
-            ) : (
-              candidates.map((c, i) => (
-                <div key={c.id} style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 14px", background: "#f8fafc", borderRadius: 10,
-                  border: "1px solid #e2e8f0",
+          {/* 현재 등록된 후보 (간략 목록) */}
+          {candidates.length > 0 && (
+            <div style={{
+              display: "flex", flexWrap: "wrap", gap: 6,
+              marginBottom: 16, padding: "10px 12px",
+              background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10,
+            }}>
+              {candidates.map((c, i) => (
+                <span key={c.id} style={{
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  fontSize: 12, fontWeight: 600, color: "#475569",
+                  background: "#fff", border: "1px solid #e2e8f0",
+                  borderRadius: 99, padding: "3px 10px",
                 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#6366f1", width: 20 }}>{i + 1}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>{c.name}</div>
-                    {c.description && <div style={{ fontSize: 11, color: "#64748b" }}>{c.description}</div>}
-                  </div>
-                  <button
-                    onClick={() => handleDeleteCandidate(c)}
-                    style={{ ...smallBtnStyle, background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca", padding: "4px 10px" }}
-                  >삭제</button>
-                </div>
-              ))
-            )}
-          </div>
+                  <span style={{ color: "#6366f1", fontWeight: 800 }}>{i + 1}</span>
+                  {c.name}
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* 후보 추가 폼 */}
           <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 10 }}>후보 추가</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 10 }}>새 후보 추가</div>
             <label style={labelStyle}>이름 *</label>
             <input
               value={candName}
@@ -516,7 +581,7 @@ export default function AdminVotesPage() {
                 ) : memberResults.length > 0 ? (
                   <div style={{
                     border: "1px solid #e2e8f0", borderRadius: 10,
-                    maxHeight: 180, overflowY: "auto", background: "#fff",
+                    maxHeight: 240, overflowY: "auto", background: "#fff",
                   }}>
                     {memberResults.map(m => (
                       <button
@@ -524,18 +589,29 @@ export default function AdminVotesPage() {
                         type="button"
                         onClick={() => pickMember(m)}
                         style={{
-                          display: "block", width: "100%", textAlign: "left",
+                          display: "flex", width: "100%", textAlign: "left",
+                          alignItems: "center", gap: 10,
                           padding: "8px 12px", background: "transparent",
                           border: "none", borderBottom: "1px solid #f1f5f9",
                           cursor: "pointer", fontFamily: "inherit",
                         }}
                       >
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
-                          {m.name}
-                          {m.phone && <span style={{ fontSize: 11, fontWeight: 400, color: "#94a3b8", marginLeft: 8 }}>{m.phone}</span>}
-                        </div>
-                        <div style={{ fontSize: 11, color: "#64748b" }}>
-                          {[m.plain_name, m.grassland_name, m.pasture_name].filter(Boolean).join(" / ") || "-"}
+                        <Avatar url={m.photo_url} name={m.name} size={34} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                            {m.name}
+                            {m.sub_role && (
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, color: "#6366f1",
+                                background: "#eef2ff", border: "1px solid #c7d2fe",
+                                borderRadius: 99, padding: "1px 7px",
+                              }}>{m.sub_role}</span>
+                            )}
+                            {m.phone && <span style={{ fontSize: 11, fontWeight: 400, color: "#94a3b8" }}>{m.phone}</span>}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#64748b" }}>
+                            {[m.plain_name, m.grassland_name, m.pasture_name].filter(Boolean).join(" / ") || "-"}
+                          </div>
                         </div>
                       </button>
                     ))}
@@ -565,6 +641,100 @@ export default function AdminVotesPage() {
                 {candSaving ? "추가 중..." : "+ 후보 추가"}
               </button>
             </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* 후보 관리 모달 (수정/삭제) */}
+      {modal?.type === "manage_candidates" && (
+        <ModalOverlay onClose={() => setModal(null)}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 4 }}>
+            👤 후보 관리
+          </div>
+          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+            {modal.vote.title} · 등록된 후보 {candidates.length}명
+          </div>
+
+          {candidates.length === 0 ? (
+            <div style={{
+              textAlign: "center", padding: 32, color: "#94a3b8", fontSize: 13,
+              background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12,
+            }}>
+              아직 등록된 후보가 없습니다.<br />
+              <span style={{ fontSize: 11 }}>상단 <b>➕ 후보 등록</b>에서 먼저 추가해주세요.</span>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 420, overflowY: "auto" }}>
+              {candidates.map((c, i) => (
+                <div key={c.id} style={{
+                  padding: "12px 14px", background: "#f8fafc", borderRadius: 12,
+                  border: "1px solid #e2e8f0",
+                }}>
+                  {editingCandId === c.id ? (
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                        <Avatar url={editCandPhotoUrl} name={editCandName} size={40} />
+                        <div style={{ fontSize: 11, color: "#64748b" }}>
+                          {editCandPhotoUrl ? "등록된 사진" : "사진 없음"}
+                          {editCandPhotoUrl && (
+                            <button
+                              onClick={() => setEditCandPhotoUrl(null)}
+                              style={{
+                                marginLeft: 8, fontSize: 11, fontWeight: 600,
+                                background: "transparent", color: "#b91c1c",
+                                border: "none", cursor: "pointer", fontFamily: "inherit",
+                              }}
+                            >사진 제거</button>
+                          )}
+                        </div>
+                      </div>
+                      <label style={labelStyle}>이름 *</label>
+                      <input
+                        value={editCandName}
+                        onChange={e => setEditCandName(e.target.value)}
+                        style={inputStyle}
+                      />
+                      <label style={labelStyle}>설명</label>
+                      <input
+                        value={editCandDesc}
+                        onChange={e => setEditCandDesc(e.target.value)}
+                        placeholder="예) 1목장 장로 후보"
+                        style={inputStyle}
+                      />
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                        <button onClick={() => setEditingCandId(null)} style={cancelBtnStyle}>취소</button>
+                        <button
+                          onClick={saveEditCandidate}
+                          disabled={!editCandName.trim()}
+                          style={primaryBtnStyle}
+                        >저장</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "#6366f1", width: 20, textAlign: "center" }}>{i + 1}</span>
+                      <Avatar url={c.photo_url} name={c.name} size={40} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>{c.name}</div>
+                        {c.description && <div style={{ fontSize: 11, color: "#64748b" }}>{c.description}</div>}
+                      </div>
+                      <button
+                        onClick={() => startEditCandidate(c)}
+                        style={{ ...smallBtnStyle, padding: "4px 10px" }}
+                      >✏️ 수정</button>
+                      <button
+                        onClick={() => handleDeleteCandidate(c)}
+                        style={{ ...smallBtnStyle, background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca", padding: "4px 10px" }}
+                      >삭제</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+            <button onClick={() => setModal(null)} style={cancelBtnStyle}>닫기</button>
           </div>
         </ModalOverlay>
       )}
@@ -620,6 +790,33 @@ export default function AdminVotesPage() {
         </ModalOverlay>
       )}
     </div>
+  );
+}
+
+function Avatar({ url, name, size = 36 }: { url: string | null; name: string; size?: number }) {
+  const initial = (name || "?").trim().charAt(0);
+  if (url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return (
+      <img
+        src={url}
+        alt={name}
+        style={{
+          width: size, height: size, borderRadius: "50%",
+          objectFit: "cover", border: "1px solid #e2e8f0",
+          flexShrink: 0, background: "#f1f5f9",
+        }}
+      />
+    );
+  }
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: "50%",
+      background: "linear-gradient(135deg, #c7d2fe, #a5b4fc)",
+      color: "#3730a3", fontWeight: 800, fontSize: size * 0.42,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      flexShrink: 0,
+    }}>{initial}</div>
   );
 }
 
