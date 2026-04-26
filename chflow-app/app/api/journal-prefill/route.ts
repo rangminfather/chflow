@@ -303,6 +303,11 @@ export async function GET(req: NextRequest) {
   });
 }
 
+// 같은 부서로 짧은 시간 안에 여러 번 호출되면 ums.or.kr 호스팅이 차단하므로
+// 5분간 결과 캐시. 부서 단위 키로 동일한 함수 인스턴스가 다시 호출되면 캐시 사용.
+const RESULT_CACHE = new Map<string, { result: Prefill; expiresAt: number }>();
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as { dept_key?: string };
@@ -313,6 +318,12 @@ export async function POST(req: NextRequest) {
         { ok: false, error: `지원하지 않는 부서: ${deptKey}` },
         { status: 400 },
       );
+    }
+
+    // 캐시 hit
+    const cached = RESULT_CACHE.get(deptKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json({ ok: true, data: cached.result, cached: true });
     }
 
     const html = await fetchEucKr(LIST_URL);
@@ -352,6 +363,7 @@ export async function POST(req: NextRequest) {
       source_date: extractDateFromTitle(matched.title, today.getFullYear()),
       ...parsed,
     };
+    RESULT_CACHE.set(deptKey, { result, expiresAt: Date.now() + CACHE_TTL_MS });
     return NextResponse.json({ ok: true, data: result });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "주보 불러오기 실패";
