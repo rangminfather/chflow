@@ -17,6 +17,11 @@ interface JournalDetail {
   department_id: string;
   journal_date: string;
   edu_topic: string;
+  scripture: string;
+  leader: string;
+  preacher: string;
+  sermon_title: string;
+  prayer_lead: string;
   praise: string;
   joint_activity: string;
   lesson_content: string;
@@ -34,6 +39,11 @@ interface JournalDetail {
 
 const EMPTY_FORM: Omit<JournalDetail, "id" | "department_id" | "journal_date"> = {
   edu_topic: "",
+  scripture: "",
+  leader: "",
+  preacher: "",
+  sermon_title: "",
+  prayer_lead: "",
   praise: "",
   joint_activity: "",
   lesson_content: "",
@@ -49,17 +59,25 @@ const EMPTY_FORM: Omit<JournalDetail, "id" | "department_id" | "journal_date"> =
   prayer_requests: "",
 };
 
+// 부서명 -> /api/journal-prefill 의 dept_key 매핑
+// 현재는 초등1부만 지원 (나중에 다른 부서 패턴 확장)
+const DEPT_PREFILL_KEY: Record<string, string> = {
+  "초등1부": "초등1부",
+};
+
 export default function JournalPage() {
   const router = useRouter();
   const params = useParams();
   const deptId = params.id as string;
 
   const [authChecked, setAuthChecked] = useState(false);
+  const [deptName, setDeptName] = useState<string>("");
   const [journals, setJournals] = useState<JournalSummary[]>([]);
   const [selected, setSelected] = useState<JournalDetail | null>(null);
   const [form, setForm] = useState({ date: todayDate(), ...EMPTY_FORM });
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [prefilling, setPrefilling] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
 
@@ -68,6 +86,8 @@ export default function JournalPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/login"); return; }
       setAuthChecked(true);
+      const { data: deptInfo } = await supabase.rpc("get_department_info", { p_dept_id: deptId });
+      if (deptInfo && deptInfo[0]) setDeptName(deptInfo[0].name || "");
       await loadList();
     })();
   }, []);
@@ -87,6 +107,11 @@ export default function JournalPage() {
       setForm({
         date: j.journal_date,
         edu_topic: j.edu_topic || "",
+        scripture: j.scripture || "",
+        leader: j.leader || "",
+        preacher: j.preacher || "",
+        sermon_title: j.sermon_title || "",
+        prayer_lead: j.prayer_lead || "",
         praise: j.praise || "",
         joint_activity: j.joint_activity || "",
         lesson_content: j.lesson_content || "",
@@ -111,26 +136,66 @@ export default function JournalPage() {
     setIsNew(true);
   };
 
+  const handlePrefill = async () => {
+    const key = DEPT_PREFILL_KEY[deptName];
+    if (!key) {
+      showToast("이 부서는 아직 자동 불러오기를 지원하지 않습니다");
+      return;
+    }
+    setPrefilling(true);
+    try {
+      const res = await fetch("/api/journal-prefill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dept_key: key }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "불러오기 실패");
+      const d = json.data;
+      setForm((f) => ({
+        ...f,
+        date: d.source_date || f.date,
+        edu_topic: d.edu_topic || f.edu_topic,
+        scripture: d.scripture || f.scripture,
+        leader: d.leader || f.leader,
+        preacher: d.preacher || f.preacher,
+        sermon_title: d.sermon_title || f.sermon_title,
+        prayer_lead: d.prayer_lead || f.prayer_lead,
+        praise: d.praise || f.praise,
+      }));
+      showToast(`주보 #${d.source_no} 불러옴 - 확인 후 저장하세요`);
+    } catch (e: unknown) {
+      showToast("불러오기 실패: " + (e as Error).message);
+    } finally {
+      setPrefilling(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
       const { error } = await supabase.rpc("edu_upsert_journal", {
-        p_dept_id:    deptId,
-        p_date:       form.date,
-        p_topic:      form.edu_topic,
-        p_praise:     form.praise,
-        p_joint:      form.joint_activity,
-        p_lesson:     form.lesson_content,
-        p_events:     form.events,
-        p_reg_male:   form.stat_reg_male,
-        p_reg_female: form.stat_reg_female,
-        p_reg_total:  form.stat_reg_total,
-        p_enrolled:   form.stat_enrolled,
-        p_attend:     form.stat_attend,
-        p_absent:     form.stat_absent,
-        p_offering:   form.offering,
-        p_volunteers: form.volunteers,
-        p_prayer:     form.prayer_requests,
+        p_dept_id:      deptId,
+        p_date:         form.date,
+        p_topic:        form.edu_topic,
+        p_scripture:    form.scripture,
+        p_leader:       form.leader,
+        p_preacher:     form.preacher,
+        p_sermon_title: form.sermon_title,
+        p_prayer_lead:  form.prayer_lead,
+        p_praise:       form.praise,
+        p_joint:        form.joint_activity,
+        p_lesson:       form.lesson_content,
+        p_events:       form.events,
+        p_reg_male:     form.stat_reg_male,
+        p_reg_female:   form.stat_reg_female,
+        p_reg_total:    form.stat_reg_total,
+        p_enrolled:     form.stat_enrolled,
+        p_attend:       form.stat_attend,
+        p_absent:       form.stat_absent,
+        p_offering:     form.offering,
+        p_volunteers:   form.volunteers,
+        p_prayer:       form.prayer_requests,
       });
       if (error) throw error;
       showToast("저장되었습니다 ✅");
@@ -157,7 +222,7 @@ export default function JournalPage() {
 
   const showToast = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(""), 2500);
+    setTimeout(() => setToast(""), 2800);
   };
 
   const setN = (key: string, val: string) => {
@@ -167,6 +232,7 @@ export default function JournalPage() {
   if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
 
   const showForm = isNew || selected;
+  const canPrefill = isNew && !!DEPT_PREFILL_KEY[deptName];
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
@@ -227,9 +293,14 @@ export default function JournalPage() {
             </div>
           ) : (
             <div style={cardStyle}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 8, flexWrap: "wrap" }}>
                 <div style={sectionLabel}>{isNew ? "새 일지 작성" : "일지 편집"}</div>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {canPrefill && (
+                    <button onClick={handlePrefill} disabled={prefilling} style={prefillBtnStyle}>
+                      {prefilling ? "불러오는 중..." : "📄 주보에서 불러오기"}
+                    </button>
+                  )}
                   {!isNew && (
                     <button onClick={handleDelete} style={deleteBtnStyle}>삭제</button>
                   )}
@@ -239,7 +310,9 @@ export default function JournalPage() {
                 </div>
               </div>
 
-              {/* 날짜 */}
+              {/* ===== 종이 일지 순서대로 ===== */}
+
+              {/* 1) 날짜 */}
               <FormRow label="날짜">
                 <input
                   type="date"
@@ -249,29 +322,84 @@ export default function JournalPage() {
                 />
               </FormRow>
 
-              {/* 교육주제 */}
-              <FormRow label="교육주제">
+              {/* 2) 주제 */}
+              <FormRow label="주제">
                 <input
                   type="text"
                   value={form.edu_topic}
                   onChange={(e) => setForm((f) => ({ ...f, edu_topic: e.target.value }))}
-                  placeholder="이번 주 교육 주제"
+                  placeholder="주보 헤더의 주제"
                   style={inputStyle}
                 />
               </FormRow>
 
-              {/* 찬양 */}
+              {/* 3) 본문 (성경) */}
+              <FormRow label="본문 (성경)">
+                <input
+                  type="text"
+                  value={form.scripture}
+                  onChange={(e) => setForm((f) => ({ ...f, scripture: e.target.value }))}
+                  placeholder="예: 창세기 11장 1~9절"
+                  style={inputStyle}
+                />
+              </FormRow>
+
+              {/* 4) 인도자 */}
+              <FormRow label="인도자">
+                <input
+                  type="text"
+                  value={form.leader}
+                  onChange={(e) => setForm((f) => ({ ...f, leader: e.target.value }))}
+                  placeholder="예배 인도자"
+                  style={inputStyle}
+                />
+              </FormRow>
+
+              {/* 5) 설교자 */}
+              <FormRow label="설교자">
+                <input
+                  type="text"
+                  value={form.preacher}
+                  onChange={(e) => setForm((f) => ({ ...f, preacher: e.target.value }))}
+                  placeholder="강론자"
+                  style={inputStyle}
+                />
+              </FormRow>
+
+              {/* 6) 설교제목 */}
+              <FormRow label="설교제목">
+                <input
+                  type="text"
+                  value={form.sermon_title}
+                  onChange={(e) => setForm((f) => ({ ...f, sermon_title: e.target.value }))}
+                  placeholder="강론 제목"
+                  style={inputStyle}
+                />
+              </FormRow>
+
+              {/* 7) 기도 */}
+              <FormRow label="기도">
+                <input
+                  type="text"
+                  value={form.prayer_lead}
+                  onChange={(e) => setForm((f) => ({ ...f, prayer_lead: e.target.value }))}
+                  placeholder="기도 담당 (예: 2-3반)"
+                  style={inputStyle}
+                />
+              </FormRow>
+
+              {/* 8) 찬양 */}
               <FormRow label="찬양">
                 <input
                   type="text"
                   value={form.praise}
                   onChange={(e) => setForm((f) => ({ ...f, praise: e.target.value }))}
-                  placeholder="찬양 제목"
+                  placeholder="찬양 인도/곡명"
                   style={inputStyle}
                 />
               </FormRow>
 
-              {/* 합동 */}
+              {/* 9) 합동 */}
               <FormRow label="합동">
                 <input
                   type="text"
@@ -282,7 +410,7 @@ export default function JournalPage() {
                 />
               </FormRow>
 
-              {/* 공과내용 */}
+              {/* 10) 공과내용 */}
               <FormRow label="공과내용">
                 <textarea
                   value={form.lesson_content}
@@ -293,7 +421,7 @@ export default function JournalPage() {
                 />
               </FormRow>
 
-              {/* 행사 */}
+              {/* 11) 행사 */}
               <FormRow label="행사">
                 <input
                   type="text"
@@ -304,7 +432,7 @@ export default function JournalPage() {
                 />
               </FormRow>
 
-              {/* 통계 */}
+              {/* 12) 통계 */}
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 8 }}>통계</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
@@ -330,7 +458,7 @@ export default function JournalPage() {
                 </div>
               </div>
 
-              {/* 헌금 */}
+              {/* 13) 헌금 */}
               <FormRow label="헌금 (원)">
                 <input
                   type="number"
@@ -341,7 +469,7 @@ export default function JournalPage() {
                 />
               </FormRow>
 
-              {/* 봉사 */}
+              {/* 14) 봉사 */}
               <FormRow label="봉사">
                 <input
                   type="text"
@@ -352,7 +480,7 @@ export default function JournalPage() {
                 />
               </FormRow>
 
-              {/* 기도제목 */}
+              {/* 15) 기도제목 */}
               <FormRow label="기도제목">
                 <textarea
                   value={form.prayer_requests}
@@ -436,6 +564,18 @@ const saveBtnStyle: React.CSSProperties = {
   border: "none",
   borderRadius: 8,
   fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+const prefillBtnStyle: React.CSSProperties = {
+  padding: "8px 14px",
+  background: "#ecfeff",
+  color: "#0369a1",
+  border: "1.5px solid #67e8f9",
+  borderRadius: 8,
+  fontSize: 12,
   fontWeight: 700,
   cursor: "pointer",
   fontFamily: "inherit",
