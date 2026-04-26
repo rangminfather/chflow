@@ -26,10 +26,12 @@ type Prefill = {
   praise?: string;          // 찬양
 };
 
-const BOARD_BASE = "http://ums.or.kr/bbs";
-const LIST_URL = `${BOARD_BASE}/zboard.php?id=samusil&page=1`;
-const FILE_URL = (no: number) =>
-  `${BOARD_BASE}/skin/PSM_Revolution_DragDrop_board_domi_t_reply_comment/m_download.php?id=samusil&no=${no}&filenum=0&snum=0&hit=0`;
+// ums.or.kr 은 Vercel iad1 함수 IP 일부를 차단하므로 직접 호출하지 않고
+// Supabase Edge Function (Cloudflare ICN 엣지) 을 프록시로 거친다.
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const PROXY_BASE = `${SUPABASE_URL}/functions/v1/ums-fetch`;
+const LIST_URL = `${PROXY_BASE}?action=list`;
+const FILE_URL = (no: number) => `${PROXY_BASE}?action=pdf&no=${no}`;
 
 // ─────────────────────────────────────────
 // 부서별 게시글 검색 패턴
