@@ -78,8 +78,15 @@ export default function JournalPage() {
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
   const [prefilling, setPrefilling] = useState(false);
+  const [prefillAttempt, setPrefillAttempt] = useState(0);   // 1..MAX
+  const [prefillStatus, setPrefillStatus] = useState<"idle" | "trying" | "waiting" | "done" | "failed">("idle");
+  const [prefillLastError, setPrefillLastError] = useState<string>("");
+  const prefillCancelRef = useState<{ cancelled: boolean }>({ cancelled: false })[0];
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
+
+  const MAX_PREFILL_ATTEMPTS = 5;
+  const RETRY_DELAYS_MS = [0, 5000, 8000, 10000, 12000]; // 1차~5차 시도 직전 대기
 
   useEffect(() => {
     (async () => {
@@ -136,39 +143,76 @@ export default function JournalPage() {
     setIsNew(true);
   };
 
+  const cancelPrefill = () => {
+    prefillCancelRef.cancelled = true;
+    setPrefilling(false);
+    setPrefillStatus("idle");
+  };
+
   const handlePrefill = async () => {
     const key = DEPT_PREFILL_KEY[deptName];
     if (!key) {
       showToast("이 부서는 아직 자동 불러오기를 지원하지 않습니다");
       return;
     }
+    prefillCancelRef.cancelled = false;
     setPrefilling(true);
-    try {
-      const res = await fetch("/api/journal-prefill", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dept_key: key }),
-      });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "불러오기 실패");
-      const d = json.data;
-      setForm((f) => ({
-        ...f,
-        date: d.source_date || f.date,
-        edu_topic: d.edu_topic || f.edu_topic,
-        scripture: d.scripture || f.scripture,
-        leader: d.leader || f.leader,
-        preacher: d.preacher || f.preacher,
-        sermon_title: d.sermon_title || f.sermon_title,
-        prayer_lead: d.prayer_lead || f.prayer_lead,
-        praise: d.praise || f.praise,
-      }));
-      showToast(`주보 #${d.source_no} 불러옴 - 확인 후 저장하세요`);
-    } catch (e: unknown) {
-      showToast("불러오기 실패: " + (e as Error).message);
-    } finally {
-      setPrefilling(false);
+    setPrefillLastError("");
+    setPrefillStatus("trying");
+
+    for (let i = 1; i <= MAX_PREFILL_ATTEMPTS; i++) {
+      if (prefillCancelRef.cancelled) return;
+
+      // 시도 직전 대기 (1차는 0, 2차부터 cold start 유도용 5~12초)
+      if (RETRY_DELAYS_MS[i - 1] > 0) {
+        setPrefillStatus("waiting");
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[i - 1]));
+        if (prefillCancelRef.cancelled) return;
+      }
+
+      setPrefillAttempt(i);
+      setPrefillStatus("trying");
+
+      try {
+        const res = await fetch("/api/journal-prefill", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dept_key: key }),
+        });
+        const json = await res.json();
+        if (prefillCancelRef.cancelled) return;
+
+        if (json.ok) {
+          const d = json.data;
+          setForm((f) => ({
+            ...f,
+            date: d.source_date || f.date,
+            edu_topic: d.edu_topic || f.edu_topic,
+            scripture: d.scripture || f.scripture,
+            leader: d.leader || f.leader,
+            preacher: d.preacher || f.preacher,
+            sermon_title: d.sermon_title || f.sermon_title,
+            prayer_lead: d.prayer_lead || f.prayer_lead,
+            praise: d.praise || f.praise,
+          }));
+          setPrefillStatus("done");
+          showToast(`주보 #${d.source_no} 불러옴 - 확인 후 저장하세요 ✅`);
+          // 성공 모달 잠깐 보이고 닫기
+          setTimeout(() => {
+            setPrefilling(false);
+            setPrefillStatus("idle");
+            setPrefillAttempt(0);
+          }, 800);
+          return;
+        }
+        setPrefillLastError(json.error || "알 수 없는 오류");
+      } catch (e: unknown) {
+        setPrefillLastError((e as Error).message);
+      }
     }
+
+    // 5번 다 실패
+    setPrefillStatus("failed");
   };
 
   const handleSave = async () => {
@@ -495,6 +539,83 @@ export default function JournalPage() {
         </div>
       </div>
 
+      {/* 자동 재시도 모달 */}
+      {prefilling && (
+        <div style={modalBackdropStyle}>
+          <div style={modalCardStyle}>
+            <div style={{ fontSize: 28, marginBottom: 6 }}>
+              {prefillStatus === "done" ? "✅" : prefillStatus === "failed" ? "⚠️" : "📄"}
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b", marginBottom: 6 }}>
+              {prefillStatus === "done"
+                ? "주보 데이터 불러오기 성공"
+                : prefillStatus === "failed"
+                ? "5번 시도했지만 실패했어요"
+                : prefillStatus === "waiting"
+                ? `잠시 대기 중... (${prefillAttempt + 1}/${MAX_PREFILL_ATTEMPTS}회차 준비)`
+                : `주보 데이터 불러오는 중... (${prefillAttempt}/${MAX_PREFILL_ATTEMPTS})`}
+            </div>
+            <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5, marginBottom: 14 }}>
+              {prefillStatus === "done"
+                ? "폼이 자동으로 채워졌어요. 확인 후 저장하세요."
+                : prefillStatus === "failed" ? (
+                  <>
+                    잠시 후 다시 시도해주세요. 사이트의 일시 차단으로 시간이 좀 지나야 풀립니다.
+                    {prefillLastError && (
+                      <div style={{ marginTop: 6, fontSize: 11, color: "#94a3b8" }}>
+                        마지막 오류: {prefillLastError.slice(0, 80)}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    명성교회 사무실 게시판이 짧은 시간 같은 IP의 반복 요청을 일시 차단합니다.
+                    그래서 5번까지 자동으로 다시 시도합니다 (성공률 ~97%).
+                    {prefillLastError && prefillAttempt > 1 && (
+                      <div style={{ marginTop: 6, fontSize: 11, color: "#94a3b8" }}>
+                        직전 오류: {prefillLastError.slice(0, 60)}
+                      </div>
+                    )}
+                  </>
+                )}
+            </div>
+
+            {/* 진행 바 */}
+            {prefillStatus !== "done" && prefillStatus !== "failed" && (
+              <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+                {Array.from({ length: MAX_PREFILL_ATTEMPTS }).map((_, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      flex: 1,
+                      height: 6,
+                      borderRadius: 3,
+                      background:
+                        idx < prefillAttempt
+                          ? "#6366f1"
+                          : idx === prefillAttempt && prefillStatus === "trying"
+                          ? "#a5b4fc"
+                          : "#e2e8f0",
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              {prefillStatus === "failed" ? (
+                <>
+                  <button onClick={cancelPrefill} style={modalSecondaryBtnStyle}>닫기</button>
+                  <button onClick={handlePrefill} style={modalPrimaryBtnStyle}>다시 시도</button>
+                </>
+              ) : prefillStatus === "done" ? null : (
+                <button onClick={cancelPrefill} style={modalSecondaryBtnStyle}>종료하기</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast */}
       {toast && (
         <div style={toastStyle}>{toast}</div>
@@ -639,4 +760,49 @@ const loadingStyle: React.CSSProperties = {
   justifyContent: "center",
   background: "#f1f5f9",
   fontFamily: "'Noto Sans KR', sans-serif",
+};
+
+const modalBackdropStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(15,23,42,0.55)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 20,
+  zIndex: 1000,
+};
+
+const modalCardStyle: React.CSSProperties = {
+  background: "#fff",
+  borderRadius: 16,
+  padding: "22px 22px 18px",
+  width: "100%",
+  maxWidth: 360,
+  boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
+  textAlign: "center",
+};
+
+const modalPrimaryBtnStyle: React.CSSProperties = {
+  padding: "8px 18px",
+  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  color: "#fff",
+  border: "none",
+  borderRadius: 8,
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+const modalSecondaryBtnStyle: React.CSSProperties = {
+  padding: "8px 14px",
+  background: "#f1f5f9",
+  color: "#475569",
+  border: "1.5px solid #e2e8f0",
+  borderRadius: 8,
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontFamily: "inherit",
 };
