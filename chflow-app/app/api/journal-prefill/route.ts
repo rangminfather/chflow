@@ -98,18 +98,40 @@ function extractDateFromTitle(title: string, fallbackYear: number): string | und
   return `${fallbackYear}-${mm}-${dd}`;
 }
 
-async function downloadPdfBufferOnce(no: number): Promise<Uint8Array> {
-  const res = await fetch(FILE_URL(no), { cache: "no-store", headers: BROWSER_HEADERS });
-  if (!res.ok) throw new Error(`PDF 다운로드 실패: ${res.status}`);
-  return new Uint8Array(await res.arrayBuffer());
+// 게시글 페이지에서 PDF 정적 파일 경로(data/samusil/<year>/<hash>.pdf) 추출
+// og:image URL 이 "<hash>__pdf.jpg" 형식이라 ".pdf"로 치환하면 실제 파일.
+async function findRawPdfPathFromPost(no: number): Promise<string | undefined> {
+  const res = await fetch(`${PROXY_BASE}?action=post&no=${no}`, { cache: "no-store" });
+  const buf = await res.arrayBuffer();
+  const html = new TextDecoder("euc-kr").decode(buf);
+  const m = html.match(/data\/samusil\/\d+\/[a-f0-9]+__pdf\.jpg/i);
+  return m ? m[0].replace(/__pdf\.jpg$/i, ".pdf") : undefined;
 }
 
 async function downloadPdfBuffer(no: number): Promise<Uint8Array> {
-  // PDF 도 동일 rate-limit 영향을 받을 수 있어 짧은 응답이면 1.5초 후 재시도
-  const first = await downloadPdfBufferOnce(no);
-  if (first.byteLength > 1000) return first;
-  await new Promise((r) => setTimeout(r, 1500));
-  return await downloadPdfBufferOnce(no);
+  // 1차: 정적 PDF 경로 시도 (m_download.php 가 차단된 경우 우회용)
+  const rawPath = await findRawPdfPathFromPost(no);
+  if (rawPath) {
+    const res = await fetch(`${PROXY_BASE}?action=raw_pdf&path=${encodeURIComponent(rawPath)}`, {
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const buf = new Uint8Array(await res.arrayBuffer());
+      // PDF 시그니처(%PDF-) 확인
+      if (buf.byteLength > 1000 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) {
+        return buf;
+      }
+    }
+  }
+
+  // 2차: m_download.php 폴백 (제대로 referer 박혀서 통과될 가능성)
+  const res = await fetch(`${PROXY_BASE}?action=pdf&no=${no}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`PDF 다운로드 실패: ${res.status}`);
+  const buf = new Uint8Array(await res.arrayBuffer());
+  if (buf.byteLength <= 1000 || buf[0] !== 0x25) {
+    throw new Error(`PDF 다운로드 실패: 응답이 PDF 가 아님 (${buf.byteLength}바이트)`);
+  }
+  return buf;
 }
 
 async function pdfToText(buf: Uint8Array): Promise<string> {
