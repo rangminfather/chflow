@@ -37,8 +37,19 @@ const DEPT_PATTERNS: Record<string, { author: string; titleIncludes: string[] }>
   "초등1부": { author: "심주석", titleIncludes: ["초등1초원"] },
 };
 
+// ums.or.kr 은 User-Agent 비어있거나 봇처럼 보이면 다른 페이지(빈/모바일)를 반환할 수 있음.
+// 평범한 데스크탑 크롬으로 위장.
+const BROWSER_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Accept":
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+  "Referer": "http://ums.or.kr/",
+} as const;
+
 async function fetchEucKr(url: string): Promise<string> {
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, { cache: "no-store", headers: BROWSER_HEADERS });
   const buf = await res.arrayBuffer();
   return new TextDecoder("euc-kr").decode(buf);
 }
@@ -74,7 +85,7 @@ function extractDateFromTitle(title: string, fallbackYear: number): string | und
 }
 
 async function downloadPdfBuffer(no: number): Promise<Uint8Array> {
-  const res = await fetch(FILE_URL(no), { cache: "no-store" });
+  const res = await fetch(FILE_URL(no), { cache: "no-store", headers: BROWSER_HEADERS });
   if (!res.ok) throw new Error(`PDF 다운로드 실패: ${res.status}`);
   return new Uint8Array(await res.arrayBuffer());
 }
@@ -199,8 +210,18 @@ export async function POST(req: NextRequest) {
         pattern.titleIncludes.every((kw) => r.title.includes(kw)),
     );
     if (!matched) {
+      // 디버깅: 매칭 실패 사유 추론
+      const sameAuthor = rows.filter((r) => r.author === pattern.author);
+      let hint: string;
+      if (rows.length === 0) {
+        hint = `게시판 응답을 읽지 못했습니다 (응답 길이 ${html.length}자). 사이트 차단 가능성.`;
+      } else if (sameAuthor.length === 0) {
+        hint = `'${pattern.author}' 작성 글을 찾지 못함. 첫 글: '${rows[0]?.title}' (${rows[0]?.author})`;
+      } else {
+        hint = `'${pattern.author}' 글은 ${sameAuthor.length}개 있으나 제목에 ${pattern.titleIncludes.join(",")} 포함된 게 없음. 최근: '${sameAuthor[0]?.title}'`;
+      }
       return NextResponse.json(
-        { ok: false, error: "게시판에서 일치하는 주보 글을 찾지 못했습니다" },
+        { ok: false, error: hint },
         { status: 404 },
       );
     }
