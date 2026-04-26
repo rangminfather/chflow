@@ -50,10 +50,20 @@ const BROWSER_HEADERS = {
   "Referer": "http://ums.or.kr/",
 } as const;
 
-async function fetchEucKr(url: string): Promise<string> {
+async function fetchEucKrOnce(url: string): Promise<string> {
   const res = await fetch(url, { cache: "no-store", headers: BROWSER_HEADERS });
   const buf = await res.arrayBuffer();
   return new TextDecoder("euc-kr").decode(buf);
+}
+
+// ums.or.kr 이 일시적 rate-limit 으로 "Access denied" 짧은 응답을 주는 경우가 있음.
+// 이럴 때 1.5초 대기 후 한 번 더 재시도하면 통과되는 패턴이 관찰됨.
+async function fetchEucKr(url: string): Promise<string> {
+  const first = await fetchEucKrOnce(url);
+  if (first.length > 1000) return first; // 정상 페이지
+  await new Promise((r) => setTimeout(r, 1500));
+  const second = await fetchEucKrOnce(url);
+  return second.length > first.length ? second : first;
 }
 
 // 게시글 목록에서 (no, 제목, 작성자) 추출
@@ -86,10 +96,18 @@ function extractDateFromTitle(title: string, fallbackYear: number): string | und
   return `${fallbackYear}-${mm}-${dd}`;
 }
 
-async function downloadPdfBuffer(no: number): Promise<Uint8Array> {
+async function downloadPdfBufferOnce(no: number): Promise<Uint8Array> {
   const res = await fetch(FILE_URL(no), { cache: "no-store", headers: BROWSER_HEADERS });
   if (!res.ok) throw new Error(`PDF 다운로드 실패: ${res.status}`);
   return new Uint8Array(await res.arrayBuffer());
+}
+
+async function downloadPdfBuffer(no: number): Promise<Uint8Array> {
+  // PDF 도 동일 rate-limit 영향을 받을 수 있어 짧은 응답이면 1.5초 후 재시도
+  const first = await downloadPdfBufferOnce(no);
+  if (first.byteLength > 1000) return first;
+  await new Promise((r) => setTimeout(r, 1500));
+  return await downloadPdfBufferOnce(no);
 }
 
 async function pdfToText(buf: Uint8Array): Promise<string> {
