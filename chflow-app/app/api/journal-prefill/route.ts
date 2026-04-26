@@ -3,6 +3,8 @@ import { extractText, getDocumentProxy } from "unpdf";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
+// ums.or.kr 은 한국 외 IP를 차단할 가능성이 높음 -> 서울(icn1) 리전에서 실행
+export const preferredRegion = "icn1";
 
 // ums.or.kr (제로보드) 사무실 게시판에 올라오는 부서별 주보 PDF를
 // 자동으로 찾아서 텍스트를 추출하고, 주일예배순서 영역에서
@@ -214,7 +216,8 @@ export async function POST(req: NextRequest) {
       const sameAuthor = rows.filter((r) => r.author === pattern.author);
       let hint: string;
       if (rows.length === 0) {
-        hint = `게시판 응답을 읽지 못했습니다 (응답 길이 ${html.length}자). 사이트 차단 가능성.`;
+        const sample = html.replace(/\s+/g, " ").slice(0, 80);
+        hint = `게시판 응답을 읽지 못했습니다 (응답 ${html.length}자, 내용: "${sample}"). 사이트 차단 가능성.`;
       } else if (sameAuthor.length === 0) {
         hint = `'${pattern.author}' 작성 글을 찾지 못함. 첫 글: '${rows[0]?.title}' (${rows[0]?.author})`;
       } else {
