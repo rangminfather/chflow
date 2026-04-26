@@ -191,6 +191,76 @@ function parseFields(raw: string): Partial<Prefill> {
   return out;
 }
 
+// ─────────────────────────────────────────
+// GET /api/journal-prefill?debug=1
+// 차단 우회 진단: 여러 방법을 동시에 시도해서 어떤 게 통과되는지 확인
+// ─────────────────────────────────────────
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  if (url.searchParams.get("debug") !== "1") {
+    return NextResponse.json({ ok: false, error: "POST 사용 또는 ?debug=1" }, { status: 400 });
+  }
+
+  const targets: { name: string; url: string; headers?: Record<string, string> }[] = [
+    { name: "PC HTTP (Chrome UA)", url: LIST_URL, headers: BROWSER_HEADERS },
+    { name: "PC HTTP (no UA)", url: LIST_URL },
+    {
+      name: "모바일 URL",
+      url: "http://ums.or.kr/m/bbs_m/zboard.php?id=samusil&page=1",
+      headers: BROWSER_HEADERS,
+    },
+    {
+      name: "Referer=google.com",
+      url: LIST_URL,
+      headers: { ...BROWSER_HEADERS, Referer: "https://www.google.com/" },
+    },
+    {
+      name: "Naver bot UA",
+      url: LIST_URL,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; NaverBot/1.0; +http://help.naver.com/robots/)",
+      },
+    },
+    {
+      name: "Googlebot UA",
+      url: LIST_URL,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      },
+    },
+  ];
+
+  const results = [];
+  for (const t of targets) {
+    try {
+      const res = await fetch(t.url, { cache: "no-store", headers: t.headers });
+      const buf = await res.arrayBuffer();
+      const text = new TextDecoder("euc-kr").decode(buf);
+      const sample = text.replace(/\s+/g, " ").slice(0, 100);
+      const okList = parseBoardList(text);
+      results.push({
+        method: t.name,
+        url: t.url,
+        status: res.status,
+        len: text.length,
+        rows: okList.length,
+        sample,
+      });
+    } catch (e) {
+      results.push({ method: t.name, url: t.url, error: (e as Error).message });
+    }
+  }
+
+  // Vercel region 정보
+  const vercelRegion = process.env.VERCEL_REGION || "unknown";
+  return NextResponse.json({
+    ok: true,
+    vercelRegion,
+    preferredRegionConfig: "icn1",
+    results,
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as { dept_key?: string };
