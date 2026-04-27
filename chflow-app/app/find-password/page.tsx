@@ -75,15 +75,15 @@ export default function FindPasswordPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
             <div style={{ fontSize: 24 }}>📞</div>
             <div>
-              <div style={{ fontSize: 11, color: "#6366f1", fontWeight: 700 }}>교회 사무실</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>02-0000-0000</div>
+              <div style={{ fontSize: 11, color: "#6366f1", fontWeight: 700 }}>관리자 연락처</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>010-2527-2064</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ fontSize: 24 }}>✉️</div>
             <div>
               <div style={{ fontSize: 11, color: "#6366f1", fontWeight: 700 }}>이메일</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>admin@smartms.kr</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>sunsetrome@naver.com</div>
             </div>
           </div>
         </div>

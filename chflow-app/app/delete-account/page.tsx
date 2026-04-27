@@ -50,13 +50,13 @@ export default function DeleteAccountPage() {
           </p>
           <ul style={ulStyle}>
             <li>
-              <strong>이메일</strong>: <a href="mailto:admin@smartms.kr" style={linkStyle}>admin@smartms.kr</a>
+              <strong>이메일</strong>: <a href="mailto:sunsetrome@naver.com" style={linkStyle}>sunsetrome@naver.com</a>
               <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
                 제목에 "[탈퇴 요청]" 또는 "[데이터 삭제 요청]"을 적어주세요.
               </div>
             </li>
             <li>
-              <strong>교회 사무실 방문 또는 전화</strong>: 02-6000-0000
+              <strong>관리자 연락처</strong>: 010-2527-2064
             </li>
             <li>
               <strong>앱 내 관리자 문의</strong>: 로그인 후 설정 화면의 관리자 연락처로 문의
