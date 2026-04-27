@@ -61,6 +61,10 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
 
+  // 약관 동의
+  const [agreePrivacy, setAgreePrivacy] = useState(false);
+  const [agreeGuardian, setAgreeGuardian] = useState(false);
+
   // 공통
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -265,6 +269,8 @@ export default function SignupPage() {
     if (!name.trim()) return setError("이름을 입력하세요");
     if (!noPhone && !phone.trim()) return setError("전화번호를 입력하세요");
     if (!selectedRole) return setError("직분을 선택하세요");
+    if (!agreePrivacy) return setError("개인정보 수집·이용에 동의해주세요");
+    if (noPhone && !agreeGuardian) return setError("법정대리인(보호자) 동의가 필요합니다");
 
     setLoading(true);
     try {
@@ -688,6 +694,42 @@ export default function SignupPage() {
             <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
               placeholder={noPhone ? "휴대폰 없으시면 비워두셔도 됩니다" : "010-0000-0000"}
               style={{ ...inputStyle, marginTop: 6 }} />
+          </div>
+
+          <div style={{ padding: "12px 14px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, marginBottom: 14 }}>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", fontSize: 12, color: "#334155", lineHeight: 1.5, fontWeight: 600 }}>
+              <input
+                type="checkbox"
+                checked={agreePrivacy}
+                onChange={(e) => setAgreePrivacy(e.target.checked)}
+                style={{ width: 16, height: 16, accentColor: "#6366f1", marginTop: 2, flexShrink: 0 }}
+              />
+              <span>
+                <span style={{ color: "#dc2626" }}>[필수]</span> 개인정보 수집·이용에 동의합니다{" "}
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ color: "#6366f1", textDecoration: "underline", fontWeight: 700 }}
+                >
+                  전문보기
+                </a>
+              </span>
+            </label>
+            {noPhone && (
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", fontSize: 12, color: "#334155", lineHeight: 1.5, fontWeight: 600, marginTop: 10, paddingTop: 10, borderTop: "1px dashed #cbd5e1" }}>
+                <input
+                  type="checkbox"
+                  checked={agreeGuardian}
+                  onChange={(e) => setAgreeGuardian(e.target.checked)}
+                  style={{ width: 16, height: 16, accentColor: "#6366f1", marginTop: 2, flexShrink: 0 }}
+                />
+                <span>
+                  <span style={{ color: "#dc2626" }}>[필수]</span> 만 14세 미만 가입에 대해 법정대리인(보호자)이 동의합니다
+                </span>
+              </label>
+            )}
           </div>
 
           {error && <div style={errorStyle}>⚠️ {error}</div>}
