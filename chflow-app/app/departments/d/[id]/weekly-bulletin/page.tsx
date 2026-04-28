@@ -42,6 +42,12 @@ export default function WeeklyBulletinPage() {
   const [toast, setToast] = useState("");
   const [cooldown, setCooldown] = useState<CooldownStatus | null>(null);
   const [statusError, setStatusError] = useState("");
+  const [registering, setRegistering] = useState(false);
+  const [registerResult, setRegisterResult] = useState<
+    | { ok: true; post_no: number; post_url: string; subject: string }
+    | { ok: false; error: string }
+    | null
+  >(null);
 
   useEffect(() => {
     (async () => {
@@ -103,7 +109,7 @@ export default function WeeklyBulletinPage() {
     showToast("초기화되었습니다");
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (cooldown && !cooldown.can_post) {
       showToast(`아직 ${formatRemaining(cooldown.remaining_seconds)} 남았습니다`);
       return;
@@ -112,8 +118,36 @@ export default function WeeklyBulletinPage() {
       showToast("주제와 성경본문은 필수입니다");
       return;
     }
-    // TODO 다음 단계: PDF 생성 → POST /api/ums-bulletin-post
-    showToast("PDF 생성 + UMS 등록 기능은 다음 단계에서 추가됩니다");
+    if (!confirm(
+      "주보를 PDF로 생성하고 명성교회 사무실 게시판에 자동 등록합니다.\n진행하시겠습니까?\n\n※ 이번 등록 후 30분간 재등록 불가",
+    )) return;
+
+    setRegistering(true);
+    setRegisterResult(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const r = await fetch("/api/ums-bulletin-post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dept_name: deptName,
+          dept_id: deptId,
+          chflow_user_id: session?.user?.id,
+          ...form,
+        }),
+      });
+      const j = await r.json();
+      if (j.ok) {
+        setRegisterResult({ ok: true, post_no: j.post_no, post_url: j.post_url, subject: j.subject });
+        await fetchStatus();  // 쿨다운 다시 받아오기
+      } else {
+        setRegisterResult({ ok: false, error: j.error || "알 수 없는 오류" });
+      }
+    } catch (e: unknown) {
+      setRegisterResult({ ok: false, error: (e as Error).message || "네트워크 오류" });
+    } finally {
+      setRegistering(false);
+    }
   };
 
   if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
@@ -314,6 +348,69 @@ export default function WeeklyBulletinPage() {
         </div>
       </div>
 
+      {/* 등록 진행 / 결과 모달 */}
+      {(registering || registerResult) && (
+        <div style={modalBackdropStyle}>
+          <div style={modalCardStyle}>
+            {registering && (
+              <>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>📤</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b", marginBottom: 6 }}>
+                  주보를 등록하고 있어요...
+                </div>
+                <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
+                  PDF 생성 → UMS 로그인 → 파일 업로드 → 글 등록<br />
+                  최대 30초 소요됩니다.
+                </div>
+              </>
+            )}
+            {registerResult && registerResult.ok && (
+              <>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#15803d", marginBottom: 6 }}>
+                  등록 완료
+                </div>
+                <div style={{ fontSize: 12, color: "#1e293b", marginBottom: 4 }}>
+                  글번호 #{registerResult.post_no}
+                </div>
+                <div style={{ fontSize: 11, color: "#64748b", marginBottom: 14, wordBreak: "break-all" }}>
+                  {registerResult.subject}
+                </div>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <a
+                    href={registerResult.post_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ ...modalSecondaryBtnStyle, textDecoration: "none" }}
+                  >
+                    UMS 게시판 보기
+                  </a>
+                  <button onClick={() => setRegisterResult(null)} style={modalPrimaryBtnStyle}>
+                    확인
+                  </button>
+                </div>
+              </>
+            )}
+            {registerResult && !registerResult.ok && (
+              <>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>⚠️</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#b91c1c", marginBottom: 6 }}>
+                  등록 실패
+                </div>
+                <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 14, wordBreak: "break-word" }}>
+                  {registerResult.error}
+                </div>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <button onClick={() => setRegisterResult(null)} style={modalPrimaryBtnStyle}>
+                    닫기
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {toast && <div style={toastStyle}>{toast}</div>}
     </div>
   );
@@ -464,6 +561,52 @@ const cooldownBoxStyle: React.CSSProperties = {
   padding: "12px 14px",
   marginBottom: 14,
   textAlign: "center",
+};
+
+const modalBackdropStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(15,23,42,0.55)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 20,
+  zIndex: 1000,
+};
+
+const modalCardStyle: React.CSSProperties = {
+  background: "#fff",
+  borderRadius: 16,
+  padding: "22px 22px 18px",
+  width: "100%",
+  maxWidth: 380,
+  boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
+  textAlign: "center",
+};
+
+const modalPrimaryBtnStyle: React.CSSProperties = {
+  padding: "8px 18px",
+  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  color: "#fff",
+  border: "none",
+  borderRadius: 8,
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+const modalSecondaryBtnStyle: React.CSSProperties = {
+  padding: "8px 14px",
+  background: "#f1f5f9",
+  color: "#475569",
+  border: "1.5px solid #e2e8f0",
+  borderRadius: 8,
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  display: "inline-block",
 };
 
 const resetBtnStyle: React.CSSProperties = {
