@@ -16,7 +16,15 @@ interface DeptInfo {
   is_admin: boolean;
 }
 
-const EDU_MENUS = [
+// onlyForDept: 특정 부서에만 노출되는 메뉴 (다른 부서는 숨김)
+const EDU_MENUS: Array<{
+  id: string;
+  label: string;
+  icon: string;
+  desc: string;
+  color: string;
+  onlyForDept?: string;
+}> = [
   {
     id: "journal",
     label: "일지작성",
@@ -58,6 +66,14 @@ const EDU_MENUS = [
     icon: "🏅",
     desc: "학생별 달란트 적립 · 누적 합계",
     color: "#8b5cf6",
+  },
+  {
+    id: "weekly-bulletin",
+    label: "주보 만들기",
+    icon: "📰",
+    desc: "주보 양식 입력 → PDF 자동 등록",
+    color: "#14b8a6",
+    onlyForDept: "초등1부",
   },
 ];
 
@@ -223,13 +239,15 @@ export default function DepartmentDetailPage() {
               gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
               gap: 14,
             }}>
-              {EDU_MENUS.map((menu) => (
-                <EduMenuCard
-                  key={menu.id}
-                  menu={menu}
-                  onClick={() => router.push(`/departments/d/${deptId}/${menu.id}`)}
-                />
-              ))}
+              {EDU_MENUS
+                .filter((menu) => !menu.onlyForDept || menu.onlyForDept === dept.name)
+                .map((menu) => (
+                  <EduMenuCard
+                    key={menu.id}
+                    menu={menu}
+                    onClick={() => router.push(`/departments/d/${deptId}/${menu.id}`)}
+                  />
+                ))}
             </div>
           </div>
         )}
