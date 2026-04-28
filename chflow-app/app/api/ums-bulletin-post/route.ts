@@ -1,21 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateBulletinPdf, type BulletinData } from "@/lib/bulletin/pdf-generator";
-import {
-  loginUms,
-  getPlDate,
-  uploadPdf,
-  submitWriteOk,
-} from "@/lib/bulletin/ums-client";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const preferredRegion = "icn1";
 
+// Vercel 함수에서 ums.or.kr 직접 호출은 IP 차단 위험.
+// Cloudflare ICN 엣지에서 도는 Supabase Edge Function 으로 위임.
 const UMS_USER_ID = process.env.UMS_USER_ID || "";
 const UMS_PASSWORD = process.env.UMS_PASSWORD || "";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const EDGE_URL = `${SUPABASE_URL}/functions/v1/ums-post-bulletin`;
 
 interface PostBody {
   dept_name: string;
@@ -30,13 +28,10 @@ interface PostBody {
   sermon_title: string;
   preacher: string;
   announcement: string;
-  // 클라이언트가 인증 후 받은 user id (chflow_user_id 로 기록)
   chflow_user_id?: string;
 }
 
 function buildSubject(deptName: string, date: string): string {
-  // "5월 3일 초등1초원주보입니다" 형식 — 기존 작성자(심주석) 패턴과 일치 시도
-  // (journal-prefill 의 titleIncludes 와도 일치하면 향후 같은 데이터 다시 끌어올 때 매칭됨)
   if (!date) return `${deptName} 주보입니다`;
   const [, m, d] = date.split("-");
   const mm = parseInt(m, 10);
@@ -48,7 +43,6 @@ function buildSubject(deptName: string, date: string): string {
 }
 
 function buildMemo(data: BulletinData): string {
-  // 게시글 본문. 텍스트 검색 가능하도록 PDF 외에 본문에도 핵심정보 노출.
   const lines = [
     `${data.dept_name} 주보 (${data.date})`,
     "",
@@ -70,6 +64,11 @@ function buildMemo(data: BulletinData): string {
   return lines.filter((l) => l !== undefined).join("\n");
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  // Node 에서 Uint8Array → base64
+  return Buffer.from(bytes).toString("base64");
+}
+
 export async function POST(req: NextRequest) {
   if (!UMS_USER_ID || !UMS_PASSWORD) {
     return NextResponse.json(
@@ -85,7 +84,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "잘못된 요청 본문" }, { status: 400 });
   }
 
-  // 필수 검증
   if (!body.topic?.trim() || !body.scripture?.trim() || !body.date) {
     return NextResponse.json(
       { ok: false, error: "주제·성경본문·날짜는 필수입니다" },
@@ -103,7 +101,7 @@ export async function POST(req: NextRequest) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // 쿨다운 체크
+  // 쿨다운 체크 (chflow DB 측)
   const { data: cooldownRows, error: cdErr } = await admin.rpc("ums_check_cooldown", {
     p_ums_user_id: UMS_USER_ID,
   });
@@ -113,19 +111,16 @@ export async function POST(req: NextRequest) {
   const cd = (cooldownRows && cooldownRows[0]) || { remaining_seconds: 0 };
   if ((cd.remaining_seconds || 0) > 0) {
     return NextResponse.json(
-      {
-        ok: false,
-        error: "30분 쿨다운 중입니다",
-        remaining_seconds: cd.remaining_seconds,
-      },
+      { ok: false, error: "30분 쿨다운 중입니다", remaining_seconds: cd.remaining_seconds },
       { status: 429 },
     );
   }
 
   const subject = buildSubject(body.dept_name, body.date);
   const memo = buildMemo(body);
+  const filename = `${body.dept_name}_${body.date}.pdf`;
 
-  // PDF 생성
+  // 1) PDF 생성 (Vercel 측)
   let pdfBytes: Uint8Array;
   try {
     pdfBytes = await generateBulletinPdf({
@@ -148,65 +143,67 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // UMS 4단계
-  let postNo: number | null = null;
-  let plDateUsed = "";
+  // 2) Edge Function 에 위임 (UMS 4단계 통째)
+  let edgeResp: {
+    ok: boolean;
+    post_no?: number;
+    redirect_url?: string | null;
+    pl_date?: string;
+    error?: string;
+  };
   try {
-    const jar = await loginUms(UMS_USER_ID, UMS_PASSWORD);
-    plDateUsed = await getPlDate(jar);
-    const filename = `${body.dept_name}_${body.date}.pdf`;
-    await uploadPdf(jar, UMS_USER_ID, plDateUsed, pdfBytes, filename);
-    const result = await submitWriteOk(jar, UMS_USER_ID, plDateUsed, {
-      subject,
-      memo,
-      category: 2,
+    const r = await fetch(EDGE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        ums_user_id: UMS_USER_ID,
+        ums_password: UMS_PASSWORD,
+        subject,
+        memo,
+        pdf_base64: bytesToBase64(pdfBytes),
+        filename,
+        category: 2,
+      }),
     });
-    postNo = result.postNo;
+    edgeResp = await r.json();
   } catch (e: unknown) {
-    const errMsg = (e as Error).message;
+    edgeResp = { ok: false, error: `Edge Function 호출 실패: ${(e as Error).message}` };
+  }
 
-    // 실패 로그 기록 (재시도 가능하도록 status='failed' — 쿨다운에 영향 없음)
+  // 3) 로그 기록 + 응답
+  if (!edgeResp.ok) {
+    const errMsg = edgeResp.error || "알 수 없는 오류";
     await admin.rpc("ums_log_post", {
       p_ums_user_id: UMS_USER_ID,
-      p_status: "failed",
+      p_status: errMsg.includes("30분") ? "rate_limited" : "failed",
       p_subject: subject,
       p_error_message: errMsg,
       p_chflow_user_id: body.chflow_user_id || null,
       p_dept_id: body.dept_id || null,
-      p_pl_date: plDateUsed || null,
+      p_pl_date: edgeResp.pl_date || null,
       p_category: 2,
     });
-
-    // 쿨다운 메시지면 status='rate_limited' 로 별도 기록
-    if (errMsg.includes("30분")) {
-      await admin.rpc("ums_log_post", {
-        p_ums_user_id: UMS_USER_ID,
-        p_status: "rate_limited",
-        p_subject: subject,
-        p_error_message: errMsg,
-        p_chflow_user_id: body.chflow_user_id || null,
-        p_dept_id: body.dept_id || null,
-      });
-    }
     return NextResponse.json({ ok: false, error: errMsg }, { status: 500 });
   }
 
-  // 성공 로그 기록 (이게 쿨다운 30분 시작점)
   await admin.rpc("ums_log_post", {
     p_ums_user_id: UMS_USER_ID,
     p_status: "success",
-    p_post_no: postNo,
+    p_post_no: edgeResp.post_no,
     p_subject: subject,
     p_chflow_user_id: body.chflow_user_id || null,
     p_dept_id: body.dept_id || null,
-    p_pl_date: plDateUsed,
+    p_pl_date: edgeResp.pl_date || null,
     p_category: 2,
   });
 
   return NextResponse.json({
     ok: true,
-    post_no: postNo,
-    post_url: `http://ums.or.kr/bbs/zboard.php?id=samusil&no=${postNo}`,
+    post_no: edgeResp.post_no,
+    post_url: `http://ums.or.kr/bbs/zboard.php?id=samusil&no=${edgeResp.post_no}`,
     subject,
   });
 }
