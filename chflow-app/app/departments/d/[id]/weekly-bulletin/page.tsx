@@ -33,6 +33,19 @@ const EMPTY_FORM = {
   q1c3: "",
   q1c4: "",
   q2: "",
+  q2c1: "",
+  q2c2: "",
+  q2c3: "",
+  q2c4: "",
+  q3: "",
+  q3c1: "",
+  q3c2: "",
+  q3c3: "",
+  q3c4: "",
+
+  // 광고 / 2부행사 (현재 23년 템플릿엔 치환 자리 없음 — 26년 양식 받으면 매핑 추가)
+  announcement: "",      // 광고/공지
+  twoPartActivity: "",   // 2부행사 안내
 
   newFriend: "",
 };
@@ -117,6 +130,14 @@ function buildReplacements(form: FormState): Record<string, string> {
     "   ③ 모르니까 준비하지 않아도 된다.  ": `   ③ ${form.q1c3 || ""}  `,
     "   ④ 주의 날이 오지 않을 수도 있다.": `   ④ ${form.q1c4 || ""}`,
     " 2. 예수님을 믿는 우리는 어떻게 살아가야 하나요?": ` 2. ${form.q2 || ""}`,
+    // 퀴즈 2번 보기는 한 줄에 4개 ─ 23년 원본 그대로 형식 보존
+    "   ① 어둠의 자녀 ② 빛의 자녀 ③ 사탄의 자녀 ④ 죄의 자녀":
+      `   ① ${form.q2c1 || ""} ② ${form.q2c2 || ""} ③ ${form.q2c3 || ""} ④ ${form.q2c4 || ""}`,
+    " 3. 깨어 있는 모습은 어떤 모습인가요?": ` 3. ${form.q3 || ""}`,
+    "  ① 일찍 일어나는 모습": `  ① ${form.q3c1 || ""}`,
+    "  ② 졸려도 꾹 참는 모습": `  ② ${form.q3c2 || ""}`,
+    "  ③ 다시오실 예수님을 기다리는 모습": `  ③ ${form.q3c3 || ""}`,
+    "  ④ 다시오실 예수님을 잊어버리는 모습": `  ④ ${form.q3c4 || ""}`,
     "   영 상": form.newFriend || "(미입력)",
   };
 }
@@ -538,21 +559,65 @@ export default function WeeklyBulletinPage() {
           </FormRow>
           <FormRow label="퀴즈 2번 — 문제">
             <textarea value={form.q2} onChange={(e) => set("q2", e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-            <div style={hintStyle}>퀴즈 2번 보기는 26년 hwpx 받으면 추가 예정</div>
+          </FormRow>
+          <FormRow label="퀴즈 2번 보기 (한 줄에 4개)">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <input type="text" value={form.q2c1} onChange={(e) => set("q2c1", e.target.value)} placeholder="① 보기" style={inputStyle} />
+              <input type="text" value={form.q2c2} onChange={(e) => set("q2c2", e.target.value)} placeholder="② 보기" style={inputStyle} />
+              <input type="text" value={form.q2c3} onChange={(e) => set("q2c3", e.target.value)} placeholder="③ 보기" style={inputStyle} />
+              <input type="text" value={form.q2c4} onChange={(e) => set("q2c4", e.target.value)} placeholder="④ 보기" style={inputStyle} />
+            </div>
+            <div style={hintStyle}>한 줄에 ① ② ③ ④ 가 가로로 배치됩니다 (23년 양식 그대로)</div>
+          </FormRow>
+
+          <FormRow label="퀴즈 3번 — 문제 (선택)">
+            <textarea value={form.q3} onChange={(e) => set("q3", e.target.value)} placeholder="비우면 23년 템플릿의 기본 문제 그대로 남음" rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+          </FormRow>
+          <FormRow label="① 보기">
+            <input type="text" value={form.q3c1} onChange={(e) => set("q3c1", e.target.value)} style={inputStyle} />
+          </FormRow>
+          <FormRow label="② 보기">
+            <input type="text" value={form.q3c2} onChange={(e) => set("q3c2", e.target.value)} style={inputStyle} />
+          </FormRow>
+          <FormRow label="③ 보기">
+            <input type="text" value={form.q3c3} onChange={(e) => set("q3c3", e.target.value)} style={inputStyle} />
+          </FormRow>
+          <FormRow label="④ 보기">
+            <input type="text" value={form.q3c4} onChange={(e) => set("q3c4", e.target.value)} style={inputStyle} />
           </FormRow>
         </div>
 
-        {/* ⑥ 새 친구 */}
+        {/* 광고 / 2부행사 */}
         <div style={cardStyle}>
-          <div style={sectionLabel}>⑥ 새 친구</div>
+          <div style={sectionLabel}>⑥ 광고 / 2부행사</div>
+          <FormRow label="2부 행사 안내">
+            <input type="text" value={form.twoPartActivity} onChange={(e) => set("twoPartActivity", e.target.value)} placeholder="예: 14과 공과공부, 찬양연습" style={inputStyle} />
+          </FormRow>
+          <FormRow label="광고 / 공지">
+            <textarea
+              value={form.announcement}
+              onChange={(e) => set("announcement", e.target.value)}
+              placeholder={"한 줄에 하나씩 입력하세요.\n예:\n- 다음 주 부활절 분반활동\n- 5/3 야외예배 안내"}
+              rows={5}
+              style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+            />
+          </FormRow>
+          <div style={{ ...hintStyle, marginTop: 4, color: "#b45309" }}>
+            ⓘ 23년 hwpx 양식엔 광고/2부행사 자리가 없어 현재 hwpx 출력엔 반영되지 않습니다. 26년 양식 받으면 자리 매핑 추가 예정.
+          </div>
+        </div>
+
+        {/* ⑦ 새 친구 */}
+        <div style={cardStyle}>
+          <div style={sectionLabel}>⑦ 새 친구</div>
           <FormRow label="이름">
             <input type="text" value={form.newFriend} onChange={(e) => set("newFriend", e.target.value)} placeholder="예: 차난(1학년)-자진" style={inputStyle} />
           </FormRow>
         </div>
 
-        {/* ⑦ 액션 */}
+        {/* ⑧ 액션 */}
         <div style={cardStyle}>
-          <div style={sectionLabel}>⑦ 주보 생성</div>
+          <div style={sectionLabel}>⑧ 주보 생성</div>
           <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 12 }}>
             현재 단계: hwpx 다운로드 (Phase 1).
             다음 단계: 사진 4장 + PDF 자동 생성 (Phase 2), UMS 자동 등록 (Phase 3).
