@@ -197,6 +197,11 @@ export default function WeeklyBulletinPage() {
   const [themeSaving, setThemeSaving] = useState(false);
 
   const [draftMeta, setDraftMeta] = useState<DraftMeta | null>(null);
+  const [draftList, setDraftList] = useState<Array<{
+    issue_date: string;
+    issue_number: string | null;
+    last_edited_at: string;
+  }>>([]);
   const skipNextLoadRef = useRef(false);
 
   // 인증 + 부서 + 표어 + 첫 draft
@@ -209,10 +214,20 @@ export default function WeeklyBulletinPage() {
       if (deptInfo && deptInfo[0]) setDeptName(deptInfo[0].name || "");
 
       await loadYearlyTheme();
+      await loadDraftsList();
       await loadDraft(form.date);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function loadDraftsList() {
+    const { data, error } = await supabase.rpc("bulletin_list_drafts", { p_dept_id: deptId });
+    if (error) {
+      console.warn("[bulletin] loadDraftsList error:", error);
+      return;
+    }
+    setDraftList(data || []);
+  }
 
   // 발행일자 변경 시 draft 다시 로드 (단, save 직후에는 skip)
   useEffect(() => {
@@ -244,16 +259,20 @@ export default function WeeklyBulletinPage() {
 
   async function loadDraft(date: string) {
     if (!date) return;
+    console.log("[bulletin] loadDraft called for", date);
     const { data, error } = await supabase.rpc("bulletin_get_draft", {
       p_dept_id: deptId, p_issue_date: date,
     });
     if (error) {
+      console.error("[bulletin] loadDraft error:", error);
       showToast("Draft 조회 실패: " + error.message);
       return;
     }
+    console.log("[bulletin] loadDraft response:", data);
     const row = data && data[0];
     if (row && row.exists_) {
       const draft = row.form_data as Partial<FormState>;
+      console.log("[bulletin] draft loaded with fields:", Object.keys(draft).length);
       setForm({
         ...EMPTY_FORM,
         date,
@@ -261,12 +280,12 @@ export default function WeeklyBulletinPage() {
         ...draft,
       });
       setDraftMeta({ last_edited_by: row.last_edited_by, last_edited_at: row.last_edited_at });
-      // 표어가 등록돼있으면 주제제창 비어있을 때만 채워주기
+      showToast(`💾 임시저장본 불러옴 (${formatRelativeTime(row.last_edited_at)})`);
       if (yearlyTheme && !draft.theme) {
         setForm((f) => ({ ...f, theme: yearlyTheme.theme }));
       }
     } else {
-      // 새 draft (빈 폼) — 표어는 채워줌
+      console.log("[bulletin] no draft for", date);
       setForm((f) => ({
         ...EMPTY_FORM,
         date,
@@ -308,9 +327,9 @@ export default function WeeklyBulletinPage() {
       if (meta) {
         setDraftMeta({ last_edited_at: meta.last_edited_at, last_edited_by: meta.last_edited_by });
       }
-      // 저장 직후엔 useEffect 의 loadDraft 가 다시 덮어쓰지 않게
       skipNextLoadRef.current = true;
       showToast("임시저장 완료 ✅");
+      await loadDraftsList();
     } catch (e: unknown) {
       showToast("저장 실패: " + (e as Error).message);
     } finally {
@@ -393,14 +412,59 @@ export default function WeeklyBulletinPage() {
           </div>
         )}
 
-        {/* 직전 저장 정보 */}
+        {/* 직전 저장 정보 (현재 발행일자 기준) */}
         {draftMeta && (
-          <div style={{ ...cardStyle, padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 12, color: "#64748b" }}>
-              마지막 임시저장: <b style={{ color: "#1e293b" }}>{formatRelativeTime(draftMeta.last_edited_at)}</b>
+          <div style={{ ...cardStyle, padding: "10px 16px", background: "#ecfeff", border: "1px solid #67e8f9" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+              <div style={{ fontSize: 12, color: "#0369a1", fontWeight: 700 }}>
+                💾 이 발행일자에 임시저장본 있음 — <b>{formatRelativeTime(draftMeta.last_edited_at)}</b> 저장
+              </div>
+              <div style={{ fontSize: 11, color: "#0e7490" }}>
+                {new Date(draftMeta.last_edited_at).toLocaleString("ko-KR")}
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>
-              {new Date(draftMeta.last_edited_at).toLocaleString("ko-KR")}
+          </div>
+        )}
+
+        {/* 임시저장 목록 (다른 날짜로 작성중인 거 골라서 이어서) */}
+        {draftList.length > 0 && (
+          <div style={cardStyle}>
+            <div style={sectionLabel}>📂 임시저장 목록 ({draftList.length}건)</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {draftList.map((d) => {
+                const isCurrent = d.issue_date === form.date;
+                return (
+                  <div
+                    key={d.issue_date}
+                    onClick={() => !isCurrent && handleDateChange(d.issue_date)}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 8,
+                      border: isCurrent ? "1.5px solid #6366f1" : "1px solid #e2e8f0",
+                      background: isCurrent ? "#eef2ff" : "#fff",
+                      cursor: isCurrent ? "default" : "pointer",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                        {d.issue_date}
+                        {d.issue_number && <span style={{ fontSize: 11, color: "#64748b", marginLeft: 8 }}>{d.issue_number}</span>}
+                        {isCurrent && <span style={{ fontSize: 10, color: "#6366f1", marginLeft: 8 }}>● 작성 중</span>}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                        {formatRelativeTime(d.last_edited_at)}
+                      </div>
+                    </div>
+                    {!isCurrent && (
+                      <div style={{ fontSize: 11, color: "#6366f1" }}>이어서 작성 →</div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
