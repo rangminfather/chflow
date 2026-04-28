@@ -22,6 +22,15 @@ type FormState = typeof EMPTY_FORM;
 
 const SUPPORTED_DEPT = "초등1부";
 
+interface CooldownStatus {
+  remaining_seconds: number;
+  can_post: boolean;
+  last_posted_at: string | null;
+  last_post_no: number | null;
+  last_subject: string | null;
+  ums_user_id: string;
+}
+
 export default function WeeklyBulletinPage() {
   const router = useRouter();
   const params = useParams();
@@ -31,6 +40,8 @@ export default function WeeklyBulletinPage() {
   const [deptName, setDeptName] = useState("");
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [toast, setToast] = useState("");
+  const [cooldown, setCooldown] = useState<CooldownStatus | null>(null);
+  const [statusError, setStatusError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -39,8 +50,44 @@ export default function WeeklyBulletinPage() {
       setAuthChecked(true);
       const { data: deptInfo } = await supabase.rpc("get_department_info", { p_dept_id: deptId });
       if (deptInfo && deptInfo[0]) setDeptName(deptInfo[0].name || "");
+      await fetchStatus();
     })();
   }, []);
+
+  // 쿨다운이 0보다 크면 1초마다 클라이언트에서 감산. 0 되면 멈춤.
+  useEffect(() => {
+    if (!cooldown || cooldown.remaining_seconds <= 0) return;
+    const t = setInterval(() => {
+      setCooldown((c) => {
+        if (!c) return c;
+        const next = Math.max(0, c.remaining_seconds - 1);
+        return { ...c, remaining_seconds: next, can_post: next === 0 };
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [cooldown?.remaining_seconds === 0 ? 0 : 1]);
+
+  async function fetchStatus() {
+    try {
+      const r = await fetch("/api/ums-bulletin-post/status", { cache: "no-store" });
+      const j = await r.json();
+      if (!j.ok) {
+        setStatusError(j.error || "상태 조회 실패");
+        return;
+      }
+      setStatusError("");
+      setCooldown({
+        remaining_seconds: j.remaining_seconds || 0,
+        can_post: j.can_post,
+        last_posted_at: j.last_posted_at,
+        last_post_no: j.last_post_no,
+        last_subject: j.last_subject,
+        ums_user_id: j.ums_user_id,
+      });
+    } catch (e: unknown) {
+      setStatusError((e as Error).message || "네트워크 오류");
+    }
+  }
 
   const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: val }));
@@ -57,11 +104,16 @@ export default function WeeklyBulletinPage() {
   };
 
   const handleRegister = () => {
-    // TODO 다음 단계: PDF 생성 → UMS 자동 등록 API 호출
-    // 1) 폼 → PDF 렌더링 (pdf-lib/react-pdf 추가 예정)
-    // 2) POST /api/ums-bulletin-post  { dept_key, fields, pdf_base64 }
-    //    서버: 30분 cooldown 체크 → 통과 시 ums.or.kr 4단계 플로우
-    showToast("PDF 생성 및 UMS 등록 기능은 다음 단계에서 추가됩니다");
+    if (cooldown && !cooldown.can_post) {
+      showToast(`아직 ${formatRemaining(cooldown.remaining_seconds)} 남았습니다`);
+      return;
+    }
+    if (!form.topic.trim() || !form.scripture.trim()) {
+      showToast("주제와 성경본문은 필수입니다");
+      return;
+    }
+    // TODO 다음 단계: PDF 생성 → POST /api/ums-bulletin-post
+    showToast("PDF 생성 + UMS 등록 기능은 다음 단계에서 추가됩니다");
   };
 
   if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
@@ -206,14 +258,58 @@ export default function WeeklyBulletinPage() {
         {/* 4) 액션 */}
         <div style={cardStyle}>
           <div style={sectionLabel}>④ 등록</div>
+
+          {statusError && (
+            <div style={{ ...alertBoxStyle, background: "#fef2f2", borderColor: "#fecaca", color: "#b91c1c" }}>
+              ⚠️ 상태 조회 실패: {statusError}
+            </div>
+          )}
+
+          {cooldown && cooldown.last_posted_at && (
+            <div style={alertBoxStyle}>
+              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 2 }}>
+                직전 등록 ({cooldown.ums_user_id})
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                #{cooldown.last_post_no} · {formatLastPostedAt(cooldown.last_posted_at)}
+              </div>
+              {cooldown.last_subject && (
+                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                  {cooldown.last_subject}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 12 }}>
             등록 버튼을 누르면 입력한 내용으로 PDF가 생성되고, 명성교회 사무실 게시판에 자동 업로드됩니다.
             <br />
             <span style={{ color: "#b45309", fontWeight: 700 }}>※ 같은 UMS 계정은 30분에 한 번만 등록 가능합니다.</span>
           </div>
+
+          {cooldown && !cooldown.can_post && (
+            <div style={cooldownBoxStyle}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#92400e", marginBottom: 4 }}>
+                ⏱ 다음 등록까지
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: "#92400e", fontFamily: "monospace", letterSpacing: 1 }}>
+                {formatRemaining(cooldown.remaining_seconds)}
+              </div>
+              <div style={{ fontSize: 11, color: "#a16207", marginTop: 4 }}>
+                30분 안에 같은 계정으로 또 올리면 UMS 서버가 차단합니다.
+              </div>
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
             <button onClick={handleReset} style={resetBtnStyle}>초기화</button>
-            <button onClick={handleRegister} style={registerBtnStyle}>📤 등록</button>
+            <button
+              onClick={handleRegister}
+              disabled={!cooldown?.can_post}
+              style={cooldown?.can_post ? registerBtnStyle : registerBtnDisabledStyle}
+            >
+              📤 등록
+            </button>
           </div>
         </div>
       </div>
@@ -239,6 +335,22 @@ function nextSundayDate(): string {
   const diff = day === 0 ? 0 : 7 - day;
   d.setDate(d.getDate() + diff);
   return d.toISOString().slice(0, 10);
+}
+
+function formatRemaining(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function formatLastPostedAt(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMin = Math.floor((now.getTime() - d.getTime()) / 60000);
+  if (diffMin < 1) return "방금 전";
+  if (diffMin < 60) return `${diffMin}분 전`;
+  if (diffMin < 60 * 24) return `${Math.floor(diffMin / 60)}시간 전`;
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 const pageStyle: React.CSSProperties = {
@@ -321,6 +433,37 @@ const registerBtnStyle: React.CSSProperties = {
   fontWeight: 800,
   cursor: "pointer",
   fontFamily: "inherit",
+};
+
+const registerBtnDisabledStyle: React.CSSProperties = {
+  ...{
+    padding: "10px 22px",
+    background: "#e2e8f0",
+    color: "#94a3b8",
+    border: "none",
+    borderRadius: 10,
+    fontSize: 14,
+    fontWeight: 800,
+    cursor: "not-allowed",
+    fontFamily: "inherit",
+  },
+};
+
+const alertBoxStyle: React.CSSProperties = {
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+  borderRadius: 10,
+  padding: "10px 14px",
+  marginBottom: 10,
+};
+
+const cooldownBoxStyle: React.CSSProperties = {
+  background: "#fef3c7",
+  border: "1.5px solid #fbbf24",
+  borderRadius: 12,
+  padding: "12px 14px",
+  marginBottom: 14,
+  textAlign: "center",
 };
 
 const resetBtnStyle: React.CSSProperties = {
