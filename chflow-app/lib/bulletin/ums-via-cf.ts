@@ -226,6 +226,10 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   // ── 4. write_ok.php — CP949 multipart ──
   const cp = (s: string) => iconv.encode(s, "cp949");
   const category = input.category ?? 2;
+  // 스팸차단 답변 — UMS 가 외국 IP(Cloudflare LAX 등)에 대해 요구할 수 있음
+  // 폼 안내: "명성교회 ('예' 김종혁목사) 을 적어주세요"
+  // 환경변수로 override 가능
+  const spamAnswer = process.env.UMS_SPAM_ANSWER || "김종혁목사";
   const writeOkBoundary = "----chflowWo" + Math.random().toString(36).slice(2);
   const writeOkBody = buildMultipart(writeOkBoundary, [
     { name: "page", value: cp("1") },
@@ -242,6 +246,7 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     { name: "pl_date", value: cp(plDate) },
     { name: "reg_date_change", value: cp("") },
     { name: "NameCheck", value: cp("N") },
+    { name: "w_key_spam", value: cp(spamAnswer) },
     { name: "subject", value: cp(input.subject) },
     { name: "memo", value: cp(input.memo) },
   ]);
