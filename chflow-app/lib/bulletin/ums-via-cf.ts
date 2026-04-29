@@ -219,15 +219,30 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   jar.ingest(wfRes.setCookies);
 
   const wfHtml = iconv.decode(wfRes.body, "cp949");
-  if (wfHtml.length < 5000 || wfHtml.includes("사용권한이 없습니다")) {
+  // 권한 거부 판정은 alertElmBody (실제 차단 alert) 또는 페이지 매우 짧음 만 사용.
+  // 단순 "사용권한이 없습니다" 문자열은 페이지 푸터/JS 등에서도 나타나서 false positive 발생.
+  const wfAlert = wfHtml.match(/alertElmBody[^>]*>([\s\S]+?)<\/div>/);
+  if (wfHtml.length < 3000 || wfAlert) {
     pushDebug("write_form", wfRes.body, wfRes.status, wfRes.setCookies);
-    return { ok: false, error: `write.php 접근 실패 (응답 ${wfHtml.length}자)`, debug };
+    const alertMsg = wfAlert ? wfAlert[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "(no alert)";
+    const sample = wfHtml.slice(0, 500).replace(/\s+/g, " ");
+    return {
+      ok: false,
+      error: `write.php 접근 실패 (응답 ${wfHtml.length}자, alert="${alertMsg}", head="${sample}")`,
+      debug,
+    };
   }
   const dateM = wfHtml.match(/name="pl_date"\s+value="(\d+)"/);
   const userM = wfHtml.match(/name="pl_user"\s+value="(umsorkr_[^"]+)"/);
   if (!dateM || !userM) {
     pushDebug("write_form", wfRes.body, wfRes.status, wfRes.setCookies);
-    return { ok: false, error: "pl_date/pl_user 추출 실패", debug };
+    // 응답에 어떤 폼 필드들이 있는지 확인
+    const hidden = (wfHtml.match(/name="(\w+)"/g) || []).slice(0, 30).join(",");
+    return {
+      ok: false,
+      error: `pl_date/pl_user 추출 실패 (form fields: ${hidden})`,
+      debug,
+    };
   }
   const plDate = dateM[1];
   const plUser = userM[1];
