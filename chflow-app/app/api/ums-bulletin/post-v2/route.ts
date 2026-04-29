@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
       p_pl_date: result.pl_date || null,
       p_category: 2,
     });
-    return NextResponse.json({ ok: false, error: result.error }, { status: 500 });
+    return NextResponse.json({ ok: false, error: result.error, debug: result.debug }, { status: 500 });
   }
 
   await admin.rpc("ums_log_post", {

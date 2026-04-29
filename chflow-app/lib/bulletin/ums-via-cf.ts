@@ -147,10 +147,41 @@ export interface UmsAutoPostResult {
   redirect_url?: string;
   pl_date?: string;
   error?: string;
+  debug?: DebugStep[];
+}
+
+interface DebugStep {
+  step: string;
+  status: number;
+  body_len: number;
+  body_sample: string;
+  set_cookies: string[];
+  cookie_jar_after: string;
+  extra?: Record<string, string | number | undefined>;
 }
 
 export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostResult> {
   const jar = new CookieJar();
+  const debug: DebugStep[] = [];
+
+  function pushDebug(step: string, body: Buffer, status: number, setCookies: string[], extra?: Record<string, string | number | undefined>) {
+    const sample = (() => {
+      try {
+        return iconv.decode(body, "cp949").slice(0, 400);
+      } catch {
+        return body.toString("utf8").slice(0, 400);
+      }
+    })();
+    debug.push({
+      step,
+      status,
+      body_len: body.length,
+      body_sample: sample,
+      set_cookies: setCookies,
+      cookie_jar_after: jar.toHeader(),
+      extra,
+    });
+  }
 
   // ── 1. 로그인 ──
   const loginBody = new URLSearchParams({
@@ -167,15 +198,16 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     referer: "http://www.ums.or.kr/bbs/login.php?id=samusil",
   });
   jar.ingest(loginRes.setCookies);
+  pushDebug("login", loginRes.body, loginRes.status, loginRes.setCookies);
 
   const loginHtml = iconv.decode(loginRes.body, "cp949");
   const alertM = loginHtml.match(/alertElmBody[^>]*>([\s\S]+?)<\/div>/);
   if (alertM) {
     const msg = alertM[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-    return { ok: false, error: `로그인 실패: ${msg}` };
+    return { ok: false, error: `로그인 실패: ${msg}`, debug };
   }
   if (!jar.get("PHPSESSID")) {
-    return { ok: false, error: "로그인 실패: PHPSESSID 쿠키 없음" };
+    return { ok: false, error: "로그인 실패: PHPSESSID 쿠키 없음", debug };
   }
 
   // ── 2. write.php → pl_date 추출 ──
@@ -188,15 +220,18 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
 
   const wfHtml = iconv.decode(wfRes.body, "cp949");
   if (wfHtml.length < 5000 || wfHtml.includes("사용권한이 없습니다")) {
-    return { ok: false, error: `write.php 접근 실패 (응답 ${wfHtml.length}자)` };
+    pushDebug("write_form", wfRes.body, wfRes.status, wfRes.setCookies);
+    return { ok: false, error: `write.php 접근 실패 (응답 ${wfHtml.length}자)`, debug };
   }
   const dateM = wfHtml.match(/name="pl_date"\s+value="(\d+)"/);
   const userM = wfHtml.match(/name="pl_user"\s+value="(umsorkr_[^"]+)"/);
   if (!dateM || !userM) {
-    return { ok: false, error: "pl_date/pl_user 추출 실패" };
+    pushDebug("write_form", wfRes.body, wfRes.status, wfRes.setCookies);
+    return { ok: false, error: "pl_date/pl_user 추출 실패", debug };
   }
   const plDate = dateM[1];
   const plUser = userM[1];
+  pushDebug("write_form", wfRes.body, wfRes.status, wfRes.setCookies, { pl_date: plDate, pl_user: plUser });
 
   // ── 3. PDF 업로드 ──
   const uploadBoundary = "----chflowUp" + Math.random().toString(36).slice(2);
@@ -219,8 +254,9 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   );
   jar.ingest(upRes.setCookies);
   const upText = upRes.body.toString("utf8");
+  pushDebug("upload", upRes.body, upRes.status, upRes.setCookies, { upload_text_sample: upText.slice(0, 200) });
   if (upRes.status >= 400 || !upText.includes('"result"')) {
-    return { ok: false, error: `PDF 업로드 실패: ${upRes.status} ${upText.slice(0, 200)}` };
+    return { ok: false, error: `PDF 업로드 실패: ${upRes.status} ${upText.slice(0, 200)}`, debug };
   }
 
   // ── 4. write_ok.php — CP949 multipart ──
@@ -231,7 +267,10 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   // 환경변수로 override 가능
   const spamAnswer = process.env.UMS_SPAM_ANSWER || "김종혁목사";
   const writeOkBoundary = "----chflowWo" + Math.random().toString(36).slice(2);
+  // check_attack 폼의 check 필드 — JS 가 submit 시 0→1 로 바꾸는 봇 검증 필드.
+  // 우리가 폼 통과 안 하니까 미리 1 로 보냄.
   const writeOkBody = buildMultipart(writeOkBoundary, [
+    { name: "check", value: cp("1") },
     { name: "page", value: cp("1") },
     { name: "id", value: cp("samusil") },
     { name: "no", value: cp("") },
@@ -258,18 +297,23 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     referer: "http://www.ums.or.kr/bbs/write.php?id=samusil&page=1&category=2&mode=write",
     origin: "http://www.ums.or.kr",
   });
+  jar.ingest(woRes.setCookies);
+  pushDebug("write_ok", woRes.body, woRes.status, woRes.setCookies, {
+    cookie_sent: jar.toHeader().slice(0, 200),
+    spam_answer: spamAnswer,
+  });
 
   const woHtml = iconv.decode(woRes.body, "cp949");
   const woAlert = woHtml.match(/alertElmBody[^>]*>([\s\S]+?)<\/div>/);
   if (woAlert && !woHtml.includes('http-equiv="refresh"')) {
     const msg = woAlert[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-    return { ok: false, error: `등록 실패: ${msg}`, pl_date: plDate };
+    return { ok: false, error: `등록 실패: ${msg}`, pl_date: plDate, debug };
   }
 
   const refreshM = woHtml.match(/<meta\s+http-equiv="refresh"[^>]*url=([^"'>\s]+)/i);
   const noM = refreshM && refreshM[1].match(/[?&]no=(\d+)/);
   if (!noM) {
-    return { ok: false, error: `글번호 추출 실패: ${woHtml.slice(0, 300)}`, pl_date: plDate };
+    return { ok: false, error: `글번호 추출 실패: ${woHtml.slice(0, 300)}`, pl_date: plDate, debug };
   }
 
   return {
@@ -277,5 +321,6 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     post_no: parseInt(noM[1], 10),
     redirect_url: refreshM[1],
     pl_date: plDate,
+    debug,
   };
 }
