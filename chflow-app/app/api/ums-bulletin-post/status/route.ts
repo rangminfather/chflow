@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const preferredRegion = "icn1";
 
-// 환경변수에 박혀있는 공용 UMS 계정의 user_id (예: 'clyawy').
+// 환경변수에 박혀있는 공용 UMS 계정의 user_id.
 // 향후 부서별/등록자별로 분리되면 클라이언트가 ums_user_id 파라미터를 보내도록 변경.
 const UMS_USER_ID = process.env.UMS_USER_ID || "";
 

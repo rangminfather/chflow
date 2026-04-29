@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 // 실제 ums.or.kr 호출은 사용자 브라우저(Tampermonkey)에서 수행 → 사용자 IP 사용.
 
 interface PostBody {
-  ums_user_id: string;       // 'clyawy' 등 (write.php 응답의 pl_user 에서 추출)
+  ums_user_id: string;       // UMS 계정 아이디 (write.php 응답의 pl_user 에서 추출)
   pl_date: string;           // write.php 응답에서 받아온 값
   subject: string;
   memo: string;

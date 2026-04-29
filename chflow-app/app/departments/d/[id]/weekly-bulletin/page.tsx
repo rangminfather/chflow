@@ -1174,7 +1174,7 @@ export default function WeeklyBulletinPage() {
                 type="text" autoComplete="off"
                 value={credsForm.ums_user_id}
                 onChange={(e) => setCredsForm((f) => ({ ...f, ums_user_id: e.target.value }))}
-                placeholder="예: cboy2001"
+                placeholder="ums.or.kr 가입 시 만든 아이디"
                 style={inputStyle}
               />
             </FormRow>
