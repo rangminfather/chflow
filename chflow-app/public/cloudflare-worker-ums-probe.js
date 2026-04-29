@@ -84,11 +84,12 @@ export default {
       "X-Forward-Status": String(umsRes.status),
     };
 
-    // Set-Cookie 들 (다중)
+    // Set-Cookie 들 (다중) — HTTP 헤더 값에 \n 못 들어가므로 base64 인코딩
     const setCookies = umsRes.headers.getSetCookie ? umsRes.headers.getSetCookie() : [];
     if (setCookies.length > 0) {
-      // \n 으로 join — chflow Vercel API 측에서 split 해서 처리
-      respHeaders["X-Forward-Set-Cookie"] = setCookies.join("\n");
+      const joined = setCookies.join("\n");
+      // btoa 는 ASCII 만 가능. 쿠키 값은 ASCII 범위라 OK.
+      respHeaders["X-Forward-Set-Cookie-B64"] = btoa(joined);
     }
 
     const location = umsRes.headers.get("Location");
@@ -106,7 +107,7 @@ function corsHeaders() {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "X-Forward-Cookie, X-Forward-Referer, X-Forward-Content-Type, X-Forward-X-Requested-With, X-Forward-Origin, Content-Type",
-    "Access-Control-Expose-Headers": "X-Forward-Status, X-Forward-Set-Cookie, X-Forward-Location",
+    "Access-Control-Expose-Headers": "X-Forward-Status, X-Forward-Set-Cookie-B64, X-Forward-Location",
   };
 }
 

@@ -45,8 +45,20 @@ export async function umsViaCf(path: string, opts: ProxyOptions = {}): Promise<P
   const res = await fetch(url, init);
   const buf = Buffer.from(await res.arrayBuffer());
 
-  const setCookieHeader = res.headers.get("X-Forward-Set-Cookie") || "";
-  const setCookies = setCookieHeader ? setCookieHeader.split("\n").filter(Boolean) : [];
+  // Set-Cookie 들은 base64 인코딩되어 X-Forward-Set-Cookie-B64 로 옴
+  const cookieB64 = res.headers.get("X-Forward-Set-Cookie-B64") || "";
+  let setCookies: string[] = [];
+  if (cookieB64) {
+    try {
+      const decoded = Buffer.from(cookieB64, "base64").toString("utf8");
+      setCookies = decoded.split("\n").filter(Boolean);
+    } catch {/* ignore */}
+  }
+  // 옛 포맷 호환 (Worker 미배포 시)
+  if (setCookies.length === 0) {
+    const legacy = res.headers.get("X-Forward-Set-Cookie") || "";
+    if (legacy) setCookies = legacy.split("\n").filter(Boolean);
+  }
 
   return {
     status: parseInt(res.headers.get("X-Forward-Status") || String(res.status), 10),

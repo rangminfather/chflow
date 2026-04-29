@@ -124,12 +124,14 @@ function buildReplacements(form: FormState): Record<string, string> {
     "2026년 4월 26일": formatKoreanDate(form.date),
     "✿안내 : 박희연 선생님 ": `✿안내 : ${form.guide || "(미입력)"} 선생님 `,
     "신예슬 최성현 선생님": `${form.praise1 || ""} ${form.praise2 || ""} 선생님`,
-    "최성헌부장선생님": `${form.leader || "(미입력)"}부장선생님`,
+    // 예배인도: 사용자가 직책 포함 자유 입력 (예: "최성헌 부장", "박양흠 부감")
+    "최성헌부장선생님": `${form.leader || "(미입력)"}선생님`,
     "하나님의 안경으로 세상을 바라보는 어린이": form.theme || "(주제 미입력)",
     "2-3반": `${form.prayerClass || "?"}반`,
     "창세기 11장 1~9절": form.scripture || "(성경본문 미입력)",
     "우리는 배울 때 무엇을 조심해야 할까요?": form.sermonTitle || "(설교제목 미입력)",
-    "김희숙전도사님": `${form.preacher || "?"}전도사님`,
+    // 강론자: 사용자가 직책 포함 자유 입력 (예: "김희숙 전도사", "박지성 목사")
+    "김희숙전도사님": `${form.preacher || "?"}님`,
     "✿다음 주 기도 : 김정권장로님": `✿다음 주 기도 : ${form.nextPrayer || "(미입력)"}`,
     "십일조 : ": `십일조 : ${form.tithe || ""}`,
     "감사헌금 : ": `감사헌금 : ${form.thanksgiving || ""}`,
@@ -306,11 +308,11 @@ function buildPostMemo(form: FormState): string {
   lines.push("─ 주일예배 순서 ─");
   if (form.guide) lines.push(`안내 : ${form.guide}`);
   if (form.praise1 || form.praise2) lines.push(`찬양 : ${[form.praise1, form.praise2].filter(Boolean).join(" ")}`);
-  if (form.leader) lines.push(`예배인도 : ${form.leader} 부장`);
+  if (form.leader) lines.push(`예배인도 : ${form.leader}`);
   if (form.prayerClass) lines.push(`기도 : ${form.prayerClass}반`);
   if (form.scripture) lines.push(`성경봉독 : ${form.scripture}`);
   if (form.sermonTitle) lines.push(`설교제목 : ${form.sermonTitle}`);
-  if (form.preacher) lines.push(`강론자 : ${form.preacher} 전도사`);
+  if (form.preacher) lines.push(`강론자 : ${form.preacher}`);
   if (form.nextPrayer) lines.push(`다음 주 기도 : ${form.nextPrayer}`);
   lines.push("");
   if (form.tithe || form.thanksgiving) {
@@ -456,12 +458,17 @@ export default function WeeklyBulletinPage() {
     }
   }
 
-  // 페이지 로드 시 쿨다운 상태 fetch
+  // 페이지 로드 시 쿨다운 상태 fetch (사용자 본인 UMS 계정 기준)
   async function fetchCooldown() {
     try {
-      const r = await fetch("/api/ums-bulletin-post/status", { cache: "no-store" });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const r = await fetch("/api/ums-bulletin-post/status", {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
       const j = await r.json();
-      if (j.ok) {
+      if (j.ok && j.has_credentials) {
         setCooldown({
           remaining_seconds: j.remaining_seconds || 0,
           can_post: j.can_post,
@@ -967,8 +974,9 @@ export default function WeeklyBulletinPage() {
               <input type="text" value={form.praise2} onChange={(e) => set("praise2", e.target.value)} placeholder="이름2" style={inputStyle} />
             </div>
           </FormRow>
-          <FormRow label="예배인도 (부장)">
-            <input type="text" value={form.leader} onChange={(e) => set("leader", e.target.value)} placeholder="예: 최성헌" style={inputStyle} />
+          <FormRow label="예배인도 (이름 + 직책)">
+            <input type="text" value={form.leader} onChange={(e) => set("leader", e.target.value)} placeholder="예: 최성헌 부장 / 박양흠 부감" style={inputStyle} />
+            <div style={hintStyle}>"선생님" 자동 부착. 부장/부감/총무 등 직책 직접 입력</div>
           </FormRow>
           <FormRow label="주제제창 (이번 주 사용 멘트)">
             <input type="text" value={form.theme} onChange={(e) => set("theme", e.target.value)} placeholder="기본은 올해 표어" style={inputStyle} />
@@ -983,8 +991,9 @@ export default function WeeklyBulletinPage() {
           <FormRow label="강론 제목">
             <input type="text" value={form.sermonTitle} onChange={(e) => set("sermonTitle", e.target.value)} placeholder="예: 우리는 배울 때 무엇을 조심해야 할까요?" style={inputStyle} />
           </FormRow>
-          <FormRow label="강론자">
-            <input type="text" value={form.preacher} onChange={(e) => set("preacher", e.target.value)} placeholder="예: 김희숙" style={inputStyle} />
+          <FormRow label="강론자 (이름 + 직책)">
+            <input type="text" value={form.preacher} onChange={(e) => set("preacher", e.target.value)} placeholder="예: 김희숙 전도사 / 박지성 목사" style={inputStyle} />
+            <div style={hintStyle}>"님" 자동 부착. 전도사/목사 등 직책 직접 입력</div>
           </FormRow>
           <FormRow label="다음 주 기도">
             <input type="text" value={form.nextPrayer} onChange={(e) => set("nextPrayer", e.target.value)} placeholder="예: 3-4반 또는 김정권장로님" style={inputStyle} />

@@ -1,45 +1,82 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
-export const preferredRegion = "icn1";
 
-// 환경변수에 박혀있는 공용 UMS 계정의 user_id.
-// 향후 부서별/등록자별로 분리되면 클라이언트가 ums_user_id 파라미터를 보내도록 변경.
-const UMS_USER_ID = process.env.UMS_USER_ID || "";
+// 사용자 본인의 UMS 자격증명 기준 쿨다운 상태 조회.
+// Bearer token 인증 필수 (본인만 본인 정보 봄).
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-export async function GET() {
-  if (!UMS_USER_ID) {
-    return NextResponse.json(
-      { ok: false, error: "UMS_USER_ID 환경변수가 설정되지 않았습니다" },
-      { status: 500 },
-    );
+async function getAuthUser(req: NextRequest): Promise<{ uid: string } | null> {
+  const auth = req.headers.get("Authorization") || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token) return null;
+  const client = createClient(SUPABASE_URL, ANON_KEY);
+  const { data, error } = await client.auth.getUser(token);
+  if (error || !data.user) return null;
+  return { uid: data.user.id };
+}
+
+export async function GET(req: NextRequest) {
+  const user = await getAuthUser(req);
+  if (!user) {
+    // 미인증: 정상 응답 (자격증명 없음 / 쿨다운 0)
+    return NextResponse.json({
+      ok: true,
+      has_credentials: false,
+      remaining_seconds: 0,
+      can_post: true,
+      last_posted_at: null,
+      last_post_no: null,
+      last_subject: null,
+    });
   }
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data, error } = await admin.rpc("ums_check_cooldown", {
-    p_ums_user_id: UMS_USER_ID,
-  });
+  // 사용자 자격증명 조회
+  const { data: cred } = await admin
+    .from("user_ums_credentials")
+    .select("ums_user_id")
+    .eq("user_id", user.uid)
+    .maybeSingle();
 
+  if (!cred) {
+    return NextResponse.json({
+      ok: true,
+      has_credentials: false,
+      remaining_seconds: 0,
+      can_post: true,
+      last_posted_at: null,
+      last_post_no: null,
+      last_subject: null,
+      ums_user_id: null,
+    });
+  }
+
+  const { data: cdRows, error } = await admin.rpc("ums_check_cooldown", {
+    p_ums_user_id: cred.ums_user_id,
+  });
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
-
-  const row = (data && data[0]) || { remaining_seconds: 0, last_posted_at: null, last_post_no: null, last_subject: null };
+  const row = (cdRows && cdRows[0]) || {
+    remaining_seconds: 0, last_posted_at: null, last_post_no: null, last_subject: null,
+  };
 
   return NextResponse.json({
     ok: true,
+    has_credentials: true,
     remaining_seconds: row.remaining_seconds || 0,
     can_post: (row.remaining_seconds || 0) === 0,
     last_posted_at: row.last_posted_at,
     last_post_no: row.last_post_no,
     last_subject: row.last_subject,
-    ums_user_id: UMS_USER_ID,  // 디버그/표시용 (비밀번호는 노출 X)
+    ums_user_id: cred.ums_user_id,
   });
 }
