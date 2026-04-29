@@ -330,7 +330,26 @@ export default function WeeklyBulletinPage() {
   const [photos, setPhotos] = useState<Array<File | null>>([null, null, null, null]);
   const [postModalOpen, setPostModalOpen] = useState(false);
   const [umsLoginConfirmed, setUmsLoginConfirmed] = useState(false);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [autoPosting, setAutoPosting] = useState(false);
+  const [autoPostResult, setAutoPostResult] = useState<
+    | { ok: true; postNo: number; redirectUrl: string }
+    | { ok: false; error: string }
+    | null
+  >(null);
+  const [userscriptVersion, setUserscriptVersion] = useState<string | null>(null);
   const skipNextLoadRef = useRef(false);
+
+  // 유저스크립트 설치 감지 (data-chflow-userscript 속성)
+  useEffect(() => {
+    const check = () => {
+      const v = document.documentElement.getAttribute("data-chflow-userscript");
+      setUserscriptVersion(v);
+    };
+    check();
+    const t = setInterval(check, 1000);  // 페이지 로드 후 늦게 주입될 수도
+    return () => clearInterval(t);
+  }, []);
 
   // sessionStorage 로 로그인 확인 상태 유지 (탭 닫으면 풀림 — UMS 세션 만료 가능성 고려)
   useEffect(() => {
@@ -562,6 +581,71 @@ export default function WeeklyBulletinPage() {
   const handleOpenUmsTab = (target: "write" | "board" | "login") => {
     const url = target === "login" ? UMS_LOGIN_URL : target === "board" ? UMS_BOARD_URL : UMS_WRITE_URL;
     window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  // 🚀 1클릭 자동등록 (Tampermonkey 유저스크립트 호출)
+  const handleAutoPost = async () => {
+    if (!userscriptVersion) {
+      showToast("유저스크립트가 설치되지 않음. 설치 후 새로고침하세요");
+      return;
+    }
+    if (!pdfFile) {
+      showToast("PDF 파일을 먼저 첨부하세요");
+      return;
+    }
+    if (!form.theme && !form.scripture) {
+      showToast("주제와 본문을 채우세요");
+      return;
+    }
+
+    setAutoPosting(true);
+    setAutoPostResult(null);
+
+    // PDF → base64
+    const pdfBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve((reader.result as string).split(",")[1]);
+      reader.onerror = () => reject(new Error("PDF 읽기 실패"));
+      reader.readAsDataURL(pdfFile);
+    });
+
+    const subject = buildPostSubject(form);
+    const memo = buildPostMemo(form);
+
+    const requestId = Math.random().toString(36).slice(2);
+
+    const onResponse = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      document.removeEventListener(`chflow:ums-post-response-${requestId}`, onResponse);
+      setAutoPosting(false);
+      if (detail.ok) {
+        setAutoPostResult({ ok: true, postNo: detail.postNo, redirectUrl: detail.redirectUrl });
+      } else {
+        setAutoPostResult({ ok: false, error: detail.error || "알 수 없는 오류" });
+      }
+    };
+    document.addEventListener(`chflow:ums-post-response-${requestId}`, onResponse);
+
+    document.dispatchEvent(new CustomEvent("chflow:ums-post-request", {
+      detail: {
+        requestId,
+        payload: {
+          subject,
+          memo,
+          pdfBase64,
+          pdfFilename: pdfFile.name || `초등1초원주보_${form.date}.pdf`,
+        },
+      },
+    }));
+
+    // 60초 타임아웃
+    setTimeout(() => {
+      document.removeEventListener(`chflow:ums-post-response-${requestId}`, onResponse);
+      if (autoPosting) {
+        setAutoPosting(false);
+        setAutoPostResult({ ok: false, error: "60초 타임아웃 — 유저스크립트가 응답 없음" });
+      }
+    }, 60000);
   };
 
   // 1️⃣ 로그인 팝업 열고, 닫히면 자동으로 로그인 완료로 간주
@@ -898,13 +982,48 @@ export default function WeeklyBulletinPage() {
           </div>
         </div>
 
-        {/* ⑨ 액션 */}
+        {/* ⑨ PDF 첨부 (자동등록용) */}
         <div style={cardStyle}>
-          <div style={sectionLabel}>⑨ 주보 생성 / 등록</div>
-          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 12 }}>
-            <b>1단계</b>: hwpx 다운로드 → 한글에서 열어 PDF 저장<br />
-            <b>2단계</b>: "📤 등록" 클릭 → 클립보드 복사 + UMS 새 탭 → 붙여넣기 + PDF 첨부
+          <div style={sectionLabel}>⑨ PDF 첨부 (자동등록용)</div>
+          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 10 }}>
+            한글에서 PDF로 저장한 파일을 여기에 첨부하면 1클릭 자동등록 가능
           </div>
+          <input
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+            style={{ ...inputStyle, padding: 8 }}
+          />
+          {pdfFile && (
+            <div style={{ fontSize: 11, color: "#15803d", marginTop: 6 }}>
+              ✅ {pdfFile.name} ({(pdfFile.size / 1024).toFixed(0)} KB)
+            </div>
+          )}
+        </div>
+
+        {/* ⑩ 액션 */}
+        <div style={cardStyle}>
+          <div style={sectionLabel}>⑩ 주보 생성 / 등록</div>
+
+          {!userscriptVersion ? (
+            <div style={{ background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 12, color: "#9a3412", lineHeight: 1.6 }}>
+              <b>🚀 1클릭 자동등록 활성화하려면</b> Tampermonkey + 우리 유저스크립트 설치 (1회):<br />
+              1. Chrome 웹스토어에서 <b>Tampermonkey</b> 확장프로그램 설치<br />
+              2. <a href="/userscripts/chflow-ums-auto.user.js" target="_blank" style={{ color: "#6366f1", fontWeight: 700 }}>유저스크립트 설치 링크 클릭</a><br />
+              3. Tampermonkey 가 설치 페이지 띄우면 "설치" 클릭 → 이 페이지 새로고침<br />
+              <br />
+              아래 "📤 등록(클립보드 모드)" 는 유저스크립트 없이도 사용 가능
+            </div>
+          ) : (
+            <div style={{ background: "#dcfce7", border: "1px solid #86efac", borderRadius: 10, padding: 10, marginBottom: 12, fontSize: 12, color: "#15803d" }}>
+              ✅ 유저스크립트 v{userscriptVersion} 활성화됨 — 1클릭 등록 가능
+            </div>
+          )}
+
+          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 12 }}>
+            <b>흐름</b>: 폼 채움 → hwpx 다운 → 한글에서 PDF 저장 → ⑨에 첨부 → 🚀 1클릭 등록
+          </div>
+
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
             <button onClick={handleSaveDraft} disabled={savingDraft} style={resetBtnStyle}>
               {savingDraft ? "저장 중..." : "💾 임시저장"}
@@ -912,9 +1031,23 @@ export default function WeeklyBulletinPage() {
             <button onClick={handleDownloadHwpx} disabled={generating} style={resetBtnStyle}>
               {generating ? "생성 중..." : "📥 hwpx 다운로드"}
             </button>
-            <button onClick={() => setPostModalOpen(true)} style={primaryBtnStyle}>
-              📤 등록
+            <button onClick={() => setPostModalOpen(true)} style={resetBtnStyle}>
+              📤 등록 (클립보드 모드)
             </button>
+            {userscriptVersion && (
+              <button
+                onClick={handleAutoPost}
+                disabled={autoPosting || !pdfFile}
+                style={{
+                  ...primaryBtnStyle,
+                  background: !pdfFile ? "#e2e8f0" : "linear-gradient(135deg, #ec4899, #8b5cf6)",
+                  color: !pdfFile ? "#94a3b8" : "#fff",
+                  cursor: !pdfFile ? "not-allowed" : "pointer",
+                }}
+              >
+                {autoPosting ? "등록 중..." : "🚀 1클릭 자동등록"}
+              </button>
+            )}
           </div>
         </div>
         </div>
@@ -928,6 +1061,61 @@ export default function WeeklyBulletinPage() {
           />
         )}
       </div>
+
+      {/* ─── 자동등록 진행/결과 모달 ─── */}
+      {(autoPosting || autoPostResult) && (
+        <div style={modalBackdropStyle}>
+          <div style={{ ...postModalCardStyle, maxWidth: 420 }}>
+            {autoPosting && (
+              <>
+                <div style={{ fontSize: 32, marginBottom: 8, textAlign: "center" }}>🚀</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b", marginBottom: 6, textAlign: "center" }}>
+                  UMS에 자동 등록 중...
+                </div>
+                <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, textAlign: "center" }}>
+                  4단계 (write 폼 → PDF 업로드 → 글 등록)<br />
+                  너 PC에서 너 IP로 진행 중.
+                </div>
+              </>
+            )}
+            {autoPostResult && autoPostResult.ok && (
+              <>
+                <div style={{ fontSize: 32, marginBottom: 8, textAlign: "center" }}>✅</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#15803d", marginBottom: 6, textAlign: "center" }}>
+                  등록 완료!
+                </div>
+                <div style={{ fontSize: 13, color: "#1e293b", marginBottom: 14, textAlign: "center" }}>
+                  글번호 #{autoPostResult.postNo}
+                </div>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                  <a
+                    href={`http://www.ums.or.kr/bbs/zboard.php?id=samusil&no=${autoPostResult.postNo}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ ...resetBtnStyle, textDecoration: "none" }}
+                  >
+                    UMS에서 확인
+                  </a>
+                  <button onClick={() => setAutoPostResult(null)} style={primaryBtnStyle}>확인</button>
+                </div>
+              </>
+            )}
+            {autoPostResult && !autoPostResult.ok && (
+              <>
+                <div style={{ fontSize: 32, marginBottom: 8, textAlign: "center" }}>⚠️</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#b91c1c", marginBottom: 6, textAlign: "center" }}>
+                  자동등록 실패
+                </div>
+                <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 14, wordBreak: "break-word" }}>
+                  {autoPostResult.error}
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button onClick={() => setAutoPostResult(null)} style={primaryBtnStyle}>닫기</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ─── 등록 도우미 모달 ─── */}
       {postModalOpen && (() => {
