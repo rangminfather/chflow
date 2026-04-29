@@ -1,40 +1,118 @@
+// Cloudflare Worker — UMS 전용 프록시
+// chflow Vercel API 가 ums.or.kr 호출 시 이 Worker 거침 → Cloudflare IP 사용 (UMS 차단 우회)
+//
+// 사용:
+//   GET  https://worker.url/?path=/bbs/zboard.php?id=samusil
+//        헤더: X-Forward-Cookie (옵션), X-Forward-Referer (옵션)
+//
+//   POST https://worker.url/?path=/bbs/login_check.php
+//        body: 그대로 forward
+//        헤더: X-Forward-Cookie, X-Forward-Referer, X-Forward-Content-Type
+//
+// 응답:
+//   상태/바디: UMS 그대로
+//   X-Forward-Set-Cookie: UMS Set-Cookie 들 (\\n 으로 구분)
+//   X-Forward-Status: UMS HTTP status
+//   X-Forward-Location: UMS Location 헤더 (있으면)
+
+const ALLOWED_HOSTS = ["www.ums.or.kr", "ums.or.kr"];
+
 export default {
   async fetch(request) {
-    const target = "http://www.ums.or.kr/bbs/zboard.php?id=samusil&page=1";
-    let umsResult;
-    try {
-      const res = await fetch(target, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-          "Accept-Language": "ko-KR,ko;q=0.9",
-          "Referer": "http://www.ums.or.kr/",
-        },
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(),
       });
-      const buf = await res.arrayBuffer();
-      umsResult = {
-        status: res.status,
-        body_size: buf.byteLength,
-        is_blocked: buf.byteLength < 100,
-        preview_hex: Array.from(new Uint8Array(buf.slice(0, 30)))
-          .map(b => b.toString(16).padStart(2, "0")).join(" "),
-      };
-    } catch (e) {
-      umsResult = { error: String(e) };
     }
 
-    let ourIp = "unknown";
-    try {
-      const ipRes = await fetch("https://api.ipify.org?format=json");
-      const ipData = await ipRes.json();
-      ourIp = ipData.ip;
-    } catch {}
+    const url = new URL(request.url);
+    const path = url.searchParams.get("path");
+    const host = url.searchParams.get("host") || "www.ums.or.kr";
 
-    const cf = request.cf || {};
-    return Response.json({
-      ums: umsResult,
-      our_ip: ourIp,
-      cf_colo: cf.colo,
-      cf_country: cf.country,
-    }, null, 2);
+    if (!path) {
+      return jsonError(400, "missing ?path=");
+    }
+    if (!ALLOWED_HOSTS.includes(host)) {
+      return jsonError(403, `host '${host}' not allowed`);
+    }
+
+    const targetUrl = `http://${host}${path}`;
+
+    const fwdHeaders = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+      "Referer": request.headers.get("X-Forward-Referer") || "http://www.ums.or.kr/",
+    };
+
+    const cookie = request.headers.get("X-Forward-Cookie");
+    if (cookie) fwdHeaders["Cookie"] = cookie;
+
+    const ct = request.headers.get("X-Forward-Content-Type");
+    if (ct) fwdHeaders["Content-Type"] = ct;
+
+    const xrw = request.headers.get("X-Forward-X-Requested-With");
+    if (xrw) fwdHeaders["X-Requested-With"] = xrw;
+
+    const origin = request.headers.get("X-Forward-Origin");
+    if (origin) fwdHeaders["Origin"] = origin;
+
+    const init = {
+      method: request.method,
+      headers: fwdHeaders,
+      redirect: "manual",
+    };
+
+    if (request.method === "POST") {
+      init.body = await request.arrayBuffer();
+    }
+
+    let umsRes;
+    try {
+      umsRes = await fetch(targetUrl, init);
+    } catch (e) {
+      return jsonError(502, `fetch failed: ${e}`);
+    }
+
+    const buf = await umsRes.arrayBuffer();
+
+    const respHeaders = {
+      ...corsHeaders(),
+      "Content-Type": umsRes.headers.get("Content-Type") || "application/octet-stream",
+      "X-Forward-Status": String(umsRes.status),
+    };
+
+    // Set-Cookie 들 (다중)
+    const setCookies = umsRes.headers.getSetCookie ? umsRes.headers.getSetCookie() : [];
+    if (setCookies.length > 0) {
+      // \n 으로 join — chflow Vercel API 측에서 split 해서 처리
+      respHeaders["X-Forward-Set-Cookie"] = setCookies.join("\n");
+    }
+
+    const location = umsRes.headers.get("Location");
+    if (location) respHeaders["X-Forward-Location"] = location;
+
+    return new Response(buf, {
+      status: umsRes.status,
+      headers: respHeaders,
+    });
   },
 };
+
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "X-Forward-Cookie, X-Forward-Referer, X-Forward-Content-Type, X-Forward-X-Requested-With, X-Forward-Origin, Content-Type",
+    "Access-Control-Expose-Headers": "X-Forward-Status, X-Forward-Set-Cookie, X-Forward-Location",
+  };
+}
+
+function jsonError(status, message) {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders() },
+  });
+}
