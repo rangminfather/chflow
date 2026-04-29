@@ -329,7 +329,20 @@ export default function WeeklyBulletinPage() {
   const [isDesktop, setIsDesktop] = useState(false);
   const [photos, setPhotos] = useState<Array<File | null>>([null, null, null, null]);
   const [postModalOpen, setPostModalOpen] = useState(false);
+  const [umsLoginConfirmed, setUmsLoginConfirmed] = useState(false);
   const skipNextLoadRef = useRef(false);
+
+  // sessionStorage 로 로그인 확인 상태 유지 (탭 닫으면 풀림 — UMS 세션 만료 가능성 고려)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = sessionStorage.getItem("chflow:ums-login-confirmed");
+    if (saved === "1") setUmsLoginConfirmed(true);
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (umsLoginConfirmed) sessionStorage.setItem("chflow:ums-login-confirmed", "1");
+    else sessionStorage.removeItem("chflow:ums-login-confirmed");
+  }, [umsLoginConfirmed]);
 
   // 데스크톱 여부 감지 (>= 1024px)
   useEffect(() => {
@@ -549,6 +562,30 @@ export default function WeeklyBulletinPage() {
   const handleOpenUmsTab = (target: "write" | "board" | "login") => {
     const url = target === "login" ? UMS_LOGIN_URL : target === "board" ? UMS_BOARD_URL : UMS_WRITE_URL;
     window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  // 1️⃣ 로그인 팝업 열고, 닫히면 자동으로 로그인 완료로 간주
+  const handleOpenLoginPopup = () => {
+    const w = 720, h = 640;
+    const left = Math.max(0, window.screenX + (window.outerWidth - w) / 2);
+    const top = Math.max(0, window.screenY + (window.outerHeight - h) / 2);
+    const popup = window.open(
+      UMS_LOGIN_URL,
+      "umsLoginPopup",
+      `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
+    if (!popup) {
+      showToast("팝업이 차단됐어요. 브라우저 설정에서 팝업 허용 후 다시 시도해주세요");
+      return;
+    }
+    showToast("팝업에서 로그인 후 창을 닫으면 다음 단계가 활성화됩니다");
+    const timer = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(timer);
+        setUmsLoginConfirmed(true);
+        showToast("로그인 완료로 인식됐습니다 ✅");
+      }
+    }, 500);
   };
 
   const handleDownloadHwpx = async () => {
@@ -904,18 +941,12 @@ export default function WeeklyBulletinPage() {
                 <button onClick={() => setPostModalOpen(false)} style={iconBtnStyle}>✕</button>
               </div>
 
-              <div style={{ fontSize: 12, color: "#b45309", lineHeight: 1.6, marginBottom: 10, background: "#fef3c7", padding: 10, borderRadius: 8, border: "1px solid #fbbf24" }}>
-                ⚠️ 먼저 UMS 사이트에 <b>로그인 상태</b>여야 합니다.<br />
-                "정상적으로 글을 작성하여..." 같은 알림이 뜨면 로그인 안 된 상태입니다.
-              </div>
-
-              <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.7, marginBottom: 14, background: "#f8fafc", padding: 10, borderRadius: 8 }}>
-                <b>순서</b>:<br />
-                1️⃣ <b>로그인 안 됐으면</b> "UMS 로그인" 클릭 → 로그인 후 탭 닫기<br />
-                2️⃣ "UMS 게시판" 클릭 → 새 탭에서 글쓰기 버튼 클릭 (또는 "글쓰기 직접" 시도)<br />
-                3️⃣ 제목칸에 "제목 복사" → Ctrl+V (모바일은 길게 눌러 붙여넣기)<br />
-                4️⃣ 내용칸에 "본문 복사" → Ctrl+V<br />
-                5️⃣ "파일 선택" → 한글에서 저장한 PDF 첨부 → 등록
+              <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 12, background: "#f8fafc", padding: 10, borderRadius: 8 }}>
+                <b>📋 순서</b>:<br />
+                <b style={{ color: umsLoginConfirmed ? "#94a3b8" : "#1e293b" }}>1️⃣ 홈페이지 로그인</b> → 팝업 창에서 로그인 후 <b>창 닫기</b><br />
+                <b style={{ color: umsLoginConfirmed ? "#15803d" : "#1e293b" }}>2️⃣ {umsLoginConfirmed ? "✅ 로그인 확인됨" : "로그인 완료 (수동 확인)"}</b><br />
+                <b style={{ color: umsLoginConfirmed ? "#1e293b" : "#94a3b8" }}>3️⃣ 글쓰기 페이지 열기</b> → 새 탭에서 폼에 붙여넣기<br />
+                <span style={{ color: "#94a3b8", fontSize: 11 }}>* 로그인 자동 검증은 브라우저 보안상 불가. 팝업 닫으면 자동 체크됨.</span>
               </div>
 
               {/* 제목 */}
@@ -949,18 +980,45 @@ export default function WeeklyBulletinPage() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-                <button onClick={() => handleOpenUmsTab("login")} style={{ ...resetBtnStyle, padding: "9px 14px" }}>
-                  🔑 UMS 로그인
+              {/* 3-step buttons */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+                <button onClick={handleOpenLoginPopup} style={{ ...resetBtnStyle, padding: "11px 14px", textAlign: "left" }}>
+                  🔑 1️⃣ 홈페이지 로그인 (팝업)
                 </button>
-                <button onClick={() => handleOpenUmsTab("board")} style={{ ...primaryBtnStyle, padding: "9px 14px", fontSize: 13 }}>
-                  📋 UMS 게시판
+
+                <button
+                  onClick={() => setUmsLoginConfirmed(!umsLoginConfirmed)}
+                  style={{
+                    padding: "11px 14px", textAlign: "left",
+                    background: umsLoginConfirmed ? "#dcfce7" : "#f1f5f9",
+                    color: umsLoginConfirmed ? "#15803d" : "#475569",
+                    border: `1.5px solid ${umsLoginConfirmed ? "#86efac" : "#e2e8f0"}`,
+                    borderRadius: 10, fontSize: 13, fontWeight: 700,
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  {umsLoginConfirmed ? "✅ 2️⃣ 로그인 확인됨 (다시 클릭하면 해제)" : "2️⃣ 로그인 완료 (수동 확인)"}
                 </button>
-                <button onClick={() => handleOpenUmsTab("write")} style={{ ...resetBtnStyle, padding: "9px 14px" }}>
-                  ✏️ 글쓰기 직접
+
+                <button
+                  onClick={() => handleOpenUmsTab("write")}
+                  disabled={!umsLoginConfirmed}
+                  style={{
+                    padding: "11px 14px", textAlign: "left",
+                    background: umsLoginConfirmed ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "#e2e8f0",
+                    color: umsLoginConfirmed ? "#fff" : "#94a3b8",
+                    border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800,
+                    cursor: umsLoginConfirmed ? "pointer" : "not-allowed",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  3️⃣ 글쓰기 페이지 열기 →
                 </button>
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+                <button onClick={() => handleOpenUmsTab("board")} style={{ ...smallBtnStyle, padding: "6px 10px" }}>
+                  📋 게시판으로 가기 (글쓰기 우회 경로)
+                </button>
                 <button onClick={() => setPostModalOpen(false)} style={resetBtnStyle}>닫기</button>
               </div>
             </div>
