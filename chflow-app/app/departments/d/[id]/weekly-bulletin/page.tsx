@@ -945,8 +945,10 @@ export default function WeeklyBulletinPage() {
                 <b>📋 순서</b>:<br />
                 <b style={{ color: umsLoginConfirmed ? "#94a3b8" : "#1e293b" }}>1️⃣ 홈페이지 로그인</b> → 팝업 창에서 로그인 후 <b>창 닫기</b><br />
                 <b style={{ color: umsLoginConfirmed ? "#15803d" : "#1e293b" }}>2️⃣ {umsLoginConfirmed ? "✅ 로그인 확인됨" : "로그인 완료 (수동 확인)"}</b><br />
-                <b style={{ color: umsLoginConfirmed ? "#1e293b" : "#94a3b8" }}>3️⃣ 글쓰기 페이지 열기</b> → 새 탭에서 폼에 붙여넣기<br />
-                <span style={{ color: "#94a3b8", fontSize: 11 }}>* 로그인 자동 검증은 브라우저 보안상 불가. 팝업 닫으면 자동 체크됨.</span>
+                <b style={{ color: umsLoginConfirmed ? "#1e293b" : "#94a3b8" }}>3️⃣ 게시판 열기 → 우측 "글쓰기" 버튼 클릭</b><br />
+                <span style={{ color: "#b45309", fontSize: 11 }}>
+                  ⓘ <b>왜 게시판 거쳐야 하나요?</b> chflow(HTTPS) → UMS(HTTP) 직접 이동 시 브라우저가 Referer 를 자동 삭제해서 UMS 가 글쓰기 직접 접근을 차단함. 게시판에서 자연스럽게 "글쓰기" 클릭하면 정상 작동.
+                </span>
               </div>
 
               {/* 제목 */}
@@ -1001,7 +1003,7 @@ export default function WeeklyBulletinPage() {
                 </button>
 
                 <button
-                  onClick={() => handleOpenUmsTab("write")}
+                  onClick={() => handleOpenUmsTab("board")}
                   disabled={!umsLoginConfirmed}
                   style={{
                     padding: "11px 14px", textAlign: "left",
@@ -1012,12 +1014,12 @@ export default function WeeklyBulletinPage() {
                     fontFamily: "inherit",
                   }}
                 >
-                  3️⃣ 글쓰기 페이지 열기 →
+                  3️⃣ 게시판 열기 → (UMS 에서 "글쓰기" 클릭)
                 </button>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
-                <button onClick={() => handleOpenUmsTab("board")} style={{ ...smallBtnStyle, padding: "6px 10px" }}>
-                  📋 게시판으로 가기 (글쓰기 우회 경로)
+                <button onClick={() => handleOpenUmsTab("write")} style={{ ...smallBtnStyle, padding: "6px 10px" }} title="대부분 차단됨 — 시험용">
+                  ⚠️ 글쓰기 직접 (실패 가능)
                 </button>
                 <button onClick={() => setPostModalOpen(false)} style={resetBtnStyle}>닫기</button>
               </div>
