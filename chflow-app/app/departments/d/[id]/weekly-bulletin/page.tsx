@@ -584,13 +584,10 @@ export default function WeeklyBulletinPage() {
   };
 
   // 🚀 1클릭 자동등록 (Tampermonkey 유저스크립트 호출)
+  // 변경: PDF 가 첨부 안 됐으면 브라우저에서 자동 생성
   const handleAutoPost = async () => {
     if (!userscriptVersion) {
       showToast("유저스크립트가 설치되지 않음. 설치 후 새로고침하세요");
-      return;
-    }
-    if (!pdfFile) {
-      showToast("PDF 파일을 먼저 첨부하세요");
       return;
     }
     if (!form.theme && !form.scripture) {
@@ -601,13 +598,35 @@ export default function WeeklyBulletinPage() {
     setAutoPosting(true);
     setAutoPostResult(null);
 
-    // PDF → base64
-    const pdfBase64 = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve((reader.result as string).split(",")[1]);
-      reader.onerror = () => reject(new Error("PDF 읽기 실패"));
-      reader.readAsDataURL(pdfFile);
-    });
+    let pdfBase64: string;
+    let pdfFilename: string;
+
+    if (pdfFile) {
+      // 사용자가 직접 첨부한 PDF (한글에서 저장한 거 등) — 그대로 사용
+      pdfBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = () => reject(new Error("PDF 읽기 실패"));
+        reader.readAsDataURL(pdfFile);
+      });
+      pdfFilename = pdfFile.name;
+    } else {
+      // 자동 생성 — pdf-lib + NanumGothic
+      try {
+        const { generateBulletinPdfBrowser, formToBulletinData } = await import("@/lib/bulletin/pdf-browser");
+        const data = formToBulletinData(form as unknown as Record<string, string>, deptName);
+        const pdfBytes = await generateBulletinPdfBrowser(data, photos);
+        // Uint8Array → base64
+        let binary = "";
+        for (let i = 0; i < pdfBytes.length; i++) binary += String.fromCharCode(pdfBytes[i]);
+        pdfBase64 = btoa(binary);
+        pdfFilename = `초등1초원주보_${form.date}.pdf`;
+      } catch (e: unknown) {
+        setAutoPosting(false);
+        setAutoPostResult({ ok: false, error: `PDF 자동 생성 실패: ${(e as Error).message}` });
+        return;
+      }
+    }
 
     const subject = buildPostSubject(form);
     const memo = buildPostMemo(form);
@@ -633,7 +652,7 @@ export default function WeeklyBulletinPage() {
           subject,
           memo,
           pdfBase64,
-          pdfFilename: pdfFile.name || `초등1초원주보_${form.date}.pdf`,
+          pdfFilename,
         },
       },
     }));
