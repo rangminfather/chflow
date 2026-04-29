@@ -293,7 +293,11 @@ function buildPostMemo(form: FormState): string {
   return lines.join("\n");
 }
 
-const UMS_WRITE_URL = "http://www.ums.or.kr/bbs/write.php?id=samusil&mode=write&category=2";
+// UMS 사이트가 referer/세션 검증을 하므로, 글쓰기 페이지로 직접 가지 말고
+// 게시판 리스트 → 글쓰기 자연 경로를 권장. 직접 링크는 fallback.
+const UMS_BOARD_URL = "http://www.ums.or.kr/bbs/zboard.php?id=samusil&page=1";
+const UMS_WRITE_URL = "http://www.ums.or.kr/bbs/write.php?id=samusil&page=1&category=2&mode=write";
+const UMS_LOGIN_URL = "http://www.ums.or.kr/bbs/login.php?id=samusil";
 
 // ─────────────────────────────────────────────────────────────────
 // 컴포넌트
@@ -542,8 +546,9 @@ export default function WeeklyBulletinPage() {
     }
   };
 
-  const handleOpenUmsTab = () => {
-    window.open(UMS_WRITE_URL, "_blank", "noopener,noreferrer");
+  const handleOpenUmsTab = (target: "write" | "board" | "login") => {
+    const url = target === "login" ? UMS_LOGIN_URL : target === "board" ? UMS_BOARD_URL : UMS_WRITE_URL;
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const handleDownloadHwpx = async () => {
@@ -899,13 +904,18 @@ export default function WeeklyBulletinPage() {
                 <button onClick={() => setPostModalOpen(false)} style={iconBtnStyle}>✕</button>
               </div>
 
+              <div style={{ fontSize: 12, color: "#b45309", lineHeight: 1.6, marginBottom: 10, background: "#fef3c7", padding: 10, borderRadius: 8, border: "1px solid #fbbf24" }}>
+                ⚠️ 먼저 UMS 사이트에 <b>로그인 상태</b>여야 합니다.<br />
+                "정상적으로 글을 작성하여..." 같은 알림이 뜨면 로그인 안 된 상태입니다.
+              </div>
+
               <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.7, marginBottom: 14, background: "#f8fafc", padding: 10, borderRadius: 8 }}>
                 <b>순서</b>:<br />
-                1️⃣ "UMS 글쓰기 페이지 열기" 클릭 → 새 탭<br />
-                2️⃣ 제목칸에 "제목 복사" → Ctrl+V (모바일은 길게 눌러 붙여넣기)<br />
-                3️⃣ 내용칸에 "본문 복사" → Ctrl+V<br />
-                4️⃣ "파일 선택" → 한글에서 저장한 PDF 첨부<br />
-                5️⃣ 등록 버튼 클릭
+                1️⃣ <b>로그인 안 됐으면</b> "UMS 로그인" 클릭 → 로그인 후 탭 닫기<br />
+                2️⃣ "UMS 게시판" 클릭 → 새 탭에서 글쓰기 버튼 클릭 (또는 "글쓰기 직접" 시도)<br />
+                3️⃣ 제목칸에 "제목 복사" → Ctrl+V (모바일은 길게 눌러 붙여넣기)<br />
+                4️⃣ 내용칸에 "본문 복사" → Ctrl+V<br />
+                5️⃣ "파일 선택" → 한글에서 저장한 PDF 첨부 → 등록
               </div>
 
               {/* 제목 */}
@@ -939,11 +949,19 @@ export default function WeeklyBulletinPage() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 8, justifyContent: "space-between", flexWrap: "wrap" }}>
-                <button onClick={() => setPostModalOpen(false)} style={resetBtnStyle}>닫기</button>
-                <button onClick={handleOpenUmsTab} style={primaryBtnStyle}>
-                  🌐 UMS 글쓰기 페이지 열기
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                <button onClick={() => handleOpenUmsTab("login")} style={{ ...resetBtnStyle, padding: "9px 14px" }}>
+                  🔑 UMS 로그인
                 </button>
+                <button onClick={() => handleOpenUmsTab("board")} style={{ ...primaryBtnStyle, padding: "9px 14px", fontSize: 13 }}>
+                  📋 UMS 게시판
+                </button>
+                <button onClick={() => handleOpenUmsTab("write")} style={{ ...resetBtnStyle, padding: "9px 14px" }}>
+                  ✏️ 글쓰기 직접
+                </button>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button onClick={() => setPostModalOpen(false)} style={resetBtnStyle}>닫기</button>
               </div>
             </div>
           </div>
