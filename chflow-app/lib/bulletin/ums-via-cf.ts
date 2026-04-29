@@ -210,11 +210,23 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     return { ok: false, error: "로그인 실패: PHPSESSID 쿠키 없음", debug };
   }
 
+  // ── 1.5. 사람처럼 게시판 리스트 한 번 방문 (UMS 봇 감지 회피) ──
+  const boardRes = await umsViaCf("/bbs/zboard.php?id=samusil&page=1", {
+    method: "GET",
+    cookie: jar.toHeader(),
+    referer: "http://www.ums.or.kr/bbs/login_check.php",
+  });
+  jar.ingest(boardRes.setCookies);
+  pushDebug("visit_board", boardRes.body, boardRes.status, boardRes.setCookies);
+
+  // 1.5초 대기 (사람 패턴)
+  await new Promise((r) => setTimeout(r, 1500));
+
   // ── 2. write.php → pl_date 추출 ──
   const wfRes = await umsViaCf(UMS_WRITE_FORM_PATH, {
     method: "GET",
     cookie: jar.toHeader(),
-    referer: "http://www.ums.or.kr/bbs/zboard.php?id=samusil",
+    referer: "http://www.ums.or.kr/bbs/zboard.php?id=samusil&page=1",
   });
   jar.ingest(wfRes.setCookies);
 
@@ -275,17 +287,12 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   }
 
   // ── 4. write_ok.php — CP949 multipart ──
+  // 검증된 Edge Function (글 1459/1460 등록 성공) 와 동일한 14개 필드.
+  // check=1, w_key_spam 은 안 보냄 (오히려 거부 트리거 가능성).
   const cp = (s: string) => iconv.encode(s, "cp949");
   const category = input.category ?? 2;
-  // 스팸차단 답변 — UMS 가 외국 IP(Cloudflare LAX 등)에 대해 요구할 수 있음
-  // 폼 안내: "명성교회 ('예' 김종혁목사) 을 적어주세요"
-  // 환경변수로 override 가능
-  const spamAnswer = process.env.UMS_SPAM_ANSWER || "김종혁목사";
   const writeOkBoundary = "----chflowWo" + Math.random().toString(36).slice(2);
-  // check_attack 폼의 check 필드 — JS 가 submit 시 0→1 로 바꾸는 봇 검증 필드.
-  // 우리가 폼 통과 안 하니까 미리 1 로 보냄.
   const writeOkBody = buildMultipart(writeOkBoundary, [
-    { name: "check", value: cp("1") },
     { name: "page", value: cp("1") },
     { name: "id", value: cp("samusil") },
     { name: "no", value: cp("") },
@@ -300,7 +307,6 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     { name: "pl_date", value: cp(plDate) },
     { name: "reg_date_change", value: cp("") },
     { name: "NameCheck", value: cp("N") },
-    { name: "w_key_spam", value: cp(spamAnswer) },
     { name: "subject", value: cp(input.subject) },
     { name: "memo", value: cp(input.memo) },
   ]);
@@ -315,7 +321,6 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   jar.ingest(woRes.setCookies);
   pushDebug("write_ok", woRes.body, woRes.status, woRes.setCookies, {
     cookie_sent: jar.toHeader().slice(0, 200),
-    spam_answer: spamAnswer,
   });
 
   const woHtml = iconv.decode(woRes.body, "cp949");
