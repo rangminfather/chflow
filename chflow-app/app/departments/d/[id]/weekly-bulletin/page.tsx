@@ -202,7 +202,18 @@ export default function WeeklyBulletinPage() {
     issue_number: string | null;
     last_edited_at: string;
   }>>([]);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
   const skipNextLoadRef = useRef(false);
+
+  // 데스크톱 여부 감지 (>= 1024px)
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   // 인증 + 부서 + 표어 + 첫 draft
   useEffect(() => {
@@ -364,6 +375,28 @@ export default function WeeklyBulletinPage() {
     }
   };
 
+  const handleDeleteDraft = async (issueDate: string) => {
+    const confirmed = confirm(
+      `${issueDate} 임시저장본을 삭제하시겠습니까?\n\n⚠️ 삭제하면 복구할 수 없습니다.\n작성한 모든 내용이 사라집니다.`
+    );
+    if (!confirmed) return;
+    try {
+      const { error } = await supabase.rpc("bulletin_delete_draft", {
+        p_dept_id: deptId, p_issue_date: issueDate,
+      });
+      if (error) throw error;
+      showToast(`${issueDate} 임시저장본 삭제됨`);
+      await loadDraftsList();
+      // 현재 보고있던 draft 가 삭제됐으면 폼 초기화
+      if (form.date === issueDate) {
+        setForm({ ...EMPTY_FORM, date: form.date, issueNumber: calcIssueNumber(form.date), theme: yearlyTheme?.theme || "" });
+        setDraftMeta(null);
+      }
+    } catch (e: unknown) {
+      showToast("삭제 실패: " + (e as Error).message);
+    }
+  };
+
   const handleDownloadHwpx = async () => {
     if (!form.date) {
       showToast("날짜를 선택해주세요");
@@ -400,12 +433,27 @@ export default function WeeklyBulletinPage() {
       <div style={headerStyle}>
         <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>📰 주보 만들기</div>
-        <button onClick={handleSaveDraft} disabled={savingDraft} style={draftBtnStyle}>
-          {savingDraft ? "저장 중..." : "💾 임시저장"}
-        </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          {!isDesktop && (
+            <button onClick={() => setDrawerOpen(true)} style={iconBtnStyle} title="임시저장 목록">
+              📂{draftList.length > 0 && <span style={{ fontSize: 11, marginLeft: 3 }}>{draftList.length}</span>}
+            </button>
+          )}
+          <button onClick={handleSaveDraft} disabled={savingDraft} style={draftBtnStyle}>
+            {savingDraft ? "저장 중..." : "💾"}
+          </button>
+        </div>
       </div>
 
-      <div style={containerStyle}>
+      <div style={{
+        display: "flex",
+        gap: 20,
+        maxWidth: isDesktop ? 1080 : 720,
+        margin: "0 auto",
+        padding: 16,
+        alignItems: "flex-start",
+      }}>
+        <div style={{ flex: 1, maxWidth: 720, display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
         {!isSupported && (
           <div style={warnCardStyle}>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>현재 {SUPPORTED_DEPT}만 지원합니다</div>
@@ -422,49 +470,6 @@ export default function WeeklyBulletinPage() {
               <div style={{ fontSize: 11, color: "#0e7490" }}>
                 {new Date(draftMeta.last_edited_at).toLocaleString("ko-KR")}
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* 임시저장 목록 (다른 날짜로 작성중인 거 골라서 이어서) */}
-        {draftList.length > 0 && (
-          <div style={cardStyle}>
-            <div style={sectionLabel}>📂 임시저장 목록 ({draftList.length}건)</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {draftList.map((d) => {
-                const isCurrent = d.issue_date === form.date;
-                return (
-                  <div
-                    key={d.issue_date}
-                    onClick={() => !isCurrent && handleDateChange(d.issue_date)}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 8,
-                      border: isCurrent ? "1.5px solid #6366f1" : "1px solid #e2e8f0",
-                      background: isCurrent ? "#eef2ff" : "#fff",
-                      cursor: isCurrent ? "default" : "pointer",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
-                        {d.issue_date}
-                        {d.issue_number && <span style={{ fontSize: 11, color: "#64748b", marginLeft: 8 }}>{d.issue_number}</span>}
-                        {isCurrent && <span style={{ fontSize: 10, color: "#6366f1", marginLeft: 8 }}>● 작성 중</span>}
-                      </div>
-                      <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
-                        {formatRelativeTime(d.last_edited_at)}
-                      </div>
-                    </div>
-                    {!isCurrent && (
-                      <div style={{ fontSize: 11, color: "#6366f1" }}>이어서 작성 →</div>
-                    )}
-                  </div>
-                );
-              })}
             </div>
           </div>
         )}
@@ -695,9 +700,126 @@ export default function WeeklyBulletinPage() {
             </button>
           </div>
         </div>
+        </div>
+        {/* ─── 데스크톱: 우측 sticky 사이드바 ─── */}
+        {isDesktop && (
+          <DraftSidebar
+            draftList={draftList}
+            currentDate={form.date}
+            onSelect={(d) => handleDateChange(d)}
+            onDelete={handleDeleteDraft}
+          />
+        )}
       </div>
 
+      {/* ─── 모바일: 우측 drawer ─── */}
+      {!isDesktop && drawerOpen && (
+        <>
+          <div
+            onClick={() => setDrawerOpen(false)}
+            style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", zIndex: 998 }}
+          />
+          <div style={{
+            position: "fixed", top: 0, right: 0, height: "100vh", width: "min(320px, 85vw)",
+            background: "#fff", zIndex: 999, padding: 16, overflowY: "auto",
+            boxShadow: "-4px 0 20px rgba(0,0,0,0.15)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b" }}>📂 임시저장 목록</div>
+              <button onClick={() => setDrawerOpen(false)} style={iconBtnStyle}>✕</button>
+            </div>
+            <DraftSidebar
+              draftList={draftList}
+              currentDate={form.date}
+              onSelect={(d) => { handleDateChange(d); setDrawerOpen(false); }}
+              onDelete={handleDeleteDraft}
+              embedded
+            />
+          </div>
+        </>
+      )}
+
       {toast && <div style={toastStyle}>{toast}</div>}
+    </div>
+  );
+}
+
+function DraftSidebar({
+  draftList, currentDate, onSelect, onDelete, embedded,
+}: {
+  draftList: Array<{ issue_date: string; issue_number: string | null; last_edited_at: string }>;
+  currentDate: string;
+  onSelect: (date: string) => void;
+  onDelete: (date: string) => void;
+  embedded?: boolean;
+}) {
+  const wrapperStyle: React.CSSProperties = embedded
+    ? {}
+    : {
+        width: 280, position: "sticky", top: 16, alignSelf: "flex-start",
+        maxHeight: "calc(100vh - 32px)", overflowY: "auto",
+        background: "#fff", borderRadius: 14, padding: 16,
+        boxShadow: "0 1px 4px rgba(0,0,0,0.05)", flexShrink: 0,
+      };
+
+  return (
+    <div style={wrapperStyle}>
+      {!embedded && (
+        <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: 0.5, marginBottom: 12 }}>
+          📂 임시저장 목록 ({draftList.length}건)
+        </div>
+      )}
+      {draftList.length === 0 ? (
+        <div style={{ fontSize: 12, color: "#94a3b8", padding: 12, textAlign: "center" }}>
+          저장된 임시본 없음
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {draftList.map((d) => {
+            const isCurrent = d.issue_date === currentDate;
+            return (
+              <div
+                key={d.issue_date}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: isCurrent ? "1.5px solid #6366f1" : "1px solid #e2e8f0",
+                  background: isCurrent ? "#eef2ff" : "#fff",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <div
+                  onClick={() => !isCurrent && onSelect(d.issue_date)}
+                  style={{ flex: 1, minWidth: 0, cursor: isCurrent ? "default" : "pointer" }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                    {d.issue_date}
+                    {d.issue_number && <span style={{ fontSize: 11, color: "#64748b", marginLeft: 6 }}>{d.issue_number}</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                    {isCurrent && <span style={{ color: "#6366f1", marginRight: 6 }}>● 작성 중</span>}
+                    {formatRelativeTime(d.last_edited_at)}
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDelete(d.issue_date); }}
+                  title="삭제"
+                  style={{
+                    padding: "6px 8px", background: "#fef2f2", color: "#b91c1c",
+                    border: "1px solid #fecaca", borderRadius: 6, fontSize: 11,
+                    cursor: "pointer", fontFamily: "inherit", lineHeight: 1,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -752,6 +874,11 @@ const draftBtnStyle: React.CSSProperties = {
   padding: "8px 14px", background: "#ecfeff", color: "#0369a1",
   border: "1.5px solid #67e8f9", borderRadius: 8, fontSize: 12, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
+};
+const iconBtnStyle: React.CSSProperties = {
+  padding: "8px 12px", background: "#f1f5f9", color: "#475569",
+  border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 14, fontWeight: 700,
+  cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center",
 };
 const resetBtnStyle: React.CSSProperties = {
   padding: "10px 18px", background: "#f1f5f9", color: "#475569",
