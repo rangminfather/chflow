@@ -142,7 +142,53 @@ function buildReplacements(form: FormState): Record<string, string> {
   };
 }
 
-async function generateHwpx(form: FormState): Promise<Blob> {
+// ─────────────────────────────────────────────────────────────────
+// 사진 처리 — 브라우저 Canvas 로 jpg 변환 + 리사이즈
+// ─────────────────────────────────────────────────────────────────
+async function fileToJpgBytes(file: File, maxLongSide = 1500, quality = 0.85): Promise<Uint8Array> {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const i = new Image();
+    i.onload = () => { URL.revokeObjectURL(url); resolve(i); };
+    i.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    i.src = url;
+  });
+  const longSide = Math.max(img.width, img.height);
+  const scale = longSide > maxLongSide ? maxLongSide / longSide : 1;
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+  const blob: Blob = await new Promise((res, rej) =>
+    canvas.toBlob((b) => b ? res(b) : rej(new Error("jpg 변환 실패")), "image/jpeg", quality)
+  );
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+// 빈 슬롯용 흰색 plain jpg (사진 부족할 때 채워넣음)
+let cachedWhiteJpg: Uint8Array | null = null;
+async function getWhitePlaceholder(): Promise<Uint8Array> {
+  if (cachedWhiteJpg) return cachedWhiteJpg;
+  const canvas = document.createElement("canvas");
+  canvas.width = 1500; canvas.height = 1000;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, 1500, 1000);
+  const blob: Blob = await new Promise((res, rej) =>
+    canvas.toBlob((b) => b ? res(b) : rej(new Error("placeholder 생성 실패")), "image/jpeg", 0.6)
+  );
+  cachedWhiteJpg = new Uint8Array(await blob.arrayBuffer());
+  return cachedWhiteJpg;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// hwpx 생성 — 텍스트 치환 + 사진 4슬롯 교체
+// ─────────────────────────────────────────────────────────────────
+async function generateHwpx(form: FormState, photos: Array<File | null>): Promise<Blob> {
   const JSZipMod = (await import("jszip")).default;
   const res = await fetch("/templates/elem1-bulletin-template.hwpx");
   if (!res.ok) throw new Error(`템플릿 로드 실패: ${res.status}`);
@@ -157,6 +203,19 @@ async function generateHwpx(form: FormState): Promise<Blob> {
     xml = xml.split(`<hp:t>${oldStr}</hp:t>`).join(`<hp:t>${newStr}</hp:t>`);
   }
 
+  // 사진 슬롯 4개 처리: image3.jpg ~ image6.jpg
+  // photos[0] → image3, ..., photos[3] → image6
+  // null 인 슬롯은 흰색 placeholder
+  const photoBytes: Uint8Array[] = [];
+  for (let i = 0; i < 4; i++) {
+    const f = photos[i];
+    if (f) {
+      photoBytes.push(await fileToJpgBytes(f));
+    } else {
+      photoBytes.push(await getWhitePlaceholder());
+    }
+  }
+
   const outZip = new JSZipMod();
   const mimeFile = inZip.file("mimetype");
   if (mimeFile) {
@@ -169,12 +228,72 @@ async function generateHwpx(form: FormState): Promise<Blob> {
     if (f.dir) continue;
     if (name === "Contents/section0.xml") {
       outZip.file(name, xml);
+    } else if (name === "BinData/image3.jpg") {
+      outZip.file(name, photoBytes[0]);
+    } else if (name === "BinData/image4.jpg") {
+      outZip.file(name, photoBytes[1]);
+    } else if (name === "BinData/image5.jpg") {
+      outZip.file(name, photoBytes[2]);
+    } else if (name === "BinData/image6.jpg") {
+      outZip.file(name, photoBytes[3]);
     } else {
       outZip.file(name, await f.async("uint8array"));
     }
   }
   return outZip.generateAsync({ type: "blob", compression: "DEFLATE" });
 }
+
+// ─────────────────────────────────────────────────────────────────
+// UMS 등록용 텍스트 빌더
+// ─────────────────────────────────────────────────────────────────
+function buildPostSubject(form: FormState): string {
+  if (!form.date) return "초등1초원주보입니다";
+  const [, m, d] = form.date.split("-");
+  return `${parseInt(m, 10)}월${parseInt(d, 10)}일 초등1초원주보입니다`;
+}
+
+function buildPostMemo(form: FormState): string {
+  const lines: string[] = [];
+  lines.push(`초등1부 주보 (${form.date})`);
+  if (form.issueNumber) lines.push(form.issueNumber);
+  lines.push("");
+  if (form.theme) lines.push(`주제 : ${form.theme}`);
+  if (form.scripture) lines.push(`본문 : ${form.scripture}`);
+  lines.push("");
+  lines.push("─ 주일예배 순서 ─");
+  if (form.guide) lines.push(`안내 : ${form.guide}`);
+  if (form.praise1 || form.praise2) lines.push(`찬양 : ${[form.praise1, form.praise2].filter(Boolean).join(" ")}`);
+  if (form.leader) lines.push(`예배인도 : ${form.leader} 부장`);
+  if (form.prayerClass) lines.push(`기도 : ${form.prayerClass}반`);
+  if (form.scripture) lines.push(`성경봉독 : ${form.scripture}`);
+  if (form.sermonTitle) lines.push(`설교제목 : ${form.sermonTitle}`);
+  if (form.preacher) lines.push(`강론자 : ${form.preacher} 전도사`);
+  if (form.nextPrayer) lines.push(`다음 주 기도 : ${form.nextPrayer}`);
+  lines.push("");
+  if (form.tithe || form.thanksgiving) {
+    lines.push("─ 헌금 ─");
+    if (form.tithe) lines.push(`십일조 : ${form.tithe}`);
+    if (form.thanksgiving) lines.push(`감사헌금 : ${form.thanksgiving}`);
+    lines.push("");
+  }
+  if (form.twoPartActivity) {
+    lines.push(`✿2부행사 : ${form.twoPartActivity}`);
+  }
+  if (form.announcement) {
+    lines.push("");
+    lines.push("─ 광고 ─");
+    lines.push(form.announcement);
+  }
+  if (form.newFriend) {
+    lines.push("");
+    lines.push(`새 친구 : ${form.newFriend}`);
+  }
+  lines.push("");
+  lines.push("(chflow 자동작성)");
+  return lines.join("\n");
+}
+
+const UMS_WRITE_URL = "http://www.ums.or.kr/bbs/write.php?id=samusil&mode=write&category=2";
 
 // ─────────────────────────────────────────────────────────────────
 // 컴포넌트
@@ -204,6 +323,8 @@ export default function WeeklyBulletinPage() {
   }>>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [photos, setPhotos] = useState<Array<File | null>>([null, null, null, null]);
+  const [postModalOpen, setPostModalOpen] = useState(false);
   const skipNextLoadRef = useRef(false);
 
   // 데스크톱 여부 감지 (>= 1024px)
@@ -397,6 +518,34 @@ export default function WeeklyBulletinPage() {
     }
   };
 
+  const setPhoto = (idx: number, file: File | null) => {
+    setPhotos((prev) => {
+      const next = [...prev];
+      next[idx] = file;
+      return next;
+    });
+  };
+
+  const compactPhotos = () => {
+    // 빈 슬롯 제거하고 앞으로 채움 (사용자가 1, 3번에 올렸으면 1, 2번으로)
+    const filled = photos.filter((p) => p !== null) as File[];
+    while (filled.length < 4) filled.push(null as unknown as File);
+    setPhotos(filled);
+  };
+
+  const handleCopyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast(`${label} 복사됨`);
+    } catch {
+      showToast("복사 실패 — 브라우저가 클립보드 권한 차단했을 수 있음");
+    }
+  };
+
+  const handleOpenUmsTab = () => {
+    window.open(UMS_WRITE_URL, "_blank", "noopener,noreferrer");
+  };
+
   const handleDownloadHwpx = async () => {
     if (!form.date) {
       showToast("날짜를 선택해주세요");
@@ -404,7 +553,7 @@ export default function WeeklyBulletinPage() {
     }
     setGenerating(true);
     try {
-      const blob = await generateHwpx(form);
+      const blob = await generateHwpx(form, photos);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -684,19 +833,45 @@ export default function WeeklyBulletinPage() {
           </FormRow>
         </div>
 
-        {/* ⑧ 액션 */}
+        {/* ⑧ 사진 (1~4장) */}
         <div style={cardStyle}>
-          <div style={sectionLabel}>⑧ 주보 생성</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ ...sectionLabel, marginBottom: 0 }}>⑧ 사진 (최대 4장)</div>
+            {photos.some((p) => p !== null) && (
+              <button onClick={compactPhotos} style={smallBtnStyle}>빈칸 정리</button>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10 }}>
+            슬롯 4개 — 빈칸은 흰색으로 채워짐. (1·2·3장 전용 레이아웃은 추후 추가 예정)
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+            {[0, 1, 2, 3].map((i) => (
+              <PhotoSlot
+                key={i}
+                index={i}
+                file={photos[i]}
+                onChange={(f) => setPhoto(i, f)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* ⑨ 액션 */}
+        <div style={cardStyle}>
+          <div style={sectionLabel}>⑨ 주보 생성 / 등록</div>
           <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 12 }}>
-            현재 단계: hwpx 다운로드 (Phase 1).
-            다음 단계: 사진 4장 + PDF 자동 생성 (Phase 2), UMS 자동 등록 (Phase 3).
+            <b>1단계</b>: hwpx 다운로드 → 한글에서 열어 PDF 저장<br />
+            <b>2단계</b>: "📤 등록" 클릭 → 클립보드 복사 + UMS 새 탭 → 붙여넣기 + PDF 첨부
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
             <button onClick={handleSaveDraft} disabled={savingDraft} style={resetBtnStyle}>
               {savingDraft ? "저장 중..." : "💾 임시저장"}
             </button>
-            <button onClick={handleDownloadHwpx} disabled={generating} style={primaryBtnStyle}>
+            <button onClick={handleDownloadHwpx} disabled={generating} style={resetBtnStyle}>
               {generating ? "생성 중..." : "📥 hwpx 다운로드"}
+            </button>
+            <button onClick={() => setPostModalOpen(true)} style={primaryBtnStyle}>
+              📤 등록
             </button>
           </div>
         </div>
@@ -711,6 +886,69 @@ export default function WeeklyBulletinPage() {
           />
         )}
       </div>
+
+      {/* ─── 등록 도우미 모달 ─── */}
+      {postModalOpen && (() => {
+        const subject = buildPostSubject(form);
+        const memo = buildPostMemo(form);
+        return (
+          <div style={modalBackdropStyle} onClick={() => setPostModalOpen(false)}>
+            <div style={postModalCardStyle} onClick={(e) => e.stopPropagation()}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>📤 UMS 등록 도우미</div>
+                <button onClick={() => setPostModalOpen(false)} style={iconBtnStyle}>✕</button>
+              </div>
+
+              <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.7, marginBottom: 14, background: "#f8fafc", padding: 10, borderRadius: 8 }}>
+                <b>순서</b>:<br />
+                1️⃣ "UMS 글쓰기 페이지 열기" 클릭 → 새 탭<br />
+                2️⃣ 제목칸에 "제목 복사" → Ctrl+V (모바일은 길게 눌러 붙여넣기)<br />
+                3️⃣ 내용칸에 "본문 복사" → Ctrl+V<br />
+                4️⃣ "파일 선택" → 한글에서 저장한 PDF 첨부<br />
+                5️⃣ 등록 버튼 클릭
+              </div>
+
+              {/* 제목 */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>제목</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    type="text" value={subject} readOnly
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                    style={{ ...inputStyle, background: "#f8fafc" }}
+                  />
+                  <button onClick={() => handleCopyToClipboard(subject, "제목")} style={{ ...primaryBtnStyle, padding: "9px 14px", fontSize: 12 }}>
+                    복사
+                  </button>
+                </div>
+              </div>
+
+              {/* 본문 */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>본문</div>
+                <textarea
+                  value={memo} readOnly
+                  onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                  rows={8}
+                  style={{ ...inputStyle, background: "#f8fafc", resize: "vertical", lineHeight: 1.5, fontSize: 12 }}
+                />
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+                  <button onClick={() => handleCopyToClipboard(memo, "본문")} style={{ ...primaryBtnStyle, padding: "8px 16px", fontSize: 12 }}>
+                    본문 복사
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 8, justifyContent: "space-between", flexWrap: "wrap" }}>
+                <button onClick={() => setPostModalOpen(false)} style={resetBtnStyle}>닫기</button>
+                <button onClick={handleOpenUmsTab} style={primaryBtnStyle}>
+                  🌐 UMS 글쓰기 페이지 열기
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ─── 모바일: 우측 drawer ─── */}
       {!isDesktop && drawerOpen && (
@@ -741,6 +979,72 @@ export default function WeeklyBulletinPage() {
 
       {toast && <div style={toastStyle}>{toast}</div>}
     </div>
+  );
+}
+
+function PhotoSlot({ index, file, onChange }: {
+  index: number; file: File | null; onChange: (f: File | null) => void;
+}) {
+  const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file) { setPreview(null); return; }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] || null;
+    onChange(f);
+    e.target.value = "";  // 같은 파일 다시 선택 가능하게
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const f = e.dataTransfer.files?.[0];
+    if (f && f.type.startsWith("image/")) onChange(f);
+  };
+
+  return (
+    <label
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={onDrop}
+      style={{
+        position: "relative",
+        aspectRatio: "3/2",
+        borderRadius: 10,
+        border: file ? "1.5px solid #6366f1" : "1.5px dashed #cbd5e1",
+        background: file ? "#000" : "#f8fafc",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+      }}
+    >
+      <input type="file" accept="image/*" onChange={onPick} style={{ display: "none" }} />
+      {preview ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={preview} alt={`슬롯 ${index + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChange(null); }}
+            style={{
+              position: "absolute", top: 6, right: 6,
+              padding: "3px 8px", background: "rgba(0,0,0,0.55)", color: "#fff",
+              border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >✕</button>
+        </>
+      ) : (
+        <div style={{ textAlign: "center", color: "#94a3b8", fontSize: 12 }}>
+          <div style={{ fontSize: 22, marginBottom: 4 }}>📷</div>
+          <div>슬롯 {index + 1}</div>
+          <div style={{ fontSize: 10, marginTop: 2 }}>탭/드래그</div>
+        </div>
+      )}
+    </label>
   );
 }
 
@@ -879,6 +1183,16 @@ const iconBtnStyle: React.CSSProperties = {
   padding: "8px 12px", background: "#f1f5f9", color: "#475569",
   border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 14, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center",
+};
+const modalBackdropStyle: React.CSSProperties = {
+  position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)",
+  display: "flex", alignItems: "center", justifyContent: "center",
+  padding: 16, zIndex: 1000,
+};
+const postModalCardStyle: React.CSSProperties = {
+  background: "#fff", borderRadius: 14, padding: 20,
+  width: "100%", maxWidth: 520, maxHeight: "92vh", overflowY: "auto",
+  boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
 };
 const resetBtnStyle: React.CSSProperties = {
   padding: "10px 18px", background: "#f1f5f9", color: "#475569",
