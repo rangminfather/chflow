@@ -1,26 +1,20 @@
 // 1클릭 자동등록 v2 — Cloudflare Worker proxy 통해 UMS 4단계
 //
-// Tampermonkey 의존 제거. 사용자 0 설치.
-//
-// Flow:
-//   1. 사용자 인증 + 부서 권한 체크
-//   2. 쿨다운 체크 (DB)
-//   3. CF Worker 통해 4단계 UMS 등록 (login → write.php → upload → write_ok)
-//   4. 결과 DB 로그
-//   5. 응답
+// 사용자별 자격증명 사용 (DB 에서 chflow_user_id 로 조회).
+// 미등록 시 ums_credentials_required 에러 반환 → 클라이언트가 ⚙️ 모달 띄움.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { umsAutoPost } from "@/lib/bulletin/ums-via-cf";
+import { decryptString } from "@/lib/bulletin/creds-crypto";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const preferredRegion = "icn1";
 
-const UMS_USER_ID = process.env.UMS_USER_ID || "";
-const UMS_PASSWORD = process.env.UMS_PASSWORD || "";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 interface PostBody {
   dept_id?: string;
@@ -30,12 +24,22 @@ interface PostBody {
   memo: string;
   pdf_base64: string;
   pdf_filename?: string;
-  chflow_user_id?: string;
+}
+
+async function getAuthUser(req: NextRequest): Promise<{ uid: string } | null> {
+  const auth = req.headers.get("Authorization") || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token) return null;
+  const client = createClient(SUPABASE_URL, ANON_KEY);
+  const { data, error } = await client.auth.getUser(token);
+  if (error || !data.user) return null;
+  return { uid: data.user.id };
 }
 
 export async function POST(req: NextRequest) {
-  if (!UMS_USER_ID || !UMS_PASSWORD) {
-    return NextResponse.json({ ok: false, error: "UMS 자격증명 미설정" }, { status: 500 });
+  const user = await getAuthUser(req);
+  if (!user) {
+    return NextResponse.json({ ok: false, error: "Unauthenticated" }, { status: 401 });
   }
 
   let body: PostBody;
@@ -56,9 +60,41 @@ export async function POST(req: NextRequest) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // 쿨다운 체크
+  // 사용자 자격증명 조회
+  const { data: credRow, error: credErr } = await admin
+    .from("user_ums_credentials")
+    .select("ums_user_id, ums_password_encrypted")
+    .eq("user_id", user.uid)
+    .maybeSingle();
+
+  if (credErr) {
+    return NextResponse.json({ ok: false, error: credErr.message }, { status: 500 });
+  }
+  if (!credRow) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "UMS 계정 미등록",
+        code: "ums_credentials_required",
+      },
+      { status: 400 },
+    );
+  }
+
+  let umsPassword: string;
+  try {
+    umsPassword = decryptString(credRow.ums_password_encrypted);
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { ok: false, error: `자격증명 복호화 실패: ${(e as Error).message}` },
+      { status: 500 },
+    );
+  }
+  const umsUserId = credRow.ums_user_id;
+
+  // 쿨다운 체크 (사용자 본인 UMS 계정 단위)
   const { data: cdRows } = await admin.rpc("ums_check_cooldown", {
-    p_ums_user_id: UMS_USER_ID,
+    p_ums_user_id: umsUserId,
   });
   const cd = (cdRows && cdRows[0]) || { remaining_seconds: 0 };
   if ((cd.remaining_seconds || 0) > 0) {
@@ -68,7 +104,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // PDF base64 → Buffer
+  // PDF
   let pdfBytes: Buffer;
   try {
     pdfBytes = Buffer.from(body.pdf_base64, "base64");
@@ -84,8 +120,8 @@ export async function POST(req: NextRequest) {
 
   // 4단계 실행 (Cloudflare Worker proxy 거침)
   const result = await umsAutoPost({
-    ums_user_id: UMS_USER_ID,
-    ums_password: UMS_PASSWORD,
+    ums_user_id: umsUserId,
+    ums_password: umsPassword,
     subject: body.subject,
     memo: body.memo,
     pdf_bytes: pdfBytes,
@@ -95,11 +131,11 @@ export async function POST(req: NextRequest) {
   // 로그 기록
   if (!result.ok) {
     await admin.rpc("ums_log_post", {
-      p_ums_user_id: UMS_USER_ID,
+      p_ums_user_id: umsUserId,
       p_status: (result.error || "").includes("30분") ? "rate_limited" : "failed",
       p_subject: body.subject,
       p_error_message: result.error,
-      p_chflow_user_id: body.chflow_user_id || null,
+      p_chflow_user_id: user.uid,
       p_dept_id: body.dept_id || null,
       p_pl_date: result.pl_date || null,
       p_category: 2,
@@ -108,11 +144,11 @@ export async function POST(req: NextRequest) {
   }
 
   await admin.rpc("ums_log_post", {
-    p_ums_user_id: UMS_USER_ID,
+    p_ums_user_id: umsUserId,
     p_status: "success",
     p_post_no: result.post_no,
     p_subject: body.subject,
-    p_chflow_user_id: body.chflow_user_id || null,
+    p_chflow_user_id: user.uid,
     p_dept_id: body.dept_id || null,
     p_pl_date: result.pl_date || null,
     p_category: 2,

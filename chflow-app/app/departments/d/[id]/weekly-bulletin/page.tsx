@@ -344,7 +344,79 @@ export default function WeeklyBulletinPage() {
     last_post_no: number | null;
     last_posted_at: string | null;
   } | null>(null);
+
+  // UMS 자격증명 (사용자별)
+  const [credsMeta, setCredsMeta] = useState<{
+    has_credentials: boolean;
+    ums_user_id: string | null;
+    updated_at: string | null;
+  } | null>(null);
+  const [credsModalOpen, setCredsModalOpen] = useState(false);
+  const [credsForm, setCredsForm] = useState({ ums_user_id: "", ums_password: "" });
+  const [credsSaving, setCredsSaving] = useState(false);
+
   const skipNextLoadRef = useRef(false);
+
+  async function loadCredsMeta() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const r = await fetch("/api/ums-credentials/mine", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const j = await r.json();
+      if (j.ok) {
+        setCredsMeta({
+          has_credentials: j.has_credentials,
+          ums_user_id: j.ums_user_id,
+          updated_at: j.updated_at,
+        });
+      }
+    } catch {/* ignore */}
+  }
+
+  async function handleSaveCreds() {
+    if (!credsForm.ums_user_id.trim() || !credsForm.ums_password) {
+      showToast("아이디와 비밀번호를 모두 입력하세요");
+      return;
+    }
+    setCredsSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const r = await fetch("/api/ums-credentials/mine", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify(credsForm),
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error);
+      showToast("UMS 계정 저장됨 ✅");
+      setCredsForm({ ums_user_id: "", ums_password: "" });
+      setCredsModalOpen(false);
+      await loadCredsMeta();
+    } catch (e: unknown) {
+      showToast("저장 실패: " + (e as Error).message);
+    } finally {
+      setCredsSaving(false);
+    }
+  }
+
+  async function handleDeleteCreds() {
+    if (!confirm("등록된 UMS 계정을 삭제하시겠습니까?\n(다시 등록해야 자동등록 가능)")) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    const r = await fetch("/api/ums-credentials/mine", {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session?.access_token}` },
+    });
+    const j = await r.json();
+    if (j.ok) {
+      showToast("UMS 계정 삭제됨");
+      await loadCredsMeta();
+    }
+  }
 
   // 페이지 로드 시 쿨다운 상태 fetch
   async function fetchCooldown() {
@@ -397,6 +469,7 @@ export default function WeeklyBulletinPage() {
       await loadDraftsList();
       await loadDraft(form.date);
       await fetchCooldown();
+      await loadCredsMeta();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -633,7 +706,10 @@ export default function WeeklyBulletinPage() {
       const { data: { session } } = await supabase.auth.getSession();
       const r = await fetch("/api/ums-bulletin/post-v2", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
         body: JSON.stringify({
           dept_id: deptId,
           dept_name: deptName,
@@ -642,14 +718,21 @@ export default function WeeklyBulletinPage() {
           memo,
           pdf_base64: pdfBase64,
           pdf_filename: pdfFilename,
-          chflow_user_id: session?.user?.id,
         }),
       });
       const j = await r.json();
       setAutoPosting(false);
+
+      // 자격증명 미등록 → 모달 자동 띄우기
+      if (!j.ok && j.code === "ums_credentials_required") {
+        setAutoPostResult(null);
+        setCredsModalOpen(true);
+        showToast("먼저 본인의 UMS 계정을 등록해주세요");
+        return;
+      }
+
       if (j.ok) {
         setAutoPostResult({ ok: true, postNo: j.post_no, redirectUrl: j.post_url });
-        // 등록 직후 쿨다운 시작 (30분 = 1800초)
         setCooldown({
           remaining_seconds: 1800,
           can_post: false,
@@ -658,7 +741,6 @@ export default function WeeklyBulletinPage() {
         });
       } else {
         setAutoPostResult({ ok: false, error: j.error || "알 수 없는 오류" });
-        // 실패해도 서버에서 받은 쿨다운 정보 있으면 갱신
         if (j.remaining_seconds) {
           setCooldown((c) => ({
             remaining_seconds: j.remaining_seconds,
@@ -984,102 +1066,141 @@ export default function WeeklyBulletinPage() {
           </div>
         </div>
 
-        {/* ⑨ 등록 */}
-        <div style={cardStyle}>
-          <div style={sectionLabel}>⑨ 등록</div>
-
-          {/* 쿨다운 안내 */}
-          {cooldown && cooldown.last_post_no && cooldown.remaining_seconds > 0 && (
-            <div style={{ background: "#fef3c7", border: "1.5px solid #fbbf24", borderRadius: 10, padding: 12, marginBottom: 12, textAlign: "center" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#92400e", marginBottom: 4 }}>
-                ⏱ 직전 등록(#{cooldown.last_post_no}) 후 30분 대기 중
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: "#92400e", fontFamily: "monospace", letterSpacing: 1 }}>
-                {formatRemaining(cooldown.remaining_seconds)}
-              </div>
-              <div style={{ fontSize: 11, color: "#a16207", marginTop: 4 }}>
-                UMS 정책: 같은 계정 30분 내 재등록 차단
-              </div>
-            </div>
-          )}
-
-          {cooldown && cooldown.last_post_no && cooldown.remaining_seconds === 0 && (
-            <div style={{ background: "#dcfce7", border: "1px solid #86efac", borderRadius: 10, padding: 10, marginBottom: 12, fontSize: 12, color: "#15803d" }}>
-              ✅ 직전 등록 #{cooldown.last_post_no} 완료. 다음 등록 가능.
-            </div>
-          )}
-
-          {!cooldown?.last_post_no && (
-            <div style={{ background: "#ecfeff", border: "1px solid #67e8f9", borderRadius: 10, padding: 10, marginBottom: 12, fontSize: 12, color: "#0369a1", lineHeight: 1.6 }}>
-              <b>🚀 1클릭 자동등록</b> 사용 안내<br />
-              폼 다 채우고 아래 버튼 누르면 자동으로:<br />
-              ① 폼 데이터로 PDF 생성 → ② UMS 게시판에 업로드 → ③ 글 등록 → 끝<br />
-              <span style={{ fontSize: 11, color: "#0e7490" }}>한글 따로 안 띄워도 됨. 추가 설치 0.</span>
-            </div>
-          )}
-
-          {/* 메인 액션 */}
-          <button
-            onClick={handleAutoPost}
-            disabled={autoPosting || (cooldown ? !cooldown.can_post : false)}
-            style={{
-              width: "100%",
-              padding: "16px 22px",
-              background: (autoPosting || (cooldown && !cooldown.can_post))
-                ? "#e2e8f0"
-                : "linear-gradient(135deg, #ec4899, #8b5cf6)",
-              color: (autoPosting || (cooldown && !cooldown.can_post)) ? "#94a3b8" : "#fff",
-              border: "none", borderRadius: 12, fontSize: 16, fontWeight: 800,
-              cursor: (autoPosting || (cooldown && !cooldown.can_post)) ? "not-allowed" : "pointer",
-              fontFamily: "inherit",
-              marginBottom: 10,
+        {/* 모바일: 폼 끝에 액션 카드 (데스크톱은 사이드바에서 처리) */}
+        {!isDesktop && (
+          <ActionCard
+            cooldown={cooldown}
+            autoPosting={autoPosting}
+            savingDraft={savingDraft}
+            generating={generating}
+            credsMeta={credsMeta}
+            pdfFile={pdfFile}
+            onAutoPost={handleAutoPost}
+            onSaveDraft={handleSaveDraft}
+            onDownloadHwpx={handleDownloadHwpx}
+            onSetPdfFile={setPdfFile}
+            onOpenCredsModal={() => {
+              setCredsForm({
+                ums_user_id: credsMeta?.ums_user_id || "",
+                ums_password: "",
+              });
+              setCredsModalOpen(true);
             }}
-          >
-            {autoPosting ? "등록 중... (10~20초 소요)" : "🚀 1클릭 자동등록"}
-          </button>
-
-          {/* 보조 액션 */}
-          <div style={{ display: "flex", gap: 8, justifyContent: "space-between", flexWrap: "wrap" }}>
-            <button onClick={handleSaveDraft} disabled={savingDraft} style={resetBtnStyle}>
-              {savingDraft ? "저장 중..." : "💾 임시저장"}
-            </button>
-            <button onClick={handleDownloadHwpx} disabled={generating} style={resetBtnStyle}>
-              {generating ? "생성 중..." : "📥 hwpx 다운로드"}
-            </button>
-          </div>
-
-          {/* 고급: PDF 직접 첨부 */}
-          <details style={{ marginTop: 14, fontSize: 12, color: "#64748b" }}>
-            <summary style={{ cursor: "pointer", fontWeight: 700 }}>🔧 고급: 내가 만든 PDF로 등록</summary>
-            <div style={{ marginTop: 8, padding: 10, background: "#f8fafc", borderRadius: 8 }}>
-              <div style={{ fontSize: 11, marginBottom: 6, lineHeight: 1.5 }}>
-                기본은 폼 데이터로 PDF 자동 생성. 한글에서 직접 만든 PDF 쓰고 싶으면 여기 첨부:
-              </div>
-              <input
-                type="file"
-                accept="application/pdf,.pdf"
-                onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
-                style={{ ...inputStyle, padding: 6, fontSize: 11 }}
-              />
-              {pdfFile && (
-                <div style={{ fontSize: 11, color: "#15803d", marginTop: 6 }}>
-                  ✅ {pdfFile.name} ({(pdfFile.size / 1024).toFixed(0)} KB) — 이 PDF로 등록됨
-                </div>
-              )}
-            </div>
-          </details>
-        </div>
-        </div>
-        {/* ─── 데스크톱: 우측 sticky 사이드바 ─── */}
-        {isDesktop && (
-          <DraftSidebar
-            draftList={draftList}
-            currentDate={form.date}
-            onSelect={(d) => handleDateChange(d)}
-            onDelete={handleDeleteDraft}
+            onDeleteCreds={handleDeleteCreds}
           />
         )}
+        </div>
+
+        {/* ─── 데스크톱: 우측 sticky 사이드바 ─── */}
+        {isDesktop && (
+          <div style={{
+            width: 300, position: "sticky", top: 16, alignSelf: "flex-start",
+            maxHeight: "calc(100vh - 32px)", overflowY: "auto", flexShrink: 0,
+            display: "flex", flexDirection: "column", gap: 12,
+          }}>
+            <ActionCard
+              cooldown={cooldown}
+              autoPosting={autoPosting}
+              savingDraft={savingDraft}
+              generating={generating}
+              credsMeta={credsMeta}
+              pdfFile={pdfFile}
+              onAutoPost={handleAutoPost}
+              onSaveDraft={handleSaveDraft}
+              onDownloadHwpx={handleDownloadHwpx}
+              onSetPdfFile={setPdfFile}
+              onOpenCredsModal={() => {
+                setCredsForm({
+                  ums_user_id: credsMeta?.ums_user_id || "",
+                  ums_password: "",
+                });
+                setCredsModalOpen(true);
+              }}
+              onDeleteCreds={handleDeleteCreds}
+              compact
+            />
+            <DraftSidebar
+              draftList={draftList}
+              currentDate={form.date}
+              onSelect={(d) => handleDateChange(d)}
+              onDelete={handleDeleteDraft}
+            />
+          </div>
+        )}
       </div>
+
+      {/* ─── 모바일 하단 sticky 액션 바 ─── */}
+      {!isDesktop && (
+        <div style={mobileStickyBarStyle}>
+          {cooldown && cooldown.last_post_no && cooldown.remaining_seconds > 0 ? (
+            <div style={{ flex: 1, fontSize: 12, color: "#92400e", textAlign: "center" }}>
+              ⏱ <b style={{ fontFamily: "monospace", fontSize: 14 }}>{formatRemaining(cooldown.remaining_seconds)}</b> 후 등록 가능
+            </div>
+          ) : (
+            <button
+              onClick={handleAutoPost}
+              disabled={autoPosting}
+              style={{
+                flex: 1, padding: "13px 18px",
+                background: autoPosting ? "#e2e8f0" : "linear-gradient(135deg, #ec4899, #8b5cf6)",
+                color: autoPosting ? "#94a3b8" : "#fff",
+                border: "none", borderRadius: 10, fontSize: 14, fontWeight: 800,
+                cursor: autoPosting ? "not-allowed" : "pointer", fontFamily: "inherit",
+              }}
+            >
+              {autoPosting ? "등록 중..." : "🚀 1클릭 자동등록"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ─── UMS 계정 등록/수정 모달 ─── */}
+      {credsModalOpen && (
+        <div style={modalBackdropStyle} onClick={() => setCredsModalOpen(false)}>
+          <div style={{ ...postModalCardStyle, maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>⚙️ UMS 계정 설정</div>
+              <button onClick={() => setCredsModalOpen(false)} style={iconBtnStyle}>✕</button>
+            </div>
+
+            <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 14, background: "#f8fafc", padding: 10, borderRadius: 8 }}>
+              <b>본인의 명성교회 홈페이지(ums.or.kr) 계정</b>을 등록하세요.<br />
+              자동등록 시 본인 계정으로 글이 올라갑니다.<br />
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>비밀번호는 AES-256-GCM 으로 암호화돼 저장됩니다.</span>
+            </div>
+
+            <FormRow label="UMS 아이디">
+              <input
+                type="text" autoComplete="off"
+                value={credsForm.ums_user_id}
+                onChange={(e) => setCredsForm((f) => ({ ...f, ums_user_id: e.target.value }))}
+                placeholder="예: cboy2001"
+                style={inputStyle}
+              />
+            </FormRow>
+            <FormRow label="UMS 비밀번호">
+              <input
+                type="password" autoComplete="new-password"
+                value={credsForm.ums_password}
+                onChange={(e) => setCredsForm((f) => ({ ...f, ums_password: e.target.value }))}
+                placeholder={credsMeta?.has_credentials ? "변경하려면 새 비밀번호 입력" : "ums.or.kr 비밀번호"}
+                style={inputStyle}
+              />
+            </FormRow>
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
+              <button onClick={() => setCredsModalOpen(false)} style={resetBtnStyle}>취소</button>
+              <button onClick={handleSaveCreds} disabled={credsSaving} style={primaryBtnStyle}>
+                {credsSaving ? "저장 중..." : "저장"}
+              </button>
+            </div>
+
+            <div style={{ marginTop: 14, fontSize: 11, color: "#94a3b8", lineHeight: 1.5 }}>
+              계정 없으면 <a href="http://www.ums.or.kr/bbs/join.php" target="_blank" rel="noopener noreferrer" style={{ color: "#6366f1" }}>ums.or.kr 회원가입</a> 후 등록.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── 자동등록 진행/결과 모달 ─── */}
       {(autoPosting || autoPostResult) && (
@@ -1164,6 +1285,160 @@ export default function WeeklyBulletinPage() {
       )}
 
       {toast && <div style={toastStyle}>{toast}</div>}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ActionCard — 등록 + 임시저장 + hwpx + 계정 정보
+// 데스크톱 사이드바 / 모바일 폼 끝부분 둘 다에서 사용
+// ─────────────────────────────────────────────────────────────────
+function ActionCard({
+  cooldown, autoPosting, savingDraft, generating, credsMeta, pdfFile,
+  onAutoPost, onSaveDraft, onDownloadHwpx, onSetPdfFile,
+  onOpenCredsModal, onDeleteCreds, compact,
+}: {
+  cooldown: { remaining_seconds: number; can_post: boolean; last_post_no: number | null; last_posted_at: string | null } | null;
+  autoPosting: boolean;
+  savingDraft: boolean;
+  generating: boolean;
+  credsMeta: { has_credentials: boolean; ums_user_id: string | null; updated_at: string | null } | null;
+  pdfFile: File | null;
+  onAutoPost: () => void;
+  onSaveDraft: () => void;
+  onDownloadHwpx: () => void;
+  onSetPdfFile: (f: File | null) => void;
+  onOpenCredsModal: () => void;
+  onDeleteCreds: () => void;
+  compact?: boolean;
+}) {
+  const cardCss: React.CSSProperties = {
+    background: "#fff", borderRadius: 14, padding: compact ? 14 : 20,
+    boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+  };
+
+  return (
+    <div style={cardCss}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: 0.5, marginBottom: 10 }}>
+        등록
+      </div>
+
+      {/* 계정 상태 */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "8px 10px", borderRadius: 8, marginBottom: 10,
+        background: credsMeta?.has_credentials ? "#dcfce7" : "#fef3c7",
+        border: `1px solid ${credsMeta?.has_credentials ? "#86efac" : "#fbbf24"}`,
+      }}>
+        <div style={{ fontSize: 11, lineHeight: 1.4 }}>
+          {credsMeta?.has_credentials ? (
+            <>
+              <span style={{ fontWeight: 700, color: "#15803d" }}>✅ UMS 계정 등록됨</span>
+              <br />
+              <span style={{ color: "#15803d" }}>{credsMeta.ums_user_id}</span>
+            </>
+          ) : (
+            <>
+              <span style={{ fontWeight: 700, color: "#92400e" }}>⚠️ UMS 계정 미등록</span>
+              <br />
+              <span style={{ color: "#a16207" }}>등록 후 자동등록 가능</span>
+            </>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 4 }}>
+          <button onClick={onOpenCredsModal} style={{
+            padding: "5px 8px", background: "#fff", border: "1px solid #cbd5e1",
+            borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+          }}>
+            ⚙️
+          </button>
+          {credsMeta?.has_credentials && (
+            <button onClick={onDeleteCreds} title="삭제" style={{
+              padding: "5px 8px", background: "#fef2f2", color: "#b91c1c",
+              border: "1px solid #fecaca", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+            }}>
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 쿨다운 / 안내 */}
+      {cooldown && cooldown.last_post_no && cooldown.remaining_seconds > 0 ? (
+        <div style={{
+          background: "#fef3c7", border: "1.5px solid #fbbf24", borderRadius: 8,
+          padding: 10, marginBottom: 10, textAlign: "center",
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#92400e", marginBottom: 2 }}>
+            ⏱ #{cooldown.last_post_no} 후 30분 대기
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 900, color: "#92400e", fontFamily: "monospace" }}>
+            {formatRemaining(cooldown.remaining_seconds)}
+          </div>
+        </div>
+      ) : (
+        !compact && (
+          <div style={{
+            background: "#ecfeff", border: "1px solid #67e8f9", borderRadius: 8,
+            padding: 8, marginBottom: 10, fontSize: 11, color: "#0369a1", lineHeight: 1.5,
+          }}>
+            🚀 자동등록 = 폼 → PDF 자동 생성 → UMS 게시판 등록까지 1클릭
+          </div>
+        )
+      )}
+
+      {/* 메인 액션 */}
+      <button
+        onClick={onAutoPost}
+        disabled={autoPosting || (cooldown ? !cooldown.can_post : false)}
+        style={{
+          width: "100%", padding: compact ? "13px 18px" : "16px 22px",
+          background: (autoPosting || (cooldown && !cooldown.can_post))
+            ? "#e2e8f0"
+            : "linear-gradient(135deg, #ec4899, #8b5cf6)",
+          color: (autoPosting || (cooldown && !cooldown.can_post)) ? "#94a3b8" : "#fff",
+          border: "none", borderRadius: 10, fontSize: compact ? 14 : 16, fontWeight: 800,
+          cursor: (autoPosting || (cooldown && !cooldown.can_post)) ? "not-allowed" : "pointer",
+          fontFamily: "inherit", marginBottom: 8,
+        }}
+      >
+        {autoPosting ? "등록 중..." : "🚀 1클릭 자동등록"}
+      </button>
+
+      {/* 보조 */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <button onClick={onSaveDraft} disabled={savingDraft} style={{
+          flex: 1, padding: "8px 10px", background: "#f1f5f9", color: "#475569",
+          border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 11, fontWeight: 700,
+          cursor: "pointer", fontFamily: "inherit",
+        }}>
+          {savingDraft ? "저장 중..." : "💾 임시저장"}
+        </button>
+        <button onClick={onDownloadHwpx} disabled={generating} style={{
+          flex: 1, padding: "8px 10px", background: "#f1f5f9", color: "#475569",
+          border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 11, fontWeight: 700,
+          cursor: "pointer", fontFamily: "inherit",
+        }}>
+          {generating ? "생성 중..." : "📥 hwpx"}
+        </button>
+      </div>
+
+      {/* 고급 */}
+      <details style={{ marginTop: 10, fontSize: 11, color: "#64748b" }}>
+        <summary style={{ cursor: "pointer", fontWeight: 700 }}>🔧 한글 PDF 직접 첨부</summary>
+        <div style={{ marginTop: 6, padding: 8, background: "#f8fafc", borderRadius: 6 }}>
+          <input
+            type="file" accept="application/pdf,.pdf"
+            onChange={(e) => onSetPdfFile(e.target.files?.[0] || null)}
+            style={{ width: "100%", padding: 4, fontSize: 10 }}
+          />
+          {pdfFile && (
+            <div style={{ fontSize: 10, color: "#15803d", marginTop: 4 }}>
+              ✅ {pdfFile.name}
+            </div>
+          )}
+        </div>
+      </details>
     </div>
   );
 }
@@ -1327,6 +1602,7 @@ const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
   background: "#f1f5f9",
   fontFamily: "'Noto Sans KR', sans-serif",
+  paddingBottom: 80, // 모바일 sticky bar 가려지지 않게
 };
 const containerStyle: React.CSSProperties = {
   maxWidth: 720, margin: "0 auto", padding: 16, display: "flex", flexDirection: "column", gap: 14,
@@ -1401,6 +1677,22 @@ const toastStyle: React.CSSProperties = {
   borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999,
   fontFamily: "inherit", whiteSpace: "nowrap", maxWidth: "90vw", textAlign: "center",
 };
+const mobileStickyBarStyle: React.CSSProperties = {
+  position: "fixed",
+  bottom: 0,
+  left: 0,
+  right: 0,
+  zIndex: 100,
+  background: "#fff",
+  borderTop: "1px solid #e2e8f0",
+  padding: "10px 14px",
+  paddingBottom: "calc(10px + env(safe-area-inset-bottom))",
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  boxShadow: "0 -4px 16px rgba(0,0,0,0.06)",
+};
+
 const loadingStyle: React.CSSProperties = {
   minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
   background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif",
