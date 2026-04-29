@@ -583,13 +583,9 @@ export default function WeeklyBulletinPage() {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  // 🚀 1클릭 자동등록 (Tampermonkey 유저스크립트 호출)
-  // 변경: PDF 가 첨부 안 됐으면 브라우저에서 자동 생성
+  // 🚀 1클릭 자동등록 — chflow API + Cloudflare Worker proxy 거쳐 UMS 4단계
+  // (Tampermonkey 의존 제거: 사용자 0 설치)
   const handleAutoPost = async () => {
-    if (!userscriptVersion) {
-      showToast("유저스크립트가 설치되지 않음. 설치 후 새로고침하세요");
-      return;
-    }
     if (!form.theme && !form.scripture) {
       showToast("주제와 본문을 채우세요");
       return;
@@ -602,7 +598,7 @@ export default function WeeklyBulletinPage() {
     let pdfFilename: string;
 
     if (pdfFile) {
-      // 사용자가 직접 첨부한 PDF (한글에서 저장한 거 등) — 그대로 사용
+      // 사용자가 첨부한 PDF (한글 저장본 등) — 그대로 사용
       pdfBase64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve((reader.result as string).split(",")[1]);
@@ -611,12 +607,11 @@ export default function WeeklyBulletinPage() {
       });
       pdfFilename = pdfFile.name;
     } else {
-      // 자동 생성 — pdf-lib + NanumGothic
+      // 자동 생성 (브라우저 PDF)
       try {
         const { generateBulletinPdfBrowser, formToBulletinData } = await import("@/lib/bulletin/pdf-browser");
         const data = formToBulletinData(form as unknown as Record<string, string>, deptName);
         const pdfBytes = await generateBulletinPdfBrowser(data, photos);
-        // Uint8Array → base64
         let binary = "";
         for (let i = 0; i < pdfBytes.length; i++) binary += String.fromCharCode(pdfBytes[i]);
         pdfBase64 = btoa(binary);
@@ -631,40 +626,33 @@ export default function WeeklyBulletinPage() {
     const subject = buildPostSubject(form);
     const memo = buildPostMemo(form);
 
-    const requestId = Math.random().toString(36).slice(2);
-
-    const onResponse = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      document.removeEventListener(`chflow:ums-post-response-${requestId}`, onResponse);
-      setAutoPosting(false);
-      if (detail.ok) {
-        setAutoPostResult({ ok: true, postNo: detail.postNo, redirectUrl: detail.redirectUrl });
-      } else {
-        setAutoPostResult({ ok: false, error: detail.error || "알 수 없는 오류" });
-      }
-    };
-    document.addEventListener(`chflow:ums-post-response-${requestId}`, onResponse);
-
-    document.dispatchEvent(new CustomEvent("chflow:ums-post-request", {
-      detail: {
-        requestId,
-        payload: {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const r = await fetch("/api/ums-bulletin/post-v2", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dept_id: deptId,
+          dept_name: deptName,
+          date: form.date,
           subject,
           memo,
-          pdfBase64,
-          pdfFilename,
-        },
-      },
-    }));
-
-    // 60초 타임아웃
-    setTimeout(() => {
-      document.removeEventListener(`chflow:ums-post-response-${requestId}`, onResponse);
-      if (autoPosting) {
-        setAutoPosting(false);
-        setAutoPostResult({ ok: false, error: "60초 타임아웃 — 유저스크립트가 응답 없음" });
+          pdf_base64: pdfBase64,
+          pdf_filename: pdfFilename,
+          chflow_user_id: session?.user?.id,
+        }),
+      });
+      const j = await r.json();
+      setAutoPosting(false);
+      if (j.ok) {
+        setAutoPostResult({ ok: true, postNo: j.post_no, redirectUrl: j.post_url });
+      } else {
+        setAutoPostResult({ ok: false, error: j.error || "알 수 없는 오류" });
       }
-    }, 60000);
+    } catch (e: unknown) {
+      setAutoPosting(false);
+      setAutoPostResult({ ok: false, error: (e as Error).message || "네트워크 오류" });
+    }
   };
 
   // 1️⃣ 로그인 팝업 열고, 닫히면 자동으로 로그인 완료로 간주
@@ -1024,23 +1012,9 @@ export default function WeeklyBulletinPage() {
         <div style={cardStyle}>
           <div style={sectionLabel}>⑩ 주보 생성 / 등록</div>
 
-          {!userscriptVersion ? (
-            <div style={{ background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 12, color: "#9a3412", lineHeight: 1.6 }}>
-              <b>🚀 1클릭 자동등록 활성화하려면</b> Tampermonkey + 우리 유저스크립트 설치 (1회):<br />
-              1. Chrome 웹스토어에서 <b>Tampermonkey</b> 확장프로그램 설치<br />
-              2. <a href="/userscripts/chflow-ums-auto.user.js" target="_blank" style={{ color: "#6366f1", fontWeight: 700 }}>유저스크립트 설치 링크 클릭</a><br />
-              3. Tampermonkey 가 설치 페이지 띄우면 "설치" 클릭 → 이 페이지 새로고침<br />
-              <br />
-              아래 "📤 등록(클립보드 모드)" 는 유저스크립트 없이도 사용 가능
-            </div>
-          ) : (
-            <div style={{ background: "#dcfce7", border: "1px solid #86efac", borderRadius: 10, padding: 10, marginBottom: 12, fontSize: 12, color: "#15803d" }}>
-              ✅ 유저스크립트 v{userscriptVersion} 활성화됨 — 1클릭 등록 가능
-            </div>
-          )}
-
-          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 12 }}>
-            <b>흐름</b>: 폼 채움 → hwpx 다운 → 한글에서 PDF 저장 → ⑨에 첨부 → 🚀 1클릭 등록
+          <div style={{ background: "#ecfeff", border: "1px solid #67e8f9", borderRadius: 10, padding: 10, marginBottom: 12, fontSize: 12, color: "#0369a1", lineHeight: 1.6 }}>
+            ✨ 1클릭 자동등록 — Cloudflare 프록시 통해 너 IP 우회. 추가 설치 0.<br />
+            <span style={{ fontSize: 11, color: "#0e7490" }}>PDF 안 첨부하면 폼 데이터로 자동 생성됨 (한글 단계 생략)</span>
           </div>
 
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
@@ -1050,23 +1024,23 @@ export default function WeeklyBulletinPage() {
             <button onClick={handleDownloadHwpx} disabled={generating} style={resetBtnStyle}>
               {generating ? "생성 중..." : "📥 hwpx 다운로드"}
             </button>
-            <button onClick={() => setPostModalOpen(true)} style={resetBtnStyle}>
-              📤 등록 (클립보드 모드)
+            <button
+              onClick={handleAutoPost}
+              disabled={autoPosting}
+              style={{
+                ...primaryBtnStyle,
+                background: autoPosting ? "#e2e8f0" : "linear-gradient(135deg, #ec4899, #8b5cf6)",
+                color: autoPosting ? "#94a3b8" : "#fff",
+                cursor: autoPosting ? "not-allowed" : "pointer",
+              }}
+            >
+              {autoPosting ? "등록 중..." : "🚀 1클릭 자동등록"}
             </button>
-            {userscriptVersion && (
-              <button
-                onClick={handleAutoPost}
-                disabled={autoPosting || !pdfFile}
-                style={{
-                  ...primaryBtnStyle,
-                  background: !pdfFile ? "#e2e8f0" : "linear-gradient(135deg, #ec4899, #8b5cf6)",
-                  color: !pdfFile ? "#94a3b8" : "#fff",
-                  cursor: !pdfFile ? "not-allowed" : "pointer",
-                }}
-              >
-                {autoPosting ? "등록 중..." : "🚀 1클릭 자동등록"}
-              </button>
-            )}
+          </div>
+          <div style={{ marginTop: 10, textAlign: "right" }}>
+            <button onClick={() => setPostModalOpen(true)} style={{ ...smallBtnStyle, fontSize: 11 }}>
+              📋 클립보드 모드 (수동 paste)
+            </button>
           </div>
         </div>
         </div>
