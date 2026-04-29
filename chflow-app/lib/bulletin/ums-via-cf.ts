@@ -258,7 +258,20 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   }
   const plDate = dateM[1];
   const plUser = userM[1];
-  pushDebug("write_form", wfRes.body, wfRes.status, wfRes.setCookies, { pl_date: plDate, pl_user: plUser });
+
+  // 스팸차단 안내문구 추출 (w_key_spam input 주변 text)
+  const spamIdx = wfHtml.indexOf("w_key_spam");
+  let spamHint = "(not found)";
+  if (spamIdx > 0) {
+    const start = Math.max(0, spamIdx - 400);
+    const end = Math.min(wfHtml.length, spamIdx + 400);
+    spamHint = wfHtml.slice(start, end).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 600);
+  }
+  pushDebug("write_form", wfRes.body, wfRes.status, wfRes.setCookies, {
+    pl_date: plDate,
+    pl_user: plUser,
+    spam_hint: spamHint,
+  });
 
   // ── 3. PDF 업로드 ──
   const uploadBoundary = "----chflowUp" + Math.random().toString(36).slice(2);
@@ -287,10 +300,11 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   }
 
   // ── 4. write_ok.php — CP949 multipart ──
-  // 검증된 Edge Function (글 1459/1460 등록 성공) 와 동일한 14개 필드.
-  // check=1, w_key_spam 은 안 보냄 (오히려 거부 트리거 가능성).
+  // 외국 IP (Cloudflare LAX 등) 에서는 w_key_spam 답변 필요.
+  // 정답이 폼 안내에 따라 달라지므로 환경변수 UMS_SPAM_ANSWER 로 override 가능.
   const cp = (s: string) => iconv.encode(s, "cp949");
   const category = input.category ?? 2;
+  const spamAnswer = process.env.UMS_SPAM_ANSWER || "명성교회";
   const writeOkBoundary = "----chflowWo" + Math.random().toString(36).slice(2);
   const writeOkBody = buildMultipart(writeOkBoundary, [
     { name: "page", value: cp("1") },
@@ -307,6 +321,7 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     { name: "pl_date", value: cp(plDate) },
     { name: "reg_date_change", value: cp("") },
     { name: "NameCheck", value: cp("N") },
+    { name: "w_key_spam", value: cp(spamAnswer) },
     { name: "subject", value: cp(input.subject) },
     { name: "memo", value: cp(input.memo) },
   ]);
@@ -327,7 +342,9 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   const woAlert = woHtml.match(/alertElmBody[^>]*>([\s\S]+?)<\/div>/);
   if (woAlert && !woHtml.includes('http-equiv="refresh"')) {
     const msg = woAlert[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-    return { ok: false, error: `등록 실패: ${msg}`, pl_date: plDate, debug };
+    // 스팸차단 거부 시 폼 안내문구도 같이 보여줌 → 사용자가 정답 추론
+    const extra = msg.includes("스팸") ? ` (보낸답:"${spamAnswer}", 폼안내: ${spamHint})` : "";
+    return { ok: false, error: `등록 실패: ${msg}${extra}`, pl_date: plDate, debug };
   }
 
   const refreshM = woHtml.match(/<meta\s+http-equiv="refresh"[^>]*url=([^"'>\s]+)/i);
