@@ -42,10 +42,12 @@ const EMPTY_FORM = {
   q3c2: "",
   q3c3: "",
   q3c4: "",
+  q4: "",                 // 26년 양식 신규 (보기 없음)
 
-  // 광고 / 2부행사 (현재 23년 템플릿엔 치환 자리 없음 — 26년 양식 받으면 매핑 추가)
-  announcement: "",      // 광고/공지
-  twoPartActivity: "",   // 2부행사 안내
+  // 광고 / 2부행사 (26년 양식 매핑 가능)
+  announcement: "",          // 광고/공지 본문 (자유 텍스트, hwpx에는 자리 없음 — 향후)
+  announcementAuthor: "",    // 광고 담당 (예: "총무선생님") - hwpx 매핑 있음
+  twoPartActivity: "",       // 2부행사 안내 (예: "14과 공과공부, 찬양연습")
 
   newFriend: "",
 };
@@ -113,38 +115,68 @@ function formatRelativeTime(iso: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// hwpx 치환
+// hwpx 치환 — 26년 4월 26일자 양식 기준
+// 대부분 hp:t 단순 치환. 일부는 <hp:fwSpace/> 끼어있어 raw XML chunk 단위로 치환.
 // ─────────────────────────────────────────────────────────────────
 function buildReplacements(form: FormState): Record<string, string> {
   return {
-    "2023년 8월 20일": formatKoreanDate(form.date),
-    "✿안내 :김찬규 선생님": `✿안내 : ${form.guide || "(미입력)"} 선생님`,
+    // 단순 텍스트
+    "2026년 4월 26일": formatKoreanDate(form.date),
+    "✿안내 : 박희연 선생님 ": `✿안내 : ${form.guide || "(미입력)"} 선생님 `,
     "신예슬 최성현 선생님": `${form.praise1 || ""} ${form.praise2 || ""} 선생님`,
     "최성헌부장선생님": `${form.leader || "(미입력)"}부장선생님`,
-    "복음 들고 GO! 땅끝까지 GOGO!": form.theme || "(주제 미입력)",
-    "1-1반 어린이": `${form.prayerClass || "?"}반 어린이`,
-    "데살로니가후서 2장 13~17절": form.scripture || "(성경본문 미입력)",
-    "교회는 무엇을 지켜야 하나요?": form.sermonTitle || "(설교제목 미입력)",
+    "하나님의 안경으로 세상을 바라보는 어린이": form.theme || "(주제 미입력)",
+    "2-3반": `${form.prayerClass || "?"}반`,
+    "창세기 11장 1~9절": form.scripture || "(성경본문 미입력)",
+    "우리는 배울 때 무엇을 조심해야 할까요?": form.sermonTitle || "(설교제목 미입력)",
     "김희숙전도사님": `${form.preacher || "?"}전도사님`,
-    "✿다음 주 기도 : 3-4반": `✿다음 주 기도 : ${form.nextPrayer || "(미입력)"}`,
+    "✿다음 주 기도 : 김정권장로님": `✿다음 주 기도 : ${form.nextPrayer || "(미입력)"}`,
     "십일조 : ": `십일조 : ${form.tithe || ""}`,
     "감사헌금 : ": `감사헌금 : ${form.thanksgiving || ""}`,
-    "25과 공과 퀴즈 ": `${form.lessonNum || "?"}과 공과 퀴즈 `,
-    "1. 주의 날에 대한 설명으로 바른 것은 무엇인가요?": `1. ${form.q1 || "(문제 미입력)"}`,
-    "   ① 때와 시기는 우리가 알지 못한다.  ": `   ① ${form.q1c1 || ""}  `,
-    "   ② 열심히 계산하면 알 수 있다.  ": `   ② ${form.q1c2 || ""}  `,
-    "   ③ 모르니까 준비하지 않아도 된다.  ": `   ③ ${form.q1c3 || ""}  `,
-    "   ④ 주의 날이 오지 않을 수도 있다.": `   ④ ${form.q1c4 || ""}`,
-    " 2. 예수님을 믿는 우리는 어떻게 살아가야 하나요?": ` 2. ${form.q2 || ""}`,
-    // 퀴즈 2번 보기는 한 줄에 4개 ─ 23년 원본 그대로 형식 보존
-    "   ① 어둠의 자녀 ② 빛의 자녀 ③ 사탄의 자녀 ④ 죄의 자녀":
-      `   ① ${form.q2c1 || ""} ② ${form.q2c2 || ""} ③ ${form.q2c3 || ""} ④ ${form.q2c4 || ""}`,
-    " 3. 깨어 있는 모습은 어떤 모습인가요?": ` 3. ${form.q3 || ""}`,
-    "  ① 일찍 일어나는 모습": `  ① ${form.q3c1 || ""}`,
-    "  ② 졸려도 꾹 참는 모습": `  ② ${form.q3c2 || ""}`,
-    "  ③ 다시오실 예수님을 기다리는 모습": `  ③ ${form.q3c3 || ""}`,
-    "  ④ 다시오실 예수님을 잊어버리는 모습": `  ④ ${form.q3c4 || ""}`,
-    "   영 상": form.newFriend || "(미입력)",
+    "차난(1학년)-자진": form.newFriend || "(미입력)",
+    "14과 공과 퀴즈": `${form.lessonNum || "?"}과 공과 퀴즈`,
+
+    // 퀴즈 1번 (보기 ① 단독, ②③④ 가로묶음)
+    "1. 사람들은 왜 바벨탑을 쌓으려고 했나요?": `1. ${form.q1 || "(문제 미입력)"}`,
+    "  ① 하나님께 닿으려고, 자기 이름을 높이려고 ": `  ① ${form.q1c1 || ""} `,
+    "  ② 새로운 집을 만들려고  ③ 돈을 벌려고  ④ 친구를 위해":
+      `  ② ${form.q1c2 || ""}  ③ ${form.q1c3 || ""}  ④ ${form.q1c4 || ""}`,
+
+    // 퀴즈 2번 (문제 2줄, 보기 ①② / ③④ 두 줄)
+    " 2. 하나님은 사람들이 스스로 높이 올라가려는 것을 보시고 ": ` 2. ${form.q2 || "(문제 미입력)"} `,
+    "   어떻게 하셨나요?": "   ",  // 둘째 줄은 비움 (사용자 폼은 한 줄로 받음)
+    "  ① 칭찬하셨다.                        ② 그냥 두셨다. ":
+      `  ① ${form.q2c1 || ""}                        ② ${form.q2c2 || ""} `,
+    "  ③ 사람들의 언어를 혼잡하게 하셨다.       ④ 집을 부수셨다.":
+      `  ③ ${form.q2c3 || ""}       ④ ${form.q2c4 || ""}`,
+
+    // 퀴즈 3번 (보기 ①② / ③④ 두 줄)
+    " 3. 하나님이 언어를 혼잡하게 하신 결과, 사람들은 어떻게 되었나요?":
+      ` 3. ${form.q3 || "(문제 미입력)"}`,
+    "  ① 다른 언어를 배웠다.         ② 말이 통하지 않아 흩어졌다.":
+      `  ① ${form.q3c1 || ""}         ② ${form.q3c2 || ""}`,
+    "  ③ 더 빨리 탑을 쌓았다.        ④ 아무 일도 일어나지 않았다.":
+      `  ③ ${form.q3c3 || ""}        ④ ${form.q3c4 || ""}`,
+
+    // 퀴즈 4번 (26년 신규, 보기 자리 없음)
+    " 4. 우리는 배울 때 무엇을 경계해야 하나요?": ` 4. ${form.q4 || "(문제 미입력)"}`,
+
+    // 광고 담당
+    "총무<hp:fwSpace/>선생님": `${form.announcementAuthor || "총무"}<hp:fwSpace/>선생님`,
+  };
+}
+
+// 추가: <hp:t> 태그 안에 <hp:fwSpace/> 같은 자식 노드가 있는 경우
+// 단순 hp:t 텍스트 치환으로 안 잡히므로 raw XML chunk 단위로 치환
+// 호수, 2부행사 같은 항목.
+function buildRawReplacements(form: FormState): Record<string, string> {
+  return {
+    // 호수 (제26-17호)
+    "<hp:t>제26<hp:fwSpace/>- 17호</hp:t>":
+      `<hp:t>${form.issueNumber || "제??-??호"}</hp:t>`,
+    // 2부행사
+    "<hp:t>✿2부<hp:fwSpace/>행사 : 14과 공과공부 , 찬양연습</hp:t>":
+      `<hp:t>✿2부<hp:fwSpace/>행사 : ${form.twoPartActivity || "(미입력)"}</hp:t>`,
   };
 }
 
@@ -205,6 +237,11 @@ async function generateHwpx(form: FormState, photos: Array<File | null>): Promis
   if (!sectionFile) throw new Error("템플릿에 section0.xml 없음");
 
   let xml = await sectionFile.async("string");
+  // 1. raw XML chunk 치환 (fwSpace 끼어있는 hp:t 등 — buildRawReplacements 가 hp:t 통째)
+  for (const [oldStr, newStr] of Object.entries(buildRawReplacements(form))) {
+    xml = xml.split(oldStr).join(newStr);
+  }
+  // 2. hp:t 안의 텍스트 치환 (단순)
   for (const [oldStr, newStr] of Object.entries(buildReplacements(form))) {
     xml = xml.split(`<hp:t>${oldStr}</hp:t>`).join(`<hp:t>${newStr}</hp:t>`);
   }
@@ -285,10 +322,11 @@ function buildPostMemo(form: FormState): string {
   if (form.twoPartActivity) {
     lines.push(`✿2부행사 : ${form.twoPartActivity}`);
   }
-  if (form.announcement) {
+  if (form.announcement || form.announcementAuthor) {
     lines.push("");
     lines.push("─ 광고 ─");
-    lines.push(form.announcement);
+    if (form.announcementAuthor) lines.push(`(담당: ${form.announcementAuthor}선생님)`);
+    if (form.announcement) lines.push(form.announcement);
   }
   if (form.newFriend) {
     lines.push("");
@@ -998,30 +1036,35 @@ export default function WeeklyBulletinPage() {
             <div style={hintStyle}>한 줄에 ① ② ③ ④ 가 가로로 배치됩니다 (23년 양식 그대로)</div>
           </FormRow>
 
-          <FormRow label="퀴즈 3번 — 문제 (선택)">
-            <textarea value={form.q3} onChange={(e) => set("q3", e.target.value)} placeholder="비우면 23년 템플릿의 기본 문제 그대로 남음" rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+          <FormRow label="퀴즈 3번 — 문제">
+            <textarea value={form.q3} onChange={(e) => set("q3", e.target.value)} placeholder="예: 하나님이 언어를 혼잡하게 하신 결과, 사람들은 어떻게 되었나요?" rows={2} style={{ ...inputStyle, resize: "vertical" }} />
           </FormRow>
-          <FormRow label="① 보기">
-            <input type="text" value={form.q3c1} onChange={(e) => set("q3c1", e.target.value)} style={inputStyle} />
+          <FormRow label="퀴즈 3번 보기 (한 줄에 ①②, 다른 줄에 ③④)">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <input type="text" value={form.q3c1} onChange={(e) => set("q3c1", e.target.value)} placeholder="① 보기" style={inputStyle} />
+              <input type="text" value={form.q3c2} onChange={(e) => set("q3c2", e.target.value)} placeholder="② 보기" style={inputStyle} />
+              <input type="text" value={form.q3c3} onChange={(e) => set("q3c3", e.target.value)} placeholder="③ 보기" style={inputStyle} />
+              <input type="text" value={form.q3c4} onChange={(e) => set("q3c4", e.target.value)} placeholder="④ 보기" style={inputStyle} />
+            </div>
           </FormRow>
-          <FormRow label="② 보기">
-            <input type="text" value={form.q3c2} onChange={(e) => set("q3c2", e.target.value)} style={inputStyle} />
-          </FormRow>
-          <FormRow label="③ 보기">
-            <input type="text" value={form.q3c3} onChange={(e) => set("q3c3", e.target.value)} style={inputStyle} />
-          </FormRow>
-          <FormRow label="④ 보기">
-            <input type="text" value={form.q3c4} onChange={(e) => set("q3c4", e.target.value)} style={inputStyle} />
+
+          <FormRow label="퀴즈 4번 — 문제 (보기 없음, 신규 26년)">
+            <textarea value={form.q4} onChange={(e) => set("q4", e.target.value)} placeholder="예: 우리는 배울 때 무엇을 경계해야 하나요?" rows={2} style={{ ...inputStyle, resize: "vertical" }} />
           </FormRow>
         </div>
 
-        {/* 광고 / 2부행사 */}
+        {/* ⑥ 광고 / 2부행사 */}
         <div style={cardStyle}>
           <div style={sectionLabel}>⑥ 광고 / 2부행사</div>
-          <FormRow label="2부 행사 안내">
+          <FormRow label="2부 행사 안내 (✿2부행사)">
             <input type="text" value={form.twoPartActivity} onChange={(e) => set("twoPartActivity", e.target.value)} placeholder="예: 14과 공과공부, 찬양연습" style={inputStyle} />
+            <div style={hintStyle}>hwpx 의 ✿2부행사 줄에 들어감</div>
           </FormRow>
-          <FormRow label="광고 / 공지">
+          <FormRow label="광고 담당자">
+            <input type="text" value={form.announcementAuthor} onChange={(e) => set("announcementAuthor", e.target.value)} placeholder="예: 총무" style={inputStyle} />
+            <div style={hintStyle}>"선생님" 자동 붙음 → "총무선생님"</div>
+          </FormRow>
+          <FormRow label="광고 / 공지 본문">
             <textarea
               value={form.announcement}
               onChange={(e) => set("announcement", e.target.value)}
@@ -1029,10 +1072,10 @@ export default function WeeklyBulletinPage() {
               rows={5}
               style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
             />
+            <div style={{ ...hintStyle, color: "#94a3b8" }}>
+              hwpx 양식엔 광고 본문 자리가 없어 현재 hwpx 출력엔 반영 X. UMS 글 본문(memo)에는 들어감.
+            </div>
           </FormRow>
-          <div style={{ ...hintStyle, marginTop: 4, color: "#b45309" }}>
-            ⓘ 23년 hwpx 양식엔 광고/2부행사 자리가 없어 현재 hwpx 출력엔 반영되지 않습니다. 26년 양식 받으면 자리 매핑 추가 예정.
-          </div>
         </div>
 
         {/* ⑦ 새 친구 */}
@@ -1052,7 +1095,7 @@ export default function WeeklyBulletinPage() {
             )}
           </div>
           <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10 }}>
-            슬롯 4개 — 빈칸은 흰색으로 채워짐. (1·2·3장 전용 레이아웃은 추후 추가 예정)
+            현재 26년 4월 26일자 양식엔 사진 슬롯이 없어 hwpx 출력엔 반영되지 않음. PDF 자동 생성에만 사용됨.
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
             {[0, 1, 2, 3].map((i) => (

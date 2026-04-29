@@ -35,6 +35,8 @@ export interface BrowserBulletinData {
   q2c: [string, string, string, string];
   q3: string;
   q3c: [string, string, string, string];
+  q4: string;
+  announcement_author: string;
 }
 
 const PAGE_W = 595;
@@ -280,6 +282,12 @@ export async function generateBulletinPdfBrowser(
       quizBlock(p3, 1, data.q1, data.q1c);
       quizBlock(p3, 2, data.q2, data.q2c);
       quizBlock(p3, 3, data.q3, data.q3c);
+      if (data.q4) {
+        for (const line of wrapText(`4. ${data.q4}`, font, 11, PAGE_W - 2 * MARGIN)) {
+          drawText(p3, line, MARGIN, y, font, 11);
+          y -= 14;
+        }
+      }
     } else {
       drawText(p2, `${data.lesson_num || "?"}과 공과 퀴즈`, MARGIN, y, font, 13, COLOR_ACCENT);
       y -= 18;
@@ -300,6 +308,12 @@ export async function generateBulletinPdfBrowser(
       quizBlock(1, data.q1, data.q1c);
       quizBlock(2, data.q2, data.q2c);
       quizBlock(3, data.q3, data.q3c);
+      if (data.q4) {
+        for (const line of wrapText(`4. ${data.q4}`, font, 10, PAGE_W - 2 * MARGIN)) {
+          drawText(p2, line, MARGIN, y, font, 10);
+          y -= 13;
+        }
+      }
     }
   }
 
@@ -341,5 +355,7 @@ export function formToBulletinData(
     q2c: [form.q2c1 || "", form.q2c2 || "", form.q2c3 || "", form.q2c4 || ""],
     q3: form.q3 || "",
     q3c: [form.q3c1 || "", form.q3c2 || "", form.q3c3 || "", form.q3c4 || ""],
+    q4: form.q4 || "",
+    announcement_author: form.announcementAuthor || "",
   };
 }
