@@ -1141,14 +1141,20 @@ export default function WeeklyBulletinPage() {
               onClick={handleAutoPost}
               disabled={autoPosting}
               style={{
-                flex: 1, padding: "13px 18px",
+                flex: 1, padding: "10px 18px",
                 background: autoPosting ? "#e2e8f0" : "linear-gradient(135deg, #ec4899, #8b5cf6)",
                 color: autoPosting ? "#94a3b8" : "#fff",
                 border: "none", borderRadius: 10, fontSize: 14, fontWeight: 800,
                 cursor: autoPosting ? "not-allowed" : "pointer", fontFamily: "inherit",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
               }}
             >
-              {autoPosting ? "등록 중..." : "🚀 1클릭 자동등록"}
+              <span>{autoPosting ? "등록 중..." : "🚀 1클릭 자동등록"}</span>
+              {!autoPosting && (
+                <span style={{ fontSize: 10, fontWeight: 500, opacity: 0.85 }}>
+                  PDF 자동 생성 후 업로드
+                </span>
+              )}
             </button>
           )}
         </div>
@@ -1397,12 +1403,19 @@ function ActionCard({
             ? "#e2e8f0"
             : "linear-gradient(135deg, #ec4899, #8b5cf6)",
           color: (autoPosting || (cooldown && !cooldown.can_post)) ? "#94a3b8" : "#fff",
-          border: "none", borderRadius: 10, fontSize: compact ? 14 : 16, fontWeight: 800,
+          border: "none", borderRadius: 10,
+          fontSize: compact ? 14 : 16, fontWeight: 800,
           cursor: (autoPosting || (cooldown && !cooldown.can_post)) ? "not-allowed" : "pointer",
-          fontFamily: "inherit", marginBottom: 8,
+          fontFamily: "inherit", marginBottom: 4,
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
         }}
       >
-        {autoPosting ? "등록 중..." : "🚀 1클릭 자동등록"}
+        <span>{autoPosting ? "등록 중..." : "🚀 1클릭 자동등록"}</span>
+        {!autoPosting && (!cooldown || cooldown.can_post) && (
+          <span style={{ fontSize: 10, fontWeight: 500, opacity: 0.85 }}>
+            PDF 자동 생성 후 업로드 합니다
+          </span>
+        )}
       </button>
 
       {/* 보조 */}
