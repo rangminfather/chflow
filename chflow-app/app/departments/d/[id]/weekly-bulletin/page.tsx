@@ -1077,7 +1077,7 @@ export default function WeeklyBulletinPage() {
       <div style={{
         display: "flex",
         gap: 20,
-        maxWidth: isDesktop ? 1480 : 720,
+        maxWidth: isDesktop ? 1640 : 720,
         margin: "0 auto",
         padding: 16,
         alignItems: "flex-start",
@@ -1153,10 +1153,10 @@ export default function WeeklyBulletinPage() {
           overflowX: "auto",
         }}>
           {[
-            { n: 1 as const, label: "표지", icon: "📄" },
-            { n: 2 as const, label: "예배 순서", icon: "🎵" },
-            { n: 3 as const, label: "공과", icon: "📚" },
-            { n: 4 as const, label: "목장 현황", icon: "📊" },
+            { n: 3 as const, label: "알립니다·공과", icon: "📚", spread: 1 },
+            { n: 1 as const, label: "표지", icon: "📄", spread: 1 },
+            { n: 2 as const, label: "예배 순서", icon: "🎵", spread: 2 },
+            { n: 4 as const, label: "목장 현황", icon: "📊", spread: 2 },
           ].map((p) => (
             <button
               key={p.n}
@@ -1175,8 +1175,8 @@ export default function WeeklyBulletinPage() {
               }}
             >
               <div style={{ fontSize: 14, marginBottom: 1 }}>{p.icon}</div>
-              <div style={{ fontSize: 10, color: currentPage === p.n ? "#7c3aed" : "#94a3b8" }}>
-                {p.n}페이지
+              <div style={{ fontSize: 9, color: currentPage === p.n ? "#7c3aed" : "#94a3b8" }}>
+                {p.spread}페이지 {p.n === 3 || p.n === 2 ? "좌" : "우"}
               </div>
               <div>{p.label}</div>
             </button>
@@ -1597,7 +1597,7 @@ export default function WeeklyBulletinPage() {
         {/* ─── 데스크톱: 우측 sticky 사이드바 ─── */}
         {isDesktop && (
           <div style={{
-            width: 360, position: "sticky", top: 16, alignSelf: "flex-start",
+            width: 520, position: "sticky", top: 16, alignSelf: "flex-start",
             maxHeight: "calc(100vh - 32px)", overflowY: "auto", flexShrink: 0,
             display: "flex", flexDirection: "column", gap: 12,
           }}>
@@ -2224,30 +2224,45 @@ function BulletinPreview({ currentPage, form, farmData, quizzes, photos, deptNam
   photos: Array<File | null>;
   deptName: string;
 }) {
-  const cardCss: React.CSSProperties = {
-    width: "100%",
-    aspectRatio: "595/842",  // A4 비율
+  // 폼 페이지 → hwpx spread 매핑
+  // spread 1 (1페이지): 좌측 = 알립니다+공과 / 우측 = 표지
+  // spread 2 (2페이지): 좌측 = 예배순서 / 우측 = 목장현황
+  const isSpread1 = currentPage === 1 || currentPage === 3;
+  const spreadLabel = isSpread1 ? "1페이지 (알립니다+표지)" : "2페이지 (예배순서+통계)";
+
+  const pageCss: React.CSSProperties = {
+    flex: 1,
+    aspectRatio: "595/842",  // A4 비율 (한 페이지)
     background: "#fff",
     border: "1px solid #cbd5e1",
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 9,
+    borderRadius: 4,
+    padding: 8,
+    fontSize: 8,
     lineHeight: 1.4,
     color: "#1e293b",
     overflow: "auto",
-    boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
     fontFamily: "'Noto Sans KR', sans-serif",
   };
 
   return (
-    <div style={cardCss}>
+    <div>
       <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 700, marginBottom: 6, textAlign: "center" }}>
-        📄 페이지 {currentPage} 미리보기
+        📖 {spreadLabel} 미리보기
       </div>
-      {currentPage === 1 && <PreviewPage1 form={form} photos={photos} deptName={deptName} />}
-      {currentPage === 2 && <PreviewPage2 form={form} />}
-      {currentPage === 3 && <PreviewPage3 form={form} quizzes={quizzes} />}
-      {currentPage === 4 && <PreviewPage4 form={form} farmData={farmData} />}
+      <div style={{ display: "flex", gap: 6, background: "#e2e8f0", padding: 6, borderRadius: 6 }}>
+        {isSpread1 ? (
+          <>
+            <div style={pageCss}><PreviewPage3 form={form} quizzes={quizzes} /></div>
+            <div style={pageCss}><PreviewPage1 form={form} photos={photos} deptName={deptName} /></div>
+          </>
+        ) : (
+          <>
+            <div style={pageCss}><PreviewPage2 form={form} /></div>
+            <div style={pageCss}><PreviewPage4 form={form} farmData={farmData} /></div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
