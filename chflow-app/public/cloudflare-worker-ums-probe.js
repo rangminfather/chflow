@@ -78,10 +78,19 @@ export default {
 
     const buf = await umsRes.arrayBuffer();
 
+    // 진단: Worker outbound IP (UMS 가 보는 우리 IP)
+    let workerIp = "unknown";
+    try {
+      const ipRes = await fetch("https://api.ipify.org?format=json", { cf: { cacheTtl: 0 } });
+      const ipData = await ipRes.json();
+      workerIp = ipData.ip;
+    } catch {/* ignore */}
+
     const respHeaders = {
       ...corsHeaders(),
       "Content-Type": umsRes.headers.get("Content-Type") || "application/octet-stream",
       "X-Forward-Status": String(umsRes.status),
+      "X-Worker-Outbound-IP": workerIp,
     };
 
     // Set-Cookie 들 (다중) — HTTP 헤더 값에 \n 못 들어가므로 base64 인코딩

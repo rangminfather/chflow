@@ -11,6 +11,7 @@ export interface ProxyResult {
   setCookies: string[];
   location: string | null;
   contentType: string;
+  workerIp?: string | null;
 }
 
 export interface ProxyOptions {
@@ -66,6 +67,7 @@ export async function umsViaCf(path: string, opts: ProxyOptions = {}): Promise<P
     setCookies,
     location: res.headers.get("X-Forward-Location"),
     contentType: res.headers.get("Content-Type") || "application/octet-stream",
+    workerIp: res.headers.get("X-Worker-Outbound-IP") || null,
   };
 }
 
@@ -244,6 +246,19 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   const debugCookie = process.env.UMS_TEST_COOKIE;
   const skipLogin = !!debugCookie;
 
+  // 진단: Vercel function 의 outbound IP 확인 (한국 / 외국 구분)
+  let vercelIp = "unknown";
+  try {
+    const ipRes = await fetch("https://api.ipify.org?format=json", { cache: "no-store" });
+    const ipData = await ipRes.json();
+    vercelIp = ipData.ip;
+  } catch {/* ignore */}
+  // Cloudflare Worker outbound IP (Worker 가 X-Worker-Outbound-IP 응답 헤더로 보내줘야 함)
+  // 현재 Worker 코드는 미지원이라 일단 unknown 으로.
+  pushDebug("ip_diagnostic", Buffer.from(""), 200, [], {
+    vercel_outbound_ip: vercelIp,
+  });
+
   function pushDebug(step: string, body: Buffer, status: number, setCookies: string[], extra?: Record<string, string | number | undefined>) {
     const sample = (() => {
       try {
@@ -402,6 +417,7 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
       ok: false,
       error:
         `write.php 폼 못 받음 (${writeFormAttempts}회 시도, 마지막 응답 ${wfHtml.length}자) ` +
+        `[Vercel outbound: ${vercelIp}, Worker outbound: ${wfRes.workerIp || "unknown"}] ` +
         `[form psm_form: ${hasForm}, form 임의: ${hasFormAny}, ` +
         `pl_date 문자열: ${hasPlDateString}, memo input: ${hasMemo}, ` +
         `alert위치: ${alertIdx}/${wfHtml.length}, alert: "${alertMsg}"] ` +
