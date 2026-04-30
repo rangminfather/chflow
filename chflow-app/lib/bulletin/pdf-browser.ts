@@ -47,13 +47,26 @@ const COLOR_MUTED  = rgb(0.45, 0.51, 0.62);
 const COLOR_ACCENT = rgb(0.39, 0.40, 0.95);
 const COLOR_LIGHT  = rgb(0.91, 0.93, 0.96);
 
-let cachedFontBytes: Uint8Array | null = null;
-async function loadFontBytes(): Promise<Uint8Array> {
-  if (cachedFontBytes) return cachedFontBytes;
-  const res = await fetch("/fonts/NanumGothic-Regular.ttf");
-  if (!res.ok) throw new Error(`폰트 로드 실패: ${res.status}`);
-  cachedFontBytes = new Uint8Array(await res.arrayBuffer());
-  return cachedFontBytes;
+// 다중 폰트 로드 — hwpx 디자인 fidelity 향상용
+// - 본문: 삼립호빵체 Basic (hwpx 본문 압도적 사용 폰트, 283회)
+// - 제목/강조: EF_제주돌담 ("알려드립니다!" 등 강조)
+// - 메타: 배스킨라빈스 B (호수 등)
+// - fallback: NanumGothic (subset 안 되는 글자 대비)
+const FONT_PATHS = {
+  body: "/fonts/SDSamliphopangcheTTFBasic.ttf",
+  title: "/fonts/EF_jejudoldam.otf",
+  meta: "/fonts/BaskinRobbins-B.ttf",
+  fallback: "/fonts/NanumGothic-Regular.ttf",
+} as const;
+
+const cachedFontBytes: Record<string, Uint8Array> = {};
+async function loadFontBytes(path: string): Promise<Uint8Array> {
+  if (cachedFontBytes[path]) return cachedFontBytes[path];
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(`폰트 로드 실패: ${path} ${res.status}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  cachedFontBytes[path] = bytes;
+  return bytes;
 }
 
 // 사진 → jpg 바이트 (Canvas 로 리사이즈 + 압축)
@@ -120,22 +133,35 @@ export async function generateBulletinPdfBrowser(
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
-  const fontBytes = await loadFontBytes();
-  const font = await doc.embedFont(fontBytes, { subset: true });
+
+  // 다중 폰트 임베드 (subset: true 로 사용된 글자만 — PDF 사이즈 작게)
+  const [bodyBytes, titleBytes, metaBytes, fallbackBytes] = await Promise.all([
+    loadFontBytes(FONT_PATHS.body),
+    loadFontBytes(FONT_PATHS.title),
+    loadFontBytes(FONT_PATHS.meta),
+    loadFontBytes(FONT_PATHS.fallback),
+  ]);
+  const fontBody = await doc.embedFont(bodyBytes, { subset: true });
+  const fontTitle = await doc.embedFont(titleBytes, { subset: true });
+  const fontMeta = await doc.embedFont(metaBytes, { subset: true });
+  const fontFallback = await doc.embedFont(fallbackBytes, { subset: true });
+  // 기존 코드 호환용 — 본문 폰트를 'font' 로 사용
+  const font = fontBody;
+  void fontFallback; // fallback 은 일부 글자 누락 시 사용 (현재는 배포만)
   await doc.embedFont(StandardFonts.Helvetica);
 
   // ───── Page 1: 표지 ─────
   const p1 = doc.addPage([PAGE_W, PAGE_H]);
 
-  // 호수 (우상단)
+  // 호수 (우상단) — 메타 폰트
   if (data.issue_number) {
-    const w = font.widthOfTextAtSize(data.issue_number, 11);
-    drawText(p1, data.issue_number, PAGE_W - MARGIN - w, PAGE_H - MARGIN - 12, font, 11, COLOR_MUTED);
+    const w = fontMeta.widthOfTextAtSize(data.issue_number, 11);
+    drawText(p1, data.issue_number, PAGE_W - MARGIN - w, PAGE_H - MARGIN - 12, fontMeta, 11, COLOR_MUTED);
   }
 
-  // 부서명 (큰 제목)
-  drawText(p1, `${data.dept_name} 주보`, MARGIN, PAGE_H - MARGIN - 32, font, 26, COLOR_ACCENT);
-  drawText(p1, formatKoreanDate(data.date), MARGIN, PAGE_H - MARGIN - 56, font, 12, COLOR_MUTED);
+  // 부서명 (큰 제목) — 제목 폰트 (EF_제주돌담)
+  drawText(p1, `${data.dept_name} 주보`, MARGIN, PAGE_H - MARGIN - 32, fontTitle, 28, COLOR_ACCENT);
+  drawText(p1, formatKoreanDate(data.date), MARGIN, PAGE_H - MARGIN - 56, fontMeta, 12, COLOR_MUTED);
 
   // 헤더 라인
   p1.drawLine({
