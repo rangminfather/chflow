@@ -1394,8 +1394,14 @@ export default function WeeklyBulletinPage() {
         <div style={cardStyle}>
           <div style={sectionLabel}>⑥ 광고 / 2부행사</div>
           <FormRow label="2부 행사 안내 (✿2부행사)">
-            <input type="text" value={form.twoPartActivity} onChange={(e) => set("twoPartActivity", e.target.value)} placeholder="예: 14과 공과공부, 찬양연습" style={inputStyle} />
-            <div style={hintStyle}>hwpx 의 ✿2부행사 줄에 들어감</div>
+            <textarea
+              value={form.twoPartActivity}
+              onChange={(e) => set("twoPartActivity", e.target.value)}
+              placeholder={"예: 14과 공과공부, 찬양연습\n복수개 입력 시 한 줄에 하나씩"}
+              rows={2}
+              style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+            />
+            <div style={hintStyle}>한 줄에 하나씩 입력. 복수 항목 시 hwpx 자동으로 줄 늘어남 (헌금/다음주 기도 자연스럽게 밀림)</div>
           </FormRow>
           <FormRow label="광고 담당자">
             <input type="text" value={form.announcementAuthor} onChange={(e) => set("announcementAuthor", e.target.value)} placeholder="예: 총무" style={inputStyle} />
@@ -2277,17 +2283,28 @@ function PreviewPage1({ form, photos, deptName }: {
 
   return (
     <div style={{ padding: "4px 6px" }}>
-      {/* ── 상단: 부서명 + 호수 ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 4 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: "#7c3aed", letterSpacing: 1 }}>
-          {deptName} 주보
-        </div>
-        <div style={{ fontSize: 9, color: "#475569", fontWeight: 700 }}>{issueNum}</div>
+      {/* ── 상단: 호수 (좌) + 날짜 (우) 같은 줄 ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, fontSize: 9 }}>
+        <div style={{ color: "#475569", fontWeight: 700 }}>{issueNum || "(호수 미입력)"}</div>
+        <div style={{ color: "#475569", fontWeight: 700 }}>{dateStr || "(날짜 미선택)"}</div>
       </div>
 
-      {/* ── 환영 문구 ── */}
-      <div style={{ textAlign: "center", fontSize: 10, color: "#dc2626", fontWeight: 700, margin: "8px 0 10px", letterSpacing: 1 }}>
-        ♥ 멋진 {deptName.replace("부", "")} 모든 친구들 환영합니다 ♥
+      {/* ── 큰 컬러풀 부서명 타이틀 (hwpx 의 무지개 글씨 흉내) ── */}
+      <div style={{ textAlign: "center", margin: "8px 0", fontSize: 22, fontWeight: 900, letterSpacing: 4 }}>
+        <span style={{ color: "#dc2626" }}>초</span>
+        <span style={{ color: "#ea580c" }}>등</span>
+        <span style={{ color: "#9333ea" }}> 1 </span>
+        <span style={{ color: "#0891b2" }}>초</span>
+        <span style={{ color: "#16a34a" }}>원</span>
+      </div>
+
+      {/* ── 주제 (환영 자리에 — hwpx 와 동일) ── */}
+      <div style={{
+        textAlign: "center", fontSize: 9, fontWeight: 700, color: "#1e40af",
+        margin: "6px 0 10px", padding: "4px 6px",
+        background: "#eff6ff", borderRadius: 4,
+      }}>
+        주제 : {form.theme || "(미입력)"}
       </div>
 
       {/* ── 사진 영역 (2x2) ── */}
@@ -2324,18 +2341,6 @@ function PreviewPage1({ form, photos, deptName }: {
       ) : (
         <div style={{ padding: 6, fontSize: 7, color: "#cbd5e1", borderLeft: "3px solid #fde68a", fontStyle: "italic" }}>
           (1페이지 표어 미입력)
-        </div>
-      )}
-
-      {/* ── 날짜 ── */}
-      <div style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: "#1e293b", margin: "6px 0" }}>
-        {dateStr || "(날짜 미선택)"}
-      </div>
-
-      {/* ── 주제 ── */}
-      {form.theme && (
-        <div style={{ textAlign: "center", fontSize: 8, color: "#7c3aed", fontWeight: 700, marginBottom: 6, padding: "3px 6px", background: "#faf5ff", borderRadius: 3 }}>
-          주제 : {form.theme}
         </div>
       )}
 
@@ -2434,19 +2439,23 @@ function PreviewPage2({ form }: { form: FormState }) {
         {orderItems.map(renderRow)}
       </div>
 
-      {/* ✿2부 행사 + ✿다음 주 기도 */}
-      <div style={{ marginTop: 8 }}>
-        {form.twoPartActivity && (
-          <div style={{ fontSize: 7.5, color: "#1e40af", fontWeight: 700 }}>
-            ✿2부 행사 : {form.twoPartActivity}
-          </div>
-        )}
-        {form.nextPrayer && (
-          <div style={{ fontSize: 7.5, color: "#1e40af", fontWeight: 700, marginTop: 2 }}>
-            ✿다음 주 기도 : {form.nextPrayer}
-          </div>
-        )}
-      </div>
+      {/* ✿2부 행사 (복수 줄 — 사용자 줄바꿈으로 여러 항목, hwpx 자연스럽게 늘어남) */}
+      {form.twoPartActivity && (
+        <div style={{ marginTop: 8 }}>
+          {form.twoPartActivity.split("\n").map((line, i) => (
+            <div key={i} style={{ fontSize: 7.5, color: "#1e40af", fontWeight: 700, marginBottom: 2 }}>
+              {i === 0 ? "✿2부 행사 : " : "             "}{line}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ✿다음 주 기도 */}
+      {form.nextPrayer && (
+        <div style={{ marginTop: 4, fontSize: 7.5, color: "#1e40af", fontWeight: 700 }}>
+          ✿다음 주 기도 : {form.nextPrayer}
+        </div>
+      )}
 
       {/* 헌금 (분홍 둥근 박스 — hwpx 양식과 동일) */}
       <div style={{ marginTop: 12, display: "flex", alignItems: "flex-start", gap: 8 }}>
@@ -2469,13 +2478,6 @@ function PreviewPage2({ form }: { form: FormState }) {
           <div style={{ marginTop: 4 }}>감사헌금 : <b style={{ color: "#1e293b" }}>{form.thanksgiving || ""}</b></div>
         </div>
       </div>
-
-      {/* 광고 본문 (있으면) */}
-      {form.announcement && (
-        <div style={{ marginTop: 8, padding: 4, fontSize: 7, color: "#475569", lineHeight: 1.5, whiteSpace: "pre-line", borderLeft: "2px solid #cbd5e1", paddingLeft: 6 }}>
-          {form.announcement}
-        </div>
-      )}
     </div>
   );
 }
@@ -2486,12 +2488,17 @@ function PreviewPage3({ form, quizzes }: { form: FormState; quizzes: QuizItem[] 
     <div style={{ padding: "4px 6px" }}>
       {/* ── 상단: "알 립 니 다 !" 빨간 큰 글씨 ── */}
       <div style={{
-        textAlign: "center", marginBottom: 6,
+        textAlign: "center", marginBottom: 4,
         fontSize: 18, fontWeight: 900, color: "#dc2626",
         letterSpacing: 4, fontStyle: "italic",
         textShadow: "1px 1px 0 rgba(0,0,0,0.1)",
       }}>
         알 립 니 다 !
+      </div>
+
+      {/* ── 환영 문구 (hwpx 양식: 알립니다 바로 아래) ── */}
+      <div style={{ textAlign: "center", fontSize: 9, color: "#dc2626", fontWeight: 700, margin: "4px 0 8px", letterSpacing: 1 }}>
+        ♥ 멋진 초등 1 초원 모든 친구들 환영합니다 ♥
       </div>
 
       {/* ── 안내 사항 (예배시간 / 교사회의 / 2부 복습) ── */}
