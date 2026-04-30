@@ -1,0 +1,332 @@
+"use client";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+
+interface Dept {
+  id: string;
+  category: string;
+  name: string;
+  icon: string | null;
+  member_count: number;
+}
+
+interface DeptMember {
+  user_id: string;
+  name: string;
+  grade: number;
+  status: string;
+  joined_at: string;
+}
+
+const GRADES = [
+  { v: 0, label: "전도사/교육사",  desc: "모든 메뉴 (최고)",   color: "#7c3aed", bg: "#ede9fe" },
+  { v: 1, label: "부장",           desc: "공지·학생·행정·부서", color: "#dc2626", bg: "#fee2e2" },
+  { v: 2, label: "부부장/총무/서기", desc: "공지·학생·행정",      color: "#ea580c", bg: "#ffedd5" },
+  { v: 3, label: "교사",           desc: "공지·학생",            color: "#16a34a", bg: "#dcfce7" },
+  { v: 4, label: "학부모",         desc: "공지 읽기/댓글",       color: "#64748b", bg: "#f1f5f9" },
+];
+
+const STATUS = {
+  pending:  { label: "신청중",  color: "#92400e", bg: "#fef3c7" },
+  approved: { label: "승인",    color: "#15803d", bg: "#dcfce7" },
+  rejected: { label: "거절",    color: "#991b1b", bg: "#fee2e2" },
+};
+
+export default function DeptStaffPage() {
+  const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
+  const [depts, setDepts] = useState<Dept[]>([]);
+  const [selectedDept, setSelectedDept] = useState<Dept | null>(null);
+  const [members, setMembers] = useState<DeptMember[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace("/login"); return; }
+      const { data } = await supabase.rpc("get_my_status");
+      const profile = data?.[0];
+      if (!profile || !["admin", "office", "pastor"].includes(profile.role)) {
+        router.replace("/home"); return;
+      }
+      setAuthChecked(true);
+      await loadDepts();
+    })();
+  }, []);
+
+  const loadDepts = async () => {
+    const { data: deptList } = await supabase
+      .from("departments")
+      .select("id, category, name, icon, order_no")
+      .eq("is_active", true)
+      .order("category")
+      .order("order_no");
+
+    if (!deptList) return;
+
+    const { data: counts } = await supabase
+      .from("department_members")
+      .select("department_id, status");
+
+    const countMap = new Map<string, number>();
+    (counts || []).forEach((c: any) => {
+      if (c.status === "approved") {
+        countMap.set(c.department_id, (countMap.get(c.department_id) || 0) + 1);
+      }
+    });
+
+    setDepts(deptList.map((d: any) => ({
+      id: d.id, category: d.category, name: d.name, icon: d.icon,
+      member_count: countMap.get(d.id) || 0,
+    })));
+  };
+
+  const loadMembers = async (dept: Dept) => {
+    setSelectedDept(dept);
+    setLoading(true);
+    setMembers([]);
+    const { data, error } = await supabase.rpc("list_dept_members_with_grade", { p_dept_id: dept.id });
+    setLoading(false);
+    if (error) {
+      alert("부서원 조회 실패: " + error.message);
+      return;
+    }
+    setMembers(data || []);
+  };
+
+  const changeGrade = async (m: DeptMember, newGrade: number) => {
+    if (m.grade === newGrade) return;
+    setBusy(m.user_id);
+    const { error } = await supabase.rpc("set_member_grade", {
+      p_dept_id: selectedDept!.id,
+      p_member_user_id: m.user_id,
+      p_grade: newGrade,
+    });
+    setBusy(null);
+    if (error) {
+      alert("등급 변경 실패: " + error.message);
+      return;
+    }
+    setMembers(ms => ms.map(x => x.user_id === m.user_id ? { ...x, grade: newGrade } : x));
+  };
+
+  const approveOrReject = async (m: DeptMember, approve: boolean) => {
+    setBusy(m.user_id);
+    // dept_members table — find join id then call admin_approve_dept_join
+    const { data: rows } = await supabase
+      .from("department_members")
+      .select("id")
+      .eq("department_id", selectedDept!.id)
+      .eq("user_id", m.user_id)
+      .limit(1);
+    const joinId = rows?.[0]?.id;
+    if (!joinId) {
+      setBusy(null);
+      alert("신청 ID를 찾을 수 없습니다");
+      return;
+    }
+    const { error } = await supabase.rpc("admin_approve_dept_join", {
+      p_join_id: joinId,
+      p_approved: approve,
+    });
+    setBusy(null);
+    if (error) {
+      alert("처리 실패: " + error.message);
+      return;
+    }
+    await loadMembers(selectedDept!);
+  };
+
+  if (!authChecked) {
+    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9" }}>로딩 중...</div>;
+  }
+
+  // 카테고리별로 그룹화
+  const grouped: Record<string, Dept[]> = {};
+  depts.forEach(d => {
+    if (!grouped[d.category]) grouped[d.category] = [];
+    grouped[d.category].push(d);
+  });
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif", padding: 16 }}>
+      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+        {/* Header */}
+        <div style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>🏢 부서원 관리</div>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>부서별 인원과 등급 임명 (관리자 전용)</div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => router.push("/admin/members")} style={btnGhost}>← 회원관리</button>
+            <button onClick={() => router.push("/admin/pending")} style={{ ...btnGhost, background: "#fef3c7", color: "#92400e" }}>⏳ 가입 대기자</button>
+            <button onClick={() => router.push("/admin/dept-pending")} style={{ ...btnGhost, background: "#dbeafe", color: "#1e40af" }}>📨 부서가입 신청</button>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 16 }}>
+          {/* Left: Department list */}
+          <div style={{ background: "#fff", borderRadius: 12, padding: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", padding: "4px 8px", marginBottom: 6 }}>
+              부서 ({depts.length}개)
+            </div>
+            {Object.entries(grouped).map(([cat, list]) => (
+              <div key={cat} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", padding: "4px 8px", textTransform: "uppercase" }}>
+                  {cat}
+                </div>
+                {list.map(d => (
+                  <div
+                    key={d.id}
+                    onClick={() => loadMembers(d)}
+                    style={{
+                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      padding: "10px 12px", borderRadius: 8, cursor: "pointer",
+                      background: selectedDept?.id === d.id ? "#eef2ff" : "transparent",
+                      border: selectedDept?.id === d.id ? "1.5px solid #6366f1" : "1.5px solid transparent",
+                      marginBottom: 4,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>
+                      {d.icon || "📁"} {d.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>
+                      {d.member_count}명
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+            {depts.length === 0 && (
+              <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 12 }}>
+                부서가 없습니다
+              </div>
+            )}
+          </div>
+
+          {/* Right: Members of selected dept */}
+          <div style={{ background: "#fff", borderRadius: 12, padding: 16 }}>
+            {!selectedDept ? (
+              <div style={{ padding: 60, textAlign: "center", color: "#94a3b8", fontSize: 14 }}>
+                ← 좌측에서 부서를 선택하세요
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid #e2e8f0" }}>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>
+                      {selectedDept.icon || "📁"} {selectedDept.category} / {selectedDept.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                      등록된 부서원 {members.length}명
+                    </div>
+                  </div>
+                </div>
+
+                {/* 등급 안내 */}
+                <details style={{ marginBottom: 14, fontSize: 11, color: "#475569" }}>
+                  <summary style={{ cursor: "pointer", padding: "6px 10px", background: "#f8fafc", borderRadius: 6, fontWeight: 600 }}>
+                    💡 등급 안내 (펼치기)
+                  </summary>
+                  <div style={{ padding: 10, background: "#f8fafc", borderRadius: 6, marginTop: 6 }}>
+                    {GRADES.map(g => (
+                      <div key={g.v} style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+                        <span style={{ display: "inline-block", minWidth: 22, height: 18, lineHeight: "18px", textAlign: "center", borderRadius: 4, background: g.bg, color: g.color, fontWeight: 700, fontSize: 11 }}>{g.v}</span>
+                        <span style={{ fontWeight: 600, color: "#1e293b" }}>{g.label}</span>
+                        <span style={{ color: "#64748b" }}>· {g.desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+
+                {loading ? (
+                  <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>조회 중...</div>
+                ) : members.length === 0 ? (
+                  <div style={{ padding: 40, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                    부서원이 없습니다.<br /><br />
+                    <span style={{ fontSize: 11 }}>사용자가 /departments 페이지에서 가입 신청을 해야 합니다.</span>
+                  </div>
+                ) : (
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                        <th style={th}>이름</th>
+                        <th style={th}>상태</th>
+                        <th style={th}>현재 등급</th>
+                        <th style={th}>등급 변경</th>
+                        <th style={th}>가입일</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {members.map(m => {
+                        const g = GRADES.find(x => x.v === m.grade);
+                        const s = (STATUS as any)[m.status] || { label: m.status, color: "#64748b", bg: "#f1f5f9" };
+                        const isPending = m.status === "pending";
+                        return (
+                          <tr key={m.user_id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={td}><b>{m.name}</b></td>
+                            <td style={td}>
+                              <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: s.bg, color: s.color }}>{s.label}</span>
+                            </td>
+                            <td style={td}>
+                              {g ? (
+                                <span style={{ padding: "3px 10px", borderRadius: 5, fontSize: 11, fontWeight: 700, background: g.bg, color: g.color }}>
+                                  {g.v} · {g.label}
+                                </span>
+                              ) : <span style={{ color: "#94a3b8" }}>—</span>}
+                            </td>
+                            <td style={td}>
+                              {isPending ? (
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  <button onClick={() => approveOrReject(m, true)} disabled={busy === m.user_id}
+                                    style={{ padding: "5px 10px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                                    승인
+                                  </button>
+                                  <button onClick={() => approveOrReject(m, false)} disabled={busy === m.user_id}
+                                    style={{ padding: "5px 10px", background: "#fecaca", color: "#b91c1c", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                                    거절
+                                  </button>
+                                </div>
+                              ) : (
+                                <select
+                                  value={m.grade}
+                                  disabled={busy === m.user_id}
+                                  onChange={(e) => changeGrade(m, Number(e.target.value))}
+                                  style={{
+                                    padding: "5px 8px", fontSize: 12, border: "1.5px solid #e2e8f0",
+                                    borderRadius: 6, fontFamily: "inherit", background: "#fff", cursor: "pointer",
+                                  }}>
+                                  {GRADES.map(opt => (
+                                    <option key={opt.v} value={opt.v}>{opt.v} · {opt.label}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </td>
+                            <td style={{ ...td, color: "#64748b", fontSize: 11 }}>
+                              {m.joined_at ? new Date(m.joined_at).toLocaleDateString("ko-KR") : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const th: React.CSSProperties = { padding: "10px 8px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#475569", whiteSpace: "nowrap" };
+const td: React.CSSProperties = { padding: "10px 8px", verticalAlign: "middle" };
+const btnGhost: React.CSSProperties = {
+  padding: "8px 14px", background: "#f1f5f9", border: "none",
+  borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
+};

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import MemberCardModal from "@/components/MemberCardModal";
+import { ExportMembersModal, ImportMembersModal } from "@/components/MemberDataTools";
 
 interface Member {
   id: string;
@@ -76,6 +77,8 @@ function AdminMembersPage() {
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Member | null>(null);
   const [cardMemberId, setCardMemberId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -181,8 +184,11 @@ function AdminMembersPage() {
             <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>회원 관리</div>
             <div style={{ fontSize: 11, color: "#94a3b8" }}>명성교회 성도 데이터베이스</div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button onClick={() => setCreating(true)} style={btnPrimary}>+ 회원 추가</button>
+            <button onClick={() => setExporting(true)} style={{ ...btnGhost, background: "#dcfce7", color: "#15803d" }}>📥 회원정보 백업</button>
+            <button onClick={() => setImporting(true)} style={{ ...btnGhost, background: "#dbeafe", color: "#1e40af" }}>📤 일괄업로드</button>
+            <button onClick={() => router.push("/admin/dept-staff")} style={{ ...btnGhost, background: "#fce7f3", color: "#9d174d" }}>🏢 부서원 관리</button>
             <button onClick={() => router.push("/admin/rearrange")} style={{ ...btnGhost, background: "#e0e7ff", color: "#4338ca" }}>🔀 재편성</button>
             <button onClick={() => router.push("/admin/pending")} style={btnWarning}>⏳ 가입 대기자</button>
             <button onClick={() => router.push("/home")} style={btnGhost}>← 홈</button>
@@ -365,6 +371,17 @@ function AdminMembersPage() {
           memberId={cardMemberId}
           onClose={() => setCardMemberId(null)}
           onChanged={() => doSearch(page, query, filterPlain, filterGrassland, filterPasture, showChildren, showParents)}
+        />
+      )}
+
+      {/* Export */}
+      {exporting && <ExportMembersModal onClose={() => setExporting(false)} />}
+
+      {/* Import */}
+      {importing && (
+        <ImportMembersModal
+          onClose={() => setImporting(false)}
+          onApplied={() => doSearch(page, query, filterPlain, filterGrassland, filterPasture, showChildren, showParents)}
         />
       )}
     </div>
