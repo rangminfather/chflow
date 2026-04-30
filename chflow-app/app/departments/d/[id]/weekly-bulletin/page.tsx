@@ -69,6 +69,7 @@ const SUPPORTED_DEPT = "초등1부";
 interface YearlyTheme {
   theme: string;
   scripture_ref: string | null;
+  page_one_verse: string | null;  // 1페이지 표어 (긴 본문) — 1년에 1번 등록 → 매주 자동 채움
   updated_at: string;
 }
 
@@ -501,7 +502,7 @@ export default function WeeklyBulletinPage() {
 
   const [yearlyTheme, setYearlyTheme] = useState<YearlyTheme | null>(null);
   const [themeEditMode, setThemeEditMode] = useState(false);
-  const [themeForm, setThemeForm] = useState({ theme: "", scripture_ref: "" });
+  const [themeForm, setThemeForm] = useState({ theme: "", scripture_ref: "", page_one_verse: "" });
   const [themeSaving, setThemeSaving] = useState(false);
 
   const [draftMeta, setDraftMeta] = useState<DraftMeta | null>(null);
@@ -735,9 +736,13 @@ export default function WeeklyBulletinPage() {
     if (data && data[0]) {
       const t = data[0] as YearlyTheme;
       setYearlyTheme(t);
-      setThemeForm({ theme: t.theme || "", scripture_ref: t.scripture_ref || "" });
-      // 폼의 주제제창이 비어있으면 표어로 자동 채움
-      setForm((f) => f.theme ? f : { ...f, theme: t.theme || "" });
+      setThemeForm({ theme: t.theme || "", scripture_ref: t.scripture_ref || "", page_one_verse: t.page_one_verse || "" });
+      // 폼이 비어있으면 yearly 값 자동 채움 (사용자가 입력했으면 보존)
+      setForm((f) => ({
+        ...f,
+        theme: f.theme || t.theme || "",
+        pageOneVerse: f.pageOneVerse || t.page_one_verse || "",
+      }));
     } else {
       setYearlyTheme(null);
     }
@@ -836,6 +841,7 @@ export default function WeeklyBulletinPage() {
         p_year: year,
         p_theme: themeForm.theme.trim(),
         p_scripture_ref: themeForm.scripture_ref.trim() || null,
+        p_page_one_verse: themeForm.page_one_verse.trim() || null,
       });
       if (error) throw error;
       showToast(`${year}년 표어 저장 완료 ✅`);
@@ -1230,8 +1236,17 @@ export default function WeeklyBulletinPage() {
                 {yearlyTheme.scripture_ref && (
                   <div style={{ fontSize: 12, color: "#64748b" }}>{yearlyTheme.scripture_ref}</div>
                 )}
+                {yearlyTheme.page_one_verse && (
+                  <div style={{
+                    marginTop: 6, padding: "6px 10px",
+                    background: "#eff6ff", borderLeft: "3px solid #3b82f6",
+                    fontSize: 12, lineHeight: 1.6, color: "#1e293b", fontStyle: "italic",
+                  }}>
+                    {yearlyTheme.page_one_verse}
+                  </div>
+                )}
                 <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>
-                  매 주보 작성 시 주제제창 자동 채움
+                  매 주보 작성 시 자동 채움 (주제제창 + 1페이지 표어)
                 </div>
               </div>
             ) : (
@@ -1251,7 +1266,7 @@ export default function WeeklyBulletinPage() {
                   style={inputStyle}
                 />
               </FormRow>
-              <FormRow label="근거 구절 (선택)">
+              <FormRow label="근거 구절 (짧게, 선택)">
                 <input
                   type="text"
                   value={themeForm.scripture_ref}
@@ -1260,8 +1275,18 @@ export default function WeeklyBulletinPage() {
                   style={inputStyle}
                 />
               </FormRow>
+              <FormRow label="1페이지 표어 (긴 본문, 사진 밑 표시)">
+                <textarea
+                  value={themeForm.page_one_verse}
+                  onChange={(e) => setThemeForm((t) => ({ ...t, page_one_verse: e.target.value }))}
+                  placeholder="예: 믿음으로 모든 세계가 하나님의 말씀으로 지어진 줄을 우리가 아나니 보이는 것은 나타난 것으로 말미암아 된 것이 아니니라.(히브리서 11장 3절)"
+                  rows={4}
+                  style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
+                />
+                <div style={hintStyle}>1년에 1번 등록 → 매주 자동 채움 (수정 가능)</div>
+              </FormRow>
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                <button onClick={() => { setThemeEditMode(false); setThemeForm({ theme: yearlyTheme?.theme || "", scripture_ref: yearlyTheme?.scripture_ref || "" }); }} style={cancelBtnStyle}>취소</button>
+                <button onClick={() => { setThemeEditMode(false); setThemeForm({ theme: yearlyTheme?.theme || "", scripture_ref: yearlyTheme?.scripture_ref || "", page_one_verse: yearlyTheme?.page_one_verse || "" }); }} style={cancelBtnStyle}>취소</button>
                 <button onClick={handleSaveYearlyTheme} disabled={themeSaving} style={primaryBtnStyle}>
                   {themeSaving ? "저장 중..." : "저장"}
                 </button>
@@ -1459,19 +1484,19 @@ export default function WeeklyBulletinPage() {
         </div>
         )}
 
-        {/* ⑩ 1페이지 표어 구절 (page 1) — 사진 밑에 표시되는 긴 본문 표어 */}
+        {/* ⑩ 1페이지 표어 — 이번 주만 다른 본문 (yearly 와 다르게 일회성 수정) */}
         {currentPage === 1 && (
           <div style={cardStyle}>
-            <div style={sectionLabel}>⑩ 1페이지 표어 (사진 밑)</div>
+            <div style={sectionLabel}>⑩ 1페이지 표어 (이번 주)</div>
             <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 8, lineHeight: 1.5 }}>
-              hwpx 1페이지 사진 밑에 표시되는 긴 본문 표어. 1년에 1번 정도 바뀜.
-              한 번 입력하면 매주 자동 채워지도록 향후 yearly 시스템과 통합 예정.
+              ② 표어에 등록한 1페이지 본문이 자동 채워짐. 이번 주만 다르게 사용하려면 직접 수정.
+              영구 변경하려면 ② 표어 카드에서 수정.
             </div>
-            <FormRow label="표어 본문 + 출처">
+            <FormRow label="이번 주 표어 본문">
               <textarea
                 value={form.pageOneVerse}
                 onChange={(e) => set("pageOneVerse", e.target.value)}
-                placeholder="예: 믿음으로 모든 세계가 하나님의 말씀으로 지어진 줄을 우리가 아나니 보이는 것은 나타난 것으로 말미암아 된 것이 아니니라.(히브리서 11장 3절)"
+                placeholder={yearlyTheme?.page_one_verse || "② 표어에 1페이지 표어 등록 시 자동 채움"}
                 rows={4}
                 style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
               />
