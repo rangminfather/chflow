@@ -2262,28 +2262,17 @@ function PreviewPage1({ form, photos, deptName }: {
 
   return (
     <div style={{ padding: "4px 6px" }}>
-      {/* ── 상단: "알 립 니 다 !" + 호수 ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-        <div style={{
-          fontSize: 18, fontWeight: 900, color: "#dc2626",
-          letterSpacing: 2, fontStyle: "italic",
-          textShadow: "1px 1px 0 rgba(0,0,0,0.1)",
-        }}>
-          알 립 니 다 !
+      {/* ── 상단: 부서명 + 호수 ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 4 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: "#7c3aed", letterSpacing: 1 }}>
+          {deptName} 주보
         </div>
-        <div style={{ fontSize: 9, color: "#475569", paddingTop: 4, fontWeight: 700 }}>{issueNum}</div>
+        <div style={{ fontSize: 9, color: "#475569", fontWeight: 700 }}>{issueNum}</div>
       </div>
 
       {/* ── 환영 문구 ── */}
-      <div style={{ textAlign: "center", fontSize: 9, color: "#9333ea", fontWeight: 700, margin: "4px 0 6px" }}>
+      <div style={{ textAlign: "center", fontSize: 10, color: "#dc2626", fontWeight: 700, margin: "8px 0 10px", letterSpacing: 1 }}>
         ♥ 멋진 {deptName.replace("부", "")} 모든 친구들 환영합니다 ♥
-      </div>
-
-      {/* ── 안내 사항 ── */}
-      <div style={{ fontSize: 7, color: "#1e293b", lineHeight: 1.6, padding: "4px 6px", background: "#fef9c3", borderRadius: 4, marginBottom: 6 }}>
-        <div>♥ 예배시간을 잘 지킵시다.</div>
-        <div>♥ 교사회의는 10시 20분에 합니다. 모든 선생님들 참석해주세요.</div>
-        <div>♥ 매달 마지막 주일 2부 시간에 공과 요절암송 및 퀴즈로 복습합니다.</div>
       </div>
 
       {/* ── 사진 영역 (2x2) ── */}
@@ -2445,6 +2434,23 @@ function PreviewPage3({ form, quizzes }: { form: FormState; quizzes: QuizItem[] 
   const choiceMarkers = ["①", "②", "③", "④", "⑤"];
   return (
     <div style={{ padding: "4px 6px" }}>
+      {/* ── 상단: "알 립 니 다 !" 빨간 큰 글씨 ── */}
+      <div style={{
+        textAlign: "center", marginBottom: 6,
+        fontSize: 18, fontWeight: 900, color: "#dc2626",
+        letterSpacing: 4, fontStyle: "italic",
+        textShadow: "1px 1px 0 rgba(0,0,0,0.1)",
+      }}>
+        알 립 니 다 !
+      </div>
+
+      {/* ── 안내 사항 (예배시간 / 교사회의 / 2부 복습) ── */}
+      <div style={{ fontSize: 7.5, color: "#1e293b", lineHeight: 1.7, padding: "6px 8px", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 4, marginBottom: 8 }}>
+        <div>♥ 예배시간을 잘 지킵시다.</div>
+        <div>♥ 교사회의는 10시 20분에 합니다. 모든 선생님들 참석해주세요.</div>
+        <div>♥ 매달 마지막 주일 2부 시간에 공과 요절암송 및 퀴즈로 복습합니다.</div>
+      </div>
+
       {/* hwpx 의 "♣ N과 공과 퀴즈 ♣" 헤더 */}
       <div style={{ textAlign: "center", marginBottom: 8 }}>
         <span style={{ fontSize: 13, color: "#dc2626", fontWeight: 900 }}>♣</span>
