@@ -2365,80 +2365,115 @@ function PreviewPage1({ form, photos, deptName }: {
 }
 
 function PreviewPage2({ form }: { form: FormState }) {
-  // hwpx 의 예배 순서 형식 그대로 — 항목 / 멘트 / 담당 3컬럼
+  // hwpx 양식 그대로: 항목(우측정렬) ─── 멘트 ─── 담당(좌측정렬)
+  // 멘트가 없으면 ─── 로 가득 채움
   const orderItems: Array<{ label: string; mid: string; right: string }> = [
-    { label: "✿안내", mid: "", right: form.guide ? `${form.guide} 선생님` : "—" },
-    { label: "찬양", mid: "", right: form.praise1 || form.praise2 ? `${form.praise1} ${form.praise2} 선생님` : "—" },
-    { label: "예배인도", mid: "", right: form.leader ? `${form.leader}선생님` : "—" },
-    { label: "십계명", mid: "", right: "다 같 이" },
-    { label: "신앙고백", mid: "", right: "다 같 이" },
-    { label: "주제제창", mid: form.theme || "(주제 미입력)", right: "다 같 이" },
-    { label: "찬양/헌금", mid: "고백하며 드립니다", right: "다 같 이" },
-  ];
-  const sermonItems: Array<{ label: string; mid: string; right: string }> = [
-    { label: "성경봉독", mid: form.scripture || "(미입력)", right: form.prayerClass || "인도자" },
-    { label: "말씀", mid: form.sermonTitle || "(설교제목 미입력)", right: form.preacher ? `${form.preacher}님` : "—" },
-    { label: "주기도문", mid: "", right: "다 같 이" },
+    { label: "찬양",       mid: "",                                       right: form.praise1 || form.praise2 ? `${form.praise1} ${form.praise2} 선생님` : "" },
+    { label: "예배인도",   mid: "",                                       right: form.leader ? `${form.leader}선생님` : "" },
+    { label: "십계명",     mid: "",                                       right: "다 같 이" },
+    { label: "신앙고백",   mid: "",                                       right: "다 같 이" },
+    { label: "주제제창",   mid: form.theme || "",                         right: "다 같 이" },
+    { label: "찬양/헌금",  mid: "고백하며 드립니다",                       right: "다 같 이" },
+    { label: "기 도",      mid: "",                                       right: form.prayerClass || "" },
+    { label: "성경봉독",   mid: form.scripture || "",                     right: "인도자" },
+    { label: "강 론",      mid: form.sermonTitle || "",                   right: form.preacher ? `${form.preacher}님` : "" },
+    { label: "주기도문",   mid: "",                                       right: "다 같 이" },
+    { label: "광 고",      mid: "",                                       right: form.announcementAuthor ? `${form.announcementAuthor} 선생님` : "" },
   ];
 
   const renderRow = (item: { label: string; mid: string; right: string }, i: number) => (
-    <tr key={i} style={{ borderBottom: "1px dotted #e2e8f0" }}>
-      <td style={{ padding: "2px 4px", color: "#9333ea", fontWeight: 700, width: 60, fontSize: 7.5 }}>{item.label}</td>
-      <td style={{ padding: "2px 4px", fontSize: 7.5, color: "#1e293b", textAlign: "center" }}>{item.mid}</td>
-      <td style={{ padding: "2px 4px", fontSize: 7.5, color: "#475569", width: 80, textAlign: "right" }}>{item.right}</td>
-    </tr>
+    <div key={i} style={{
+      display: "flex", alignItems: "center", gap: 4,
+      padding: "3px 0", fontSize: 7.5,
+    }}>
+      <div style={{ width: 50, textAlign: "right", color: "#1e293b", fontWeight: 600, flexShrink: 0 }}>
+        {item.label}
+      </div>
+      <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 3, minWidth: 0 }}>
+        <div style={{ flex: 1, height: 1, background: "#475569" }} />
+        {item.mid && (
+          <div style={{ padding: "0 4px", fontSize: 7, color: "#9333ea", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {item.mid}
+          </div>
+        )}
+        <div style={{ flex: 1, height: 1, background: "#475569" }} />
+      </div>
+      <div style={{ width: 90, textAlign: "left", color: "#1e293b", fontSize: 7.5, flexShrink: 0 }}>
+        {item.right}
+      </div>
+    </div>
   );
 
   return (
     <div style={{ padding: "4px 6px" }}>
-      {/* 헤더 — 시작 시간 */}
-      <div style={{ textAlign: "center", marginBottom: 6 }}>
-        <div style={{ fontSize: 11, fontWeight: 800, color: "#1e293b", letterSpacing: 1 }}>순  서</div>
-        <div style={{ fontSize: 9, color: "#9333ea", fontWeight: 700, marginTop: 2 }}>오전 {form.startTime}</div>
+      {/* 상단 일러스트 + "주일예배 순서" 큰 글씨 */}
+      <div style={{ textAlign: "center", marginBottom: 8 }}>
+        <span style={{ fontSize: 12 }}>👧🏻</span>
+        <span style={{
+          fontSize: 16, fontWeight: 800, color: "#1e293b",
+          margin: "0 8px", letterSpacing: 2,
+          textShadow: "1px 1px 0 rgba(124,58,237,0.2)",
+        }}>
+          주일예배 순서
+        </span>
+        <span style={{ fontSize: 12 }}>👦🏻👦🏻</span>
       </div>
 
-      {/* 예배 순서 표 (1부) */}
-      <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #c4b5fd", borderRadius: 4 }}>
-        <tbody>
-          {orderItems.map(renderRow)}
-        </tbody>
-      </table>
+      {/* ✿1부 예배 + ✿안내 (같은 줄, 양쪽 끝) */}
+      <div style={{
+        display: "flex", justifyContent: "space-between",
+        fontSize: 8, fontWeight: 700, color: "#1e40af",
+        margin: "0 0 6px",
+      }}>
+        <span>✿1부 예배 : 오전 {form.startTime}</span>
+        <span>✿안내 : {form.guide || ""} 선생님</span>
+      </div>
 
-      {/* 구분선 */}
-      <div style={{ height: 4 }} />
+      {/* 예배 순서 표 (11줄) */}
+      <div>
+        {orderItems.map(renderRow)}
+      </div>
 
-      {/* 성경봉독 / 말씀 / 주기도문 */}
-      <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #c4b5fd", borderRadius: 4 }}>
-        <tbody>
-          {sermonItems.map(renderRow)}
-        </tbody>
-      </table>
+      {/* ✿2부 행사 + ✿다음 주 기도 */}
+      <div style={{ marginTop: 8 }}>
+        {form.twoPartActivity && (
+          <div style={{ fontSize: 7.5, color: "#1e40af", fontWeight: 700 }}>
+            ✿2부 행사 : {form.twoPartActivity}
+          </div>
+        )}
+        {form.nextPrayer && (
+          <div style={{ fontSize: 7.5, color: "#1e40af", fontWeight: 700, marginTop: 2 }}>
+            ✿다음 주 기도 : {form.nextPrayer}
+          </div>
+        )}
+      </div>
 
-      {/* 다음 주 기도 */}
-      {form.nextPrayer && (
-        <div style={{ marginTop: 6, fontSize: 7.5, color: "#1e293b", padding: "3px 6px", borderLeft: "2px solid #c084fc" }}>
-          ✿다음 주 기도 : {form.nextPrayer}
+      {/* 헌금 (분홍 둥근 박스 — hwpx 양식과 동일) */}
+      <div style={{ marginTop: 12, display: "flex", alignItems: "flex-start", gap: 8 }}>
+        <div style={{
+          padding: "8px 14px",
+          background: "#fce7f3",
+          border: "2px solid #f9a8d4",
+          borderRadius: "50%",
+          fontSize: 10,
+          fontWeight: 800,
+          color: "#be185d",
+          flexShrink: 0,
+          minWidth: 36,
+          textAlign: "center",
+        }}>
+          헌금
         </div>
-      )}
-
-      {/* 헌금 */}
-      <div style={{ marginTop: 8, padding: "6px 8px", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 4 }}>
-        <div style={{ fontSize: 8, color: "#a16207", fontWeight: 700, marginBottom: 3, textAlign: "center" }}>♥ 헌 금 ♥</div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 7.5 }}>
-          <span>십일조 : <b>{form.tithe || ""}</b></span>
-          <span>감사헌금 : <b>{form.thanksgiving || ""}</b></span>
+        <div style={{ flex: 1, fontSize: 7.5, paddingTop: 4 }}>
+          <div>십일조 : <b style={{ color: "#1e293b" }}>{form.tithe || ""}</b></div>
+          <div style={{ marginTop: 4 }}>감사헌금 : <b style={{ color: "#1e293b" }}>{form.thanksgiving || ""}</b></div>
         </div>
       </div>
 
-      {/* 광고 / 2부행사 */}
-      {(form.twoPartActivity || form.announcement || form.announcementAuthor) && (
-        <div style={{ marginTop: 6, padding: "6px 8px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 4 }}>
-          <div style={{ fontSize: 8, color: "#15803d", fontWeight: 700, marginBottom: 3, textAlign: "center" }}>♠ 광고 / 2부행사 ♠</div>
-          {form.twoPartActivity && <div style={{ fontSize: 7.5 }}>✿2부행사 : {form.twoPartActivity}</div>}
-          {form.announcementAuthor && <div style={{ fontSize: 7.5, color: "#475569" }}>담당 : {form.announcementAuthor}선생님</div>}
-          {form.announcement && (
-            <div style={{ fontSize: 7, marginTop: 3, whiteSpace: "pre-line", color: "#1e293b", lineHeight: 1.5 }}>{form.announcement}</div>
-          )}
+      {/* 광고 본문 (있으면) */}
+      {form.announcement && (
+        <div style={{ marginTop: 8, padding: 4, fontSize: 7, color: "#475569", lineHeight: 1.5, whiteSpace: "pre-line", borderLeft: "2px solid #cbd5e1", paddingLeft: 6 }}>
+          {form.announcement}
         </div>
       )}
     </div>
