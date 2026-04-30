@@ -285,10 +285,15 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     return { ok: false, error: "로그인 실패: PHPSESSID 쿠키 없음", debug };
   }
 
-  // 회원 인증 마크 cookie 추가 — JS 가 자체 set 하는 거라 server-side 로그인엔 안 옴.
-  // 이게 없으면 외국 IP 에서 스팸차단 발동. 사용자 PC F12 비교로 발견.
+  // 사용자 PC F12 와 비교해서 발견한 인증/면제 cookie 들.
+  // 핵심: ip_country=KR — UMS GeoIP cookie. 외국 IP 라도 KR 이면 스팸차단 면제.
+  // 사용자는 평소 한국 IP 로 접속해서 이게 영구 저장됨 → 외국 VPN 켜도 KR 유지.
+  // 우리 server-side fetch 는 매번 빈 cookie store 라 이게 없음 → 외국 IP 로 인식됨.
   jar.ingest([
     `login_1st=${makeLogin1stCookie()}`,
+    `ip_country=KR`,
+    `list_type_samusil=0`,
+    `list_num_samusil=20`,
     `recent_cate_samusil=${encodeURIComponent('{"key2":"부서주보"}')}`,
   ]);
 
