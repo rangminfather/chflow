@@ -1344,8 +1344,8 @@ export default function WeeklyBulletinPage() {
 
         )}
 
-        {/* ⑥ 광고 / 2부행사 (page 1) */}
-        {currentPage === 1 && (
+        {/* ⑥ 광고 / 2부행사 (page 2 — 예배순서와 함께) */}
+        {currentPage === 2 && (
         <div style={cardStyle}>
           <div style={sectionLabel}>⑥ 광고 / 2부행사</div>
           <FormRow label="2부 행사 안내 (✿2부행사)">
@@ -1372,8 +1372,8 @@ export default function WeeklyBulletinPage() {
 
         )}
 
-        {/* ⑦ 새 친구 (page 1) */}
-        {currentPage === 1 && (
+        {/* ⑦ 새 친구 (page 4 — 목장현황과 함께) */}
+        {currentPage === 4 && (
         <div style={cardStyle}>
           <div style={sectionLabel}>⑦ 새 친구</div>
           <FormRow label="이름">
@@ -1406,6 +1406,26 @@ export default function WeeklyBulletinPage() {
             ))}
           </div>
         </div>
+        )}
+
+        {/* ⑩ 1페이지 표어 구절 (page 1) — 사진 밑에 표시되는 긴 본문 표어 */}
+        {currentPage === 1 && (
+          <div style={cardStyle}>
+            <div style={sectionLabel}>⑩ 1페이지 표어 (사진 밑)</div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 8, lineHeight: 1.5 }}>
+              hwpx 1페이지 사진 밑에 표시되는 긴 본문 표어. 1년에 1번 정도 바뀜.
+              한 번 입력하면 매주 자동 채워지도록 향후 yearly 시스템과 통합 예정.
+            </div>
+            <FormRow label="표어 본문 + 출처">
+              <textarea
+                value={form.pageOneVerse}
+                onChange={(e) => set("pageOneVerse", e.target.value)}
+                placeholder="예: 믿음으로 모든 세계가 하나님의 말씀으로 지어진 줄을 우리가 아나니 보이는 것은 나타난 것으로 말미암아 된 것이 아니니라.(히브리서 11장 3절)"
+                rows={4}
+                style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
+              />
+            </FormRow>
+          </div>
         )}
 
         {/* ⑨ 목장 현황 (page 4) */}
@@ -1475,22 +1495,15 @@ export default function WeeklyBulletinPage() {
             </div>
 
             <div style={cardStyle}>
-              <div style={sectionLabel}>새 친구 / 등반</div>
-              <FormRow label="새 친구">
-                <input
-                  type="text" value={farmData.newFriendName}
-                  onChange={(e) => setFarmData((d) => ({ ...d, newFriendName: e.target.value }))}
-                  placeholder="예: 차난(1학년)-자진"
-                  style={inputStyle}
-                />
-              </FormRow>
-              <FormRow label="등반 정보">
+              <div style={sectionLabel}>등반 정보</div>
+              <FormRow label="등반">
                 <input
                   type="text" value={farmData.promotion}
                   onChange={(e) => setFarmData((d) => ({ ...d, promotion: e.target.value }))}
                   placeholder="예: 1-1반 → 1-2반 (이름)"
                   style={inputStyle}
                 />
+                <div style={hintStyle}>새 친구는 ⑦ 새 친구 카드에서 입력</div>
               </FormRow>
             </div>
 
