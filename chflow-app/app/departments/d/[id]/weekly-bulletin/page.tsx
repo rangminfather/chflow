@@ -889,6 +889,33 @@ export default function WeeklyBulletinPage() {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!form.date) {
+      showToast("날짜를 선택해주세요");
+      return;
+    }
+    setGenerating(true);
+    try {
+      const { generateBulletinPdfBrowser, formToBulletinData } = await import("@/lib/bulletin/pdf-browser");
+      const data = formToBulletinData(form as unknown as Record<string, string>, deptName);
+      const pdfBytes = await generateBulletinPdfBrowser(data, photos);
+      const blob = new Blob([new Uint8Array(pdfBytes)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `초등1초원주보_${form.date}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast("PDF 다운로드 완료 ✅");
+    } catch (e: unknown) {
+      showToast("PDF 생성 실패: " + (e as Error).message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
 
   const isSupported = deptName === SUPPORTED_DEPT;
@@ -1194,6 +1221,7 @@ export default function WeeklyBulletinPage() {
             onAutoPost={handleAutoPost}
             onSaveDraft={handleSaveDraft}
             onDownloadHwpx={handleDownloadHwpx}
+            onDownloadPdf={handleDownloadPdf}
             onSetPdfFile={setPdfFile}
             onOpenCredsModal={() => {
               setCredsForm({
@@ -1224,6 +1252,7 @@ export default function WeeklyBulletinPage() {
               onAutoPost={handleAutoPost}
               onSaveDraft={handleSaveDraft}
               onDownloadHwpx={handleDownloadHwpx}
+              onDownloadPdf={handleDownloadPdf}
               onSetPdfFile={setPdfFile}
               onOpenCredsModal={() => {
                 setCredsForm({
@@ -1414,7 +1443,7 @@ export default function WeeklyBulletinPage() {
 // ─────────────────────────────────────────────────────────────────
 function ActionCard({
   cooldown, autoPosting, savingDraft, generating, credsMeta, pdfFile,
-  onAutoPost, onSaveDraft, onDownloadHwpx, onSetPdfFile,
+  onAutoPost, onSaveDraft, onDownloadHwpx, onDownloadPdf, onSetPdfFile,
   onOpenCredsModal, onDeleteCreds, compact,
 }: {
   cooldown: { remaining_seconds: number; can_post: boolean; last_post_no: number | null; last_posted_at: string | null } | null;
@@ -1426,6 +1455,7 @@ function ActionCard({
   onAutoPost: () => void;
   onSaveDraft: () => void;
   onDownloadHwpx: () => void;
+  onDownloadPdf: () => void;
   onSetPdfFile: (f: File | null) => void;
   onOpenCredsModal: () => void;
   onDeleteCreds: () => void;
@@ -1546,6 +1576,13 @@ function ActionCard({
           cursor: "pointer", fontFamily: "inherit",
         }}>
           {generating ? "생성 중..." : "📥 hwpx"}
+        </button>
+        <button onClick={onDownloadPdf} disabled={generating} style={{
+          flex: 1, padding: "8px 10px", background: "#f1f5f9", color: "#475569",
+          border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 11, fontWeight: 700,
+          cursor: "pointer", fontFamily: "inherit",
+        }}>
+          {generating ? "생성 중..." : "📥 PDF"}
         </button>
       </div>
 
