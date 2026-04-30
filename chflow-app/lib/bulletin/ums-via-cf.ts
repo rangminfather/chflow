@@ -279,11 +279,14 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
       });
 
   if (skipLogin) {
-    // 환경변수 cookie 통째로 jar 에 박음
-    const cookies = (debugCookie as string).split(/;\s*/).filter(Boolean);
+    // 환경변수 cookie 통째로 jar 에 박음 — 줄바꿈/탭/공백 정리 (Vercel UI 자동 줄바꿈 대비)
+    const cleaned = (debugCookie as string).replace(/[\r\n\t]+/g, " ").trim();
+    const cookies = cleaned.split(/;\s*/).filter(Boolean);
     jar.ingest(cookies);
     pushDebug("login_skipped", Buffer.from("UMS_TEST_COOKIE used"), 200, [], {
       cookies_loaded: String(cookies.length),
+      raw_len: String((debugCookie as string).length),
+      cleaned_len: String(cleaned.length),
     });
   } else {
     jar.ingest(loginRes.setCookies);
