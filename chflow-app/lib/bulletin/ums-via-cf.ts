@@ -217,6 +217,24 @@ function extractSpamDebug(html: string): SpamDebug {
   return { hint, hiddens, jsCandidates, comments, fullContext };
 }
 
+// UMS 회원 인증 마크 cookie — JS 가 클라이언트 측에서 set.
+// 형식: YYYY-MM-DD+요일3자+AM/PM+HH.MM.SS (KST 기준)
+// 이게 있어야 UMS 가 "정상 회원 로그인" 으로 인식 → 외국 IP 라도 스팸차단 면제.
+function makeLogin1stCookie(): string {
+  const now = new Date(Date.now() + 9 * 60 * 60 * 1000); // UTC → KST
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const day = dayNames[now.getUTCDay()];
+  const hour24 = now.getUTCHours();
+  const ampm = hour24 < 12 ? "AM" : "PM";
+  const yyyy = now.getUTCFullYear();
+  const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(now.getUTCDate()).padStart(2, "0");
+  const hh = String(hour24 % 12 || 12).padStart(2, "0");
+  const mi = String(now.getUTCMinutes()).padStart(2, "0");
+  const ss = String(now.getUTCSeconds()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}+${day}+${ampm}+${hh}.${mi}.${ss}`;
+}
+
 export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostResult> {
   const jar = new CookieJar();
   const debug: DebugStep[] = [];
@@ -266,6 +284,13 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   if (!jar.get("PHPSESSID")) {
     return { ok: false, error: "로그인 실패: PHPSESSID 쿠키 없음", debug };
   }
+
+  // 회원 인증 마크 cookie 추가 — JS 가 자체 set 하는 거라 server-side 로그인엔 안 옴.
+  // 이게 없으면 외국 IP 에서 스팸차단 발동. 사용자 PC F12 비교로 발견.
+  jar.ingest([
+    `login_1st=${makeLogin1stCookie()}`,
+    `recent_cate_samusil=${encodeURIComponent('{"key2":"부서주보"}')}`,
+  ]);
 
   // ── 1.5. 사람처럼 게시판 리스트 한 번 방문 (UMS 봇 감지 회피) ──
   const boardRes = await umsViaCf("/bbs/zboard.php?id=samusil&page=1", {
