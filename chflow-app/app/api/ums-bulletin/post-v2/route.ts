@@ -119,14 +119,24 @@ export async function POST(req: NextRequest) {
   const filename = body.pdf_filename || `${body.dept_name}_${body.date}.pdf`;
 
   // 4단계 실행 (Cloudflare Worker proxy 거침)
-  const result = await umsAutoPost({
-    ums_user_id: umsUserId,
-    ums_password: umsPassword,
-    subject: body.subject,
-    memo: body.memo,
-    pdf_bytes: pdfBytes,
-    pdf_filename: filename,
-  });
+  let result: Awaited<ReturnType<typeof umsAutoPost>>;
+  try {
+    result = await umsAutoPost({
+      ums_user_id: umsUserId,
+      ums_password: umsPassword,
+      subject: body.subject,
+      memo: body.memo,
+      pdf_bytes: pdfBytes,
+      pdf_filename: filename,
+    });
+  } catch (e: unknown) {
+    const err = e as Error;
+    return NextResponse.json({
+      ok: false,
+      error: `자동등록 함수 throw: ${err.message}`,
+      stack: err.stack?.split("\n").slice(0, 8).join("\n"),
+    }, { status: 500 });
+  }
 
   // 로그 기록
   if (!result.ok) {
