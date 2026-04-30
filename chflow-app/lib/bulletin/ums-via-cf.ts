@@ -305,14 +305,31 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   }
   jar.ingest(extraCookies);
 
-  // ── 1.5. 사람처럼 게시판 리스트 한 번 방문 (UMS 봇 감지 회피) ──
-  const boardRes = await umsViaCf("/bbs/zboard.php?id=samusil&page=1", {
+  // ── 1.4. UMS 메인 페이지 방문 (bookletSessionID 등 cookie 받기) ──
+  const mainRes = await umsViaCf("/", {
     method: "GET",
     cookie: jar.toHeader(),
     referer: "http://www.ums.or.kr/bbs/login_check.php",
   });
+  jar.ingest(mainRes.setCookies);
+  pushDebug("visit_main", mainRes.body, mainRes.status, mainRes.setCookies, {
+    main_body_len: mainRes.body.length,
+  });
+
+  // ── 1.5. 사람처럼 게시판 리스트 한 번 방문 (UMS 봇 감지 회피) ──
+  const boardRes = await umsViaCf("/bbs/zboard.php?id=samusil&page=1", {
+    method: "GET",
+    cookie: jar.toHeader(),
+    referer: "http://www.ums.or.kr/",
+  });
   jar.ingest(boardRes.setCookies);
-  pushDebug("visit_board", boardRes.body, boardRes.status, boardRes.setCookies);
+  // 회원 인식 여부 — board 응답에 "로그아웃" 링크 있으면 회원, "로그인" 만 있으면 비회원
+  const boardHtmlSample = iconv.decode(boardRes.body, "cp949");
+  const hasLogoutLink = /로그아웃/.test(boardHtmlSample);
+  const hasLoginLink = /\/bbs\/login\.php/.test(boardHtmlSample);
+  pushDebug("visit_board", boardRes.body, boardRes.status, boardRes.setCookies, {
+    member_recognized: hasLogoutLink ? "yes (로그아웃 링크 있음)" : (hasLoginLink ? "no (로그인 링크만)" : "unknown"),
+  });
 
   // 1.5초 대기 (사람 패턴)
   await new Promise((r) => setTimeout(r, 1500));
@@ -352,9 +369,9 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
         `[form psm_form: ${hasForm}, form 임의: ${hasFormAny}, ` +
         `pl_date 문자열: ${hasPlDateString}, memo input: ${hasMemo}, ` +
         `alert위치: ${alertIdx}/${wfHtml.length}, alert: "${alertMsg}"] ` +
-        `[login 응답 ${loginRes.body.length}자, login set-cookies: ${loginRes.setCookies.join("|")}] ` +
-        `[visit_board 응답 ${boardRes.body.length}자, board set-cookies: ${boardRes.setCookies.join("|")}] ` +
-        `[write_form set-cookies: ${wfRes.setCookies.join("|")}] ` +
+        `[login 응답 ${loginRes.body.length}자, body="${loginHtml.slice(0, 200)}", set-cookies: ${loginRes.setCookies.join("|")}] ` +
+        `[visit_main 응답 ${mainRes.body.length}자, set-cookies: ${mainRes.setCookies.join("|")}] ` +
+        `[visit_board 응답 ${boardRes.body.length}자, 회원인식: ${hasLogoutLink ? "yes" : (hasLoginLink ? "no" : "?")}, set-cookies: ${boardRes.setCookies.join("|")}] ` +
         `[현재 jar: ${jar.toHeader()}] ` +
         `tail="${tail}"`,
       debug,
