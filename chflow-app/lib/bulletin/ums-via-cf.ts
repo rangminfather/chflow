@@ -160,6 +160,63 @@ interface DebugStep {
   extra?: Record<string, string | number | undefined>;
 }
 
+// 스팸차단 정답 단서 추출 — write.php 응답에서
+interface SpamDebug {
+  hint: string;
+  hiddens: Record<string, string>;
+  jsCandidates: string[];
+  comments: string[];
+  fullContext: string;
+}
+
+function extractSpamDebug(html: string): SpamDebug {
+  // 1. w_key_spam 주변 2000자 (날 텍스트)
+  const idx = html.indexOf("w_key_spam");
+  let hint = "(not found)";
+  let fullContext = "(not found)";
+  if (idx > 0) {
+    const start = Math.max(0, idx - 1500);
+    const end = Math.min(html.length, idx + 500);
+    fullContext = html.slice(start, end);
+    hint = fullContext.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  // 2. 모든 hidden input — 정답이 hidden 으로 박혀있을 가능성
+  const hiddens: Record<string, string> = {};
+  const hiddenRe = /<input[^>]*type=["']hidden["'][^>]*>/gi;
+  const hiddenMatches = html.match(hiddenRe) || [];
+  for (const h of hiddenMatches) {
+    const nameM = h.match(/name=["']([^"']+)["']/);
+    const valM = h.match(/value=["']([^"']*)["']/);
+    if (nameM && valM) hiddens[nameM[1]] = valM[1].slice(0, 100);
+  }
+
+  // 3. JS 변수 안에 spam/key/answer/check 관련 (옛 zeroboard 가끔 클라이언트 검증)
+  const jsCandidates: string[] = [];
+  const jsRe = /(?:var|let|const)\s+(\w*(?:[Ss]pam|[Kk]ey|[Aa]nswer)\w*)\s*=\s*["']([^"']+)["']/g;
+  let m: RegExpExecArray | null;
+  while ((m = jsRe.exec(html)) !== null) {
+    jsCandidates.push(`${m[1]}="${m[2]}"`);
+  }
+
+  // 4. HTML 주석 — admin 메모 / 정답 힌트
+  const comments: string[] = [];
+  const cmtRe = /<!--([\s\S]*?)-->/g;
+  while ((m = cmtRe.exec(html)) !== null) {
+    const c = m[1].trim();
+    if (c && c.length < 300 && !/^\s*\/\//.test(c)) {
+      // spam/key/answer 키워드 있는 주석 우선
+      if (/spam|key|answer|차단|로봇/i.test(c)) {
+        comments.unshift(c.slice(0, 200));
+      } else if (comments.length < 10) {
+        comments.push(c.slice(0, 200));
+      }
+    }
+  }
+
+  return { hint, hiddens, jsCandidates, comments, fullContext };
+}
+
 export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostResult> {
   const jar = new CookieJar();
   const debug: DebugStep[] = [];
@@ -259,18 +316,12 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   const plDate = dateM[1];
   const plUser = userM[1];
 
-  // 스팸차단 안내문구 추출 (w_key_spam input 주변 text)
-  const spamIdx = wfHtml.indexOf("w_key_spam");
-  let spamHint = "(not found)";
-  if (spamIdx > 0) {
-    const start = Math.max(0, spamIdx - 400);
-    const end = Math.min(wfHtml.length, spamIdx + 400);
-    spamHint = wfHtml.slice(start, end).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 600);
-  }
+  // 스팸차단 단서 추출: 안내문구 + hidden input + JS 변수 + 주석
+  const spamDebug = extractSpamDebug(wfHtml);
   pushDebug("write_form", wfRes.body, wfRes.status, wfRes.setCookies, {
     pl_date: plDate,
     pl_user: plUser,
-    spam_hint: spamHint,
+    spam_hint: spamDebug.hint,
   });
 
   // ── 3. PDF 업로드 ──
@@ -342,8 +393,22 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   const woAlert = woHtml.match(/alertElmBody[^>]*>([\s\S]+?)<\/div>/);
   if (woAlert && !woHtml.includes('http-equiv="refresh"')) {
     const msg = woAlert[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-    // 스팸차단 거부 시 폼 안내문구도 같이 보여줌 → 사용자가 정답 추론
-    const extra = msg.includes("스팸") ? ` (보낸답:"${spamAnswer}", 폼안내: ${spamHint})` : "";
+    // 스팸차단 거부 시 폼 응답 분석 단서 모두 노출
+    let extra = "";
+    if (msg.includes("스팸")) {
+      const hiddenSummary = Object.entries(spamDebug.hiddens)
+        .filter(([k]) => /spam|key|answer|check|w_/i.test(k))
+        .map(([k, v]) => `${k}="${v}"`)
+        .join(", ");
+      const jsSummary = spamDebug.jsCandidates.slice(0, 5).join(" | ");
+      const cmtSummary = spamDebug.comments.slice(0, 3).map((c) => `[${c}]`).join(" ");
+      extra =
+        `\n[보낸답] "${spamAnswer}"` +
+        `\n[폼안내] ${spamDebug.hint.slice(0, 800)}` +
+        (hiddenSummary ? `\n[hidden] ${hiddenSummary}` : "") +
+        (jsSummary ? `\n[JS] ${jsSummary}` : "") +
+        (cmtSummary ? `\n[주석] ${cmtSummary}` : "");
+    }
     return { ok: false, error: `등록 실패: ${msg}${extra}`, pl_date: plDate, debug };
   }
 
