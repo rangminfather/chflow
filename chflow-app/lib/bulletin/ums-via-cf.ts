@@ -339,6 +339,10 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
         `[form psm_form: ${hasForm}, form 임의: ${hasFormAny}, ` +
         `pl_date 문자열: ${hasPlDateString}, memo input: ${hasMemo}, ` +
         `alert위치: ${alertIdx}/${wfHtml.length}, alert: "${alertMsg}"] ` +
+        `[login 응답 ${loginRes.body.length}자, login set-cookies: ${loginRes.setCookies.join("|")}] ` +
+        `[visit_board 응답 ${boardRes.body.length}자, board set-cookies: ${boardRes.setCookies.join("|")}] ` +
+        `[write_form set-cookies: ${wfRes.setCookies.join("|")}] ` +
+        `[현재 jar: ${jar.toHeader()}] ` +
         `tail="${tail}"`,
       debug,
     };
