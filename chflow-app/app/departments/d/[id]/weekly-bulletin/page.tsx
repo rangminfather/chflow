@@ -426,6 +426,8 @@ export default function WeeklyBulletinPage() {
   const [autoPosting, setAutoPosting] = useState(false);
   type PostStep = "pdf" | "login" | "upload" | "submit" | "done" | "error";
   const [postStep, setPostStep] = useState<PostStep | null>(null);
+  // 폼 페이지 — hwpx 의 1/2/3/4 페이지 구조 그대로
+  const [currentPage, setCurrentPage] = useState<1 | 2 | 3 | 4>(1);
   const [autoPostResult, setAutoPostResult] = useState<
     | { ok: true; postNo: number; redirectUrl: string }
     | { ok: false; error: string }
@@ -969,7 +971,43 @@ export default function WeeklyBulletinPage() {
           </div>
         )}
 
-        {/* ① 기본 정보 */}
+        {/* ─── 페이지 선택 탭 (hwpx 1/2/3/4 페이지 구조) ─── */}
+        <div style={{
+          display: "flex", gap: 4, padding: 4,
+          background: "#f1f5f9", borderRadius: 10, marginBottom: 12,
+          overflowX: "auto",
+        }}>
+          {[
+            { n: 1 as const, label: "표지" },
+            { n: 2 as const, label: "예배 순서" },
+            { n: 3 as const, label: "공과" },
+            { n: 4 as const, label: "목장 현황" },
+          ].map((p) => (
+            <button
+              key={p.n}
+              onClick={() => setCurrentPage(p.n)}
+              style={{
+                flex: 1, minWidth: 80,
+                padding: "10px 8px",
+                background: currentPage === p.n ? "#fff" : "transparent",
+                color: currentPage === p.n ? "#1e293b" : "#64748b",
+                border: "none", borderRadius: 8,
+                fontSize: 12, fontWeight: currentPage === p.n ? 800 : 600,
+                cursor: "pointer", fontFamily: "inherit",
+                boxShadow: currentPage === p.n ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <div style={{ fontSize: 10, color: currentPage === p.n ? "#3b82f6" : "#94a3b8" }}>
+                {p.n}페이지
+              </div>
+              <div>{p.label}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* ① 기본 정보 (page 1) */}
+        {currentPage === 1 && (
         <div style={cardStyle}>
           <div style={sectionLabel}>① 기본 정보</div>
           <FormRow label="발행 일자 (주일)">
@@ -995,7 +1033,10 @@ export default function WeeklyBulletinPage() {
           </FormRow>
         </div>
 
-        {/* ② 올해 표어 */}
+        )}
+
+        {/* ② 올해 표어 (page 1) */}
+        {currentPage === 1 && (
         <div style={cardStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ ...sectionLabel, marginBottom: 0 }}>② {currentYear}년 표어 (주제제창)</div>
@@ -1052,7 +1093,10 @@ export default function WeeklyBulletinPage() {
           )}
         </div>
 
-        {/* ③ 1부 예배 */}
+        )}
+
+        {/* ③ 1부 예배 (page 2) */}
+        {currentPage === 2 && (
         <div style={cardStyle}>
           <div style={sectionLabel}>③ 1부 예배 (인명 / 멘트)</div>
 
@@ -1091,7 +1135,10 @@ export default function WeeklyBulletinPage() {
           </FormRow>
         </div>
 
-        {/* ④ 헌금 */}
+        )}
+
+        {/* ④ 헌금 (page 2) */}
+        {currentPage === 2 && (
         <div style={cardStyle}>
           <div style={sectionLabel}>④ 헌금</div>
           <FormRow label="십일조">
@@ -1102,7 +1149,10 @@ export default function WeeklyBulletinPage() {
           </FormRow>
         </div>
 
-        {/* ⑤ 공과 */}
+        )}
+
+        {/* ⑤ 공과 (page 3) */}
+        {currentPage === 3 && (
         <div style={cardStyle}>
           <div style={sectionLabel}>⑤ 공과 / 퀴즈</div>
           <FormRow label="공과 회차">
@@ -1153,7 +1203,10 @@ export default function WeeklyBulletinPage() {
           </FormRow>
         </div>
 
-        {/* ⑥ 광고 / 2부행사 */}
+        )}
+
+        {/* ⑥ 광고 / 2부행사 (page 1) */}
+        {currentPage === 1 && (
         <div style={cardStyle}>
           <div style={sectionLabel}>⑥ 광고 / 2부행사</div>
           <FormRow label="2부 행사 안내 (✿2부행사)">
@@ -1178,7 +1231,10 @@ export default function WeeklyBulletinPage() {
           </FormRow>
         </div>
 
-        {/* ⑦ 새 친구 */}
+        )}
+
+        {/* ⑦ 새 친구 (page 1) */}
+        {currentPage === 1 && (
         <div style={cardStyle}>
           <div style={sectionLabel}>⑦ 새 친구</div>
           <FormRow label="이름">
@@ -1186,7 +1242,10 @@ export default function WeeklyBulletinPage() {
           </FormRow>
         </div>
 
-        {/* ⑧ 사진 (1~4장) */}
+        )}
+
+        {/* ⑧ 사진 (page 1) */}
+        {currentPage === 1 && (
         <div style={cardStyle}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ ...sectionLabel, marginBottom: 0 }}>⑧ 사진 (최대 4장)</div>
@@ -1208,6 +1267,29 @@ export default function WeeklyBulletinPage() {
             ))}
           </div>
         </div>
+        )}
+
+        {/* ⑨ 목장 현황 (page 4 — 학생집계 자동 연계 예정) */}
+        {currentPage === 4 && (
+          <div style={cardStyle}>
+            <div style={sectionLabel}>⑨ 목장 현황 (9개 반)</div>
+            <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 14 }}>
+              hwpx 의 4페이지 (2페이지 우측) — 9개 반 × 16컬럼의 통계 표.
+              <br />
+              나중에 학생집계 시스템 (출석/달란트/심방 등) 구현 후 자동 채움 예정.
+            </div>
+            <div style={{
+              padding: 16, background: "#fef3c7", border: "1px solid #fbbf24",
+              borderRadius: 8, fontSize: 13, color: "#92400e", lineHeight: 1.6,
+            }}>
+              ⚠️ 이 페이지는 <b>준비 중</b>입니다.<br />
+              <span style={{ fontSize: 11, color: "#a16207" }}>
+                다른 메뉴 (출석부 / 달란트 / 심방 기록 등) 가 먼저 구현되어야
+                자동 연계 등록 가능. 그 시점까지는 이 표는 hwpx 에 빈 값으로 출력됩니다.
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* 모바일: 폼 끝에 액션 카드 (데스크톱은 사이드바에서 처리) */}
         {!isDesktop && (
