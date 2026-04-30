@@ -354,15 +354,31 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   // 1.5초 대기 (사람 패턴)
   await new Promise((r) => setTimeout(r, 1500));
 
-  // ── 2. write.php → pl_date 추출 ──
-  const wfRes = await umsViaCf(UMS_WRITE_FORM_PATH, {
-    method: "GET",
-    cookie: jar.toHeader(),
-    referer: "http://www.ums.or.kr/bbs/zboard.php?id=samusil&page=1",
-  });
-  jar.ingest(wfRes.setCookies);
-
-  const wfHtml = iconv.decode(wfRes.body, "cp949");
+  // ── 2. write.php → pl_date 추출 (5회 재시도 — Cloudflare Worker outbound IP 변동성) ──
+  // 추정: write.php 차단은 외국 IP outbound 시 발동. Cloudflare 가 호출마다
+  // 다른 엣지 사용 가능성. 5번 시도해서 한국 IP 잡힐 때까지 retry.
+  let wfRes!: Awaited<ReturnType<typeof umsViaCf>>;
+  let wfHtml = "";
+  let writeFormAttempts = 0;
+  const WF_MAX_ATTEMPTS = 5;
+  for (let attempt = 1; attempt <= WF_MAX_ATTEMPTS; attempt++) {
+    writeFormAttempts = attempt;
+    wfRes = await umsViaCf(UMS_WRITE_FORM_PATH, {
+      method: "GET",
+      cookie: jar.toHeader(),
+      referer: "http://www.ums.or.kr/bbs/zboard.php?id=samusil&page=1",
+    });
+    jar.ingest(wfRes.setCookies);
+    wfHtml = iconv.decode(wfRes.body, "cp949");
+    // 정상 폼 받았으면 break (pl_date 들어있음)
+    if (/name=["']?pl_date["']?\s*[^>]*value=["']?\d+/i.test(wfHtml)) {
+      break;
+    }
+    // 차단 페이지 받음 — 잠시 후 재시도 (새 outbound IP 가능성)
+    if (attempt < WF_MAX_ATTEMPTS) {
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
   // pl_date 매칭 — 더 관대하게 (attribute 순서/quote 변형 대비)
   const dateM =
     wfHtml.match(/name="pl_date"\s+value="(\d+)"/) ||
@@ -385,7 +401,7 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     return {
       ok: false,
       error:
-        `write.php 폼 못 받음 (응답 ${wfHtml.length}자) ` +
+        `write.php 폼 못 받음 (${writeFormAttempts}회 시도, 마지막 응답 ${wfHtml.length}자) ` +
         `[form psm_form: ${hasForm}, form 임의: ${hasFormAny}, ` +
         `pl_date 문자열: ${hasPlDateString}, memo input: ${hasMemo}, ` +
         `alert위치: ${alertIdx}/${wfHtml.length}, alert: "${alertMsg}"] ` +
