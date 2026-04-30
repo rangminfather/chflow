@@ -363,31 +363,62 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     spam_hint: spamDebug.hint,
   });
 
-  // ── 3. PDF 업로드 ──
-  const uploadBoundary = "----chflowUp" + Math.random().toString(36).slice(2);
-  const uploadBody = buildMultipart(uploadBoundary, [
-    { name: "name", value: input.pdf_filename },
-    { name: "chunk", value: "0" },
-    { name: "chunks", value: "1" },
-    { name: "file", value: input.pdf_bytes, filename: input.pdf_filename, contentType: "application/pdf" },
-  ]);
-  const upRes = await umsViaCf(
-    `${UMS_UPLOAD_PATH}?pl_user=${plUser}&pl_zbid=samusil&pl_date=${plDate}`,
-    {
+  // ── 3. PDF 업로드 (Plupload — 1MB 단위 청크 분할) ──
+  // PoC 메모: 1MB 초과 시 청크 나눠서 chunk=0..N, chunks=N+1 로 반복.
+  // 단일 청크로 보내면 잘려서 UMS 가 invalid 처리 → 글은 등록되지만 첨부 누락.
+  const CHUNK_SIZE = 1024 * 1024; // 1MB
+  const totalChunks = Math.max(1, Math.ceil(input.pdf_bytes.byteLength / CHUNK_SIZE));
+  const uploadUrl = `${UMS_UPLOAD_PATH}?pl_user=${plUser}&pl_zbid=samusil&pl_date=${plDate}`;
+  const uploadResponses: string[] = [];
+
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * CHUNK_SIZE;
+    const end = Math.min(start + CHUNK_SIZE, input.pdf_bytes.byteLength);
+    const chunkBytes = input.pdf_bytes.subarray(start, end);
+
+    const uploadBoundary = "----chflowUp" + Math.random().toString(36).slice(2);
+    const uploadBody = buildMultipart(uploadBoundary, [
+      { name: "name", value: input.pdf_filename },
+      { name: "chunk", value: String(i) },
+      { name: "chunks", value: String(totalChunks) },
+      { name: "file", value: chunkBytes, filename: input.pdf_filename, contentType: "application/pdf" },
+    ]);
+
+    const upRes = await umsViaCf(uploadUrl, {
       method: "POST",
       body: uploadBody,
       contentType: `multipart/form-data; boundary=${uploadBoundary}`,
       cookie: jar.toHeader(),
       referer: "http://www.ums.or.kr/bbs/write.php?id=samusil&page=1&category=2&mode=write",
       xRequestedWith: "XMLHttpRequest",
-    },
-  );
-  jar.ingest(upRes.setCookies);
-  const upText = upRes.body.toString("utf8");
-  pushDebug("upload", upRes.body, upRes.status, upRes.setCookies, { upload_text_sample: upText.slice(0, 200) });
-  if (upRes.status >= 400 || !upText.includes('"result"')) {
-    return { ok: false, error: `PDF 업로드 실패: ${upRes.status} ${upText.slice(0, 200)}`, debug };
+    });
+    jar.ingest(upRes.setCookies);
+    const upText = upRes.body.toString("utf8");
+    uploadResponses.push(upText.slice(0, 200));
+    pushDebug(`upload_chunk_${i}`, upRes.body, upRes.status, upRes.setCookies, {
+      chunk_index: i,
+      chunks_total: totalChunks,
+      chunk_bytes: chunkBytes.byteLength,
+      upload_text: upText.slice(0, 200),
+    });
+
+    // 정상 응답: {"jsonrpc":"2.0","result":null,"id":"id"} 또는 유사한 형태
+    // 거부 응답: error / fault 필드 또는 status >= 400
+    const hasError = /"error"|"fault"/i.test(upText);
+    const hasResult = upText.includes('"result"');
+    if (upRes.status >= 400 || !hasResult || hasError) {
+      return {
+        ok: false,
+        error: `PDF 업로드 실패 (chunk ${i + 1}/${totalChunks}, ${chunkBytes.byteLength}바이트): status ${upRes.status} body="${upText.slice(0, 300)}"`,
+        debug,
+      };
+    }
   }
+  pushDebug("upload_complete", Buffer.from(""), 200, [], {
+    pdf_size: input.pdf_bytes.byteLength,
+    total_chunks: totalChunks,
+    all_responses: uploadResponses.join(" | "),
+  });
 
   // ── 4. write_ok.php — CP949 multipart ──
   // 외국 IP (Cloudflare LAX 등) 에서는 w_key_spam 답변 필요.
