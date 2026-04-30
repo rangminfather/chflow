@@ -313,18 +313,33 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   jar.ingest(wfRes.setCookies);
 
   const wfHtml = iconv.decode(wfRes.body, "cp949");
-  // 정상 폼 로드 판정 = pl_date 추출 성공 여부.
-  // alertElmBody 는 zeroboard 가 모든 페이지에 hidden 모달로 박아두는 거라 false positive.
-  const dateM = wfHtml.match(/name="pl_date"\s+value="(\d+)"/);
-  const userM = wfHtml.match(/name="pl_user"\s+value="(umsorkr_[^"]+)"/);
+  // pl_date 매칭 — 더 관대하게 (attribute 순서/quote 변형 대비)
+  const dateM =
+    wfHtml.match(/name="pl_date"\s+value="(\d+)"/) ||
+    wfHtml.match(/name=['"]?pl_date['"]?[^>]*value=['"]?(\d+)/i) ||
+    wfHtml.match(/value=['"]?(\d+)['"]?[^>]*name=['"]?pl_date/i);
+  const userM =
+    wfHtml.match(/name="pl_user"\s+value="(umsorkr_[^"]+)"/) ||
+    wfHtml.match(/name=['"]?pl_user['"]?[^>]*value=['"]?(umsorkr_[^"'\s>]+)/i);
   if (!dateM || !userM) {
     pushDebug("write_form", wfRes.body, wfRes.status, wfRes.setCookies);
+    // 응답 진단 — 정확히 뭐가 있고 뭐가 없는지
+    const hasForm = /<form[^>]*name=["']?psm_form/i.test(wfHtml);
+    const hasFormAny = /<form[^>]+>/i.test(wfHtml);
+    const hasPlDateString = wfHtml.includes("pl_date");
+    const hasMemo = /name=["']?memo["']?/i.test(wfHtml);
+    const alertIdx = wfHtml.indexOf("alertElmBody");
     const wfAlert = wfHtml.match(/alertElmBody[^>]*>([\s\S]+?)<\/div>/);
     const alertMsg = wfAlert ? wfAlert[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "(no alert)";
-    const sample = wfHtml.slice(0, 500).replace(/\s+/g, " ");
+    const tail = wfHtml.slice(-500).replace(/\s+/g, " ");
     return {
       ok: false,
-      error: `write.php 폼 못 받음 (응답 ${wfHtml.length}자, alert="${alertMsg}", head="${sample}")`,
+      error:
+        `write.php 폼 못 받음 (응답 ${wfHtml.length}자) ` +
+        `[form psm_form: ${hasForm}, form 임의: ${hasFormAny}, ` +
+        `pl_date 문자열: ${hasPlDateString}, memo input: ${hasMemo}, ` +
+        `alert위치: ${alertIdx}/${wfHtml.length}, alert: "${alertMsg}"] ` +
+        `tail="${tail}"`,
       debug,
     };
   }
