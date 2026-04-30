@@ -345,6 +345,57 @@ const UMS_BOARD_URL = "http://www.ums.or.kr/bbs/zboard.php?id=samusil&page=1";
 // ─────────────────────────────────────────────────────────────────
 // 컴포넌트
 // ─────────────────────────────────────────────────────────────────
+// 자동등록 진행 단계 표시 컴포넌트
+type PostStepId = "pdf" | "login" | "upload" | "submit" | "done" | "error";
+function PostStepper({ currentStep }: { currentStep: PostStepId | null }) {
+  const STEPS: { id: PostStepId; label: string; hint: string }[] = [
+    { id: "pdf",    label: "PDF 자동 생성",     hint: "주보 데이터 + 사진을 PDF로" },
+    { id: "login",  label: "UMS 로그인",         hint: "사이트 접속 + 세션 확보" },
+    { id: "upload", label: "PDF 업로드",          hint: "파일을 청크 단위로 전송" },
+    { id: "submit", label: "글 등록",             hint: "제목/본문/첨부 최종 제출" },
+    { id: "done",   label: "완료",                 hint: "글번호 발급 + 게시판 반영" },
+  ];
+  const order: Record<PostStepId, number> = { pdf: 0, login: 1, upload: 2, submit: 3, done: 4, error: -1 };
+  const curIdx = currentStep ? order[currentStep] : -1;
+  const isError = currentStep === "error";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "8px 4px" }}>
+      {STEPS.map((s, i) => {
+        const status = isError && i === curIdx ? "error"
+                     : i < curIdx ? "done"
+                     : i === curIdx ? "active"
+                     : "pending";
+        const icon = status === "done" ? "✅"
+                   : status === "active" ? "⏳"
+                   : status === "error" ? "❌"
+                   : "⚪";
+        const labelColor = status === "done" ? "#15803d"
+                         : status === "active" ? "#1e293b"
+                         : status === "error" ? "#b91c1c"
+                         : "#94a3b8";
+        return (
+          <div key={s.id} style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "8px 12px",
+            background: status === "active" ? "#eff6ff" : "transparent",
+            borderRadius: 8,
+            border: status === "active" ? "1px solid #bfdbfe" : "1px solid transparent",
+          }}>
+            <div style={{ fontSize: 18, width: 22, textAlign: "center" }}>{icon}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: status === "active" ? 800 : 600, color: labelColor }}>
+                {s.label}
+              </div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>{s.hint}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function WeeklyBulletinPage() {
   const router = useRouter();
   const params = useParams();
@@ -373,6 +424,8 @@ export default function WeeklyBulletinPage() {
   const [photos, setPhotos] = useState<Array<File | null>>([null, null, null, null]);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [autoPosting, setAutoPosting] = useState(false);
+  type PostStep = "pdf" | "login" | "upload" | "submit" | "done" | "error";
+  const [postStep, setPostStep] = useState<PostStep | null>(null);
   const [autoPostResult, setAutoPostResult] = useState<
     | { ok: true; postNo: number; redirectUrl: string }
     | { ok: false; error: string }
@@ -714,6 +767,7 @@ export default function WeeklyBulletinPage() {
 
     setAutoPosting(true);
     setAutoPostResult(null);
+    setPostStep("pdf");
 
     let pdfBase64: string;
     let pdfFilename: string;
@@ -739,6 +793,7 @@ export default function WeeklyBulletinPage() {
         pdfFilename = `초등1초원주보_${form.date}.pdf`;
       } catch (e: unknown) {
         setAutoPosting(false);
+        setPostStep("error");
         setAutoPostResult({ ok: false, error: `PDF 자동 생성 실패: ${(e as Error).message}` });
         return;
       }
@@ -749,6 +804,12 @@ export default function WeeklyBulletinPage() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      // 서버 호출 — 서버는 4단계 (login → write_form → upload → write_ok) 진행.
+      // 클라이언트는 시간 기반으로 단계 추정 (정확도 낮지만 사용자 답답함 해소).
+      setPostStep("login");
+      const stepTimers: ReturnType<typeof setTimeout>[] = [];
+      stepTimers.push(setTimeout(() => setPostStep((s) => (s === "login" ? "upload" : s)), 4000));
+      stepTimers.push(setTimeout(() => setPostStep((s) => (s === "upload" ? "submit" : s)), 18000));
       const r = await fetch("/api/ums-bulletin/post-v2", {
         method: "POST",
         headers: {
@@ -765,8 +826,10 @@ export default function WeeklyBulletinPage() {
           pdf_filename: pdfFilename,
         }),
       });
+      stepTimers.forEach(clearTimeout);
       const j = await r.json();
       setAutoPosting(false);
+      setPostStep(j.ok ? "done" : "error");
 
       // 자격증명 미등록 → 모달 자동 띄우기
       if (!j.ok && j.code === "ums_credentials_required") {
@@ -797,6 +860,7 @@ export default function WeeklyBulletinPage() {
       }
     } catch (e: unknown) {
       setAutoPosting(false);
+      setPostStep("error");
       setAutoPostResult({ ok: false, error: (e as Error).message || "네트워크 오류" });
     }
   };
@@ -1263,17 +1327,14 @@ export default function WeeklyBulletinPage() {
       {/* ─── 자동등록 진행/결과 모달 ─── */}
       {(autoPosting || autoPostResult) && (
         <div style={modalBackdropStyle}>
-          <div style={{ ...postModalCardStyle, maxWidth: 420 }}>
+          <div style={{ ...postModalCardStyle, maxWidth: 460 }}>
             {autoPosting && (
               <>
                 <div style={{ fontSize: 32, marginBottom: 8, textAlign: "center" }}>🚀</div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b", marginBottom: 6, textAlign: "center" }}>
-                  UMS에 자동 등록 중...
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b", marginBottom: 14, textAlign: "center" }}>
+                  자동 등록 진행 중
                 </div>
-                <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, textAlign: "center" }}>
-                  4단계 (write 폼 → PDF 업로드 → 글 등록)<br />
-                  너 PC에서 너 IP로 진행 중.
-                </div>
+                <PostStepper currentStep={postStep} />
               </>
             )}
             {autoPostResult && autoPostResult.ok && (
@@ -1293,7 +1354,7 @@ export default function WeeklyBulletinPage() {
                   >
                     UMS에서 확인
                   </a>
-                  <button onClick={() => setAutoPostResult(null)} style={primaryBtnStyle}>확인</button>
+                  <button onClick={() => { setAutoPostResult(null); setPostStep(null); }} style={primaryBtnStyle}>확인</button>
                 </div>
               </>
             )}
@@ -1307,7 +1368,7 @@ export default function WeeklyBulletinPage() {
                   {autoPostResult.error}
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  <button onClick={() => setAutoPostResult(null)} style={primaryBtnStyle}>닫기</button>
+                  <button onClick={() => { setAutoPostResult(null); setPostStep(null); }} style={primaryBtnStyle}>닫기</button>
                 </div>
               </>
             )}
