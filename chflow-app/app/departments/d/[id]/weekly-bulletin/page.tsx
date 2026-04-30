@@ -7,26 +7,36 @@ import { supabase } from "@/lib/supabase";
 // ─────────────────────────────────────────────────────────────────
 // 폼 정의
 // ─────────────────────────────────────────────────────────────────
+// 2페이지 기본값 — 거의 매주 동일하므로 자동 입력 (수정 가능)
+const DEFAULT_START_TIME = "10시 50분";
+const DEFAULT_LEADER = "최성헌 부장";
+const DEFAULT_PREACHER = "김희숙 전도사";
+const DEFAULT_PRAISE1 = "신예슬";
+const DEFAULT_PRAISE2 = "최성현";
+
 const EMPTY_FORM = {
   date: "",
   issueNumber: "",      // 호수 (자동값 default + 수정 가능)
+  pageOneVerse: "",     // 1페이지 표어 구절 (사진 밑) — 별도 등록 시스템에서 자동 채움
+  startTime: DEFAULT_START_TIME, // 시작시간
 
   // 1부 예배
   guide: "",
-  praise1: "",
-  praise2: "",
-  leader: "",
+  praise1: DEFAULT_PRAISE1,
+  praise2: DEFAULT_PRAISE2,
+  leader: DEFAULT_LEADER,
   theme: "",            // 주제제창 (연도 표어에서 자동 채움, 수정 가능)
   prayerClass: "",
   scripture: "",
   sermonTitle: "",
-  preacher: "",
+  preacher: DEFAULT_PREACHER,
   nextPrayer: "",
 
   tithe: "",
   thanksgiving: "",
 
   lessonNum: "",
+  versePassage: "",      // 요절암송 (3페이지) — NEW
   q1: "",
   q1c1: "",
   q1c2: "",
@@ -127,7 +137,8 @@ function buildReplacements(form: FormState): Record<string, string> {
     // 예배인도: 사용자가 직책 포함 자유 입력 (예: "최성헌 부장", "박양흠 부감")
     "최성헌부장선생님": `${form.leader || "(미입력)"}선생님`,
     "하나님의 안경으로 세상을 바라보는 어린이": form.theme || "(주제 미입력)",
-    "2-3반": `${form.prayerClass || "?"}반`,
+    // 기도: 사용자 입력 그대로 (반/이름/장로 등 형태 다양 — "(반)" 자동 부착 X)
+    "2-3반": form.prayerClass || "?",
     "창세기 11장 1~9절": form.scripture || "(성경본문 미입력)",
     "우리는 배울 때 무엇을 조심해야 할까요?": form.sermonTitle || "(설교제목 미입력)",
     // 강론자: 사용자가 직책 포함 자유 입력 (예: "김희숙 전도사", "박지성 목사")
@@ -309,7 +320,7 @@ function buildPostMemo(form: FormState): string {
   if (form.guide) lines.push(`안내 : ${form.guide}`);
   if (form.praise1 || form.praise2) lines.push(`찬양 : ${[form.praise1, form.praise2].filter(Boolean).join(" ")}`);
   if (form.leader) lines.push(`예배인도 : ${form.leader}`);
-  if (form.prayerClass) lines.push(`기도 : ${form.prayerClass}반`);
+  if (form.prayerClass) lines.push(`기도 : ${form.prayerClass}`);
   if (form.scripture) lines.push(`성경봉독 : ${form.scripture}`);
   if (form.sermonTitle) lines.push(`설교제목 : ${form.sermonTitle}`);
   if (form.preacher) lines.push(`강론자 : ${form.preacher}`);
@@ -1221,25 +1232,31 @@ export default function WeeklyBulletinPage() {
         <div style={cardStyle}>
           <div style={sectionLabel}>③ 1부 예배 (인명 / 멘트)</div>
 
+          <FormRow label="시작 시간">
+            <input type="text" value={form.startTime} onChange={(e) => set("startTime", e.target.value)} placeholder={DEFAULT_START_TIME} style={inputStyle} />
+            <div style={hintStyle}>거의 매주 동일 — 다른 날만 수정</div>
+          </FormRow>
           <FormRow label="안내">
             <input type="text" value={form.guide} onChange={(e) => set("guide", e.target.value)} placeholder="예: 박희연" style={inputStyle} />
           </FormRow>
-          <FormRow label="찬양 (2명)">
+          <FormRow label="찬양율동 (2명)">
             <div style={{ display: "flex", gap: 8 }}>
               <input type="text" value={form.praise1} onChange={(e) => set("praise1", e.target.value)} placeholder="이름1" style={inputStyle} />
               <input type="text" value={form.praise2} onChange={(e) => set("praise2", e.target.value)} placeholder="이름2" style={inputStyle} />
             </div>
+            <div style={hintStyle}>"선생님" 자동 부착. 기본값: {DEFAULT_PRAISE1}, {DEFAULT_PRAISE2}</div>
           </FormRow>
           <FormRow label="예배인도 (이름 + 직책)">
-            <input type="text" value={form.leader} onChange={(e) => set("leader", e.target.value)} placeholder="예: 최성헌 부장 / 박양흠 부감" style={inputStyle} />
-            <div style={hintStyle}>"선생님" 자동 부착. 부장/부감/총무 등 직책 직접 입력</div>
+            <input type="text" value={form.leader} onChange={(e) => set("leader", e.target.value)} placeholder={DEFAULT_LEADER} style={inputStyle} />
+            <div style={hintStyle}>"선생님" 자동 부착. 기본값: {DEFAULT_LEADER}. 부장/부감/총무 등 직책 직접 입력</div>
           </FormRow>
           <FormRow label="주제제창 (이번 주 사용 멘트)">
             <input type="text" value={form.theme} onChange={(e) => set("theme", e.target.value)} placeholder="기본은 올해 표어" style={inputStyle} />
             <div style={hintStyle}>비우고 저장 시 올해 표어 그대로 사용</div>
           </FormRow>
-          <FormRow label="기도 (반)">
-            <input type="text" value={form.prayerClass} onChange={(e) => set("prayerClass", e.target.value)} placeholder="예: 2-3" style={inputStyle} />
+          <FormRow label="기도">
+            <input type="text" value={form.prayerClass} onChange={(e) => set("prayerClass", e.target.value)} placeholder="예: 2-3반 또는 김정권장로님" style={inputStyle} />
+            <div style={hintStyle}>"(반)" 자동 부착 X — 자유 입력 (반 / 이름 / 직책 그대로)</div>
           </FormRow>
           <FormRow label="성경봉독">
             <input type="text" value={form.scripture} onChange={(e) => set("scripture", e.target.value)} placeholder="예: 창세기 11장 1~9절" style={inputStyle} />
@@ -1247,9 +1264,9 @@ export default function WeeklyBulletinPage() {
           <FormRow label="강론 제목">
             <input type="text" value={form.sermonTitle} onChange={(e) => set("sermonTitle", e.target.value)} placeholder="예: 우리는 배울 때 무엇을 조심해야 할까요?" style={inputStyle} />
           </FormRow>
-          <FormRow label="강론자 (이름 + 직책)">
-            <input type="text" value={form.preacher} onChange={(e) => set("preacher", e.target.value)} placeholder="예: 김희숙 전도사 / 박지성 목사" style={inputStyle} />
-            <div style={hintStyle}>"님" 자동 부착. 전도사/목사 등 직책 직접 입력</div>
+          <FormRow label="말씀 (이름 + 직책)">
+            <input type="text" value={form.preacher} onChange={(e) => set("preacher", e.target.value)} placeholder={DEFAULT_PREACHER} style={inputStyle} />
+            <div style={hintStyle}>"님" 자동 부착. 기본값: {DEFAULT_PREACHER}. 전도사/목사 등 직책 직접 입력</div>
           </FormRow>
           <FormRow label="다음 주 기도">
             <input type="text" value={form.nextPrayer} onChange={(e) => set("nextPrayer", e.target.value)} placeholder="예: 3-4반 또는 김정권장로님" style={inputStyle} />
@@ -1278,6 +1295,16 @@ export default function WeeklyBulletinPage() {
           <div style={sectionLabel}>⑤ 공과 / 퀴즈</div>
           <FormRow label="공과 회차">
             <input type="text" value={form.lessonNum} onChange={(e) => set("lessonNum", e.target.value)} placeholder="예: 14" style={inputStyle} />
+          </FormRow>
+          <FormRow label="요절암송">
+            <textarea
+              value={form.versePassage}
+              onChange={(e) => set("versePassage", e.target.value)}
+              placeholder="예: 그러므로 너희가 그리스도 예수를 주로 받았으니 그 안에서 행하되 (골로새서 2장 6절)"
+              rows={2}
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+            <div style={hintStyle}>구절 본문 + 출처 한 줄로</div>
           </FormRow>
 
           {quizzes.map((quiz, idx) => (
