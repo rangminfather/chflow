@@ -239,6 +239,11 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   const jar = new CookieJar();
   const debug: DebugStep[] = [];
 
+  // 🧪 임시 검증용 — 환경변수 UMS_TEST_COOKIE 가 있으면 login_check 건너뛰고
+  // 그 cookie 그대로 사용. PHPSESSID 발급 IP 가설 검증 후 환경변수 제거.
+  const debugCookie = process.env.UMS_TEST_COOKIE;
+  const skipLogin = !!debugCookie;
+
   function pushDebug(step: string, body: Buffer, status: number, setCookies: string[], extra?: Record<string, string | number | undefined>) {
     const sample = (() => {
       try {
@@ -258,31 +263,43 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     });
   }
 
-  // ── 1. 로그인 ──
-  const loginBody = new URLSearchParams({
-    user_id: input.ums_user_id,
-    password: input.ums_password,
-    s_url: "/bbs/zboard.php?id=samusil",
-    group_no: "1",
-  }).toString();
+  // ── 1. 로그인 (또는 UMS_TEST_COOKIE 우회) ──
+  const loginRes = skipLogin
+    ? { body: Buffer.from("[skipped — using UMS_TEST_COOKIE]"), status: 200, setCookies: [] as string[] }
+    : await umsViaCf(UMS_LOGIN_PATH, {
+        method: "POST",
+        body: Buffer.from(new URLSearchParams({
+          user_id: input.ums_user_id,
+          password: input.ums_password,
+          s_url: "/bbs/zboard.php?id=samusil",
+          group_no: "1",
+        }).toString(), "utf8"),
+        contentType: "application/x-www-form-urlencoded",
+        referer: "http://www.ums.or.kr/bbs/login.php?id=samusil",
+      });
 
-  const loginRes = await umsViaCf(UMS_LOGIN_PATH, {
-    method: "POST",
-    body: Buffer.from(loginBody, "utf8"),
-    contentType: "application/x-www-form-urlencoded",
-    referer: "http://www.ums.or.kr/bbs/login.php?id=samusil",
-  });
-  jar.ingest(loginRes.setCookies);
-  pushDebug("login", loginRes.body, loginRes.status, loginRes.setCookies);
+  if (skipLogin) {
+    // 환경변수 cookie 통째로 jar 에 박음
+    const cookies = (debugCookie as string).split(/;\s*/).filter(Boolean);
+    jar.ingest(cookies);
+    pushDebug("login_skipped", Buffer.from("UMS_TEST_COOKIE used"), 200, [], {
+      cookies_loaded: String(cookies.length),
+    });
+  } else {
+    jar.ingest(loginRes.setCookies);
+    pushDebug("login", loginRes.body, loginRes.status, loginRes.setCookies);
+  }
 
-  const loginHtml = iconv.decode(loginRes.body, "cp949");
-  const alertM = loginHtml.match(/alertElmBody[^>]*>([\s\S]+?)<\/div>/);
-  if (alertM) {
-    const msg = alertM[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-    return { ok: false, error: `로그인 실패: ${msg}`, debug };
+  const loginHtml = skipLogin ? "[skipped]" : iconv.decode(loginRes.body, "cp949");
+  if (!skipLogin) {
+    const alertM = loginHtml.match(/alertElmBody[^>]*>([\s\S]+?)<\/div>/);
+    if (alertM) {
+      const msg = alertM[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      return { ok: false, error: `로그인 실패: ${msg}`, debug };
+    }
   }
   if (!jar.get("PHPSESSID")) {
-    return { ok: false, error: "로그인 실패: PHPSESSID 쿠키 없음", debug };
+    return { ok: false, error: "PHPSESSID 쿠키 없음", debug };
   }
 
   // 사용자 PC F12 와 비교해서 발견한 인증/면제 cookie 들.
