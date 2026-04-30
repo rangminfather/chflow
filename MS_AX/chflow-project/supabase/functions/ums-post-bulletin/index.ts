@@ -310,6 +310,107 @@ interface PostBody {
   category?: number;
 }
 
+// 디버그용 진단 step 기록
+interface DebugStep {
+  name: string;
+  status?: number;
+  body_size?: number;
+  body_sample?: string;
+  cookies_after?: string;
+  error?: string;
+  attempt?: number;
+}
+
+async function debugLogin(jar: CookieJar, userId: string, password: string, debug: DebugStep[]): Promise<void> {
+  const formBody = new URLSearchParams({
+    user_id: userId,
+    password,
+    s_url: "/bbs/zboard.php?id=samusil",
+    group_no: "1",
+  }).toString();
+
+  const { res, body } = await fetchWithRetry(`${UMS}/bbs/login_check.php`, {
+    method: "POST",
+    headers: {
+      ...BROWSER_HEADERS,
+      "Referer": `${UMS}/bbs/login.php?id=samusil`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: formBody,
+    redirect: "manual",
+  }, { minBytes: 50 });
+
+  jar.ingest(res.headers);
+
+  const html = iconv.decode(body, "cp949");
+  debug.push({
+    name: "login",
+    status: res.status,
+    body_size: body.byteLength,
+    body_sample: html.slice(0, 300),
+    cookies_after: jar.toHeader(),
+  });
+
+  const m = html.match(/alertElmBody[^>]*>([\s\S]+?)<\/div>/);
+  if (m) {
+    const msg = m[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+    throw new Error(`로그인 실패: ${msg}`);
+  }
+  if (!jar.get("PHPSESSID")) {
+    throw new Error("로그인 실패: PHPSESSID 쿠키를 받지 못함");
+  }
+}
+
+async function debugVisitBoardList(jar: CookieJar, debug: DebugStep[]): Promise<void> {
+  // 실제 사용자 패턴 모방: 로그인 후 게시판 리스트로 한 번 들어감 (UMS 봇 감지 회피)
+  const url = `${UMS}/bbs/zboard.php?id=samusil&page=1`;
+  const { res, body } = await fetchWithRetry(url, {
+    headers: {
+      ...BROWSER_HEADERS,
+      "Referer": `${UMS}/bbs/login_check.php`,
+      "Cookie": jar.toHeader(),
+    },
+  }, { minBytes: 5000 });
+
+  jar.ingest(res.headers);
+  const html = iconv.decode(body, "cp949");
+  debug.push({
+    name: "visit_board",
+    status: res.status,
+    body_size: body.byteLength,
+    body_sample: html.slice(0, 200),
+    cookies_after: jar.toHeader(),
+  });
+}
+
+async function debugGetPlDate(jar: CookieJar, debug: DebugStep[]): Promise<string> {
+  const url = `${UMS}/bbs/write.php?id=samusil&page=1&category=2&mode=write`;
+  const { res, body } = await fetchWithRetry(url, {
+    headers: {
+      ...BROWSER_HEADERS,
+      "Referer": `${UMS}/bbs/zboard.php?id=samusil&page=1`,
+      "Cookie": jar.toHeader(),
+    },
+  }, { minBytes: 50000 });
+
+  const html = iconv.decode(body, "cp949");
+  debug.push({
+    name: "get_write_form",
+    status: res.status,
+    body_size: body.byteLength,
+    body_sample: html.slice(0, 300),
+  });
+
+  if (html.includes("사용권한이 없습니다")) {
+    throw new Error("write.php 접근 권한 없음 (세션 만료 가능)");
+  }
+  const m = html.match(/name="pl_date"\s+value="(\d+)"/);
+  if (!m) {
+    throw new Error(`pl_date 추출 실패 (응답 ${html.length}자, sample: ${html.slice(0, 100)})`);
+  }
+  return m[1];
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: CORS });
@@ -321,7 +422,7 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  let body: PostBody;
+  let body: PostBody & { debug?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -341,12 +442,28 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  const debug: DebugStep[] = [];
+  let outboundIp = "unknown";
+
+  // 우리 outbound IP 확인 (UMS 차단 진단용)
+  try {
+    const ipRes = await fetch("https://api.ipify.org?format=json");
+    const ipData = await ipRes.json();
+    outboundIp = ipData.ip;
+  } catch {
+    // 무시
+  }
+
   try {
     const jar = new CookieJar();
-    await login(jar, body.ums_user_id, body.ums_password);
-    const plDate = await getPlDate(jar);
+    await debugLogin(jar, body.ums_user_id, body.ums_password, debug);
+    await debugVisitBoardList(jar, debug);
+    // 사람처럼 살짝 쉬기 (1.5초)
+    await new Promise((r) => setTimeout(r, 1500));
+    const plDate = await debugGetPlDate(jar, debug);
     const pdfBytes = base64ToBytes(body.pdf_base64);
     await uploadPdf(jar, body.ums_user_id, plDate, pdfBytes, body.filename);
+    debug.push({ name: "upload_pdf_done" });
     const result = await submitWriteOk(jar, body.ums_user_id, plDate, {
       subject: body.subject,
       memo: body.memo,
@@ -358,14 +475,16 @@ Deno.serve(async (req: Request) => {
         post_no: result.postNo,
         redirect_url: result.redirectUrl,
         pl_date: plDate,
+        outbound_ip: outboundIp,
+        debug: body.debug ? debug : undefined,
       }),
       { headers: { "Content-Type": "application/json", ...CORS } },
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return new Response(JSON.stringify({ ok: false, error: msg }), {
-      status: 500,
-      headers: { "Content-Type": "application/json", ...CORS },
-    });
+    return new Response(
+      JSON.stringify({ ok: false, error: msg, outbound_ip: outboundIp, debug }),
+      { status: 500, headers: { "Content-Type": "application/json", ...CORS } },
+    );
   }
 });

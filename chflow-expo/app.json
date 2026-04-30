@@ -33,6 +33,12 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      [
+        "./plugins/with-adi-registration.js",
+        { "snippet": "CFKKBMXYLJU2MAAAAAAAAAAAAA" }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "37e9eb7e-dfcb-426d-bb74-b47e5252e379"
