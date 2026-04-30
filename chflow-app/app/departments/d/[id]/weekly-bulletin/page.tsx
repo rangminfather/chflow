@@ -1077,11 +1077,26 @@ export default function WeeklyBulletinPage() {
       <div style={{
         display: "flex",
         gap: 20,
-        maxWidth: isDesktop ? 1080 : 720,
+        maxWidth: isDesktop ? 1480 : 720,
         margin: "0 auto",
         padding: 16,
         alignItems: "flex-start",
       }}>
+        {/* ─── 좌측: 임시저장 목록 (PC 한정) ─── */}
+        {isDesktop && (
+          <div style={{
+            width: 240, position: "sticky", top: 16, alignSelf: "flex-start",
+            maxHeight: "calc(100vh - 32px)", overflowY: "auto", flexShrink: 0,
+          }}>
+            <DraftSidebar
+              draftList={draftList}
+              currentDate={form.date}
+              onSelect={(d) => handleDateChange(d)}
+              onDelete={handleDeleteDraft}
+            />
+          </div>
+        )}
+
         <div style={{ flex: 1, maxWidth: 720, display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
         {!isSupported && (
           <div style={warnCardStyle}>
@@ -1615,12 +1630,6 @@ export default function WeeklyBulletinPage() {
               }}
               onDeleteCreds={handleDeleteCreds}
               compact
-            />
-            <DraftSidebar
-              draftList={draftList}
-              currentDate={form.date}
-              onSelect={(d) => handleDateChange(d)}
-              onDelete={handleDeleteDraft}
             />
           </div>
         )}
