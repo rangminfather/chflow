@@ -828,6 +828,42 @@ export default function WeeklyBulletinPage() {
     }
   };
 
+  // 페이지별 리셋 — 사용자 입력만 초기화, 자동 입력 (yearly 표어/default 시작시간 등) 은 보존
+  const handleResetPage = (page: 1 | 2 | 3 | 4) => {
+    const pageNames = { 1: "표지", 2: "예배 순서", 3: "공과", 4: "목장 현황" };
+    if (!confirm(`${page}페이지 (${pageNames[page]}) 입력값을 초기화할까요?\n자동 입력된 기본값은 유지됩니다.`)) return;
+
+    if (page === 1) {
+      setForm((f) => ({
+        ...f,
+        issueNumber: calcIssueNumber(f.date) || "",
+        theme: yearlyTheme?.theme || "",
+        pageOneVerse: yearlyTheme?.page_one_verse || "",
+      }));
+      setPhotos([null, null, null, null]);
+    } else if (page === 2) {
+      setForm((f) => ({
+        ...f,
+        guide: "", prayerClass: "", scripture: "", sermonTitle: "", nextPrayer: "",
+        tithe: "", thanksgiving: "",
+        twoPartActivity: "", announcementAuthor: "", announcement: "",
+        // default 유지
+        startTime: DEFAULT_START_TIME,
+        leader: DEFAULT_LEADER,
+        preacher: DEFAULT_PREACHER,
+        praise1: DEFAULT_PRAISE1,
+        praise2: DEFAULT_PRAISE2,
+      }));
+    } else if (page === 3) {
+      setForm((f) => ({ ...f, lessonNum: "", versePassage: "" }));
+      setQuizzes([newQuizItem("mc4")]);
+    } else if (page === 4) {
+      setForm((f) => ({ ...f, newFriend: "" }));
+      setFarmData(EMPTY_FARM);
+    }
+    showToast(`${page}페이지 입력 초기화 완료`);
+  };
+
   const handleSaveYearlyTheme = async () => {
     if (!themeForm.theme.trim()) {
       showToast("표어를 입력하세요");
@@ -1141,15 +1177,30 @@ export default function WeeklyBulletinPage() {
               {form.date ? formatKoreanDate(form.date) : "발행일 미선택"} · {currentPage}페이지 입력 중
             </div>
           </div>
-          {form.issueNumber && (
-            <div style={{
-              padding: "4px 10px", background: "#fff",
-              borderRadius: 6, fontSize: 12, fontWeight: 700, color: "#7c3aed",
-              border: "1px solid #ddd6fe",
-            }}>
-              {form.issueNumber}
-            </div>
-          )}
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {form.issueNumber && (
+              <div style={{
+                padding: "4px 10px", background: "#fff",
+                borderRadius: 6, fontSize: 12, fontWeight: 700, color: "#7c3aed",
+                border: "1px solid #ddd6fe",
+              }}>
+                {form.issueNumber}
+              </div>
+            )}
+            <button
+              onClick={() => handleResetPage(currentPage)}
+              title={`${currentPage}페이지 입력 초기화 (자동 입력값은 보존)`}
+              style={{
+                padding: "5px 10px",
+                background: "#fff", color: "#dc2626",
+                border: "1px solid #fca5a5", borderRadius: 6,
+                fontSize: 11, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              🔄 {currentPage}페이지 리셋
+            </button>
+          </div>
         </div>
 
         {/* ─── 페이지 선택 탭 (hwpx 1/2/3/4 페이지 구조) ─── */}
