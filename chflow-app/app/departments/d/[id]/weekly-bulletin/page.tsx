@@ -346,6 +346,38 @@ const UMS_BOARD_URL = "http://www.ums.or.kr/bbs/zboard.php?id=samusil&page=1";
 // 컴포넌트
 // ─────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────
+// 3페이지 — 공과 퀴즈 (동적 N문제)
+// ─────────────────────────────────────────────────────────────────
+type QuizType = "subjective" | "mc3" | "mc4" | "mc5";
+
+interface QuizItem {
+  id: string;
+  type: QuizType;
+  question: string;
+  choices: string[];
+}
+
+function quizTypeChoiceCount(t: QuizType): number {
+  return t === "subjective" ? 0 : t === "mc3" ? 3 : t === "mc4" ? 4 : 5;
+}
+
+function newQuizItem(type: QuizType = "mc4"): QuizItem {
+  return {
+    id: Math.random().toString(36).slice(2),
+    type,
+    question: "",
+    choices: Array(quizTypeChoiceCount(type)).fill(""),
+  };
+}
+
+// 유형 변경 시 choices 배열 길이 조정 (입력 보존)
+function changeQuizType(quiz: QuizItem, newType: QuizType): QuizItem {
+  const newCount = quizTypeChoiceCount(newType);
+  const choices = Array(newCount).fill("").map((_, i) => quiz.choices[i] || "");
+  return { ...quiz, type: newType, choices };
+}
+
+// ─────────────────────────────────────────────────────────────────
 // 4페이지 — 목장 현황 (9개 반 × 13컬럼 + 새친구 + 합계)
 // ─────────────────────────────────────────────────────────────────
 const FARM_CLASSES = ["1-1", "1-2", "1-3", "2-1", "2-2", "2-3", "3-1", "3-2", "3-3"] as const;
@@ -481,6 +513,42 @@ export default function WeeklyBulletinPage() {
   const setFarmRow = (cls: string, field: keyof FarmRow, value: string) => {
     setFarmData((d) => ({ ...d, rows: { ...d.rows, [cls]: { ...d.rows[cls], [field]: value } } }));
   };
+
+  // 3페이지 — 공과 퀴즈 (동적 N문제, 기본 1문제 4지선다)
+  const [quizzes, setQuizzes] = useState<QuizItem[]>([newQuizItem("mc4")]);
+  const updateQuiz = (idx: number, next: QuizItem) => {
+    setQuizzes((arr) => arr.map((q, i) => i === idx ? next : q));
+  };
+  const addQuiz = (type: QuizType = "mc4") => {
+    setQuizzes((arr) => [...arr, newQuizItem(type)]);
+  };
+  const removeQuiz = (idx: number) => {
+    setQuizzes((arr) => arr.length <= 1 ? arr : arr.filter((_, i) => i !== idx));
+  };
+
+  // quizzes → form.q1~q4, q1c1~q3c4 sync (hwpx 출력 호환)
+  // hwpx 는 1~4번 고정 자리. 5번 이상 quizzes 는 출력 안 됨.
+  useEffect(() => {
+    setForm((f) => ({
+      ...f,
+      q1: quizzes[0]?.question || "",
+      q1c1: quizzes[0]?.choices[0] || "",
+      q1c2: quizzes[0]?.choices[1] || "",
+      q1c3: quizzes[0]?.choices[2] || "",
+      q1c4: quizzes[0]?.choices[3] || "",
+      q2: quizzes[1]?.question || "",
+      q2c1: quizzes[1]?.choices[0] || "",
+      q2c2: quizzes[1]?.choices[1] || "",
+      q2c3: quizzes[1]?.choices[2] || "",
+      q2c4: quizzes[1]?.choices[3] || "",
+      q3: quizzes[2]?.question || "",
+      q3c1: quizzes[2]?.choices[0] || "",
+      q3c2: quizzes[2]?.choices[1] || "",
+      q3c3: quizzes[2]?.choices[2] || "",
+      q3c4: quizzes[2]?.choices[3] || "",
+      q4: quizzes[3]?.question || "",
+    }));
+  }, [quizzes]);
   const [autoPostResult, setAutoPostResult] = useState<
     | { ok: true; postNo: number; redirectUrl: string }
     | { ok: false; error: string }
@@ -1204,56 +1272,47 @@ export default function WeeklyBulletinPage() {
 
         )}
 
-        {/* ⑤ 공과 (page 3) */}
+        {/* ⑤ 공과 (page 3) — 동적 N문제 */}
         {currentPage === 3 && (
         <div style={cardStyle}>
           <div style={sectionLabel}>⑤ 공과 / 퀴즈</div>
           <FormRow label="공과 회차">
             <input type="text" value={form.lessonNum} onChange={(e) => set("lessonNum", e.target.value)} placeholder="예: 14" style={inputStyle} />
           </FormRow>
-          <FormRow label="퀴즈 1번 — 문제">
-            <textarea value={form.q1} onChange={(e) => set("q1", e.target.value)} placeholder="예: 사람들은 왜 바벨탑을 쌓으려고 했나요?" rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-          </FormRow>
-          <FormRow label="① 보기">
-            <input type="text" value={form.q1c1} onChange={(e) => set("q1c1", e.target.value)} style={inputStyle} />
-          </FormRow>
-          <FormRow label="② 보기">
-            <input type="text" value={form.q1c2} onChange={(e) => set("q1c2", e.target.value)} style={inputStyle} />
-          </FormRow>
-          <FormRow label="③ 보기">
-            <input type="text" value={form.q1c3} onChange={(e) => set("q1c3", e.target.value)} style={inputStyle} />
-          </FormRow>
-          <FormRow label="④ 보기">
-            <input type="text" value={form.q1c4} onChange={(e) => set("q1c4", e.target.value)} style={inputStyle} />
-          </FormRow>
-          <FormRow label="퀴즈 2번 — 문제">
-            <textarea value={form.q2} onChange={(e) => set("q2", e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-          </FormRow>
-          <FormRow label="퀴즈 2번 보기 (한 줄에 4개)">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-              <input type="text" value={form.q2c1} onChange={(e) => set("q2c1", e.target.value)} placeholder="① 보기" style={inputStyle} />
-              <input type="text" value={form.q2c2} onChange={(e) => set("q2c2", e.target.value)} placeholder="② 보기" style={inputStyle} />
-              <input type="text" value={form.q2c3} onChange={(e) => set("q2c3", e.target.value)} placeholder="③ 보기" style={inputStyle} />
-              <input type="text" value={form.q2c4} onChange={(e) => set("q2c4", e.target.value)} placeholder="④ 보기" style={inputStyle} />
-            </div>
-            <div style={hintStyle}>한 줄에 ① ② ③ ④ 가 가로로 배치됩니다 (23년 양식 그대로)</div>
-          </FormRow>
 
-          <FormRow label="퀴즈 3번 — 문제">
-            <textarea value={form.q3} onChange={(e) => set("q3", e.target.value)} placeholder="예: 하나님이 언어를 혼잡하게 하신 결과, 사람들은 어떻게 되었나요?" rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-          </FormRow>
-          <FormRow label="퀴즈 3번 보기 (한 줄에 ①②, 다른 줄에 ③④)">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-              <input type="text" value={form.q3c1} onChange={(e) => set("q3c1", e.target.value)} placeholder="① 보기" style={inputStyle} />
-              <input type="text" value={form.q3c2} onChange={(e) => set("q3c2", e.target.value)} placeholder="② 보기" style={inputStyle} />
-              <input type="text" value={form.q3c3} onChange={(e) => set("q3c3", e.target.value)} placeholder="③ 보기" style={inputStyle} />
-              <input type="text" value={form.q3c4} onChange={(e) => set("q3c4", e.target.value)} placeholder="④ 보기" style={inputStyle} />
-            </div>
-          </FormRow>
+          {quizzes.map((quiz, idx) => (
+            <QuizCard
+              key={quiz.id}
+              index={idx}
+              quiz={quiz}
+              canRemove={quizzes.length > 1}
+              onChange={(next) => updateQuiz(idx, next)}
+              onRemove={() => removeQuiz(idx)}
+            />
+          ))}
 
-          <FormRow label="퀴즈 4번 — 문제 (보기 없음, 신규 26년)">
-            <textarea value={form.q4} onChange={(e) => set("q4", e.target.value)} placeholder="예: 우리는 배울 때 무엇을 경계해야 하나요?" rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-          </FormRow>
+          <button
+            onClick={() => addQuiz("mc4")}
+            style={{
+              width: "100%", padding: "12px", marginTop: 6,
+              background: "#eff6ff", color: "#1e40af",
+              border: "2px dashed #93c5fd", borderRadius: 10,
+              fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            + 문제 추가
+          </button>
+
+          {quizzes.length > 4 && (
+            <div style={{
+              marginTop: 8, padding: 10, background: "#fef3c7",
+              border: "1px solid #fbbf24", borderRadius: 8,
+              fontSize: 11, color: "#92400e", lineHeight: 1.5,
+            }}>
+              ⚠️ 5번째 문제부터는 hwpx 출력에 포함되지 않습니다 (양식 자리 4번까지).
+              필요 시 PDF 자동 생성에는 모든 문제 포함됨.
+            </div>
+          )}
         </div>
 
         )}
@@ -1972,6 +2031,97 @@ function FormRow({ label, children }: { label: string; children: React.ReactNode
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>{label}</div>
       {children}
+    </div>
+  );
+}
+
+// 3페이지 공과 — 단일 문제 카드
+function QuizCard({ index, quiz, canRemove, onChange, onRemove }: {
+  index: number;
+  quiz: QuizItem;
+  canRemove: boolean;
+  onChange: (next: QuizItem) => void;
+  onRemove: () => void;
+}) {
+  const choiceMarkers = ["①", "②", "③", "④", "⑤"];
+  const isMc = quiz.type !== "subjective";
+
+  return (
+    <div style={{
+      padding: 12, marginBottom: 10,
+      background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <div style={{
+          padding: "4px 10px", background: "#3b82f6", color: "#fff",
+          borderRadius: 6, fontSize: 13, fontWeight: 800, flexShrink: 0,
+        }}>
+          {index + 1}번
+        </div>
+        <select
+          value={quiz.type}
+          onChange={(e) => onChange(changeQuizType(quiz, e.target.value as QuizType))}
+          style={{
+            flex: 1, padding: "6px 8px", fontSize: 12,
+            border: "1px solid #cbd5e1", borderRadius: 6, fontFamily: "inherit",
+            background: "#fff",
+          }}
+        >
+          <option value="subjective">서술형 (단답)</option>
+          <option value="mc3">객관식 3지 선다</option>
+          <option value="mc4">객관식 4지 선다</option>
+          <option value="mc5">객관식 5지 선다</option>
+        </select>
+        {canRemove && (
+          <button
+            onClick={onRemove}
+            style={{
+              padding: "4px 10px", background: "#fee2e2", color: "#b91c1c",
+              border: "1px solid #fca5a5", borderRadius: 6,
+              fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+              flexShrink: 0,
+            }}
+            title="문제 삭제"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      <textarea
+        value={quiz.question}
+        onChange={(e) => onChange({ ...quiz, question: e.target.value })}
+        placeholder={isMc ? "문제 (예: 사람들은 왜 바벨탑을 쌓으려고 했나요?)" : "문제 (서술형, 보기 없음)"}
+        rows={2}
+        style={{
+          width: "100%", padding: "8px 10px", marginBottom: 8,
+          border: "1px solid #cbd5e1", borderRadius: 6,
+          fontSize: 13, fontFamily: "inherit", resize: "vertical",
+        }}
+      />
+
+      {isMc && (
+        <div style={{ display: "grid", gridTemplateColumns: quiz.choices.length >= 4 ? "1fr 1fr" : "1fr", gap: 6 }}>
+          {quiz.choices.map((c, ci) => (
+            <input
+              key={ci}
+              type="text"
+              value={c}
+              onChange={(e) => {
+                const newChoices = [...quiz.choices];
+                newChoices[ci] = e.target.value;
+                onChange({ ...quiz, choices: newChoices });
+              }}
+              placeholder={`${choiceMarkers[ci]} 보기`}
+              style={{
+                width: "100%", padding: "6px 10px",
+                border: "1px solid #cbd5e1", borderRadius: 6,
+                fontSize: 12, fontFamily: "inherit",
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
