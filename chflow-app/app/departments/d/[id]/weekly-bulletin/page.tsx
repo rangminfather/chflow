@@ -345,6 +345,54 @@ const UMS_BOARD_URL = "http://www.ums.or.kr/bbs/zboard.php?id=samusil&page=1";
 // ─────────────────────────────────────────────────────────────────
 // 컴포넌트
 // ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+// 4페이지 — 목장 현황 (9개 반 × 13컬럼 + 새친구 + 합계)
+// ─────────────────────────────────────────────────────────────────
+const FARM_CLASSES = ["1-1", "1-2", "1-3", "2-1", "2-2", "2-3", "3-1", "3-2", "3-3"] as const;
+
+interface FarmRow {
+  teacher: string;          // 담임 이름 (예: "이분선")
+  enrolled: string;         // 재적
+  attended: string;         // 출석인원
+  bibleCarry: string;       // 성경지참 점수
+  verse: string;            // 요절 점수
+  quiz: string;             // 주보퀴즈 점수
+  homework: string;         // 과제 점수
+  evangel: string;          // 전도 점수
+  promotion: string;        // 등반 점수
+  teacherAttend: string;    // 교사 출석 (0 or 1)
+  teacherVisit: string;     // 교사 심방 (0 or 1)
+  cumulative: string;       // 누계 (수동 입력, 이전 주까지 누적)
+}
+
+const EMPTY_FARM_ROW: FarmRow = {
+  teacher: "", enrolled: "", attended: "",
+  bibleCarry: "", verse: "", quiz: "", homework: "",
+  evangel: "", promotion: "",
+  teacherAttend: "", teacherVisit: "",
+  cumulative: "",
+};
+
+interface FarmData {
+  rows: Record<string, FarmRow>;  // key: "1-1", "1-2" ...
+  newFriendName: string;
+  promotion: string;  // 등반 정보 (자유 텍스트)
+}
+
+const EMPTY_FARM: FarmData = {
+  rows: Object.fromEntries(FARM_CLASSES.map((c) => [c, { ...EMPTY_FARM_ROW }])),
+  newFriendName: "",
+  promotion: "",
+};
+
+// 한 반의 소계 자동 계산 (점수 합)
+function calcRowSubtotal(row: FarmRow): number {
+  const att = (parseInt(row.attended) || 0) * 2;  // 출석인원 × 2점
+  const fields = [row.bibleCarry, row.verse, row.quiz, row.homework, row.evangel, row.promotion, row.teacherAttend, row.teacherVisit];
+  const total = fields.reduce((sum, v) => sum + (parseInt(v) || 0), 0);
+  return att + total;
+}
+
 // 자동등록 진행 단계 표시 컴포넌트
 type PostStepId = "pdf" | "login" | "upload" | "submit" | "done" | "error";
 function PostStepper({ currentStep }: { currentStep: PostStepId | null }) {
@@ -428,6 +476,11 @@ export default function WeeklyBulletinPage() {
   const [postStep, setPostStep] = useState<PostStep | null>(null);
   // 폼 페이지 — hwpx 의 1/2/3/4 페이지 구조 그대로
   const [currentPage, setCurrentPage] = useState<1 | 2 | 3 | 4>(1);
+  // 4페이지 — 목장 현황 데이터 (별도 state, EMPTY_FORM 안 건드림)
+  const [farmData, setFarmData] = useState<FarmData>(EMPTY_FARM);
+  const setFarmRow = (cls: string, field: keyof FarmRow, value: string) => {
+    setFarmData((d) => ({ ...d, rows: { ...d.rows, [cls]: { ...d.rows[cls], [field]: value } } }));
+  };
   const [autoPostResult, setAutoPostResult] = useState<
     | { ok: true; postNo: number; redirectUrl: string }
     | { ok: false; error: string }
@@ -1269,26 +1322,106 @@ export default function WeeklyBulletinPage() {
         </div>
         )}
 
-        {/* ⑨ 목장 현황 (page 4 — 학생집계 자동 연계 예정) */}
+        {/* ⑨ 목장 현황 (page 4) */}
         {currentPage === 4 && (
-          <div style={cardStyle}>
-            <div style={sectionLabel}>⑨ 목장 현황 (9개 반)</div>
-            <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 14 }}>
-              hwpx 의 4페이지 (2페이지 우측) — 9개 반 × 16컬럼의 통계 표.
-              <br />
-              나중에 학생집계 시스템 (출석/달란트/심방 등) 구현 후 자동 채움 예정.
+          <>
+            <div style={cardStyle}>
+              <div style={sectionLabel}>⑨ 목장 현황 (9개 반)</div>
+              <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6, marginBottom: 12 }}>
+                hwpx 4페이지 (2페이지 우측) 의 통계 표. 점수 입력 → 소계 자동 계산.
+                나중에 출석/달란트 시스템 구현되면 자동 채움 예정.
+              </div>
+
+              {FARM_CLASSES.map((cls) => {
+                const row = farmData.rows[cls];
+                const subtotal = calcRowSubtotal(row);
+                return (
+                  <div key={cls} style={{
+                    padding: 12, marginBottom: 10,
+                    background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0",
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{
+                          padding: "4px 10px", background: "#3b82f6", color: "#fff",
+                          borderRadius: 6, fontSize: 13, fontWeight: 800,
+                        }}>
+                          {cls}
+                        </div>
+                        <input
+                          type="text"
+                          value={row.teacher}
+                          onChange={(e) => setFarmRow(cls, "teacher", e.target.value)}
+                          placeholder="담임 이름"
+                          style={{ ...inputStyle, fontSize: 13, padding: "4px 8px", flex: 1 }}
+                        />
+                      </div>
+                      <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>
+                        소계 <span style={{ color: "#3b82f6", fontSize: 14 }}>{subtotal}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6, marginBottom: 6 }}>
+                      <SmallInput label="재적" value={row.enrolled} onChange={(v) => setFarmRow(cls, "enrolled", v)} />
+                      <SmallInput label="출석인원" value={row.attended} onChange={(v) => setFarmRow(cls, "attended", v)} hint="×2점 자동" />
+                    </div>
+
+                    <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 700, margin: "6px 0 4px" }}>
+                      점수 (각 항목 직접 입력)
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 6 }}>
+                      <SmallInput label="성경(×1)" value={row.bibleCarry} onChange={(v) => setFarmRow(cls, "bibleCarry", v)} />
+                      <SmallInput label="요절(×2)" value={row.verse} onChange={(v) => setFarmRow(cls, "verse", v)} />
+                      <SmallInput label="퀴즈(×2)" value={row.quiz} onChange={(v) => setFarmRow(cls, "quiz", v)} />
+                      <SmallInput label="과제(×2)" value={row.homework} onChange={(v) => setFarmRow(cls, "homework", v)} />
+                      <SmallInput label="전도(×5)" value={row.evangel} onChange={(v) => setFarmRow(cls, "evangel", v)} />
+                      <SmallInput label="등반(×5)" value={row.promotion} onChange={(v) => setFarmRow(cls, "promotion", v)} />
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                      <SmallInput label="교사출석" value={row.teacherAttend} onChange={(v) => setFarmRow(cls, "teacherAttend", v)} />
+                      <SmallInput label="교사심방" value={row.teacherVisit} onChange={(v) => setFarmRow(cls, "teacherVisit", v)} />
+                      <SmallInput label="누계" value={row.cumulative} onChange={(v) => setFarmRow(cls, "cumulative", v)} hint="이전주까지" />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div style={{
-              padding: 16, background: "#fef3c7", border: "1px solid #fbbf24",
-              borderRadius: 8, fontSize: 13, color: "#92400e", lineHeight: 1.6,
-            }}>
-              ⚠️ 이 페이지는 <b>준비 중</b>입니다.<br />
-              <span style={{ fontSize: 11, color: "#a16207" }}>
-                다른 메뉴 (출석부 / 달란트 / 심방 기록 등) 가 먼저 구현되어야
-                자동 연계 등록 가능. 그 시점까지는 이 표는 hwpx 에 빈 값으로 출력됩니다.
-              </span>
+
+            <div style={cardStyle}>
+              <div style={sectionLabel}>새 친구 / 등반</div>
+              <FormRow label="새 친구">
+                <input
+                  type="text" value={farmData.newFriendName}
+                  onChange={(e) => setFarmData((d) => ({ ...d, newFriendName: e.target.value }))}
+                  placeholder="예: 차난(1학년)-자진"
+                  style={inputStyle}
+                />
+              </FormRow>
+              <FormRow label="등반 정보">
+                <input
+                  type="text" value={farmData.promotion}
+                  onChange={(e) => setFarmData((d) => ({ ...d, promotion: e.target.value }))}
+                  placeholder="예: 1-1반 → 1-2반 (이름)"
+                  style={inputStyle}
+                />
+              </FormRow>
             </div>
-          </div>
+
+            <div style={{ ...cardStyle, background: "#eff6ff", border: "1px solid #bfdbfe" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#1e40af", marginBottom: 8 }}>전체 합계 (자동)</div>
+              {(() => {
+                const totalEnrolled = FARM_CLASSES.reduce((s, c) => s + (parseInt(farmData.rows[c].enrolled) || 0), 0);
+                const totalAttended = FARM_CLASSES.reduce((s, c) => s + (parseInt(farmData.rows[c].attended) || 0), 0);
+                return (
+                  <div style={{ display: "flex", gap: 16, fontSize: 13, color: "#1e40af" }}>
+                    <div>재적 합계: <b>{totalEnrolled}</b></div>
+                    <div>출석 합계: <b>{totalAttended}</b></div>
+                  </div>
+                );
+              })()}
+            </div>
+          </>
         )}
 
         {/* 모바일: 폼 끝에 액션 카드 (데스크톱은 사이드바에서 처리) */}
@@ -1839,6 +1972,29 @@ function FormRow({ label, children }: { label: string; children: React.ReactNode
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>{label}</div>
       {children}
+    </div>
+  );
+}
+
+// 4페이지 목장 현황의 작은 숫자 입력
+function SmallInput({ label, value, onChange, hint }: {
+  label: string; value: string; onChange: (v: string) => void; hint?: string;
+}) {
+  return (
+    <div>
+      <div style={{ fontSize: 9, color: "#64748b", fontWeight: 700, marginBottom: 2 }}>{label}</div>
+      <input
+        type="number" min="0"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          width: "100%", padding: "6px 8px",
+          border: "1px solid #cbd5e1", borderRadius: 6,
+          fontSize: 13, fontFamily: "inherit",
+          background: "#fff",
+        }}
+      />
+      {hint && <div style={{ fontSize: 8, color: "#94a3b8", marginTop: 2 }}>{hint}</div>}
     </div>
   );
 }
