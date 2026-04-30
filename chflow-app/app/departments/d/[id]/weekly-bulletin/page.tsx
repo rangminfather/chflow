@@ -1103,6 +1103,34 @@ export default function WeeklyBulletinPage() {
           </div>
         )}
 
+        {/* ─── 작성 헤더 ─── */}
+        <div style={{
+          background: "linear-gradient(135deg, #faf5ff, #eff6ff)",
+          border: "1px solid #ddd6fe",
+          borderRadius: 12,
+          padding: "12px 16px",
+          marginBottom: 12,
+          display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8,
+        }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#7c3aed" }}>
+              📝 주보 작성 중
+            </div>
+            <div style={{ fontSize: 11, color: "#9333ea", marginTop: 2 }}>
+              {form.date ? formatKoreanDate(form.date) : "발행일 미선택"} · {currentPage}페이지 입력 중
+            </div>
+          </div>
+          {form.issueNumber && (
+            <div style={{
+              padding: "4px 10px", background: "#fff",
+              borderRadius: 6, fontSize: 12, fontWeight: 700, color: "#7c3aed",
+              border: "1px solid #ddd6fe",
+            }}>
+              {form.issueNumber}
+            </div>
+          )}
+        </div>
+
         {/* ─── 페이지 선택 탭 (hwpx 1/2/3/4 페이지 구조) ─── */}
         <div style={{
           display: "flex", gap: 4, padding: 4,
@@ -1110,16 +1138,16 @@ export default function WeeklyBulletinPage() {
           overflowX: "auto",
         }}>
           {[
-            { n: 1 as const, label: "표지" },
-            { n: 2 as const, label: "예배 순서" },
-            { n: 3 as const, label: "공과" },
-            { n: 4 as const, label: "목장 현황" },
+            { n: 1 as const, label: "표지", icon: "📄" },
+            { n: 2 as const, label: "예배 순서", icon: "🎵" },
+            { n: 3 as const, label: "공과", icon: "📚" },
+            { n: 4 as const, label: "목장 현황", icon: "📊" },
           ].map((p) => (
             <button
               key={p.n}
               onClick={() => setCurrentPage(p.n)}
               style={{
-                flex: 1, minWidth: 80,
+                flex: 1, minWidth: 84,
                 padding: "10px 8px",
                 background: currentPage === p.n ? "#fff" : "transparent",
                 color: currentPage === p.n ? "#1e293b" : "#64748b",
@@ -1128,9 +1156,11 @@ export default function WeeklyBulletinPage() {
                 cursor: "pointer", fontFamily: "inherit",
                 boxShadow: currentPage === p.n ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
                 whiteSpace: "nowrap",
+                transition: "all 0.15s",
               }}
             >
-              <div style={{ fontSize: 10, color: currentPage === p.n ? "#3b82f6" : "#94a3b8" }}>
+              <div style={{ fontSize: 14, marginBottom: 1 }}>{p.icon}</div>
+              <div style={{ fontSize: 10, color: currentPage === p.n ? "#7c3aed" : "#94a3b8" }}>
                 {p.n}페이지
               </div>
               <div>{p.label}</div>
