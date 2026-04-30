@@ -1552,10 +1552,18 @@ export default function WeeklyBulletinPage() {
         {/* ─── 데스크톱: 우측 sticky 사이드바 ─── */}
         {isDesktop && (
           <div style={{
-            width: 300, position: "sticky", top: 16, alignSelf: "flex-start",
+            width: 360, position: "sticky", top: 16, alignSelf: "flex-start",
             maxHeight: "calc(100vh - 32px)", overflowY: "auto", flexShrink: 0,
             display: "flex", flexDirection: "column", gap: 12,
           }}>
+            <BulletinPreview
+              currentPage={currentPage}
+              form={form}
+              farmData={farmData}
+              quizzes={quizzes}
+              photos={photos}
+              deptName={deptName}
+            />
             <ActionCard
               cooldown={cooldown}
               autoPosting={autoPosting}
@@ -2160,6 +2168,236 @@ function QuizCard({ index, quiz, canRemove, onChange, onRemove }: {
               }}
             />
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 우측 실시간 미리보기 패널 (PC 한정) — hwpx 레이아웃 HTML 재현
+// ─────────────────────────────────────────────────────────────────
+function BulletinPreview({ currentPage, form, farmData, quizzes, photos, deptName }: {
+  currentPage: 1 | 2 | 3 | 4;
+  form: FormState;
+  farmData: FarmData;
+  quizzes: QuizItem[];
+  photos: Array<File | null>;
+  deptName: string;
+}) {
+  const cardCss: React.CSSProperties = {
+    width: "100%",
+    aspectRatio: "595/842",  // A4 비율
+    background: "#fff",
+    border: "1px solid #cbd5e1",
+    borderRadius: 8,
+    padding: 16,
+    fontSize: 9,
+    lineHeight: 1.4,
+    color: "#1e293b",
+    overflow: "auto",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+    fontFamily: "'Noto Sans KR', sans-serif",
+  };
+
+  return (
+    <div style={cardCss}>
+      <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 700, marginBottom: 6, textAlign: "center" }}>
+        📄 페이지 {currentPage} 미리보기
+      </div>
+      {currentPage === 1 && <PreviewPage1 form={form} photos={photos} deptName={deptName} />}
+      {currentPage === 2 && <PreviewPage2 form={form} />}
+      {currentPage === 3 && <PreviewPage3 form={form} quizzes={quizzes} />}
+      {currentPage === 4 && <PreviewPage4 form={form} farmData={farmData} />}
+    </div>
+  );
+}
+
+function PreviewPage1({ form, photos, deptName }: {
+  form: FormState; photos: Array<File | null>; deptName: string;
+}) {
+  const filledPhotos = photos.filter((p) => p !== null) as File[];
+  const photoUrls = filledPhotos.slice(0, 4).map((f) => URL.createObjectURL(f));
+  const dateStr = form.date ? formatKoreanDate(form.date) : "";
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "#7c3aed" }}>{deptName} 주보</div>
+          <div style={{ fontSize: 8, color: "#64748b", marginTop: 2 }}>{dateStr}</div>
+        </div>
+        <div style={{ fontSize: 9, color: "#64748b" }}>
+          {form.issueNumber || calcIssueNumber(form.date) || ""}
+        </div>
+      </div>
+
+      <div style={{ borderTop: "1px solid #c4b5fd", margin: "6px 0" }} />
+
+      {form.theme && (
+        <div style={{ padding: "4px 6px", background: "#faf5ff", borderRadius: 4, marginBottom: 6 }}>
+          <div style={{ fontSize: 8, color: "#9333ea", fontWeight: 700 }}>주제</div>
+          <div style={{ fontSize: 10, fontWeight: 700 }}>{form.theme}</div>
+        </div>
+      )}
+
+      {photoUrls.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 6 }}>
+          {photoUrls.map((url, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={i} src={url} alt={`사진 ${i + 1}`} style={{ width: "100%", height: 60, objectFit: "cover", borderRadius: 3 }} />
+          ))}
+        </div>
+      )}
+
+      {form.pageOneVerse && (
+        <div style={{ padding: 6, background: "#eff6ff", borderRadius: 4, fontSize: 8, lineHeight: 1.5, color: "#1e40af", marginBottom: 6 }}>
+          {form.pageOneVerse}
+        </div>
+      )}
+
+      <div style={{ marginTop: 8, padding: 6, background: "#f1f5f9", borderRadius: 4, fontSize: 7, color: "#64748b", lineHeight: 1.4 }}>
+        대한예수교 장로회 명성교회<br />
+        ☎ 251-7991 (친구구원)<br />
+        교장: 김종혁목사 / 지도: 김희숙전도사<br />
+        부장: 최성헌 / 총무: 정기숙
+      </div>
+    </div>
+  );
+}
+
+function PreviewPage2({ form }: { form: FormState }) {
+  const orderItems: Array<{ label: string; value: string }> = [
+    { label: "안내", value: form.guide ? `${form.guide} 선생님` : "" },
+    { label: "찬양율동", value: form.praise1 || form.praise2 ? `${form.praise1} ${form.praise2} 선생님` : "" },
+    { label: "예배인도", value: form.leader ? `${form.leader}선생님` : "" },
+    { label: "주제제창", value: form.theme || "" },
+    { label: "기도", value: form.prayerClass || "" },
+    { label: "성경봉독", value: form.scripture || "" },
+    { label: "말씀", value: form.preacher ? `${form.preacher}님` : "" },
+    { label: "강론 제목", value: form.sermonTitle || "" },
+    { label: "다음 주 기도", value: form.nextPrayer || "" },
+  ];
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: "#7c3aed" }}>예배 순서</div>
+        <div style={{ fontSize: 8, color: "#64748b" }}>시작: {form.startTime}</div>
+      </div>
+      <div style={{ borderTop: "1px solid #c4b5fd", margin: "4px 0 8px" }} />
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 8 }}>
+        <tbody>
+          {orderItems.map((item, i) => (
+            <tr key={i} style={{ borderBottom: "1px dashed #e2e8f0" }}>
+              <td style={{ padding: "3px 4px", color: "#9333ea", fontWeight: 700, width: 60 }}>{item.label}</td>
+              <td style={{ padding: "3px 4px" }}>{item.value || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div style={{ marginTop: 8, padding: 6, background: "#fefce8", borderRadius: 4 }}>
+        <div style={{ fontSize: 8, color: "#a16207", fontWeight: 700, marginBottom: 3 }}>헌금</div>
+        <div style={{ fontSize: 8 }}>십일조: {form.tithe || "-"}</div>
+        <div style={{ fontSize: 8 }}>감사헌금: {form.thanksgiving || "-"}</div>
+      </div>
+
+      {(form.twoPartActivity || form.announcement) && (
+        <div style={{ marginTop: 8, padding: 6, background: "#f0fdf4", borderRadius: 4 }}>
+          <div style={{ fontSize: 8, color: "#15803d", fontWeight: 700, marginBottom: 3 }}>광고 / 2부행사</div>
+          {form.twoPartActivity && <div style={{ fontSize: 8 }}>✿2부행사: {form.twoPartActivity}</div>}
+          {form.announcementAuthor && <div style={{ fontSize: 8 }}>담당: {form.announcementAuthor}선생님</div>}
+          {form.announcement && (
+            <div style={{ fontSize: 8, marginTop: 3, whiteSpace: "pre-line", color: "#1e293b" }}>{form.announcement}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreviewPage3({ form, quizzes }: { form: FormState; quizzes: QuizItem[] }) {
+  const choiceMarkers = ["①", "②", "③", "④", "⑤"];
+  return (
+    <div>
+      <div style={{ fontSize: 12, fontWeight: 800, color: "#7c3aed", marginBottom: 6 }}>
+        ♣ {form.lessonNum || "?"}과 공과 퀴즈 ♣
+      </div>
+      <div style={{ borderTop: "1px solid #c4b5fd", margin: "4px 0 8px" }} />
+      {quizzes.map((q, i) => (
+        <div key={q.id} style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 9, fontWeight: 700 }}>
+            {i + 1}. {q.question || <span style={{ color: "#cbd5e1" }}>(문제 미입력)</span>}
+          </div>
+          {q.type !== "subjective" && q.choices.map((c, ci) => (
+            <div key={ci} style={{ fontSize: 8, paddingLeft: 8, color: c ? "#1e293b" : "#cbd5e1" }}>
+              {choiceMarkers[ci]} {c || "—"}
+            </div>
+          ))}
+        </div>
+      ))}
+      {form.versePassage && (
+        <div style={{ marginTop: 10, padding: 6, background: "#fef3c7", borderRadius: 4 }}>
+          <div style={{ fontSize: 8, color: "#92400e", fontWeight: 700, marginBottom: 3 }}>요절암송</div>
+          <div style={{ fontSize: 8, lineHeight: 1.5 }}>{form.versePassage}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreviewPage4({ form, farmData }: { form: FormState; farmData: FarmData }) {
+  const totalEnrolled = FARM_CLASSES.reduce((s, c) => s + (parseInt(farmData.rows[c].enrolled) || 0), 0);
+  const totalAttended = FARM_CLASSES.reduce((s, c) => s + (parseInt(farmData.rows[c].attended) || 0), 0);
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", marginBottom: 6 }}>
+        초등 1 초원 목장 현황
+      </div>
+      <div style={{ borderTop: "1px solid #c4b5fd", margin: "4px 0 6px" }} />
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 7 }}>
+        <thead>
+          <tr style={{ background: "#f1f5f9" }}>
+            <th style={{ padding: 2, border: "1px solid #cbd5e1" }}>반</th>
+            <th style={{ padding: 2, border: "1px solid #cbd5e1" }}>담임</th>
+            <th style={{ padding: 2, border: "1px solid #cbd5e1" }}>재적</th>
+            <th style={{ padding: 2, border: "1px solid #cbd5e1" }}>출석</th>
+            <th style={{ padding: 2, border: "1px solid #cbd5e1" }}>소계</th>
+            <th style={{ padding: 2, border: "1px solid #cbd5e1" }}>누계</th>
+          </tr>
+        </thead>
+        <tbody>
+          {FARM_CLASSES.map((cls) => {
+            const r = farmData.rows[cls];
+            const sub = calcRowSubtotal(r);
+            return (
+              <tr key={cls}>
+                <td style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center" }}>{cls}</td>
+                <td style={{ padding: 2, border: "1px solid #cbd5e1" }}>{r.teacher || "—"}</td>
+                <td style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center" }}>{r.enrolled || "-"}</td>
+                <td style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center" }}>{r.attended || "-"}</td>
+                <td style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center", color: sub > 0 ? "#3b82f6" : "#cbd5e1" }}>{sub || "-"}</td>
+                <td style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center" }}>{r.cumulative || "-"}</td>
+              </tr>
+            );
+          })}
+          <tr style={{ background: "#eff6ff", fontWeight: 700 }}>
+            <td colSpan={2} style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center" }}>합계</td>
+            <td style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center" }}>{totalEnrolled}</td>
+            <td style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center" }}>{totalAttended}</td>
+            <td colSpan={2} style={{ padding: 2, border: "1px solid #cbd5e1" }}></td>
+          </tr>
+        </tbody>
+      </table>
+      {form.newFriend && (
+        <div style={{ marginTop: 8, padding: 6, background: "#fdf4ff", borderRadius: 4 }}>
+          <div style={{ fontSize: 8, color: "#a21caf", fontWeight: 700 }}>새 친구</div>
+          <div style={{ fontSize: 8 }}>{form.newFriend}</div>
+        </div>
+      )}
+      {farmData.promotion && (
+        <div style={{ marginTop: 6, padding: 6, background: "#ecfeff", borderRadius: 4 }}>
+          <div style={{ fontSize: 8, color: "#0891b2", fontWeight: 700 }}>등반</div>
+          <div style={{ fontSize: 8 }}>{farmData.promotion}</div>
         </div>
       )}
     </div>
