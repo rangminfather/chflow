@@ -316,15 +316,22 @@ export default function PromotePage() {
           <div style={card}>
             <div style={sectionLabel}>2. 반 편성</div>
             <div style={{ fontSize: 11, color: "#64748b", marginBottom: 14, lineHeight: 1.7 }}>
-              학년별로 반 개수를 정하면 학생이 자동 균등 분배됩니다. 개별 학생 반은 우측 드롭다운에서 변경하세요.
+              학년별 반 개수를 정하면 자동 균등 분배됩니다. 학생 옆 <span style={{ color: "#6366f1", fontWeight: 700 }}>반 칩</span>을 탭하면 그 반으로 이동합니다.
             </div>
             {Object.keys(byNextGrade).sort((a, b) => Number(a) - Number(b)).map(gKey => {
               const g = Number(gKey);
               const list = byNextGrade[g];
               const cnt = classCount[g] || 1;
+              const classOptions = Array.from({ length: cnt }, (_, i) => `${g}-${i + 1}`);
+              // 반별 인원 카운트
+              const perClass: Record<string, number> = {};
+              list.forEach(r => {
+                const c = assignments[r.student_id]?.class_no;
+                if (c) perClass[c] = (perClass[c] || 0) + 1;
+              });
               return (
                 <div key={g} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: "1px dashed #e2e8f0" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>📚 {g}학년 ({list.length}명)</div>
                     <span style={{ fontSize: 11, color: "#64748b" }}>반 수:</span>
                     <input type="number" min={1} max={20} value={cnt}
@@ -332,19 +339,55 @@ export default function PromotePage() {
                       style={{ width: 56, padding: "4px 6px", fontSize: 12, border: "1.5px solid #cbd5e1", borderRadius: 6, fontFamily: "inherit" }} />
                     <button onClick={() => changeClassCount(g, cnt)} style={smallBtn}>↻ 재분배</button>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 4, fontSize: 12 }}>
-                    {list.map(r => (
-                      <div key={r.student_id} style={{ display: "contents" }}>
-                        <div style={{ padding: "5px 6px", color: "#1e293b" }}>{r.name}</div>
-                        <select value={assignments[r.student_id]?.class_no || ""}
-                          onChange={(e) => changeStudentClass(r.student_id, e.target.value)}
-                          style={selectStyle}>
-                          {Array.from({ length: cnt }, (_, i) => `${g}-${i + 1}`).map(c => (
-                            <option key={c} value={c}>{c}반</option>
-                          ))}
-                        </select>
-                      </div>
+                  {/* 반별 인원 요약 */}
+                  <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+                    {classOptions.map(c => (
+                      <span key={c} style={{
+                        padding: "3px 9px", borderRadius: 999, fontSize: 11, fontWeight: 700,
+                        background: "#eef2ff", color: "#4338ca",
+                      }}>
+                        {c.split("-")[1]}반 · {perClass[c] || 0}명
+                      </span>
                     ))}
+                  </div>
+                  {/* 학생 행 */}
+                  <div>
+                    {list.map(r => {
+                      const myClass = assignments[r.student_id]?.class_no;
+                      return (
+                        <div key={r.student_id} style={{
+                          display: "flex", alignItems: "center", gap: 8, padding: "8px 4px",
+                          borderBottom: "1px solid #f1f5f9",
+                        }}>
+                          <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#1e293b", minWidth: 0 }}>
+                            {r.name}
+                          </div>
+                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                            {classOptions.map(c => {
+                              const active = myClass === c;
+                              return (
+                                <button
+                                  key={c}
+                                  onClick={() => changeStudentClass(r.student_id, c)}
+                                  style={{
+                                    minWidth: 36, padding: "6px 10px",
+                                    background: active ? "#6366f1" : "#f1f5f9",
+                                    color: active ? "#fff" : "#475569",
+                                    border: "none", borderRadius: 8,
+                                    fontSize: 12, fontWeight: 700,
+                                    cursor: "pointer", fontFamily: "inherit",
+                                    boxShadow: active ? "0 1px 4px rgba(99,102,241,0.4)" : "none",
+                                    transition: "background 0.12s",
+                                  }}
+                                >
+                                  {c.split("-")[1]}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
