@@ -271,43 +271,99 @@ export default function PromotePage() {
             <div style={{ background: "#f8fafc", borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 12, color: "#475569", lineHeight: 1.7 }}>
               <b>{year}년도 → {year + 1}년도 진급 결과</b>
               <div style={{ marginTop: 6 }}>
-                재학 진급: <b>{staying.length}명</b><br />
-                {nextDeptName ? <>전출(→ {nextDeptName}): <b>{graduating.length}명</b></> : <>졸업: <b>{graduating.length}명</b></>}
+                재학 진급: <b>{staying.length}명</b> · {nextDeptName ? <>전출(→ {nextDeptName}): <b>{graduating.length}명</b></> : <>졸업: <b>{graduating.length}명</b></>}
               </div>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
               <span style={{ fontSize: 12, color: "#64748b" }}>스냅샷 연도:</span>
               <input type="number" value={year} onChange={(e) => setYear(parseInt(e.target.value, 10) || year)}
                 style={{ width: 80, padding: "5px 8px", fontSize: 13, border: "1.5px solid #cbd5e1", borderRadius: 6, fontFamily: "inherit" }} />
-              <span style={{ fontSize: 11, color: "#94a3b8" }}>(이력 테이블에 저장될 연도)</span>
+              <span style={{ fontSize: 11, color: "#94a3b8" }}>(이력 저장 기준)</span>
             </div>
 
-            {Object.keys(byNextGrade).sort((a, b) => Number(a) - Number(b)).map(g => (
-              <details key={g} open style={{ marginBottom: 8 }}>
-                <summary style={summaryStyle}>📚 {g}학년 — {byNextGrade[Number(g)].length}명</summary>
-                <div style={{ padding: "8px 12px", fontSize: 12, color: "#475569", lineHeight: 1.7 }}>
-                  {byNextGrade[Number(g)].map(r => (
-                    <span key={r.student_id} style={chip}>
-                      {r.name} <span style={{ color: "#94a3b8" }}>({r.current_grade}→{r.next_grade})</span>
-                    </span>
-                  ))}
-                </div>
-              </details>
-            ))}
+            {/* 현재 학년별로 묶어서 진급 카드 표시 */}
+            {(() => {
+              const byCurrent: Record<number, PreviewRow[]> = {};
+              preview.forEach(r => { (byCurrent[r.current_grade] = byCurrent[r.current_grade] || []).push(r); });
+              return Object.keys(byCurrent).sort((a, b) => Number(a) - Number(b)).map(gKey => {
+                const cg = Number(gKey);
+                const list = byCurrent[cg];
+                const willGrad = list[0].will_graduate;
+                const ng = list[0].next_grade;
+                const dest = list[0].next_dept_name;
 
-            {graduating.length > 0 && (
-              <details style={{ marginTop: 8 }}>
-                <summary style={{ ...summaryStyle, background: "#fef3c7" }}>🎓 전출/졸업 — {graduating.length}명</summary>
-                <div style={{ padding: "8px 12px", fontSize: 12, color: "#475569", lineHeight: 1.7 }}>
-                  {graduating.map(r => (
-                    <span key={r.student_id} style={{ ...chip, background: "#fef3c7" }}>
-                      {r.name} <span style={{ color: "#94a3b8" }}>(→ {r.next_grade}학년)</span>
-                    </span>
-                  ))}
-                </div>
-              </details>
-            )}
+                const accent = willGrad ? "#f97316" : "#6366f1";
+                const accentBg = willGrad ? "#fff7ed" : "#eef2ff";
+                const accentBorder = willGrad ? "#fed7aa" : "#c7d2fe";
+
+                return (
+                  <div key={cg} style={{
+                    background: accentBg,
+                    border: `1.5px solid ${accentBorder}`,
+                    borderRadius: 14,
+                    padding: 14,
+                    marginBottom: 12,
+                  }}>
+                    {/* 진급 화살표 헤더 */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+                      <div style={{
+                        background: "#fff", border: `1.5px solid ${accentBorder}`,
+                        borderRadius: 10, padding: "8px 14px",
+                        fontSize: 18, fontWeight: 800, color: "#1e293b",
+                        minWidth: 70, textAlign: "center",
+                      }}>
+                        {cg}학년
+                      </div>
+                      <div style={{ fontSize: 24, color: accent, fontWeight: 800 }}>→</div>
+                      <div style={{
+                        background: accent, color: "#fff",
+                        borderRadius: 10, padding: "8px 14px",
+                        fontSize: 18, fontWeight: 800,
+                        minWidth: 70, textAlign: "center",
+                      }}>
+                        {ng}학년
+                      </div>
+                      <div style={{ flex: 1, minWidth: 80, textAlign: "right" }}>
+                        <span style={{
+                          padding: "4px 10px", borderRadius: 999,
+                          background: "#fff", color: accent,
+                          fontSize: 12, fontWeight: 700,
+                          border: `1.5px solid ${accent}`,
+                        }}>
+                          {list.length}명
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 처리 방식 안내 */}
+                    <div style={{
+                      background: "#fff", borderRadius: 8, padding: "8px 12px",
+                      marginBottom: 10, fontSize: 12, fontWeight: 600,
+                      color: willGrad ? "#9a3412" : "#3730a3",
+                    }}>
+                      {willGrad
+                        ? (dest ? `🎓 졸업 → ${dest}으로 전출` : "🎓 졸업 보관 (다음 부서 미지정)")
+                        : "📚 본 부서에서 진급(잔류)"}
+                    </div>
+
+                    {/* 학생 이름들 */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      {list.map(r => (
+                        <span key={r.student_id} style={{
+                          display: "inline-block", padding: "4px 10px",
+                          background: "#fff", borderRadius: 999,
+                          fontSize: 12, color: "#1e293b", fontWeight: 600,
+                          border: `1px solid ${accentBorder}`,
+                        }}>
+                          {r.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
         )}
 
