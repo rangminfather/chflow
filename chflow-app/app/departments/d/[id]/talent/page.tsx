@@ -31,6 +31,16 @@ interface TalentRecord {
   created_at: string;
 }
 
+interface AutoTalentRow {
+  rule_id: string;
+  rule_key: string;
+  label: string;
+  source: "system" | "custom";
+  count_hits: number;
+  per_hit: number;
+  total: number;
+}
+
 const PT_ITEMS = [
   { key: "pts_attendance",  label: "출석",  icon: "✅", color: "#10b981" },
   { key: "pts_offering",    label: "예전",  icon: "🙏", color: "#6366f1" },
@@ -59,6 +69,12 @@ export default function TalentPage() {
   const [summary, setSummary] = useState<TalentSummary[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<TalentSummary | null>(null);
   const [records, setRecords] = useState<TalentRecord[]>([]);
+  const [autoRows, setAutoRows] = useState<AutoTalentRow[]>([]);
+  const [showWeeklyExtra, setShowWeeklyExtra] = useState(false);
+  const [weeklyExtraMonth, setWeeklyExtraMonth] = useState<{ y: number; m: number }>({ y: new Date().getFullYear(), m: new Date().getMonth() + 1 });
+  const [customRules, setCustomRules] = useState<{ rule_id: string; rule_key: string; label: string; points: number }[]>([]);
+  const [extraChecks, setExtraChecks] = useState<Record<string, boolean>>({}); // key: `${date}_${rule_id}`
+  const [extraSaving, setExtraSaving] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -87,12 +103,82 @@ export default function TalentPage() {
     setSelectedStudent(s);
     setShowAddForm(false);
     setEditRecord(null);
-    await loadRecords(s.student_id);
+    await Promise.all([loadRecords(s.student_id), loadAuto(s.student_id)]);
   };
 
   const loadRecords = async (studentId: string) => {
     const { data } = await supabase.rpc("edu_get_student_talent", { p_student_id: studentId });
     setRecords(data || []);
+  };
+
+  const loadAuto = async (studentId: string) => {
+    const { data } = await supabase.rpc("get_student_auto_talent", {
+      p_student_id: studentId,
+      p_year_from: 2020, p_month_from: 1,
+      p_year_to:   2099, p_month_to:   12,
+    });
+    setAutoRows((data as AutoTalentRow[]) || []);
+  };
+
+  const openWeeklyExtra = async () => {
+    if (!selectedStudent) return;
+    const colsR = await supabase.rpc("list_attendance_columns", { p_dept_id: deptId });
+    const all = (colsR.data as { rule_id: string; rule_key: string; label: string; points: number; source: string }[]) || [];
+    setCustomRules(all.filter(c => c.source === "custom"));
+    const extraR = await supabase.rpc("get_dept_weekly_extra", {
+      p_dept_id: deptId, p_year: weeklyExtraMonth.y, p_month: weeklyExtraMonth.m,
+    });
+    const ec: Record<string, boolean> = {};
+    ((extraR.data as { student_id: string; attend_date: string; rule_id: string }[]) || [])
+      .filter(e => e.student_id === selectedStudent.student_id)
+      .forEach(e => { ec[`${e.attend_date}_${e.rule_id}`] = true; });
+    setExtraChecks(ec);
+    setShowWeeklyExtra(true);
+  };
+
+  const reloadExtra = async () => {
+    if (!selectedStudent) return;
+    const extraR = await supabase.rpc("get_dept_weekly_extra", {
+      p_dept_id: deptId, p_year: weeklyExtraMonth.y, p_month: weeklyExtraMonth.m,
+    });
+    const ec: Record<string, boolean> = {};
+    ((extraR.data as { student_id: string; attend_date: string; rule_id: string }[]) || [])
+      .filter(e => e.student_id === selectedStudent.student_id)
+      .forEach(e => { ec[`${e.attend_date}_${e.rule_id}`] = true; });
+    setExtraChecks(ec);
+  };
+
+  useEffect(() => {
+    if (showWeeklyExtra) reloadExtra();
+  }, [weeklyExtraMonth]);
+
+  const toggleExtra = async (date: string, ruleId: string) => {
+    if (!selectedStudent) return;
+    const key = `${date}_${ruleId}`;
+    const next = !extraChecks[key];
+    setExtraSaving(key);
+    const { error } = await supabase.rpc("toggle_weekly_extra", {
+      p_student_id: selectedStudent.student_id,
+      p_dept_id:    deptId,
+      p_date:       date,
+      p_rule_id:    ruleId,
+      p_checked:    next,
+    });
+    setExtraSaving("");
+    if (error) { showToast("실패: " + error.message); return; }
+    setExtraChecks(s => ({ ...s, [key]: next }));
+    await loadAuto(selectedStudent.student_id);
+  };
+
+  const sundaysInMonth = (y: number, m: number): string[] => {
+    const out: string[] = [];
+    const d = new Date(y, m - 1, 1);
+    while (d.getDay() !== 0) d.setDate(d.getDate() + 1);
+    while (d.getMonth() === m - 1) {
+      out.push(d.toISOString().slice(0, 10));
+      d.setDate(d.getDate() + 7);
+    }
+    return out;
   };
 
   const openAddForm = () => {
@@ -282,7 +368,60 @@ export default function TalentPage() {
               <button onClick={openAddForm} style={addBtnStyle}>+ 달란트 추가</button>
             </div>
 
-            {/* 항목별 요약 */}
+            {/* 자동 적립 (부서 규칙 기반) */}
+            {autoRows.length > 0 && (
+              <div style={{ ...cardStyle, marginBottom: 16, background: "linear-gradient(135deg, #eef2ff, #f5f3ff)", border: "1.5px solid #c7d2fe" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#4338ca" }}>⚙️ 자동 적립 (부서 규칙)</div>
+                  <div style={{ fontSize: 11, color: "#6366f1" }}>
+                    합계 <b style={{ fontSize: 16 }}>{autoRows.reduce((s, r) => s + r.total, 0)}</b> 점
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
+                  {autoRows.map((r) => (
+                    <div key={r.rule_id} style={{
+                      background: "#fff", borderRadius: 10, padding: "10px 12px",
+                      border: "1px solid #e0e7ff",
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#1e293b" }}>{r.label}</div>
+                        <span style={{
+                          fontSize: 9, padding: "1px 5px", borderRadius: 4,
+                          background: r.source === "system" ? "#dcfce7" : "#fef3c7",
+                          color: r.source === "system" ? "#15803d" : "#92400e",
+                          fontWeight: 700,
+                        }}>{r.source === "system" ? "출석" : "주별"}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
+                        {r.count_hits}회 × {r.per_hit}점
+                      </div>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: "#4338ca", marginTop: 2 }}>
+                        {r.total}점
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, gap: 8 }}>
+                  <div style={{ fontSize: 10, color: "#6366f1", lineHeight: 1.5, flex: 1 }}>
+                    💡 <b>출석</b> = 출석부 체크 시 자동. <b>주별</b> = 우측 버튼으로 학생별 체크.
+                  </div>
+                  {autoRows.some(r => r.source === "custom") && (
+                    <button onClick={openWeeklyExtra} style={{
+                      padding: "6px 12px", background: "#6366f1", color: "#fff",
+                      border: "none", borderRadius: 8, fontSize: 11, fontWeight: 700,
+                      cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+                    }}>
+                      ✓ 주별 체크 입력
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 항목별 요약 (수동 입력) */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", marginBottom: 6 }}>
+              📝 수동 입력 (특별·보너스)
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8, marginBottom: 16 }}>
               {PT_ITEMS.map((item) => (
                 <div key={item.key} style={{ ...cardStyle, padding: "12px 8px", textAlign: "center" }}>
@@ -412,6 +551,92 @@ export default function TalentPage() {
       </div>
 
       {toast && <div style={toastStyle}>{toast}</div>}
+
+      {/* 주별 체크 입력 모달 */}
+      {showWeeklyExtra && selectedStudent && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}
+          onClick={() => setShowWeeklyExtra(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: "#fff", borderRadius: 14, padding: 20,
+            width: "100%", maxWidth: 720, maxHeight: "90vh", overflowY: "auto",
+            fontFamily: "inherit",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>
+                  ✓ {selectedStudent.student_name} · 주별 체크
+                </div>
+                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>주차별로 항목을 체크하면 자동 적립됩니다</div>
+              </div>
+              <button onClick={() => setShowWeeklyExtra(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8" }}>×</button>
+            </div>
+
+            {/* 월 선택 */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, padding: "10px 14px", background: "#f8fafc", borderRadius: 8 }}>
+              <button onClick={() => setWeeklyExtraMonth(({ y, m }) => m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 })}
+                style={{ ...cancelBtnStyle, padding: "6px 12px" }}>◀</button>
+              <div style={{ flex: 1, textAlign: "center", fontSize: 14, fontWeight: 800, color: "#1e293b" }}>
+                {weeklyExtraMonth.y}년 {weeklyExtraMonth.m}월
+              </div>
+              <button onClick={() => setWeeklyExtraMonth(({ y, m }) => m === 12 ? { y: y + 1, m: 1 } : { y, m: m + 1 })}
+                style={{ ...cancelBtnStyle, padding: "6px 12px" }}>▶</button>
+            </div>
+
+            {customRules.length === 0 ? (
+              <div style={{ padding: 30, textAlign: "center", color: "#94a3b8", fontSize: 12 }}>
+                주별 체크 가능한 항목이 없습니다.<br />
+                <a href={`/departments/d/${deptId}/talent-rules`} style={{ color: "#6366f1", fontWeight: 600 }}>달란트 규칙</a>에서 매주 적립 항목을 추가하세요.
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc" }}>
+                      <th style={{ padding: "8px 10px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#475569", borderBottom: "1px solid #e2e8f0" }}>항목 / 주차</th>
+                      {sundaysInMonth(weeklyExtraMonth.y, weeklyExtraMonth.m).map((d, i) => (
+                        <th key={d} style={{ padding: "8px 6px", textAlign: "center", fontSize: 11, fontWeight: 700, color: "#475569", borderBottom: "1px solid #e2e8f0", minWidth: 50 }}>
+                          {i + 1}주<br /><span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>{d.slice(5).replace("-", "/")}</span>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customRules.map((r) => (
+                      <tr key={r.rule_id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "10px", fontSize: 12 }}>
+                          <div style={{ fontWeight: 700, color: "#1e293b" }}>{r.label}</div>
+                          <div style={{ fontSize: 10, color: "#94a3b8" }}>+{r.points}점/주</div>
+                        </td>
+                        {sundaysInMonth(weeklyExtraMonth.y, weeklyExtraMonth.m).map((d) => {
+                          const k = `${d}_${r.rule_id}`;
+                          const checked = extraChecks[k];
+                          return (
+                            <td key={d} style={{ textAlign: "center", padding: 4 }}>
+                              <button
+                                onClick={() => toggleExtra(d, r.rule_id)}
+                                disabled={extraSaving === k}
+                                style={{
+                                  width: 32, height: 32, borderRadius: 6, border: "none",
+                                  background: checked ? "#6366f1" : "#f1f5f9",
+                                  color: checked ? "#fff" : "#cbd5e1",
+                                  fontSize: 14, fontWeight: 700, cursor: "pointer",
+                                  fontFamily: "inherit",
+                                }}
+                              >
+                                {checked ? "✓" : "·"}
+                              </button>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
