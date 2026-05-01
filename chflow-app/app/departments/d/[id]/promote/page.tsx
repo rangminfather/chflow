@@ -316,75 +316,107 @@ export default function PromotePage() {
           <div style={card}>
             <div style={sectionLabel}>2. 반 편성</div>
             <div style={{ fontSize: 11, color: "#64748b", marginBottom: 14, lineHeight: 1.7 }}>
-              학년별 반 개수를 정하면 자동 균등 분배됩니다. 학생 옆 <span style={{ color: "#6366f1", fontWeight: 700 }}>반 칩</span>을 탭하면 그 반으로 이동합니다.
+              학년별 반 개수를 정하면 자동 균등 분배됩니다. 학생 카드의 <span style={{ color: "#6366f1", fontWeight: 700 }}>반 번호</span>를 탭하면 그 반 박스로 이동합니다.
             </div>
             {Object.keys(byNextGrade).sort((a, b) => Number(a) - Number(b)).map(gKey => {
               const g = Number(gKey);
               const list = byNextGrade[g];
               const cnt = classCount[g] || 1;
               const classOptions = Array.from({ length: cnt }, (_, i) => `${g}-${i + 1}`);
-              // 반별 인원 카운트
-              const perClass: Record<string, number> = {};
+              // 반별로 학생 그룹핑
+              const byClass: Record<string, PreviewRow[]> = {};
+              classOptions.forEach(c => { byClass[c] = []; });
               list.forEach(r => {
                 const c = assignments[r.student_id]?.class_no;
-                if (c) perClass[c] = (perClass[c] || 0) + 1;
+                if (c && byClass[c]) byClass[c].push(r);
               });
               return (
-                <div key={g} style={{ marginBottom: 16, paddingBottom: 12, borderBottom: "1px dashed #e2e8f0" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>📚 {g}학년 ({list.length}명)</div>
+                <div key={g} style={{ marginBottom: 18, paddingBottom: 14, borderBottom: "1px dashed #e2e8f0" }}>
+                  {/* 학년 헤더 */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b" }}>📚 {g}학년 ({list.length}명)</div>
                     <span style={{ fontSize: 11, color: "#64748b" }}>반 수:</span>
                     <input type="number" min={1} max={20} value={cnt}
                       onChange={(e) => changeClassCount(g, parseInt(e.target.value, 10) || 1)}
                       style={{ width: 56, padding: "4px 6px", fontSize: 12, border: "1.5px solid #cbd5e1", borderRadius: 6, fontFamily: "inherit" }} />
                     <button onClick={() => changeClassCount(g, cnt)} style={smallBtn}>↻ 재분배</button>
                   </div>
-                  {/* 반별 인원 요약 */}
-                  <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
-                    {classOptions.map(c => (
-                      <span key={c} style={{
-                        padding: "3px 9px", borderRadius: 999, fontSize: 11, fontWeight: 700,
-                        background: "#eef2ff", color: "#4338ca",
-                      }}>
-                        {c.split("-")[1]}반 · {perClass[c] || 0}명
-                      </span>
-                    ))}
-                  </div>
-                  {/* 학생 행 */}
-                  <div>
-                    {list.map(r => {
-                      const myClass = assignments[r.student_id]?.class_no;
+
+                  {/* 반별 박스 */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {classOptions.map(c => {
+                      const classNum = c.split("-")[1];
+                      const members = byClass[c];
                       return (
-                        <div key={r.student_id} style={{
-                          display: "flex", alignItems: "center", gap: 8, padding: "8px 4px",
-                          borderBottom: "1px solid #f1f5f9",
+                        <div key={c} style={{
+                          background: "#f8fafc",
+                          border: "1.5px solid #e2e8f0",
+                          borderRadius: 12,
+                          padding: 12,
                         }}>
-                          <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#1e293b", minWidth: 0 }}>
-                            {r.name}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{
+                                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                width: 28, height: 28, borderRadius: 8,
+                                background: "#6366f1", color: "#fff",
+                                fontSize: 13, fontWeight: 800,
+                              }}>{classNum}</span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                                {classNum}반
+                              </span>
+                            </div>
+                            <span style={{
+                              padding: "3px 10px", borderRadius: 999,
+                              background: members.length === 0 ? "#fee2e2" : "#eef2ff",
+                              color: members.length === 0 ? "#b91c1c" : "#4338ca",
+                              fontSize: 11, fontWeight: 700,
+                            }}>{members.length}명</span>
                           </div>
-                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                            {classOptions.map(c => {
-                              const active = myClass === c;
-                              return (
-                                <button
-                                  key={c}
-                                  onClick={() => changeStudentClass(r.student_id, c)}
-                                  style={{
-                                    minWidth: 36, padding: "6px 10px",
-                                    background: active ? "#6366f1" : "#f1f5f9",
-                                    color: active ? "#fff" : "#475569",
-                                    border: "none", borderRadius: 8,
-                                    fontSize: 12, fontWeight: 700,
-                                    cursor: "pointer", fontFamily: "inherit",
-                                    boxShadow: active ? "0 1px 4px rgba(99,102,241,0.4)" : "none",
-                                    transition: "background 0.12s",
-                                  }}
-                                >
-                                  {c.split("-")[1]}
-                                </button>
-                              );
-                            })}
-                          </div>
+                          {members.length === 0 ? (
+                            <div style={{ padding: "14px 8px", textAlign: "center", color: "#94a3b8", fontSize: 11 }}>
+                              비어 있음
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              {members.map(r => (
+                                <div key={r.student_id} style={{
+                                  display: "flex", alignItems: "center", gap: 8,
+                                  background: "#fff",
+                                  borderRadius: 8,
+                                  padding: "7px 10px",
+                                  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                                }}>
+                                  <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#1e293b", minWidth: 0 }}>
+                                    {r.name}
+                                  </div>
+                                  <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                    {classOptions.map(opt => {
+                                      const active = opt === c;
+                                      const optNum = opt.split("-")[1];
+                                      return (
+                                        <button
+                                          key={opt}
+                                          onClick={() => !active && changeStudentClass(r.student_id, opt)}
+                                          disabled={active}
+                                          style={{
+                                            minWidth: 30, padding: "5px 8px",
+                                            background: active ? "#6366f1" : "#f1f5f9",
+                                            color: active ? "#fff" : "#64748b",
+                                            border: "none", borderRadius: 6,
+                                            fontSize: 11, fontWeight: 700,
+                                            cursor: active ? "default" : "pointer",
+                                            fontFamily: "inherit",
+                                            transition: "background 0.12s",
+                                          }}
+                                        >{optNum}</button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
