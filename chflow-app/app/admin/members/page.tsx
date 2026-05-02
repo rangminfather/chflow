@@ -32,6 +32,7 @@ interface Member {
 interface MoveTarget {
   household_id?: string;
   split_pasture_id?: string;
+  clear_household?: boolean;
 }
 
 interface DirRow {
@@ -182,6 +183,7 @@ function AdminMembersPage() {
     };
     if (move?.household_id) params.p_household_id = move.household_id;
     if (move?.split_pasture_id) params.p_split_pasture_id = move.split_pasture_id;
+    if (move?.clear_household) params.p_clear_household = true;
     const { error } = await supabase.rpc("admin_update_member", params);
     if (error) { alert(`수정 실패: ${error.message}`); return; }
     setEditing(null);
@@ -474,13 +476,17 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
     [pasturesForGrassland, movePast]
   );
 
-  // 자동 라우팅: 평원/초원/목장 중 빈 부분은 "(미정)" / "미지정" 으로 채워서 pasture_id 결정
+  // 자동 라우팅:
+  //   - 평원도 안 정함 → 어디에도 소속 안 둠 (clear_household)
+  //   - 평원만 정함 → 그 평원의 (미정)/(미정) 목장
+  //   - 평원+초원 정함 → 그 초원의 (미정) 목장
+  //   - 셋 다 정함 → 그 목장
   const resolvedPastureId = useMemo(() => {
-    const finalPlain = movePlain || "미지정";
+    if (!movePlain) return "";  // 평원도 비었으면 라우팅 없음 → clear_household
     const finalGrass = moveGrass || "(미정)";
     const finalPast = movePast || "(미정)";
     const row = dirTree.find(r =>
-      r.plain_name === finalPlain && r.grassland_name === finalGrass && r.pasture_name === finalPast
+      r.plain_name === movePlain && r.grassland_name === finalGrass && r.pasture_name === finalPast
     );
     return row?.pasture_id || "";
   }, [dirTree, movePlain, moveGrass, movePast]);
@@ -490,6 +496,16 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
     movePlain === (member.plain_name || "") &&
     moveGrass === (member.grassland_name || "") &&
     movePast === (member.pasture_name || "");
+
+  // 분리 라벨 — 회원의 상태에 따라 표현 변경
+  //   자녀(is_child)        → "부모 목장으로부터 분리"
+  //   배우자 정보 있음       → "배우자(○○○)로부터 분리"
+  //   그 외                  → "신규 가족으로 분리"
+  const splitLabel = member.is_child
+    ? "부모 목장으로부터 분리"
+    : member.spouse_name
+    ? `배우자(${member.spouse_name})로부터 분리`
+    : "신규 가족으로 분리";
 
   // 가족 목록은 사용자가 직접 목장까지 선택한 경우에만 (selectedPastureId)
   useEffect(() => {
@@ -514,7 +530,6 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
   const handleSave = () => {
     setMoveError("");
 
-    // 위치 변경 의도 판정
     const positionChanged = !samePosition;
     const familyChanged = splitNew || (householdId && householdId !== member.household_id);
     const wantMove = positionChanged || familyChanged;
@@ -524,19 +539,24 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
       return;
     }
 
-    // 평원/초원/목장 모두 비웠고 가족 변경도 없으면 → "(미지정/미정/미정)" 으로 자동 라우팅
+    // 평원도 안 정함 → 어디에도 소속 안 둠 (household_id = NULL)
+    if (!movePlain) {
+      onSave({ clear_household: true });
+      return;
+    }
+
     if (!resolvedPastureId) {
       setMoveError("(미정) 항목이 누락되었습니다. 관리자에게 문의하세요.");
       return;
     }
 
-    // 사용자가 가족(household)을 명시 선택 → 그 가족 합류
+    // 사용자가 기존 가족 명시 선택 → 그 가족 합류
     if (householdId) {
       onSave({ household_id: householdId });
       return;
     }
 
-    // 그 외에는 신규 가족으로 분리 (splitNew 또는 자동 fallback)
+    // 그 외 (신규 분리 또는 자동 fallback)
     onSave({ split_pasture_id: resolvedPastureId });
   };
 
@@ -607,7 +627,9 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
           </div>
 
           <div style={{ fontSize: 10, color: "#64748b", marginBottom: 8, lineHeight: 1.5 }}>
-            ※ 모르는 단계는 비워두세요. 자동으로 「(미정)」 항목으로 들어갑니다.
+            ※ 평원만/초원까지만 정해도 됩니다. 빈 단계는 자동으로 「(미정)」 으로.
+            <br />
+            ※ 평원도 비우면 → 어디에도 소속 두지 않음 (현재 가족에서 빠짐).
           </div>
 
           {selectedPastureId && households.length > 0 && (
@@ -621,16 +643,16 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
                 }}
                 style={{ ...inputStyle, marginTop: 4 }}
               >
-                <option value="">신규 가족으로 분리 (자동)</option>
+                <option value="">{splitLabel} (자동)</option>
                 {households.map(h => (
                   <option key={h.id} value={h.id}>
                     {h.id === member.household_id ? "★ " : ""}{h.members_summary || "(빈 가족)"}{h.address ? ` · ${h.address.slice(0, 25)}` : ""}
                   </option>
                 ))}
-                <option value="__split__">➕ 신규 가족으로 분리 (혼자 떨어져 나감)</option>
+                <option value="__split__">➕ {splitLabel}</option>
               </select>
               <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 6, lineHeight: 1.5 }}>
-                ※ 부모-자녀 가족 관계는 그대로 유지됩니다 (member_relations 보존). 목장만 바뀝니다.
+                ※ 부모-자녀·배우자 등 가족 관계는 그대로 유지됩니다 (member_relations 보존). 목장 소속만 바뀝니다.
               </div>
             </div>
           )}
@@ -695,13 +717,16 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
 
   const selectedPastureId = useMemo(() => pasturesForGrassland.find(p => p.name === pasture)?.id || "", [pasturesForGrassland, pasture]);
 
-  // 자동 라우팅: 빈 단계는 (미정) 으로 채움
+  // 자동 라우팅:
+  //   - 평원도 안 정함 → household 없이 회원만 (소속 미정)
+  //   - 평원만 정함 → 그 평원의 (미정)/(미정) 목장
+  //   - 그 외 → 사용자가 정한 단계까지의 (미정) 목장 또는 정확한 목장
   const resolvedPastureId = useMemo(() => {
-    const finalPlain = plain || "미지정";
+    if (!plain) return "";
     const finalGrass = grassland || "(미정)";
     const finalPast = pasture || "(미정)";
     const row = dirTree.find(r =>
-      r.plain_name === finalPlain && r.grassland_name === finalGrass && r.pasture_name === finalPast
+      r.plain_name === plain && r.grassland_name === finalGrass && r.pasture_name === finalPast
     );
     return row?.pasture_id || "";
   }, [dirTree, plain, grassland, pasture]);
@@ -717,10 +742,14 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
   const submit = async () => {
     setError("");
     if (!name.trim()) return setError("이름을 입력하세요");
-    if (!resolvedPastureId) return setError("(미정) 항목이 누락되었습니다. 관리자에게 문의하세요.");
 
-    // 사용자가 가족(household)을 명시 선택했으면 그 가족 합류, 아니면 신규 가족 분리(자동)
-    const useExisting = !newFamily && householdId;
+    // 평원도 안 정하면 household 없이 회원만 생성
+    const noPosition = !plain;
+    const useExisting = !noPosition && !newFamily && householdId;
+
+    if (!noPosition && !resolvedPastureId) {
+      return setError("(미정) 항목이 누락되었습니다. 관리자에게 문의하세요.");
+    }
 
     setSaving(true);
     const { error: rpcError } = await supabase.rpc("admin_create_member", {
@@ -730,7 +759,7 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
       p_sub_role: subRole,
       p_spouse_name: spouseName,
       p_household_id: useExisting ? householdId : null,
-      p_pasture_id: useExisting ? null : resolvedPastureId,
+      p_pasture_id: noPosition || useExisting ? null : resolvedPastureId,
       p_gender: gender || null,
       p_is_child: isChild,
       p_birth_date: null,
@@ -764,7 +793,9 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
           </select>
         </div>
         <div style={{ fontSize: 10, color: "#64748b", marginBottom: 12, lineHeight: 1.5 }}>
-          ※ 비운 단계는 자동으로 「(미정)」 항목으로 들어갑니다.
+          ※ 평원만/초원까지만 정해도 됩니다. 빈 단계는 자동으로 「(미정)」 으로.
+          <br />
+          ※ 평원도 비우면 → 소속 없이 회원만 등록됩니다.
         </div>
 
         {selectedPastureId && households.length > 0 && (
