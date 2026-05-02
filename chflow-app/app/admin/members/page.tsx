@@ -144,8 +144,8 @@ function AdminMembersPage() {
     return arr.sort((a, b) => a.order - b.order);
   }, [dirTree]);
 
-  // 평원 이름 → 표시명 (예: "1" → "1평원", "젊은이" → "젊은이평원", "미지정" → "미지정평원")
-  const plainLabel = (name: string) => name.endsWith("평원") || name === "미지정" ? (name === "미지정" ? "미지정평원" : name) : `${name}평원`;
+  // 평원 이름 → 표시명 (예: "1" → "1평원", "젊은이" → "젊은이평원", "미정" → "미정")
+  const plainLabel = (name: string) => name === "미정" ? "미정" : (name.endsWith("평원") ? name : `${name}평원`);
 
   // 평원 → 초원 목록 (평원 미선택 시 전체)
   const grasslandOptions = useMemo(() => {
@@ -474,8 +474,8 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
   //   - 셋 다 정함 → 그 목장
   const resolvedPastureId = useMemo(() => {
     if (!movePlain) return "";
-    const finalGrass = moveGrass || "(미정)";
-    const finalPast = movePast || "(미정)";
+    const finalGrass = moveGrass || "미정";
+    const finalPast = movePast || "미정";
     const row = dirTree.find(r =>
       r.plain_name === movePlain && r.grassland_name === finalGrass && r.pasture_name === finalPast
     );
@@ -487,13 +487,6 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
     movePlain === (member.plain_name || "") &&
     moveGrass === (member.grassland_name || "") &&
     movePast === (member.pasture_name || "");
-
-  // 분리 안내 라벨 — 회원의 상태에 따라
-  const splitLabel = member.is_child
-    ? "부모 목장으로부터 분리"
-    : member.spouse_name
-    ? `배우자(${member.spouse_name})로부터 분리`
-    : "신규 가족으로 분리";
 
   const handleSave = () => {
     setMoveError("");
@@ -553,13 +546,13 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
               현재: {member.plain_name || "-"} / {member.grassland_name || "-"} / {member.pasture_name || "-"}
             </span>
           </div>
-          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <div style={{ display: "flex", gap: 6 }}>
             <select
               value={movePlain}
               onChange={(e) => { setMovePlain(e.target.value); setMoveGrass(""); setMovePast(""); }}
               style={{ ...inputStyle, flex: 1 }}
             >
-              <option value="">평원 (모름)</option>
+              <option value="">평원</option>
               {plainOptions.map(p => (
                 <option key={p.name} value={p.name}>{plainLabel(p.name)}</option>
               ))}
@@ -570,7 +563,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
               disabled={!movePlain}
               style={{ ...inputStyle, flex: 1, background: movePlain ? "#fff" : "#f1f5f9" }}
             >
-              <option value="">초원 (모름)</option>
+              <option value="">초원</option>
               {grasslandsForPlain.map(g => <option key={g} value={g}>{g}</option>)}
             </select>
             <select
@@ -579,21 +572,9 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
               disabled={!moveGrass}
               style={{ ...inputStyle, flex: 1, background: moveGrass ? "#fff" : "#f1f5f9" }}
             >
-              <option value="">목장 (모름)</option>
+              <option value="">목장</option>
               {pasturesForGrassland.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
             </select>
-          </div>
-
-          {!samePosition && (
-            <div style={{ fontSize: 11, color: "#475569", marginTop: 6, padding: 8, background: "#eef2ff", borderRadius: 6, lineHeight: 1.6 }}>
-              {!movePlain
-                ? <>→ <b>어디에도 소속 안 둠</b> (현재 가족에서 빠짐)</>
-                : <>→ <b>{splitLabel}</b> · 가족 관계(부모/배우자)는 그대로 보존</>
-              }
-            </div>
-          )}
-          <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 6, lineHeight: 1.5 }}>
-            ※ 모르는 단계는 비워두면 「(미정)」 으로 들어갑니다. 평원까지 비우면 소속 자체가 빠집니다.
           </div>
 
           {moveError && (
@@ -657,8 +638,8 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
   //   - 그 외 → 사용자가 정한 단계까지의 (미정) 목장 또는 정확한 목장
   const resolvedPastureId = useMemo(() => {
     if (!plain) return "";
-    const finalGrass = grassland || "(미정)";
-    const finalPast = pasture || "(미정)";
+    const finalGrass = grassland || "미정";
+    const finalPast = pasture || "미정";
     const row = dirTree.find(r =>
       r.plain_name === plain && r.grassland_name === finalGrass && r.pasture_name === finalPast
     );
@@ -701,22 +682,19 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
         <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 6 }}>소속 (모르는 단계는 비워두세요)</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
           <select value={plain} onChange={(e) => { setPlain(e.target.value); setGrassland(""); setPasture(""); }} style={{ ...inputStyle, flex: 1 }}>
-            <option value="">평원 (모름)</option>
+            <option value="">평원</option>
             {plainOptions.map(p => <option key={p.name} value={p.name}>{plainLabel(p.name)}</option>)}
           </select>
           <select value={grassland} onChange={(e) => { setGrassland(e.target.value); setPasture(""); }}
             disabled={!plain} style={{ ...inputStyle, flex: 1, background: plain ? "#fff" : "#f1f5f9" }}>
-            <option value="">초원 (모름)</option>
+            <option value="">초원</option>
             {grasslandsForPlain.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
           <select value={pasture} onChange={(e) => setPasture(e.target.value)}
             disabled={!grassland} style={{ ...inputStyle, flex: 1, background: grassland ? "#fff" : "#f1f5f9" }}>
-            <option value="">목장 (모름)</option>
+            <option value="">목장</option>
             {pasturesForGrassland.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
           </select>
-        </div>
-        <div style={{ fontSize: 10, color: "#64748b", marginBottom: 12, lineHeight: 1.5 }}>
-          ※ 모르는 단계는 비워두면 「(미정)」 으로 들어갑니다. 평원까지 비우면 소속 없이 등록.
         </div>
         {plain && (
           <input value={address} onChange={(e) => setAddress(e.target.value)}
