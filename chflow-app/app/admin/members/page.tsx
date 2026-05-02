@@ -23,7 +23,14 @@ interface Member {
   is_child: boolean;
   source_page: number | null;
   photo_url: string | null;
+  household_id: string | null;
+  pasture_id: string | null;
   total_count: number;
+}
+
+interface MoveTarget {
+  household_id?: string;
+  split_pasture_id?: string;
 }
 
 interface DirRow {
@@ -144,9 +151,9 @@ function AdminMembersPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const handleSave = async () => {
+  const handleSave = async (move?: MoveTarget) => {
     if (!editing) return;
-    const { error } = await supabase.rpc("admin_update_member", {
+    const params: Record<string, unknown> = {
       p_member_id: editing.id,
       p_name: editing.name,
       p_phone: editing.phone,
@@ -155,7 +162,10 @@ function AdminMembersPage() {
       p_spouse_name: editing.spouse_name,
       p_gender: editing.gender || null,
       p_is_child: editing.is_child,
-    });
+    };
+    if (move?.household_id) params.p_household_id = move.household_id;
+    if (move?.split_pasture_id) params.p_split_pasture_id = move.split_pasture_id;
+    const { error } = await supabase.rpc("admin_update_member", params);
     if (error) { alert(`수정 실패: ${error.message}`); return; }
     setEditing(null);
     doSearch(page, query, filterPlain, filterGrassland, filterPasture, showChildren, showParents);
@@ -344,7 +354,7 @@ function AdminMembersPage() {
       </div>
 
       {/* Edit Modal */}
-      {editing && <EditModal member={editing} setMember={setEditing} onSave={handleSave} onClose={() => setEditing(null)} />}
+      {editing && <EditModal member={editing} setMember={setEditing} dirTree={dirTree} onSave={handleSave} onClose={() => setEditing(null)} />}
 
       {/* Delete Confirm */}
       {deleting && (
@@ -402,13 +412,99 @@ function renderPageNumbers(cur: number, total: number): number[] {
 
 
 // ============ Edit Modal ============
-function EditModal({ member, setMember, onSave, onClose }: {
-  member: Member; setMember: (m: Member) => void; onSave: () => void; onClose: () => void;
+function EditModal({ member, setMember, dirTree, onSave, onClose }: {
+  member: Member;
+  setMember: (m: Member) => void;
+  dirTree: DirRow[];
+  onSave: (move?: MoveTarget) => void;
+  onClose: () => void;
 }) {
+  // 위치 변경 state — 처음엔 회원의 현재 위치로 채움
+  const [movePlain, setMovePlain] = useState(member.plain_name || "");
+  const [moveGrass, setMoveGrass] = useState(member.grassland_name || "");
+  const [movePast, setMovePast] = useState(member.pasture_name || "");
+  const [splitNew, setSplitNew] = useState(false);   // 신규 가족으로 분리
+  const [householdId, setHouseholdId] = useState<string>(member.household_id || "");
+  const [households, setHouseholds] = useState<Household[]>([]);
+  const [moveError, setMoveError] = useState("");
+
+  const grasslandsForPlain = useMemo(() => {
+    const s = new Set<string>();
+    dirTree.forEach(r => { if (r.plain_name === movePlain && r.grassland_name) s.add(r.grassland_name); });
+    return Array.from(s);
+  }, [dirTree, movePlain]);
+
+  const pasturesForGrassland = useMemo(() => {
+    const arr: { id: string; name: string }[] = [];
+    dirTree.forEach(r => {
+      if (r.plain_name === movePlain && r.grassland_name === moveGrass && r.pasture_id && r.pasture_name) {
+        arr.push({ id: r.pasture_id, name: r.pasture_name });
+      }
+    });
+    return arr;
+  }, [dirTree, movePlain, moveGrass]);
+
+  const selectedPastureId = useMemo(
+    () => pasturesForGrassland.find(p => p.name === movePast)?.id || "",
+    [pasturesForGrassland, movePast]
+  );
+
+  // 같은 평원/초원/목장 그대로면 위치 변경 없음
+  const samePosition =
+    movePlain === (member.plain_name || "") &&
+    moveGrass === (member.grassland_name || "") &&
+    movePast === (member.pasture_name || "");
+
+  useEffect(() => {
+    if (!selectedPastureId) { setHouseholds([]); return; }
+    (async () => {
+      const { data } = await supabase.rpc("households_by_pasture", { p_pasture_id: selectedPastureId });
+      setHouseholds(data || []);
+    })();
+  }, [selectedPastureId]);
+
+  // 목장이 바뀌면 가족 선택 초기화
+  useEffect(() => {
+    if (samePosition) {
+      setHouseholdId(member.household_id || "");
+      setSplitNew(false);
+    } else {
+      setHouseholdId("");
+      setSplitNew(false);
+    }
+  }, [selectedPastureId]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSave = () => {
+    setMoveError("");
+
+    // 위치 변경 의도가 있는지 판정
+    const wantMove = !samePosition || splitNew || (householdId && householdId !== member.household_id);
+
+    if (wantMove) {
+      if (!selectedPastureId) {
+        setMoveError("이동할 목장을 선택하세요");
+        return;
+      }
+      if (splitNew) {
+        onSave({ split_pasture_id: selectedPastureId });
+        return;
+      }
+      if (!householdId) {
+        setMoveError("기존 가족을 선택하거나 '신규 가족 분리'를 체크하세요");
+        return;
+      }
+      onSave({ household_id: householdId });
+      return;
+    }
+
+    onSave();
+  };
+
   return (
     <div onClick={onClose} style={modalBgStyle}>
-      <div onClick={(e) => e.stopPropagation()} style={modalStyle}>
+      <div onClick={(e) => e.stopPropagation()} style={{ ...modalStyle, maxWidth: 560 }}>
         <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 18 }}>회원 수정</div>
+
         <FormRow label="이름" value={member.name} onChange={(v) => setMember({ ...member, name: v })} />
         <FormRow label="휴대폰" value={member.phone} onChange={(v) => setMember({ ...member, phone: v })} />
         <div style={{ marginBottom: 10, display: "flex", gap: 10 }}>
@@ -430,9 +526,81 @@ function EditModal({ member, setMember, onSave, onClose }: {
         <FormRow label="가정교회 (목자/목녀/목부/목원)" value={member.family_church} onChange={(v) => setMember({ ...member, family_church: v })} />
         <FormRow label="직분" value={member.sub_role} onChange={(v) => setMember({ ...member, sub_role: v })} />
         <FormRow label="배우자" value={member.spouse_name} onChange={(v) => setMember({ ...member, spouse_name: v })} />
+
+        {/* 소속(목장) 이동 영역 */}
+        <div style={{ marginTop: 18, padding: 12, background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "#1e293b", marginBottom: 8 }}>
+            소속 (평원 / 초원 / 목장)
+            <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 600, color: "#94a3b8" }}>
+              현재: {member.plain_name || "-"} / {member.grassland_name || "-"} / {member.pasture_name || "-"}
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            <select
+              value={movePlain}
+              onChange={(e) => { setMovePlain(e.target.value); setMoveGrass(""); setMovePast(""); }}
+              style={{ ...inputStyle, flex: 1 }}
+            >
+              <option value="">평원</option>
+              {["1", "2", "3", "젊은이"].map(p => (
+                <option key={p} value={p}>{p === "젊은이" ? "젊은이평원" : `${p}평원`}</option>
+              ))}
+            </select>
+            <select
+              value={moveGrass}
+              onChange={(e) => { setMoveGrass(e.target.value); setMovePast(""); }}
+              disabled={!movePlain}
+              style={{ ...inputStyle, flex: 1, background: movePlain ? "#fff" : "#f1f5f9" }}
+            >
+              <option value="">초원</option>
+              {grasslandsForPlain.map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+            <select
+              value={movePast}
+              onChange={(e) => setMovePast(e.target.value)}
+              disabled={!moveGrass}
+              style={{ ...inputStyle, flex: 1, background: moveGrass ? "#fff" : "#f1f5f9" }}
+            >
+              <option value="">목장</option>
+              {pasturesForGrassland.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+            </select>
+          </div>
+
+          {selectedPastureId && (
+            <div>
+              <label style={lblStyle}>이 목장 안에서 가족(household)</label>
+              <select
+                value={splitNew ? "__split__" : householdId}
+                onChange={(e) => {
+                  if (e.target.value === "__split__") { setSplitNew(true); setHouseholdId(""); }
+                  else { setSplitNew(false); setHouseholdId(e.target.value); }
+                }}
+                style={{ ...inputStyle, marginTop: 4 }}
+              >
+                <option value="">기존 가족 선택...</option>
+                {households.map(h => (
+                  <option key={h.id} value={h.id}>
+                    {h.id === member.household_id ? "★ " : ""}{h.members_summary || "(빈 가족)"}{h.address ? ` · ${h.address.slice(0, 25)}` : ""}
+                  </option>
+                ))}
+                <option value="__split__">➕ 신규 가족으로 분리 (혼자 떨어져 나감)</option>
+              </select>
+              <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 6, lineHeight: 1.5 }}>
+                ※ 부모-자녀 가족 관계는 그대로 유지됩니다 (member_relations 보존). 목장만 바뀝니다.
+              </div>
+            </div>
+          )}
+
+          {moveError && (
+            <div style={{ marginTop: 8, padding: 8, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, fontSize: 11, color: "#b91c1c" }}>
+              ⚠️ {moveError}
+            </div>
+          )}
+        </div>
+
         <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
           <button onClick={onClose} style={{ ...btnGhost, flex: 1, padding: "12px" }}>취소</button>
-          <button onClick={onSave} style={{ ...btnPrimary, flex: 1, padding: "12px" }}>저장</button>
+          <button onClick={handleSave} style={{ ...btnPrimary, flex: 1, padding: "12px" }}>저장</button>
         </div>
       </div>
     </div>
