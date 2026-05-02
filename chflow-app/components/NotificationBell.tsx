@@ -85,6 +85,15 @@ export default function NotificationBell({ userId }: { userId: string }) {
   const handleNewNotification = (n: Notification) => {
     if (seenIdsRef.current.has(n.id)) return;
 
+    // 진동 (Android Chrome 등 지원 브라우저만 — iOS Safari 는 미지원)
+    try {
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate([200, 100, 200]);
+      }
+    } catch {
+      // 사용자 제스처 정책 등으로 실패해도 무시
+    }
+
     showToast({
       id: n.id,
       title: n.title,
