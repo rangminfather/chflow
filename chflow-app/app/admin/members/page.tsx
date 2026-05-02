@@ -449,9 +449,6 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
   const [movePlain, setMovePlain] = useState(member.plain_name || "");
   const [moveGrass, setMoveGrass] = useState(member.grassland_name || "");
   const [movePast, setMovePast] = useState(member.pasture_name || "");
-  const [splitNew, setSplitNew] = useState(false);   // 신규 가족으로 분리
-  const [householdId, setHouseholdId] = useState<string>(member.household_id || "");
-  const [households, setHouseholds] = useState<Household[]>([]);
   const [moveError, setMoveError] = useState("");
 
   const grasslandsForPlain = useMemo(() => {
@@ -470,19 +467,13 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
     return arr;
   }, [dirTree, movePlain, moveGrass]);
 
-  // 사용자가 직접 선택한 목장 (정확히 매칭)
-  const selectedPastureId = useMemo(
-    () => pasturesForGrassland.find(p => p.name === movePast)?.id || "",
-    [pasturesForGrassland, movePast]
-  );
-
   // 자동 라우팅:
   //   - 평원도 안 정함 → 어디에도 소속 안 둠 (clear_household)
   //   - 평원만 정함 → 그 평원의 (미정)/(미정) 목장
   //   - 평원+초원 정함 → 그 초원의 (미정) 목장
   //   - 셋 다 정함 → 그 목장
   const resolvedPastureId = useMemo(() => {
-    if (!movePlain) return "";  // 평원도 비었으면 라우팅 없음 → clear_household
+    if (!movePlain) return "";
     const finalGrass = moveGrass || "(미정)";
     const finalPast = movePast || "(미정)";
     const row = dirTree.find(r =>
@@ -497,49 +488,22 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
     moveGrass === (member.grassland_name || "") &&
     movePast === (member.pasture_name || "");
 
-  // 분리 라벨 — 회원의 상태에 따라 표현 변경
-  //   자녀(is_child)        → "부모 목장으로부터 분리"
-  //   배우자 정보 있음       → "배우자(○○○)로부터 분리"
-  //   그 외                  → "신규 가족으로 분리"
+  // 분리 안내 라벨 — 회원의 상태에 따라
   const splitLabel = member.is_child
     ? "부모 목장으로부터 분리"
     : member.spouse_name
     ? `배우자(${member.spouse_name})로부터 분리`
     : "신규 가족으로 분리";
 
-  // 가족 목록은 사용자가 직접 목장까지 선택한 경우에만 (selectedPastureId)
-  useEffect(() => {
-    if (!selectedPastureId) { setHouseholds([]); return; }
-    (async () => {
-      const { data } = await supabase.rpc("households_by_pasture", { p_pasture_id: selectedPastureId });
-      setHouseholds(data || []);
-    })();
-  }, [selectedPastureId]);
-
-  // 목장이 바뀌면 가족 선택 초기화
-  useEffect(() => {
-    if (samePosition) {
-      setHouseholdId(member.household_id || "");
-      setSplitNew(false);
-    } else {
-      setHouseholdId("");
-      setSplitNew(false);
-    }
-  }, [selectedPastureId]);  // eslint-disable-line react-hooks/exhaustive-deps
-
   const handleSave = () => {
     setMoveError("");
 
-    const positionChanged = !samePosition;
-    const familyChanged = splitNew || (householdId && householdId !== member.household_id);
-    const wantMove = positionChanged || familyChanged;
-
-    if (!wantMove) {
-      onSave();
+    if (samePosition) {
+      onSave();  // 위치 변경 없음 — 기본 필드만 업데이트
       return;
     }
 
-    // 평원도 안 정함 → 어디에도 소속 안 둠 (household_id = NULL)
+    // 평원도 안 정함 → 어디에도 소속 안 둠
     if (!movePlain) {
       onSave({ clear_household: true });
       return;
@@ -550,13 +514,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
       return;
     }
 
-    // 사용자가 기존 가족 명시 선택 → 그 가족 합류
-    if (householdId) {
-      onSave({ household_id: householdId });
-      return;
-    }
-
-    // 그 외 (신규 분리 또는 자동 fallback)
+    // 평원/초원/목장 바꿈 → 본인만 신규 가족으로 분리
     onSave({ split_pasture_id: resolvedPastureId });
   };
 
@@ -626,36 +584,17 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
             </select>
           </div>
 
-          <div style={{ fontSize: 10, color: "#64748b", marginBottom: 8, lineHeight: 1.5 }}>
-            ※ 평원만/초원까지만 정해도 됩니다. 빈 단계는 자동으로 「(미정)」 으로.
-            <br />
-            ※ 평원도 비우면 → 어디에도 소속 두지 않음 (현재 가족에서 빠짐).
-          </div>
-
-          {selectedPastureId && households.length > 0 && (
-            <div>
-              <label style={lblStyle}>이 목장 안에서 가족(household)</label>
-              <select
-                value={splitNew ? "__split__" : householdId}
-                onChange={(e) => {
-                  if (e.target.value === "__split__") { setSplitNew(true); setHouseholdId(""); }
-                  else { setSplitNew(false); setHouseholdId(e.target.value); }
-                }}
-                style={{ ...inputStyle, marginTop: 4 }}
-              >
-                <option value="">{splitLabel} (자동)</option>
-                {households.map(h => (
-                  <option key={h.id} value={h.id}>
-                    {h.id === member.household_id ? "★ " : ""}{h.members_summary || "(빈 가족)"}{h.address ? ` · ${h.address.slice(0, 25)}` : ""}
-                  </option>
-                ))}
-                <option value="__split__">➕ {splitLabel}</option>
-              </select>
-              <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 6, lineHeight: 1.5 }}>
-                ※ 부모-자녀·배우자 등 가족 관계는 그대로 유지됩니다 (member_relations 보존). 목장 소속만 바뀝니다.
-              </div>
+          {!samePosition && (
+            <div style={{ fontSize: 11, color: "#475569", marginTop: 6, padding: 8, background: "#eef2ff", borderRadius: 6, lineHeight: 1.6 }}>
+              {!movePlain
+                ? <>→ <b>어디에도 소속 안 둠</b> (현재 가족에서 빠짐)</>
+                : <>→ <b>{splitLabel}</b> · 가족 관계(부모/배우자)는 그대로 보존</>
+              }
             </div>
           )}
+          <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 6, lineHeight: 1.5 }}>
+            ※ 모르는 단계는 비워두면 「(미정)」 으로 들어갑니다. 평원까지 비우면 소속 자체가 빠집니다.
+          </div>
 
           {moveError && (
             <div style={{ marginTop: 8, padding: 8, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, fontSize: 11, color: "#b91c1c" }}>
@@ -685,9 +624,6 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
   const [plain, setPlain] = useState("");
   const [grassland, setGrassland] = useState("");
   const [pasture, setPasture] = useState("");
-  const [households, setHouseholds] = useState<Household[]>([]);
-  const [householdId, setHouseholdId] = useState<string>("");
-  const [newFamily, setNewFamily] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [gender, setGender] = useState("");
@@ -715,8 +651,6 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
     return arr;
   }, [dirTree, plain, grassland]);
 
-  const selectedPastureId = useMemo(() => pasturesForGrassland.find(p => p.name === pasture)?.id || "", [pasturesForGrassland, pasture]);
-
   // 자동 라우팅:
   //   - 평원도 안 정함 → household 없이 회원만 (소속 미정)
   //   - 평원만 정함 → 그 평원의 (미정)/(미정) 목장
@@ -731,22 +665,11 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
     return row?.pasture_id || "";
   }, [dirTree, plain, grassland, pasture]);
 
-  useEffect(() => {
-    if (!selectedPastureId) { setHouseholds([]); return; }
-    (async () => {
-      const { data } = await supabase.rpc("households_by_pasture", { p_pasture_id: selectedPastureId });
-      if (data) setHouseholds(data);
-    })();
-  }, [selectedPastureId]);
-
   const submit = async () => {
     setError("");
     if (!name.trim()) return setError("이름을 입력하세요");
 
-    // 평원도 안 정하면 household 없이 회원만 생성
     const noPosition = !plain;
-    const useExisting = !noPosition && !newFamily && householdId;
-
     if (!noPosition && !resolvedPastureId) {
       return setError("(미정) 항목이 누락되었습니다. 관리자에게 문의하세요.");
     }
@@ -758,8 +681,8 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
       p_family_church: familyChurch,
       p_sub_role: subRole,
       p_spouse_name: spouseName,
-      p_household_id: useExisting ? householdId : null,
-      p_pasture_id: noPosition || useExisting ? null : resolvedPastureId,
+      p_household_id: null,
+      p_pasture_id: noPosition ? null : resolvedPastureId,
       p_gender: gender || null,
       p_is_child: isChild,
       p_birth_date: null,
@@ -777,49 +700,27 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
 
         <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 6 }}>소속 (모르는 단계는 비워두세요)</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-          <select value={plain} onChange={(e) => { setPlain(e.target.value); setGrassland(""); setPasture(""); setHouseholdId(""); }} style={{ ...inputStyle, flex: 1 }}>
+          <select value={plain} onChange={(e) => { setPlain(e.target.value); setGrassland(""); setPasture(""); }} style={{ ...inputStyle, flex: 1 }}>
             <option value="">평원 (모름)</option>
             {plainOptions.map(p => <option key={p.name} value={p.name}>{plainLabel(p.name)}</option>)}
           </select>
-          <select value={grassland} onChange={(e) => { setGrassland(e.target.value); setPasture(""); setHouseholdId(""); }}
+          <select value={grassland} onChange={(e) => { setGrassland(e.target.value); setPasture(""); }}
             disabled={!plain} style={{ ...inputStyle, flex: 1, background: plain ? "#fff" : "#f1f5f9" }}>
             <option value="">초원 (모름)</option>
             {grasslandsForPlain.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
-          <select value={pasture} onChange={(e) => { setPasture(e.target.value); setHouseholdId(""); }}
+          <select value={pasture} onChange={(e) => setPasture(e.target.value)}
             disabled={!grassland} style={{ ...inputStyle, flex: 1, background: grassland ? "#fff" : "#f1f5f9" }}>
             <option value="">목장 (모름)</option>
             {pasturesForGrassland.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
           </select>
         </div>
         <div style={{ fontSize: 10, color: "#64748b", marginBottom: 12, lineHeight: 1.5 }}>
-          ※ 평원만/초원까지만 정해도 됩니다. 빈 단계는 자동으로 「(미정)」 으로.
-          <br />
-          ※ 평원도 비우면 → 소속 없이 회원만 등록됩니다.
+          ※ 모르는 단계는 비워두면 「(미정)」 으로 들어갑니다. 평원까지 비우면 소속 없이 등록.
         </div>
-
-        {selectedPastureId && households.length > 0 && (
-          <div style={{ marginBottom: 12 }}>
-            <label style={lblStyle}>가족 (household)</label>
-            <select value={newFamily ? "__new__" : householdId}
-              onChange={(e) => {
-                if (e.target.value === "__new__") { setNewFamily(true); setHouseholdId(""); }
-                else { setNewFamily(false); setHouseholdId(e.target.value); }
-              }}
-              style={{ ...inputStyle, marginTop: 4 }}>
-              <option value="">신규 가족 만들기 (자동)</option>
-              {households.map(h => (
-                <option key={h.id} value={h.id}>
-                  {h.members_summary || "(빈 가족)"} {h.address ? ` · ${h.address.slice(0, 25)}` : ""}
-                </option>
-              ))}
-              <option value="__new__">➕ 신규 가족 만들기</option>
-            </select>
-            {newFamily && (
-              <input value={address} onChange={(e) => setAddress(e.target.value)}
-                placeholder="주소 (선택)" style={{ ...inputStyle, marginTop: 6 }} />
-            )}
-          </div>
+        {plain && (
+          <input value={address} onChange={(e) => setAddress(e.target.value)}
+            placeholder="주소 (선택)" style={{ ...inputStyle, marginBottom: 12 }} />
         )}
 
         <FormRow label="이름 *" value={name} onChange={setName} />
