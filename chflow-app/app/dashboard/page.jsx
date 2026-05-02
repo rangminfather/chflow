@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getRoleImageByLabel, getParentRoleLabel } from "@/lib/roles";
+import HeaderLogo from "@/components/HeaderLogo";
 
 const ROLES = [
   { id: "admin", label: "시스템관리자", icon: "⚙️", color: "#6366f1" },
@@ -1146,6 +1147,7 @@ export default function App() {
           }}>
             <span style={{ fontSize: 18, color: sidebarOpen ? "#fff" : "#475569" }}>{sidebarOpen ? "✕" : "☰"}</span>
           </div>
+          <HeaderLogo />
           <div>
             <div className="header-title-full" style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", letterSpacing: -0.5 }}>스마트명성 · 교회 통합 관리 시스템</div>
             <div className="header-title-short" style={{ display: "none", fontSize: 15, fontWeight: 800, color: "#1e293b" }}>스마트명성</div>

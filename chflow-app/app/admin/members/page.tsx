@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import MemberCardModal from "@/components/MemberCardModal";
 import { ExportMembersModal, ImportMembersModal } from "@/components/MemberDataTools";
+import HeaderLogo from "@/components/HeaderLogo";
 
 interface Member {
   id: string;
@@ -190,9 +191,12 @@ function AdminMembersPage() {
       <div style={{ maxWidth: 1400, margin: "0 auto" }}>
         {/* Header */}
         <div style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>회원 관리</div>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>명성교회 성도 데이터베이스</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <HeaderLogo />
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>회원 관리</div>
+              <div style={{ fontSize: 11, color: "#94a3b8" }}>명성교회 성도 데이터베이스</div>
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button onClick={() => setCreating(true)} style={btnPrimary}>+ 회원 추가</button>

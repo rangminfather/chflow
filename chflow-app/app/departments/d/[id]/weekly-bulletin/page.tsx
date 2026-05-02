@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import HeaderLogo from "@/components/HeaderLogo";
 
 // ─────────────────────────────────────────────────────────────────
 // 폼 정의
@@ -1102,7 +1103,10 @@ export default function WeeklyBulletinPage() {
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
 
       <div style={headerStyle}>
-        <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+          <HeaderLogo />
+        </div>
         <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>📰 주보 만들기</div>
         <div style={{ display: "flex", gap: 6 }}>
           {!isDesktop && (

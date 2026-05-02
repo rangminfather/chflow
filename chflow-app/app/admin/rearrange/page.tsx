@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
+import HeaderLogo from "@/components/HeaderLogo";
 
 interface TreeRow {
   plain_id: string;  plain_name: string;  plain_order: number;
@@ -327,9 +328,12 @@ export default function RearrangePage() {
 
       {/* Header */}
       <div style={{ maxWidth: 1800, margin: "0 auto 12px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 800 }}>초원 재편성</div>
-          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>2년 주기 목장 대이동 — 드래그로 옮기고 마지막에 저장</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <HeaderLogo />
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800 }}>초원 재편성</div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>2년 주기 목장 대이동 — 드래그로 옮기고 마지막에 저장</div>
+          </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {dirty && <span style={{ fontSize: 11, color: "#fbbf24", fontWeight: 600 }}>● 변경사항 있음</span>}

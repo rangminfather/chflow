@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { getRoleImageByLabel } from "@/lib/roles";
 import NotificationBell from "@/components/NotificationBell";
 import PhotoAvatar from "@/components/PhotoAvatar";
+import HeaderLogo from "@/components/HeaderLogo";
 
 interface UserInfo {
   id: string;
@@ -249,7 +250,7 @@ export default function HomePage() {
               fontSize: 18, color: "#475569",
             }}
           >☰</button>
-          <img src="/icon-192.png" alt="" style={{ width: 32, height: 32, borderRadius: 8 }} />
+          <HeaderLogo />
           <div>
             <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>스마트명성</div>
             <div style={{ fontSize: 10, color: "#94a3b8" }}>Smart Myungsung</div>

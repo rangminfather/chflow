@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import HeaderLogo from "@/components/HeaderLogo";
 
 interface Teacher {
   id: string;
@@ -136,7 +137,10 @@ export default function TeacherAttendancePage() {
 
       {/* Header */}
       <div style={headerStyle}>
-        <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+          <HeaderLogo />
+        </div>
         <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>👨‍🏫 선생임 (교사출석부)</div>
         <button onClick={() => setShowAddForm(!showAddForm)} style={addBtnStyle}>+ 교사 추가</button>
       </div>

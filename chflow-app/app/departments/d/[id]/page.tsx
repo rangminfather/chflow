@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import HeaderLogo from "@/components/HeaderLogo";
 
 interface DeptInfo {
   id: string;
@@ -216,19 +217,22 @@ export default function DepartmentDetailPage() {
           display: "flex", justifyContent: "space-between", alignItems: "center",
           boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
         }}>
-          <div>
-            <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>{dept.category}</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>
-              {dept.icon} {dept.name}
-              {grade <= 4 && (
-                <span style={{
-                  marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700,
-                  background: GRADE_BADGE[grade]?.bg || "#f1f5f9",
-                  color: GRADE_BADGE[grade]?.color || "#64748b",
-                }}>
-                  {GRADE_BADGE[grade]?.label || `등급 ${grade}`}
-                </span>
-              )}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <HeaderLogo />
+            <div>
+              <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>{dept.category}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>
+                {dept.icon} {dept.name}
+                {grade <= 4 && (
+                  <span style={{
+                    marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700,
+                    background: GRADE_BADGE[grade]?.bg || "#f1f5f9",
+                    color: GRADE_BADGE[grade]?.color || "#64748b",
+                  }}>
+                    {GRADE_BADGE[grade]?.label || `등급 ${grade}`}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <button onClick={() => router.push("/home")} style={backBtnStyle}>← 홈</button>

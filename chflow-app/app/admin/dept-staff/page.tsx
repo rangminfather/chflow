@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import HeaderLogo from "@/components/HeaderLogo";
 
 interface Dept {
   id: string;
@@ -157,9 +158,12 @@ export default function DeptStaffPage() {
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         {/* Header */}
         <div style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>🏢 부서원 관리</div>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>부서별 인원과 등급 임명 (관리자 전용)</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <HeaderLogo />
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>🏢 부서원 관리</div>
+              <div style={{ fontSize: 11, color: "#94a3b8" }}>부서별 인원과 등급 임명 (관리자 전용)</div>
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => router.push("/admin/members")} style={btnGhost}>← 회원관리</button>

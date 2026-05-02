@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import HeaderLogo from "@/components/HeaderLogo";
 
 interface Department {
   id: string;
@@ -71,9 +72,12 @@ export default function CategoryPage() {
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
         <div style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>{category}</div>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>가입할 부서를 선택하세요</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <HeaderLogo />
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>{category}</div>
+              <div style={{ fontSize: 11, color: "#94a3b8" }}>가입할 부서를 선택하세요</div>
+            </div>
           </div>
           <button onClick={() => router.push("/departments")} style={backBtnStyle}>← 뒤로</button>
         </div>

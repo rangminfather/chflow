@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import HeaderLogo from "@/components/HeaderLogo";
 
 interface PendingJoin {
   id: string;
@@ -167,6 +168,7 @@ export default function AdminDeptPage() {
             onClick={() => setSidebarOpen(!sidebarOpen)}
             style={{ display: "none", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: 8, background: "#f1f5f9", border: "none", cursor: "pointer", fontSize: 18, color: "#475569" }}
           >☰</button>
+          <HeaderLogo />
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>사역 / 부서 관리</div>
             <div style={{ fontSize: 11, color: "#94a3b8" }}>가입 승인 + 회원 관리</div>

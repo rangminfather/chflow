@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import HeaderLogo from "@/components/HeaderLogo";
 
 interface Vote {
   id: string;
@@ -354,6 +355,7 @@ export default function AdminVotesPage() {
         padding: "14px 24px", display: "flex", alignItems: "center", gap: 12,
       }}>
         <button onClick={() => router.push("/home")} style={iconBtnStyle}>←</button>
+        <HeaderLogo />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>🗳️ 투표 관리</div>
           <div style={{ fontSize: 11, color: "#94a3b8" }}>항존직 선거 · 기타 투표</div>

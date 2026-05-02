@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import HeaderLogo from "@/components/HeaderLogo";
 
 interface ActiveVote {
   id: string;
@@ -67,6 +68,7 @@ export default function VoteListPage() {
         padding: "14px 24px", display: "flex", alignItems: "center", gap: 12,
       }}>
         <button onClick={() => router.push("/home")} style={iconBtnStyle}>←</button>
+        <HeaderLogo />
         <div>
           <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>🗳️ 투표</div>
           <div style={{ fontSize: 11, color: "#94a3b8" }}>진행 중인 투표에 참여하세요</div>

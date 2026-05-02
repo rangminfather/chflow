@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import HeaderLogo from "@/components/HeaderLogo";
 
 interface PendingUser {
   id: string;
@@ -103,9 +104,12 @@ export default function AdminPendingPage() {
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         {/* Header */}
         <div style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>가입 대기자 관리</div>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>회원가입 신청 → 승인/거절</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <HeaderLogo />
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>가입 대기자 관리</div>
+              <div style={{ fontSize: 11, color: "#94a3b8" }}>회원가입 신청 → 승인/거절</div>
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => router.push("/admin/members")} style={{

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import HeaderLogo from "@/components/HeaderLogo";
 
 interface FriendSummary {
   id: string;
@@ -164,7 +165,10 @@ export default function NewFriendPage() {
 
       {/* Header */}
       <div style={headerStyle}>
-        <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+          <HeaderLogo />
+        </div>
         <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>🌟 새친구 등록카드</div>
         <button onClick={newFriend} style={addBtnStyle}>+ 새 등록</button>
       </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import HeaderLogo from "@/components/HeaderLogo";
 
 interface Category {
   category: string;
@@ -57,9 +58,12 @@ export default function DepartmentsPage() {
       <div style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
         {/* Header */}
         <div style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>사역·부서 가입</div>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>관심 있는 사역에 가입 신청하세요</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <HeaderLogo />
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>사역·부서 가입</div>
+              <div style={{ fontSize: 11, color: "#94a3b8" }}>관심 있는 사역에 가입 신청하세요</div>
+            </div>
           </div>
           <button onClick={() => router.push("/home")} style={backBtnStyle}>← 홈</button>
         </div>
