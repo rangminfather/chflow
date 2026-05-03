@@ -727,6 +727,37 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // 자녀 등록 시 부모 검색·선택
+  const [parentSearchName, setParentSearchName] = useState("");
+  const [parentSearchPhone, setParentSearchPhone] = useState("");
+  const [parentCandidates, setParentCandidates] = useState<any[]>([]);
+  const [parentSearching, setParentSearching] = useState(false);
+  const [parent, setParent] = useState<any>(null);
+
+  const searchParent = async () => {
+    if (!parentSearchName.trim()) return;
+    setParentSearching(true);
+    const { data } = await supabase.rpc("search_member_candidates", {
+      p_name: parentSearchName.trim(),
+      p_phone: parentSearchPhone || null,
+      p_limit: 10,
+    });
+    setParentCandidates((data || []).filter((c: any) => !c.is_child));
+    setParentSearching(false);
+  };
+
+  const handleToggleChild = (next: boolean) => {
+    if (!next && parent) {
+      const ok = window.confirm("자녀 해제 시 부모 연결이 해제됩니다 (각종 연결 해제). 진행할까요?");
+      if (!ok) return;
+      setParent(null);
+      setParentCandidates([]);
+      setParentSearchName("");
+      setParentSearchPhone("");
+    }
+    setIsChild(next);
+  };
+
   const grasslandsForPlain = useMemo(() => {
     const s = new Set<string>();
     dirTree.forEach(r => { if (r.plain_name === plain && r.grassland_name) s.add(r.grassland_name); });
@@ -761,27 +792,46 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
     setError("");
     if (!name.trim()) return setError("이름을 입력하세요");
 
+    // 부모가 선택된 자녀: 부모의 household에 합류 (위치 입력은 무시)
+    const useParentHousehold = isChild && parent;
     const noPosition = !plain;
-    if (!noPosition && !resolvedPastureId) {
+    if (!useParentHousehold && !noPosition && !resolvedPastureId) {
       return setError("(미정) 항목이 누락되었습니다. 관리자에게 문의하세요.");
     }
 
     setSaving(true);
-    const { error: rpcError } = await supabase.rpc("admin_create_member", {
+    const { data: newId, error: rpcError } = await supabase.rpc("admin_create_member", {
       p_name: name.trim(),
       p_phone: phone,
       p_family_church: familyChurch,
       p_sub_role: subRole,
       p_spouse_name: spouseName,
-      p_household_id: null,
-      p_pasture_id: noPosition ? null : resolvedPastureId,
+      p_household_id: useParentHousehold ? parent.household_id : null,
+      p_pasture_id: useParentHousehold ? null : (noPosition ? null : resolvedPastureId),
       p_gender: gender || null,
       p_is_child: isChild,
       p_birth_date: null,
       p_address: address,
     });
+    if (rpcError) { setSaving(false); setError(`추가 실패: ${rpcError.message}`); return; }
+
+    // 부모-자녀 관계 등록
+    if (useParentHousehold && newId) {
+      const role = parent.gender === "M" ? "father" : parent.gender === "F" ? "mother" : null;
+      const { error: relError } = await supabase.rpc("add_member_relation", {
+        p_subject_id: newId,
+        p_relative_id: parent.id,
+        p_kind: "parent",
+        p_role: role,
+      });
+      if (relError) {
+        setSaving(false);
+        setError(`회원은 추가됐으나 부모 관계 등록 실패: ${relError.message}`);
+        return;
+      }
+    }
+
     setSaving(false);
-    if (rpcError) { setError(`추가 실패: ${rpcError.message}`); return; }
     onCreated();
   };
 
@@ -825,10 +875,76 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
             </select>
           </div>
           <label style={{ display: "flex", alignItems: "flex-end", gap: 6, fontSize: 12, fontWeight: 600, color: "#475569", paddingBottom: 10 }}>
-            <input type="checkbox" checked={isChild} onChange={(e) => setIsChild(e.target.checked)} />
+            <input type="checkbox" checked={isChild} onChange={(e) => handleToggleChild(e.target.checked)} />
             자녀
           </label>
         </div>
+
+        {isChild && (
+          <div style={{ padding: 12, background: "#fefce8", border: "1.5px dashed #fde047", borderRadius: 10, marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#854d0e", marginBottom: 8 }}>
+              👨‍👩‍👧 부모 회원 연결 <span style={{ fontWeight: 400, color: "#a16207" }}>(선택 — 비워두면 가족 연결 없이 추가)</span>
+            </div>
+            {parent ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, background: "#fff", borderRadius: 8, border: "1px solid #fde68a" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                    {parent.name}
+                    {parent.gender === "M" && <span style={{ fontSize: 11, color: "#3b82f6", marginLeft: 6 }}>♂ 아버지로 등록</span>}
+                    {parent.gender === "F" && <span style={{ fontSize: 11, color: "#ec4899", marginLeft: 6 }}>♀ 어머니로 등록</span>}
+                    {!parent.gender && <span style={{ fontSize: 11, color: "#64748b", marginLeft: 6 }}>(부모 성별 미지정)</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                    {parent.phone || "연락처 없음"} · {parent.plain_name ? `${parent.plain_name}평원 · ` : ""}{parent.pasture_name || "소속 없음"} 목장
+                  </div>
+                  <div style={{ fontSize: 10, color: "#a16207", marginTop: 4, fontWeight: 600 }}>
+                    👉 자녀는 이 부모의 가족(목장)에 합류합니다. 위 평원/초원/목장 입력은 무시됩니다.
+                  </div>
+                </div>
+                <button onClick={() => { setParent(null); setParentCandidates([]); }}
+                  style={{ padding: "6px 10px", background: "#fff", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
+                  다시
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                  <input value={parentSearchName} onChange={(e) => setParentSearchName(e.target.value)}
+                    placeholder="부모 이름" style={{ ...inputStyle, flex: 2 }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchParent(); } }} />
+                  <input value={parentSearchPhone} onChange={(e) => setParentSearchPhone(formatPhone(e.target.value))}
+                    placeholder="휴대폰 (선택)" style={{ ...inputStyle, flex: 2 }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchParent(); } }} />
+                  <button type="button" onClick={searchParent}
+                    style={{ padding: "0 14px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                    {parentSearching ? "..." : "검색"}
+                  </button>
+                </div>
+                {parentCandidates.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {parentCandidates.map(c => (
+                      <div key={c.id} onClick={() => setParent(c)}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, background: "#fff", borderRadius: 8, border: "1px solid #fde68a", cursor: "pointer" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "#1e293b" }}>
+                            {c.name} {c.phone && <span style={{ color: "#64748b", fontWeight: 400 }}>({c.phone})</span>}
+                          </div>
+                          <div style={{ fontSize: 10, color: "#64748b" }}>
+                            {c.plain_name ? `${c.plain_name}평원 · ` : ""}{c.pasture_name || "소속 없음"} 목장
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 10, color: "#6366f1", fontWeight: 700 }}>선택 →</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {parentCandidates.length === 0 && !parentSearching && parentSearchName && (
+                  <div style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", padding: 8 }}>검색 결과 없음 (이름은 정확히 일치해야 합니다)</div>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
           <div style={{ flex: 1 }}>
