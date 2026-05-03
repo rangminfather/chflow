@@ -9,6 +9,7 @@ import {
   validateUsername,
   validatePassword,
   normalizePhone,
+  formatPhone,
 } from "@/lib/supabase";
 
 type Step = "lookup" | "confirm" | "role" | "info" | "done";
@@ -361,7 +362,7 @@ export default function SignupPage() {
               <input
                 type="tel"
                 value={lookupPhone}
-                onChange={(e) => setLookupPhone(e.target.value)}
+                onChange={(e) => setLookupPhone(formatPhone(e.target.value))}
                 placeholder="010-0000-0000"
                 disabled={noPhone}
                 style={{
@@ -402,7 +403,7 @@ export default function SignupPage() {
                   <input
                     type="tel"
                     value={parentPhone}
-                    onChange={(e) => setParentPhone(e.target.value)}
+                    onChange={(e) => setParentPhone(formatPhone(e.target.value))}
                     placeholder="010-0000-0000"
                     style={{ ...inputStyle, marginTop: 6 }}
                   />
@@ -691,7 +692,7 @@ export default function SignupPage() {
 
           <div style={{ marginBottom: 18 }}>
             <label style={labelStyle}>전화번호 {noPhone ? "(선택)" : "*"}</label>
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+            <input type="tel" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))}
               placeholder={noPhone ? "휴대폰 없으시면 비워두셔도 됩니다" : "010-0000-0000"}
               style={{ ...inputStyle, marginTop: 6 }} />
           </div>

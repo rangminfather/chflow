@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { supabase, formatPhone } from "@/lib/supabase";
 import MemberCardModal from "@/components/MemberCardModal";
 import { ExportMembersModal, ImportMembersModal } from "@/components/MemberDataTools";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -581,7 +581,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
         <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 18 }}>회원 수정</div>
 
         <FormRow label="이름" value={member.name} onChange={(v) => setMember({ ...member, name: v })} />
-        <FormRow label="휴대폰" value={member.phone} onChange={(v) => setMember({ ...member, phone: v })} />
+        <FormRow label="휴대폰" value={member.phone} onChange={(v) => setMember({ ...member, phone: formatPhone(v) })} placeholder="010-0000-0000" />
         <div style={{ marginBottom: 10, display: "flex", gap: 10 }}>
           <div style={{ flex: 1 }}>
             <label style={lblStyle}>성별</label>
@@ -813,7 +813,7 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
         )}
 
         <FormRow label="이름 *" value={name} onChange={setName} />
-        <FormRow label="휴대폰" value={phone} onChange={setPhone} placeholder="010-0000-0000" />
+        <FormRow label="휴대폰" value={phone} onChange={(v) => setPhone(formatPhone(v))} placeholder="010-0000-0000" />
 
         <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
           <div style={{ flex: 1 }}>

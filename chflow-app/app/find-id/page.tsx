@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase, normalizePhone } from "@/lib/supabase";
+import { supabase, normalizePhone, formatPhone } from "@/lib/supabase";
 
 export default function FindIdPage() {
   const router = useRouter();
@@ -103,7 +103,7 @@ export default function FindIdPage() {
             <input
               type="tel"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(formatPhone(e.target.value))}
               placeholder="010-0000-0000"
               style={{ ...inputStyle, marginTop: 6 }}
             />

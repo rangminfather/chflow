@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { supabase, formatPhone } from "@/lib/supabase";
 
 interface Props {
   memberId: string;
@@ -184,20 +184,38 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
             <div style={{ flex: 1 }}>
               {editing ? (
                 <>
-                  <input value={edit.name || ""} onChange={(e) => setEdit({ ...edit, name: e.target.value })} style={editInputLg} />
-                  <input value={edit.phone || ""} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} placeholder="휴대폰" style={editInput} />
+                  <div style={editFieldWrap}>
+                    <label style={editLbl}>이름</label>
+                    <input value={edit.name || ""} onChange={(e) => setEdit({ ...edit, name: e.target.value })} style={editInputLg} />
+                  </div>
+                  <div style={editFieldWrap}>
+                    <label style={editLbl}>휴대폰</label>
+                    <input value={edit.phone || ""} onChange={(e) => setEdit({ ...edit, phone: formatPhone(e.target.value) })} placeholder="010-0000-0000" style={editInput} />
+                  </div>
                   <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-                    <select value={edit.gender || ""} onChange={(e) => setEdit({ ...edit, gender: e.target.value || null })} style={{ ...editInput, flex: 1 }}>
-                      <option value="">성별</option><option value="M">남</option><option value="F">여</option>
-                    </select>
-                    <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#475569", paddingLeft: 6 }}>
+                    <div style={{ ...editFieldWrap, flex: 1, marginBottom: 0 }}>
+                      <label style={editLbl}>성별</label>
+                      <select value={edit.gender || ""} onChange={(e) => setEdit({ ...edit, gender: e.target.value || null })} style={editInput}>
+                        <option value="">미지정</option><option value="M">남</option><option value="F">여</option>
+                      </select>
+                    </div>
+                    <label style={{ display: "flex", alignItems: "flex-end", gap: 4, fontSize: 12, color: "#475569", paddingBottom: 8, fontWeight: 600 }}>
                       <input type="checkbox" checked={!!edit.is_child} onChange={(e) => setEdit({ ...edit, is_child: e.target.checked })} />
                       자녀
                     </label>
                   </div>
-                  <input value={edit.family_church || ""} onChange={(e) => setEdit({ ...edit, family_church: e.target.value })} placeholder="가정교회 (목자/목녀/목원)" style={editInput} />
-                  <input value={edit.sub_role || ""} onChange={(e) => setEdit({ ...edit, sub_role: e.target.value })} placeholder="직분" style={editInput} />
-                  <input value={edit.spouse_name || ""} onChange={(e) => setEdit({ ...edit, spouse_name: e.target.value })} placeholder="배우자" style={editInput} />
+                  <div style={editFieldWrap}>
+                    <label style={editLbl}>가정교회</label>
+                    <input value={edit.family_church || ""} onChange={(e) => setEdit({ ...edit, family_church: e.target.value })} placeholder="목자/목녀/목원" style={editInput} />
+                  </div>
+                  <div style={editFieldWrap}>
+                    <label style={editLbl}>직분</label>
+                    <input value={edit.sub_role || ""} onChange={(e) => setEdit({ ...edit, sub_role: e.target.value })} placeholder="직분" style={editInput} />
+                  </div>
+                  <div style={editFieldWrap}>
+                    <label style={editLbl}>배우자</label>
+                    <input value={edit.spouse_name || ""} onChange={(e) => setEdit({ ...edit, spouse_name: e.target.value })} placeholder="배우자 이름" style={editInput} />
+                  </div>
                 </>
               ) : (
                 <>
@@ -491,7 +509,7 @@ function RelationAddModal({ subjectId, onClose, onAdded }: {
                 <input value={name} onChange={(e) => setName(e.target.value)}
                   placeholder="이름" style={{ ...editInput, flex: 2, marginBottom: 0 }}
                   onKeyDown={(e) => e.key === "Enter" && search()} />
-                <input value={phone} onChange={(e) => setPhone(e.target.value)}
+                <input value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))}
                   placeholder="휴대폰 (선택)" style={{ ...editInput, flex: 2, marginBottom: 0 }}
                   onKeyDown={(e) => e.key === "Enter" && search()} />
                 <button onClick={search} style={btnPrimary}>{searching ? "..." : "검색"}</button>
@@ -580,6 +598,10 @@ const editInput: React.CSSProperties = {
   fontFamily: "inherit", marginBottom: 6, background: "#fff",
 };
 const editInputLg: React.CSSProperties = { ...editInput, fontSize: 18, fontWeight: 700 };
+const editLbl: React.CSSProperties = {
+  fontSize: 11, color: "#475569", fontWeight: 700, marginBottom: 3, display: "block",
+};
+const editFieldWrap: React.CSSProperties = { marginBottom: 8 };
 const btnPrimary: React.CSSProperties = {
   padding: "8px 16px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
   color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700,

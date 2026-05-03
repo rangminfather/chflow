@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { supabase, formatPhone } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 
 interface FriendSummary {
@@ -303,11 +303,11 @@ export default function NewFriendPage() {
                 </FormField>
 
                 <FormField label="전화">
-                  <input type="tel" value={f("phone")} onChange={(e) => set("phone", e.target.value)} placeholder="전화번호" style={inputStyle} />
+                  <input type="tel" value={f("phone")} onChange={(e) => set("phone", formatPhone(e.target.value))} placeholder="전화번호" style={inputStyle} />
                 </FormField>
 
                 <FormField label="핸드폰">
-                  <input type="tel" value={f("mobile")} onChange={(e) => set("mobile", e.target.value)} placeholder="핸드폰 번호" style={inputStyle} />
+                  <input type="tel" value={f("mobile")} onChange={(e) => set("mobile", formatPhone(e.target.value))} placeholder="핸드폰 번호" style={inputStyle} />
                 </FormField>
 
                 <FormField label="Email" fullWidth>
