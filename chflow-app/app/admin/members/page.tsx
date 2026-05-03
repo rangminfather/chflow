@@ -33,6 +33,8 @@ interface MoveTarget {
   household_id?: string;
   split_pasture_id?: string;
   clear_household?: boolean;
+  address?: string;
+  move_member_ids?: string[];
 }
 
 interface DirRow {
@@ -184,6 +186,8 @@ function AdminMembersPage() {
     if (move?.household_id) params.p_household_id = move.household_id;
     if (move?.split_pasture_id) params.p_split_pasture_id = move.split_pasture_id;
     if (move?.clear_household) params.p_clear_household = true;
+    if (move?.address !== undefined) params.p_address = move.address;
+    if (move?.move_member_ids) params.p_move_member_ids = move.move_member_ids;
     const { error } = await supabase.rpc("admin_update_member", params);
     if (error) { alert(`수정 실패: ${error.message}`); return; }
     setEditing(null);
@@ -436,6 +440,14 @@ function renderPageNumbers(cur: number, total: number): number[] {
 
 
 // ============ Edit Modal ============
+interface HouseholdMember {
+  id: string;
+  name: string;
+  gender: string | null;
+  family_church: string;
+  is_child: boolean;
+}
+
 function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSave, onClose }: {
   member: Member;
   setMember: (m: Member) => void;
@@ -450,6 +462,27 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
   const [moveGrass, setMoveGrass] = useState(member.grassland_name || "");
   const [movePast, setMovePast] = useState(member.pasture_name || "");
   const [moveError, setMoveError] = useState("");
+
+  // 주소 / 가족 단위 이동 state
+  const [address, setAddress] = useState(member.address || "");
+  const [householdMembers, setHouseholdMembers] = useState<HouseholdMember[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set([member.id]));
+
+  // 같은 가족 멤버 로드 — 본인 + 다른 멤버 모두 default 체크
+  useEffect(() => {
+    if (!member.household_id) {
+      setHouseholdMembers([]);
+      setSelectedIds(new Set([member.id]));
+      return;
+    }
+    (async () => {
+      const { data } = await supabase.rpc("admin_get_household_members", { p_household_id: member.household_id });
+      if (data) {
+        setHouseholdMembers(data);
+        setSelectedIds(new Set(data.map((m: HouseholdMember) => m.id)));
+      }
+    })();
+  }, [member.household_id, member.id]);
 
   const grasslandsForPlain = useMemo(() => {
     const s = new Set<string>();
@@ -482,33 +515,64 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
     return row?.pasture_id || "";
   }, [dirTree, movePlain, moveGrass, movePast]);
 
-  // 같은 평원/초원/목장 그대로면 위치 변경 없음
   const samePosition =
     movePlain === (member.plain_name || "") &&
     moveGrass === (member.grassland_name || "") &&
     movePast === (member.pasture_name || "");
 
+  const sameAddress = address === (member.address || "");
+
+  const toggleId = (id: string) => {
+    if (id === member.id) return; // 본인은 해제 불가
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   const handleSave = () => {
     setMoveError("");
 
-    if (samePosition) {
-      onSave();  // 위치 변경 없음 — 기본 필드만 업데이트
-      return;
-    }
-
-    // 평원도 안 정함 → 어디에도 소속 안 둠
+    // 평원 안 정함 → 어디에도 소속 안 둠 (본인만)
     if (!movePlain) {
       onSave({ clear_household: true });
       return;
     }
 
-    if (!resolvedPastureId) {
+    if (!resolvedPastureId && !samePosition) {
       setMoveError("(미정) 항목이 누락되었습니다. 관리자에게 문의하세요.");
       return;
     }
 
-    // 평원/초원/목장 바꿈 → 본인만 신규 가족으로 분리
-    onSave({ split_pasture_id: resolvedPastureId });
+    const move: MoveTarget = {};
+    if (!samePosition) move.split_pasture_id = resolvedPastureId;
+
+    // household 있는 회원만 가족 단위 이동/주소 변경 가능
+    if (member.household_id) {
+      const movingFamily = !samePosition || !sameAddress;
+      if (movingFamily) {
+        move.address = address;
+        move.move_member_ids = Array.from(selectedIds);
+      }
+    } else {
+      // household 없는 회원: split 시 새 household 주소로 사용
+      if (!samePosition && address) move.address = address;
+    }
+
+    // 변경 사항 없으면 기본 필드만
+    if (samePosition && sameAddress && (!member.household_id || selectedIds.size === householdMembers.length)) {
+      onSave();
+      return;
+    }
+
+    onSave(move);
+  };
+
+  const fcLabel = (m: HouseholdMember) => {
+    if (m.is_child) return "자녀";
+    if (m.family_church === "목자" || m.family_church === "목녀") return m.family_church;
+    return m.gender === "M" ? "남" : m.gender === "F" ? "여" : "본인외";
   };
 
   return (
@@ -538,8 +602,55 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
         <FormRow label="직분" value={member.sub_role} onChange={(v) => setMember({ ...member, sub_role: v })} />
         <FormRow label="배우자" value={member.spouse_name} onChange={(v) => setMember({ ...member, spouse_name: v })} />
 
+        {/* 주소 + 같이 옮길 가족 영역 */}
+        <div style={{ marginTop: 18, padding: 12, background: "#f0f9ff", borderRadius: 10, border: "1px solid #bae6fd" }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "#1e293b", marginBottom: 8 }}>주소</div>
+          <input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="주소 (비워두면 빈 주소로 저장됨)"
+            style={{ ...inputStyle, marginBottom: 10 }}
+          />
+
+          {member.household_id && householdMembers.length > 0 && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 6 }}>
+                같이 옮길 가족
+                <span style={{ marginLeft: 6, fontWeight: 500, color: "#94a3b8" }}>
+                  체크한 사람들이 새 주소(또는 새 목장)로 함께 이동합니다
+                </span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {householdMembers.map(hm => {
+                  const isSelf = hm.id === member.id;
+                  const checked = selectedIds.has(hm.id);
+                  return (
+                    <label key={hm.id} style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+                      background: checked ? "#fff" : "#f1f5f9",
+                      borderRadius: 6, fontSize: 12, fontWeight: 600, color: "#1e293b",
+                      cursor: isSelf ? "default" : "pointer", opacity: isSelf ? 0.85 : 1
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={isSelf}
+                        onChange={() => toggleId(hm.id)}
+                      />
+                      <span>{hm.name}</span>
+                      <span style={{ fontSize: 10, color: "#64748b", fontWeight: 500 }}>
+                        ({isSelf ? "본인" : fcLabel(hm)})
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
         {/* 소속(목장) 이동 영역 */}
-        <div style={{ marginTop: 18, padding: 12, background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
+        <div style={{ marginTop: 12, padding: 12, background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: "#1e293b", marginBottom: 8 }}>
             소속 (평원 / 초원 / 목장)
             <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 600, color: "#94a3b8" }}>
