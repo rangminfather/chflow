@@ -40,7 +40,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   const [edit, setEdit] = useState<any>({});
   const [uploading, setUploading] = useState(false);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
-  const [showRelAdd, setShowRelAdd] = useState(false);
+  const [showRelAdd, setShowRelAdd] = useState<false | "parent" | "child">(false);
   const [showParents, setShowParents] = useState(false);   // 부모보기 (기본 off)
   const [showChildren, setShowChildren] = useState(true);  // 자녀보기 (기본 on)
   const fileRef = useRef<HTMLInputElement>(null);
@@ -139,14 +139,23 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   };
 
   const handleRemoveRelation = async (relativeId: string, kind: string, direction: string) => {
-    if (!confirm("이 관계를 제거하시겠습니까?")) return;
     const subject = direction === "descendant" ? relativeId : currentId;
     const relative = direction === "descendant" ? currentId : relativeId;
-    const { error } = await supabase.rpc("remove_member_relation", {
-      p_subject_id: subject, p_relative_id: relative, p_kind: kind,
-    });
-    if (error) { alert(`제거 실패: ${error.message}`); return; }
+    if (kind === "parent") {
+      if (!confirm("이 자녀관계를 제거하시겠습니까?\n반대쪽 부모(아버지/어머니)와의 관계도 함께 끊어집니다.")) return;
+      const { error } = await supabase.rpc("remove_parent_relation_bidirectional", {
+        p_child_id: subject, p_parent_id: relative,
+      });
+      if (error) { alert(`제거 실패: ${error.message}`); return; }
+    } else {
+      if (!confirm("이 관계를 제거하시겠습니까?")) return;
+      const { error } = await supabase.rpc("remove_member_relation", {
+        p_subject_id: subject, p_relative_id: relative, p_kind: kind,
+      });
+      if (error) { alert(`제거 실패: ${error.message}`); return; }
+    }
     await load();
+    onChanged?.();
   };
 
   if (loading || !data) {
@@ -319,7 +328,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
               ["parent", "grandparent", "great_grandparent"].includes(r.kind));
             return (
               <Section title="👴 부모·조부모" action={
-                <button onClick={() => setShowRelAdd(true)} style={btnMiniPrimary}>+ 추가</button>
+                <button onClick={() => setShowRelAdd("parent")} style={btnMiniPrimary}>+ 추가</button>
               }>
                 {ancestors.length > 0 ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -341,7 +350,9 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
             const desc = (data.descendants || []).filter((r: any) =>
               ["parent", "grandparent", "great_grandparent"].includes(r.kind));
             return (
-              <Section title="👶 자녀·손주">
+              <Section title="👶 자녀·손주" action={
+                <button onClick={() => setShowRelAdd("child")} style={btnMiniPrimary}>+ 추가</button>
+              }>
                 {desc.length > 0 ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {desc.map((r: any, i: number) => (
@@ -361,7 +372,9 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
 
       {/* 관계 추가 모달 */}
       {showRelAdd && (
-        <RelationAddModal subjectId={currentId} onClose={() => setShowRelAdd(false)}
+        <RelationAddModal subjectId={currentId} subjectGender={m.gender}
+          initialKind={showRelAdd}
+          onClose={() => setShowRelAdd(false)}
           onAdded={() => { setShowRelAdd(false); load(); }} />
       )}
     </ModalBackdrop>
@@ -445,16 +458,20 @@ function kindReverseLabel(kind: string, role: string | null): string {
 
 
 // ============ Relation Add Modal ============
-function RelationAddModal({ subjectId, onClose, onAdded }: {
-  subjectId: string; onClose: () => void; onAdded: () => void;
+function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAdded }: {
+  subjectId: string;
+  subjectGender?: string | null;
+  initialKind?: "parent" | "child";
+  onClose: () => void;
+  onAdded: () => void;
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [candidates, setCandidates] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [selected, setSelected] = useState<any>(null);
-  const [kind, setKind] = useState<string>("parent");
-  const [role, setRole] = useState<string>("father");
+  const [kind, setKind] = useState<string>(initialKind || "parent");
+  const [role, setRole] = useState<string>(initialKind === "child" ? "" : "father");
 
   const search = async () => {
     if (!name.trim()) return;
@@ -468,7 +485,8 @@ function RelationAddModal({ subjectId, onClose, onAdded }: {
 
   useEffect(() => {
     if (!selected) return;
-    // 기본 role 추천
+    // child 모드일 땐 자동 추천 끄고 사용자가 정한 kind 유지
+    if (kind === "child") return;
     (async () => {
       const { data } = await supabase.rpc("suggest_relation_role", {
         p_subject_id: subjectId, p_relative_id: selected.id,
@@ -479,9 +497,20 @@ function RelationAddModal({ subjectId, onClose, onAdded }: {
 
   const submit = async () => {
     if (!selected) return;
+    let p_subject_id = subjectId;
+    let p_relative_id = selected.id;
+    let p_kind = kind;
+    let p_role: string | null = role || null;
+    // "자녀" 가상 kind: subject/relative 를 뒤집고 kind=parent 로 저장
+    // 부모(현재 회원)의 gender 로 role 자동 결정
+    if (kind === "child") {
+      p_subject_id = selected.id;
+      p_relative_id = subjectId;
+      p_kind = "parent";
+      p_role = subjectGender === "M" ? "father" : subjectGender === "F" ? "mother" : null;
+    }
     const { error } = await supabase.rpc("add_member_relation", {
-      p_subject_id: subjectId, p_relative_id: selected.id,
-      p_kind: kind, p_role: role || null,
+      p_subject_id, p_relative_id, p_kind, p_role,
     });
     if (error) { alert(`추가 실패: ${error.message}`); return; }
     onAdded();
@@ -489,6 +518,7 @@ function RelationAddModal({ subjectId, onClose, onAdded }: {
 
   const KIND_OPTIONS = [
     { value: "parent", label: "부모" },
+    { value: "child", label: "자녀" },
     { value: "grandparent", label: "조부모" },
     { value: "great_grandparent", label: "증조부모" },
     { value: "spouse", label: "배우자" },
@@ -589,12 +619,18 @@ function RelationAddModal({ subjectId, onClose, onAdded }: {
                   {KIND_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>세부 역할</div>
-                <select value={role} onChange={(e) => setRole(e.target.value)} style={editInput}>
-                  {(ROLE_OPTIONS[kind] || []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
+              {kind === "child" ? (
+                <div style={{ marginBottom: 14, padding: 10, background: "#fefce8", border: "1px solid #fde047", borderRadius: 8, fontSize: 11, color: "#854d0e" }}>
+                  자녀로 등록 — 현재 회원이 {subjectGender === "M" ? "아버지" : subjectGender === "F" ? "어머니" : "부모(성별 미지정)"} 로 자동 설정됩니다.
+                </div>
+              ) : (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>세부 역할</div>
+                  <select value={role} onChange={(e) => setRole(e.target.value)} style={editInput}>
+                    {(ROLE_OPTIONS[kind] || []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              )}
 
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={() => setSelected(null)} style={{ ...btnGhost, flex: 1 }}>뒤로</button>

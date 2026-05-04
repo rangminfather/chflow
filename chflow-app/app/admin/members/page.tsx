@@ -36,6 +36,8 @@ interface MoveTarget {
   clear_household?: boolean;
   address?: string;
   move_member_ids?: string[];
+  add_parent_id?: string;
+  add_parent_role?: string;
 }
 
 interface DirRow {
@@ -191,6 +193,15 @@ function AdminMembersPage() {
     if (move?.move_member_ids) params.p_move_member_ids = move.move_member_ids;
     const { error } = await supabase.rpc("admin_update_member", params);
     if (error) { alert(`수정 실패: ${error.message}`); return; }
+    if (move?.add_parent_id) {
+      const { error: relErr } = await supabase.rpc("add_member_relation", {
+        p_subject_id: editing.id,
+        p_relative_id: move.add_parent_id,
+        p_kind: "parent",
+        p_role: move.add_parent_role || null,
+      });
+      if (relErr) { alert(`회원은 수정됐으나 부모 관계 등록 실패: ${relErr.message}`); }
+    }
     setEditing(null);
     doSearch(page, query, filterPlain, filterGrassland, filterPasture, showChildren, showParents);
   };
@@ -387,7 +398,7 @@ function AdminMembersPage() {
       {deleting && (
         <ConfirmModal
           title="회원 삭제"
-          message={`${deleting.name} 님을 삭제하시겠습니까?${deleting.has_account ? "\n⚠️ 앱 계정과 연결돼 있어 삭제 불가할 수 있습니다." : ""}`}
+          message={`${deleting.name} 님을 삭제하시겠습니까?${deleting.is_child ? "\n관련 부모(아버지/어머니)와의 자녀관계도 함께 끊어집니다." : ""}${deleting.has_account ? "\n⚠️ 앱 계정과 연결돼 있어 삭제 불가할 수 있습니다." : ""}`}
           onConfirm={handleDelete}
           onClose={() => setDeleting(null)}
         />
@@ -469,6 +480,25 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
   const [householdMembers, setHouseholdMembers] = useState<HouseholdMember[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set([member.id]));
 
+  // 자녀 체크 시 부모 검색·연결 state
+  const [parentSearchName, setParentSearchName] = useState("");
+  const [parentSearchPhone, setParentSearchPhone] = useState("");
+  const [parentCandidates, setParentCandidates] = useState<any[]>([]);
+  const [parentSearching, setParentSearching] = useState(false);
+  const [parent, setParent] = useState<any>(null);
+
+  const searchParent = async () => {
+    if (!parentSearchName.trim()) return;
+    setParentSearching(true);
+    const { data } = await supabase.rpc("search_member_candidates", {
+      p_name: parentSearchName.trim(),
+      p_phone: parentSearchPhone || null,
+      p_limit: 10,
+    });
+    setParentCandidates((data || []).filter((c: any) => !c.is_child && c.id !== member.id));
+    setParentSearching(false);
+  };
+
   // 같은 가족 멤버 로드 — 본인 + 다른 멤버 모두 default 체크
   useEffect(() => {
     if (!member.household_id) {
@@ -535,9 +565,16 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
   const handleSave = () => {
     setMoveError("");
 
+    // 자녀 체크 + 부모 선택 시 관계 등록 정보
+    const parentInfo: Pick<MoveTarget, "add_parent_id" | "add_parent_role"> = {};
+    if (member.is_child && parent) {
+      parentInfo.add_parent_id = parent.id;
+      parentInfo.add_parent_role = parent.gender === "M" ? "father" : parent.gender === "F" ? "mother" : undefined;
+    }
+
     // 평원 안 정함 → 어디에도 소속 안 둠 (본인만)
     if (!movePlain) {
-      onSave({ clear_household: true });
+      onSave({ clear_household: true, ...parentInfo });
       return;
     }
 
@@ -546,7 +583,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
       return;
     }
 
-    const move: MoveTarget = {};
+    const move: MoveTarget = { ...parentInfo };
     if (!samePosition) move.split_pasture_id = resolvedPastureId;
 
     // household 있는 회원만 가족 단위 이동/주소 변경 가능
@@ -561,9 +598,9 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
       if (!samePosition && address) move.address = address;
     }
 
-    // 변경 사항 없으면 기본 필드만
+    // 변경 사항 없으면 기본 필드만 (부모 등록은 유지)
     if (samePosition && sameAddress && (!member.household_id || selectedIds.size === householdMembers.length)) {
-      onSave();
+      onSave(parentInfo.add_parent_id ? parentInfo : undefined);
       return;
     }
 
@@ -595,10 +632,86 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
           </div>
           <label style={{ display: "flex", alignItems: "flex-end", gap: 6, fontSize: 12, fontWeight: 600, color: "#475569", paddingBottom: 10 }}>
             <input type="checkbox" checked={member.is_child}
-              onChange={(e) => setMember({ ...member, is_child: e.target.checked })} />
+              onChange={(e) => {
+                const next = e.target.checked;
+                if (!next && parent) {
+                  setParent(null);
+                  setParentCandidates([]);
+                  setParentSearchName("");
+                  setParentSearchPhone("");
+                }
+                setMember({ ...member, is_child: next });
+              }} />
             자녀
           </label>
         </div>
+
+        {member.is_child && (
+          <div style={{ padding: 12, background: "#fefce8", border: "1.5px dashed #fde047", borderRadius: 10, marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#854d0e", marginBottom: 8 }}>
+              👨‍👩‍👧 부모 회원 연결 <span style={{ fontWeight: 400, color: "#a16207" }}>(선택 — 비워두면 가족 연결 추가 없음)</span>
+            </div>
+            <div style={{ fontSize: 10, color: "#a16207", marginBottom: 8 }}>
+              💡 기존 부모를 보거나 변경/제거하려면 성도 카드(이름 클릭)의 가족관계 메뉴를 사용하세요.
+            </div>
+            {parent ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, background: "#fff", borderRadius: 8, border: "1px solid #fde68a" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                    {parent.name}
+                    {parent.gender === "M" && <span style={{ fontSize: 11, color: "#3b82f6", marginLeft: 6 }}>♂ 아버지로 등록</span>}
+                    {parent.gender === "F" && <span style={{ fontSize: 11, color: "#ec4899", marginLeft: 6 }}>♀ 어머니로 등록</span>}
+                    {!parent.gender && <span style={{ fontSize: 11, color: "#64748b", marginLeft: 6 }}>(부모 성별 미지정)</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                    {parent.phone || "연락처 없음"} · {parent.plain_name ? `${parent.plain_name}평원 · ` : ""}{parent.pasture_name || "소속 없음"} 목장
+                  </div>
+                </div>
+                <button onClick={() => { setParent(null); setParentCandidates([]); }}
+                  style={{ padding: "6px 10px", background: "#fff", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
+                  다시
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                  <input value={parentSearchName} onChange={(e) => setParentSearchName(e.target.value)}
+                    placeholder="부모 이름" style={{ ...inputStyle, flex: 2 }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchParent(); } }} />
+                  <input value={parentSearchPhone} onChange={(e) => setParentSearchPhone(formatPhone(e.target.value))}
+                    placeholder="휴대폰 (선택)" style={{ ...inputStyle, flex: 2 }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchParent(); } }} />
+                  <button type="button" onClick={searchParent}
+                    style={{ padding: "0 14px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                    {parentSearching ? "..." : "검색"}
+                  </button>
+                </div>
+                {parentCandidates.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {parentCandidates.map(c => (
+                      <div key={c.id} onClick={() => setParent(c)}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, background: "#fff", borderRadius: 8, border: "1px solid #fde68a", cursor: "pointer" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "#1e293b" }}>
+                            {c.name} {c.phone && <span style={{ color: "#64748b", fontWeight: 400 }}>({c.phone})</span>}
+                          </div>
+                          <div style={{ fontSize: 10, color: "#64748b" }}>
+                            {c.plain_name ? `${c.plain_name}평원 · ` : ""}{c.pasture_name || "소속 없음"} 목장
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 10, color: "#6366f1", fontWeight: 700 }}>선택 →</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {parentCandidates.length === 0 && !parentSearching && parentSearchName && (
+                  <div style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", padding: 8 }}>검색 결과 없음 (이름은 정확히 일치해야 합니다)</div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         <FormRow label="가정교회 (목자/목녀/목부/목원)" value={member.family_church} onChange={(v) => setMember({ ...member, family_church: v })} />
         <FormRow label="직분" value={member.sub_role} onChange={(v) => setMember({ ...member, sub_role: v })} />
         <FormRow label="배우자" value={member.spouse_name} onChange={(v) => setMember({ ...member, spouse_name: v })} />
