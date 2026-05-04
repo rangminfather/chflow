@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import ModalBackdrop from "@/components/ModalBackdrop";
 
 interface Vote {
   id: string;
@@ -824,8 +825,8 @@ function Avatar({ url, name, size = 36 }: { url: string | null; name: string; si
 
 function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div
-      onClick={onClose}
+    <ModalBackdrop
+      onClose={onClose}
       style={{
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)",
         zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center",
@@ -843,7 +844,7 @@ function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClos
       >
         {children}
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }
 

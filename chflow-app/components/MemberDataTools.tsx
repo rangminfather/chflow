@@ -2,6 +2,7 @@
 import { useState } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase";
+import ModalBackdrop from "./ModalBackdrop";
 
 // =============================================================
 // 회원정보 백업 모달
@@ -199,7 +200,7 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div onClick={onClose} style={modalBg}>
+    <ModalBackdrop onClose={onClose} style={modalBg}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...modal, maxWidth: 480 }}>
         <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 6 }}>📥 회원정보 백업</div>
         <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
@@ -241,7 +242,7 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }
 
@@ -407,7 +408,7 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
   };
 
   return (
-    <div onClick={() => !busy && onClose()} style={modalBg}>
+    <ModalBackdrop onClose={() => { if (!busy) onClose(); }} style={modalBg}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...modal, maxWidth: 720 }}>
         <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 6 }}>📤 회원정보 일괄업로드</div>
 
@@ -529,7 +530,7 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
           </>
         )}
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }
 

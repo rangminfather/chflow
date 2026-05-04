@@ -11,6 +11,7 @@ import {
   normalizePhone,
   formatPhone,
 } from "@/lib/supabase";
+import ModalBackdrop from "@/components/ModalBackdrop";
 
 type Step = "lookup" | "confirm" | "role" | "info" | "done";
 
@@ -785,7 +786,7 @@ function RoleCard({ role, onClick }: { role: Role; onClick: () => void }) {
 
 function SubRoleModal({ role, onSelect, onClose }: { role: Role; onSelect: (label: string) => void; onClose: () => void }) {
   return (
-    <div onClick={onClose} style={{
+    <ModalBackdrop onClose={onClose} style={{
       position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.55)",
       backdropFilter: "blur(6px)", display: "flex", alignItems: "center",
       justifyContent: "center", zIndex: 100, padding: 16,
@@ -827,7 +828,7 @@ function SubRoleModal({ role, onSelect, onClose }: { role: Role; onSelect: (labe
           fontSize: 13, fontWeight: 600, color: "#64748b", cursor: "pointer", fontFamily: "inherit",
         }}>취소</button>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }
 

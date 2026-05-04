@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, formatPhone } from "@/lib/supabase";
+import ModalBackdrop from "./ModalBackdrop";
 
 interface Props {
   memberId: string;
@@ -150,9 +151,9 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
 
   if (loading || !data) {
     return (
-      <div onClick={onClose} style={bgStyle}>
+      <ModalBackdrop onClose={onClose} style={bgStyle}>
         <div style={{ background: "#fff", borderRadius: 16, padding: 40 }}>로딩 중...</div>
-      </div>
+      </ModalBackdrop>
     );
   }
 
@@ -161,7 +162,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   const genderColor = m.gender === "M" ? "#3b82f6" : m.gender === "F" ? "#ec4899" : "#64748b";
 
   return (
-    <div onClick={onClose} style={bgStyle}>
+    <ModalBackdrop onClose={onClose} style={bgStyle}>
       <div onClick={(e) => e.stopPropagation()} style={cardStyle}>
         {/* 헤더 */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid #e2e8f0" }}>
@@ -363,7 +364,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
         <RelationAddModal subjectId={currentId} onClose={() => setShowRelAdd(false)}
           onAdded={() => { setShowRelAdd(false); load(); }} />
       )}
-    </div>
+    </ModalBackdrop>
   );
 }
 
@@ -521,7 +522,7 @@ function RelationAddModal({ subjectId, onClose, onAdded }: {
   };
 
   return (
-    <div onClick={onClose} style={{ ...bgStyle, zIndex: 110 }}>
+    <ModalBackdrop onClose={onClose} style={{ ...bgStyle, zIndex: 110 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...cardStyle, maxWidth: 520 }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between" }}>
           <div style={{ fontSize: 15, fontWeight: 800 }}>가족 관계 추가</div>
@@ -603,7 +604,7 @@ function RelationAddModal({ subjectId, onClose, onAdded }: {
           )}
         </div>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }
 

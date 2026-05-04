@@ -6,6 +6,7 @@ import { supabase, formatPhone } from "@/lib/supabase";
 import MemberCardModal from "@/components/MemberCardModal";
 import { ExportMembersModal, ImportMembersModal } from "@/components/MemberDataTools";
 import HeaderLogo from "@/components/HeaderLogo";
+import ModalBackdrop from "@/components/ModalBackdrop";
 
 interface Member {
   id: string;
@@ -576,7 +577,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
   };
 
   return (
-    <div onClick={onClose} style={modalBgStyle}>
+    <ModalBackdrop onClose={onClose} style={modalBgStyle}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...modalStyle, maxWidth: 560 }}>
         <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 18 }}>회원 수정</div>
 
@@ -700,7 +701,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
           <button onClick={handleSave} style={{ ...btnPrimary, flex: 1, padding: "12px" }}>저장</button>
         </div>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }
 
@@ -836,7 +837,7 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
   };
 
   return (
-    <div onClick={onClose} style={modalBgStyle}>
+    <ModalBackdrop onClose={onClose} style={modalBgStyle}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...modalStyle, maxWidth: 560 }}>
         <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 18 }}>회원 추가</div>
 
@@ -974,7 +975,7 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
           </button>
         </div>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }
 
@@ -984,7 +985,7 @@ function ConfirmModal({ title, message, onConfirm, onClose }: {
   title: string; message: string; onConfirm: () => void; onClose: () => void;
 }) {
   return (
-    <div onClick={onClose} style={modalBgStyle}>
+    <ModalBackdrop onClose={onClose} style={modalBgStyle}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...modalStyle, maxWidth: 360 }}>
         <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", marginBottom: 14 }}>{title}</div>
         <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.7, marginBottom: 18, whiteSpace: "pre-wrap" }}>{message}</div>
@@ -993,7 +994,7 @@ function ConfirmModal({ title, message, onConfirm, onClose }: {
           <button onClick={onConfirm} style={{ flex: 1, padding: "12px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>확인</button>
         </div>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }
 
