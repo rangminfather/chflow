@@ -38,6 +38,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   const [editing, setEditing] = useState(false);
   const [edit, setEdit] = useState<any>({});
   const [uploading, setUploading] = useState(false);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [showRelAdd, setShowRelAdd] = useState(false);
   const [showParents, setShowParents] = useState(false);   // 부모보기 (기본 off)
   const [showChildren, setShowChildren] = useState(true);  // 자녀보기 (기본 on)
@@ -99,6 +100,26 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
       onChanged?.();
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handlePhotoDelete = async () => {
+    if (!confirm("사진을 삭제할까요?\nStorage 파일까지 완전히 제거됩니다.")) return;
+    setDeletingPhoto(true);
+    try {
+      const { data: files, error: listErr } = await supabase.storage.from("member-photos").list(currentId);
+      if (listErr) { alert(`파일 조회 실패: ${listErr.message}`); return; }
+      if (files && files.length > 0) {
+        const paths = files.map(f => `${currentId}/${f.name}`);
+        const { error: rmErr } = await supabase.storage.from("member-photos").remove(paths);
+        if (rmErr) { alert(`파일 제거 실패: ${rmErr.message}`); return; }
+      }
+      const { error: rpcErr } = await supabase.rpc("admin_set_member_photo", { p_member_id: currentId, p_photo_url: null });
+      if (rpcErr) { alert(`저장 실패: ${rpcErr.message}`); return; }
+      await load();
+      onChanged?.();
+    } finally {
+      setDeletingPhoto(false);
     }
   };
 
@@ -172,11 +193,18 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                   ? <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   : <div style={{ fontSize: 56, color: "#cbd5e1" }}>{m.gender === "F" ? "👩" : "👨"}</div>}
               </div>
-              <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{
+              <button onClick={() => fileRef.current?.click()} disabled={uploading || deletingPhoto} style={{
                 position: "absolute", bottom: -6, right: -6, width: 38, height: 38, borderRadius: "50%",
                 background: "#6366f1", color: "#fff", border: "3px solid #fff", fontSize: 14,
                 cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
               }} title="사진 변경">{uploading ? "…" : "📷"}</button>
+              {photoUrl && (
+                <button onClick={handlePhotoDelete} disabled={uploading || deletingPhoto} style={{
+                  position: "absolute", bottom: -6, left: -6, width: 32, height: 32, borderRadius: "50%",
+                  background: "#dc2626", color: "#fff", border: "3px solid #fff", fontSize: 12,
+                  cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                }} title="사진 삭제">{deletingPhoto ? "…" : "🗑️"}</button>
+              )}
               <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); }} />
             </div>
