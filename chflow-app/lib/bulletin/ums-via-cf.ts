@@ -12,6 +12,7 @@ export interface ProxyResult {
   location: string | null;
   contentType: string;
   workerIp?: string | null;
+  workerColo?: string | null;
 }
 
 export interface ProxyOptions {
@@ -68,6 +69,9 @@ export async function umsViaCf(path: string, opts: ProxyOptions = {}): Promise<P
     location: res.headers.get("X-Forward-Location"),
     contentType: res.headers.get("Content-Type") || "application/octet-stream",
     workerIp: res.headers.get("X-Worker-Outbound-IP") || null,
+    // CF-RAY 헤더 = Cloudflare 가 자동 박음. 형식: "<id>-<colo>" (예: "9f6e...-LAX")
+    // colo 가 다르면 outbound IP 풀도 다름 → IP 변동성 대리 지표.
+    workerColo: res.headers.get("CF-RAY")?.split("-")[1] || null,
   };
 }
 
@@ -161,6 +165,7 @@ export interface WriteFormAttempt {
   i: number;
   elapsed_ms: number;
   worker_ip: string;
+  worker_colo: string;
   phpsessid: string;
   size: number;
   passed: boolean;
@@ -406,6 +411,7 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
       i: attempt,
       elapsed_ms: attemptStart - wfStartTime,
       worker_ip: wfRes.workerIp || "unknown",
+      worker_colo: wfRes.workerColo || "unknown",
       phpsessid: (jar.get("PHPSESSID") || "").slice(0, 8),
       size: wfRes.body.length,
       passed,
