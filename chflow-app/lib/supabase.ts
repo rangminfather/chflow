@@ -9,7 +9,8 @@ export const supabase = createBrowserClient(
 if (typeof window !== "undefined") {
   const w = window as unknown as {
     __chflowSupabase?: typeof supabase;
-    chflowDiag?: () => Promise<unknown>;
+    chflowDiag?: () => Promise<{ write_form_attempts?: unknown[] } | null>;
+    chflowDiagN?: (n?: number) => Promise<unknown[]>;
   };
   w.__chflowSupabase = supabase;
   w.chflowDiag = async () => {
@@ -38,6 +39,20 @@ if (typeof window !== "undefined") {
       console.table(j.write_form_attempts);
     }
     return j;
+  };
+  // 🔬 N번 호출 자동 반복 + 종합 표. 사용자 1줄로 끝.
+  w.chflowDiagN = async (n = 5) => {
+    const all: Array<Record<string, unknown>> = [];
+    for (let k = 1; k <= n; k++) {
+      console.log(`\n>>> 호출 ${k}/${n}...`);
+      const j = await w.chflowDiag!();
+      const attempts = (j as { write_form_attempts?: unknown[] } | null)?.write_form_attempts || [];
+      attempts.forEach((att) => all.push({ call: k, ...(att as object) }));
+      if (k < n) await new Promise((r) => setTimeout(r, 2000));
+    }
+    console.log("\n=== 종합 (전체 호출 × 시도) ===");
+    console.table(all);
+    return all;
   };
 }
 
