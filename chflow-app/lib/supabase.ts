@@ -5,6 +5,37 @@ export const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// 🔬 UMS 자동등록 진단 — 콘솔에서 `await chflowDiag()` 1줄로 1·2단계 라이브 검증
+if (typeof window !== "undefined") {
+  const w = window as unknown as {
+    __chflowSupabase?: typeof supabase;
+    chflowDiag?: () => Promise<unknown>;
+  };
+  w.__chflowSupabase = supabase;
+  w.chflowDiag = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { console.error("🔬 chflowDiag: 로그인 필요"); return null; }
+    const r = await fetch("/api/ums-bulletin/post-v2", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({
+        dept_name: "진단",
+        date: new Date().toISOString().slice(0, 10),
+        subject: "[진단] dryRun",
+        memo: "진단용 1회 호출 — 글 등록 X",
+        dryRun: true,
+      }),
+    });
+    const j = await r.json();
+    console.log("🔬 진단 결과:", j);
+    if (j.debug) {
+      console.table(j.debug.map((d: { step: string; status: number; body_len: number }) =>
+        ({ step: d.step, status: d.status, len: d.body_len })));
+    }
+    return j;
+  };
+}
+
 // 사용자 ID → 합성 이메일 변환 (Supabase Auth는 이메일 기반)
 // .local TLD는 Supabase Auth가 거부하므로 유효한 TLD 사용
 export function usernameToEmail(username: string): string {
