@@ -256,7 +256,36 @@ function makeLogin1stCookie(): string {
   return `${yyyy}-${mm}-${dd}+${day}+${ampm}+${hh}.${mi}.${ss}`;
 }
 
+// 외부 wrapper — login + write_form 묶음을 N회 재시도 (PHPSESSID 새로 받기 위해).
+// 한 세션이 거부되면 그 안에서는 영원히 거부 (D 진단 결과). 새 login 으로 새 세션 받아야 통과.
+const SESSION_RETRIES = 5;
+
 export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostResult> {
+  const allAttempts: WriteFormAttempt[] = [];
+  let lastResult: UmsAutoPostResult = { ok: false, error: "no attempts" };
+
+  for (let k = 1; k <= SESSION_RETRIES; k++) {
+    const result = await umsAutoPostOnce(input);
+    if (result.write_form_attempts) {
+      result.write_form_attempts.forEach((a) =>
+        allAttempts.push({ ...a, i: allAttempts.length + 1 }),
+      );
+    }
+    lastResult = result;
+    if (result.ok) {
+      return { ...result, write_form_attempts: allAttempts };
+    }
+    // 실패 → 다음 iteration 에서 새 login + 새 PHPSESSID
+  }
+
+  return {
+    ...lastResult,
+    error: `${SESSION_RETRIES}회 새 세션 시도 모두 거부 (PHPSESSID 마다 60% 통과율 가설로 0.4^${SESSION_RETRIES}=${(Math.pow(0.4, SESSION_RETRIES) * 100).toFixed(1)}% 발생). 마지막: ${lastResult.error}`,
+    write_form_attempts: allAttempts,
+  };
+}
+
+async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResult> {
   const jar = new CookieJar();
   const debug: DebugStep[] = [];
 
@@ -393,7 +422,9 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   let wfRes!: Awaited<ReturnType<typeof umsViaCf>>;
   let wfHtml = "";
   let writeFormAttempts = 0;
-  const WF_MAX_ATTEMPTS = 5;
+  // D 진단 (5/5) 결과: 같은 PHPSESSID 로 5번 재시도 = 5번 다 같은 결과. 1회만 시도하고
+  // 거부면 외부 wrapper (umsAutoPost) 가 새 login 으로 새 PHPSESSID 받아 재시도.
+  const WF_MAX_ATTEMPTS = 1;
   const wfStartTime = Date.now();
   const wfAttempts: WriteFormAttempt[] = [];
   for (let attempt = 1; attempt <= WF_MAX_ATTEMPTS; attempt++) {
