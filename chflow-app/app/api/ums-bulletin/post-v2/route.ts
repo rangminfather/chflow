@@ -167,7 +167,13 @@ export async function POST(req: NextRequest) {
         p_category: 2,
       });
     }
-    return NextResponse.json({ ok: false, error: result.error, debug: result.debug, dryRun: !!body.dryRun }, { status: 500 });
+    return NextResponse.json({
+      ok: false,
+      error: result.error,
+      debug: result.debug,
+      write_form_attempts: result.write_form_attempts,
+      dryRun: !!body.dryRun,
+    }, { status: 500 });
   }
 
   if (!body.dryRun) {
@@ -191,5 +197,6 @@ export async function POST(req: NextRequest) {
     subject: body.subject,
     pl_date: result.pl_date,
     debug: body.dryRun ? result.debug : undefined,
+    write_form_attempts: result.write_form_attempts,
   });
 }

@@ -154,6 +154,16 @@ export interface UmsAutoPostResult {
   pl_date?: string;
   error?: string;
   debug?: DebugStep[];
+  write_form_attempts?: WriteFormAttempt[];
+}
+
+export interface WriteFormAttempt {
+  i: number;
+  elapsed_ms: number;
+  worker_ip: string;
+  phpsessid: string;
+  size: number;
+  passed: boolean;
 }
 
 interface DebugStep {
@@ -373,15 +383,17 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   // 1.5초 대기 (사람 패턴)
   await new Promise((r) => setTimeout(r, 1500));
 
-  // ── 2. write.php → pl_date 추출 (5회 재시도 — Cloudflare Worker outbound IP 변동성) ──
-  // 추정: write.php 차단은 외국 IP outbound 시 발동. Cloudflare 가 호출마다
-  // 다른 엣지 사용 가능성. 5번 시도해서 한국 IP 잡힐 때까지 retry.
+  // ── 2. write.php → pl_date 추출 (5회 재시도 + 다변수 진단) ──
+  // 매 시도마다 IP, PHPSESSID, 경과시간, 응답사이즈, 통과여부 수집해서 패턴 파악.
   let wfRes!: Awaited<ReturnType<typeof umsViaCf>>;
   let wfHtml = "";
   let writeFormAttempts = 0;
   const WF_MAX_ATTEMPTS = 5;
+  const wfStartTime = Date.now();
+  const wfAttempts: WriteFormAttempt[] = [];
   for (let attempt = 1; attempt <= WF_MAX_ATTEMPTS; attempt++) {
     writeFormAttempts = attempt;
+    const attemptStart = Date.now();
     wfRes = await umsViaCf(UMS_WRITE_FORM_PATH, {
       method: "GET",
       cookie: jar.toHeader(),
@@ -389,11 +401,16 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     });
     jar.ingest(wfRes.setCookies);
     wfHtml = iconv.decode(wfRes.body, "cp949");
-    // 정상 폼 받았으면 break (pl_date 들어있음)
-    if (/name=["']?pl_date["']?\s*[^>]*value=["']?\d+/i.test(wfHtml)) {
-      break;
-    }
-    // 차단 페이지 받음 — 잠시 후 재시도 (새 outbound IP 가능성)
+    const passed = /name=["']?pl_date["']?\s*[^>]*value=["']?\d+/i.test(wfHtml);
+    wfAttempts.push({
+      i: attempt,
+      elapsed_ms: attemptStart - wfStartTime,
+      worker_ip: wfRes.workerIp || "unknown",
+      phpsessid: (jar.get("PHPSESSID") || "").slice(0, 8),
+      size: wfRes.body.length,
+      passed,
+    });
+    if (passed) break;
     if (attempt < WF_MAX_ATTEMPTS) {
       await new Promise((r) => setTimeout(r, 1500));
     }
@@ -408,29 +425,13 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     wfHtml.match(/name=['"]?pl_user['"]?[^>]*value=['"]?(umsorkr_[^"'\s>]+)/i);
   if (!dateM || !userM) {
     pushDebug("write_form", wfRes.body, wfRes.status, wfRes.setCookies);
-    // 응답 진단 — 정확히 뭐가 있고 뭐가 없는지
-    const hasForm = /<form[^>]*name=["']?psm_form/i.test(wfHtml);
-    const hasFormAny = /<form[^>]+>/i.test(wfHtml);
-    const hasPlDateString = wfHtml.includes("pl_date");
-    const hasMemo = /name=["']?memo["']?/i.test(wfHtml);
-    const alertIdx = wfHtml.indexOf("alertElmBody");
     const wfAlert = wfHtml.match(/alertElmBody[^>]*>([\s\S]+?)<\/div>/);
     const alertMsg = wfAlert ? wfAlert[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "(no alert)";
-    const tail = wfHtml.slice(-500).replace(/\s+/g, " ");
     return {
       ok: false,
-      error:
-        `write.php 폼 못 받음 (${writeFormAttempts}회 시도, 마지막 응답 ${wfHtml.length}자) ` +
-        `[Vercel outbound: ${vercelIp}, Worker outbound: ${wfRes.workerIp || "unknown"}] ` +
-        `[form psm_form: ${hasForm}, form 임의: ${hasFormAny}, ` +
-        `pl_date 문자열: ${hasPlDateString}, memo input: ${hasMemo}, ` +
-        `alert위치: ${alertIdx}/${wfHtml.length}, alert: "${alertMsg}"] ` +
-        `[login 응답 ${loginRes.body.length}자, body="${loginHtml.slice(0, 200)}", set-cookies: ${loginRes.setCookies.join("|")}] ` +
-        `[visit_main 응답 ${mainRes.body.length}자, set-cookies: ${mainRes.setCookies.join("|")}] ` +
-        `[visit_board 응답 ${boardRes.body.length}자, 회원인식: ${hasLogoutLink ? "yes" : (hasLoginLink ? "no" : "?")}, set-cookies: ${boardRes.setCookies.join("|")}] ` +
-        `[현재 jar: ${jar.toHeader()}] ` +
-        `tail="${tail}"`,
+      error: `write.php 폼 못 받음 (${writeFormAttempts}회 시도). 마지막 alert: "${alertMsg}". 시도별 데이터는 write_form_attempts 참조.`,
       debug,
+      write_form_attempts: wfAttempts,
     };
   }
   const plDate = dateM[1];
@@ -450,6 +451,7 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
       ok: true,
       pl_date: plDate,
       debug,
+      write_form_attempts: wfAttempts,
     };
   }
 

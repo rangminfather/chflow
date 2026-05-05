@@ -29,8 +29,13 @@ if (typeof window !== "undefined") {
     const j = await r.json();
     console.log("🔬 진단 결과:", j);
     if (j.debug) {
+      console.log("=== 단계별 ===");
       console.table(j.debug.map((d: { step: string; status: number; body_len: number }) =>
         ({ step: d.step, status: d.status, len: d.body_len })));
+    }
+    if (j.write_form_attempts) {
+      console.log("=== write.php 시도별 다변수 (D 진단) ===");
+      console.table(j.write_form_attempts);
     }
     return j;
   };
