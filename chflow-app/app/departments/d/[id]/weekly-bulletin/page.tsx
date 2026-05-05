@@ -438,6 +438,55 @@ function calcRowSubtotal(row: FarmRow): number {
   return att + total;
 }
 
+// UMS 입장권(PHPSESSID) 시도 정보 — 서버 write_form_attempts 와 동일
+interface AttemptInfo {
+  i: number;
+  elapsed_ms: number;
+  worker_ip?: string;
+  worker_colo?: string;
+  phpsessid: string;
+  size: number;
+  passed: boolean;
+}
+
+// 시도별 입장권 결과 표시 — UMS 가 60% 인정, 40% 거부 → 새 입장권 자동 재시도
+function AttemptList({ attempts }: { attempts?: AttemptInfo[] }) {
+  if (!attempts || attempts.length === 0) return null;
+  const passedCount = attempts.filter((a) => a.passed).length;
+  return (
+    <div style={{ marginTop: 14, padding: 10, background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+        <span>🎲 UMS 입장권 시도 내역</span>
+        <span style={{ color: "#94a3b8", fontWeight: 600 }}>
+          {passedCount}/{attempts.length} 통과
+        </span>
+      </div>
+      {attempts.map((a) => (
+        <div
+          key={a.i}
+          style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "5px 8px", fontSize: 11, fontFamily: "ui-monospace, monospace",
+            background: a.passed ? "#f0fdf4" : "#fef2f2",
+            borderLeft: `3px solid ${a.passed ? "#22c55e" : "#ef4444"}`,
+            marginBottom: 3, borderRadius: 4,
+          }}
+        >
+          <span style={{ width: 18, textAlign: "center" }}>{a.passed ? "✅" : "❌"}</span>
+          <span style={{ width: 26, color: "#94a3b8" }}>#{a.i}</span>
+          <span style={{ flex: 1, color: "#475569" }}>{a.phpsessid}…</span>
+          <span style={{ color: "#94a3b8" }}>{(a.size / 1024).toFixed(0)}KB</span>
+        </div>
+      ))}
+      {passedCount === 0 && (
+        <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 6, lineHeight: 1.5 }}>
+          ⚠️ UMS 가 모든 입장권을 거부. 잠시 후 다시 시도해주세요.
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 자동등록 진행 단계 표시 컴포넌트
 type PostStepId = "pdf" | "login" | "upload" | "submit" | "done" | "error";
 function PostStepper({ currentStep }: { currentStep: PostStepId | null }) {
@@ -563,8 +612,8 @@ export default function WeeklyBulletinPage() {
     }));
   }, [quizzes]);
   const [autoPostResult, setAutoPostResult] = useState<
-    | { ok: true; postNo: number; redirectUrl: string }
-    | { ok: false; error: string }
+    | { ok: true; postNo: number; redirectUrl: string; attempts?: AttemptInfo[] }
+    | { ok: false; error: string; attempts?: AttemptInfo[] }
     | null
   >(null);
   const [cooldown, setCooldown] = useState<{
@@ -985,8 +1034,9 @@ export default function WeeklyBulletinPage() {
       // 클라이언트는 시간 기반으로 단계 추정 (정확도 낮지만 사용자 답답함 해소).
       setPostStep("login");
       const stepTimers: ReturnType<typeof setTimeout>[] = [];
-      stepTimers.push(setTimeout(() => setPostStep((s) => (s === "login" ? "upload" : s)), 4000));
-      stepTimers.push(setTimeout(() => setPostStep((s) => (s === "upload" ? "submit" : s)), 18000));
+      // 세션 재시도 (5회) + visit_main + visit_board → 약 40초. 그 후 upload/submit.
+      stepTimers.push(setTimeout(() => setPostStep((s) => (s === "login" ? "upload" : s)), 40000));
+      stepTimers.push(setTimeout(() => setPostStep((s) => (s === "upload" ? "submit" : s)), 48000));
       const r = await fetch("/api/ums-bulletin/post-v2", {
         method: "POST",
         headers: {
@@ -1017,7 +1067,7 @@ export default function WeeklyBulletinPage() {
       }
 
       if (j.ok) {
-        setAutoPostResult({ ok: true, postNo: j.post_no, redirectUrl: j.post_url });
+        setAutoPostResult({ ok: true, postNo: j.post_no, redirectUrl: j.post_url, attempts: j.write_form_attempts });
         setCooldown({
           remaining_seconds: 1800,
           can_post: false,
@@ -1025,7 +1075,7 @@ export default function WeeklyBulletinPage() {
           last_posted_at: new Date().toISOString(),
         });
       } else {
-        setAutoPostResult({ ok: false, error: j.error || "알 수 없는 오류" });
+        setAutoPostResult({ ok: false, error: j.error || "알 수 없는 오류", attempts: j.write_form_attempts });
         if (j.remaining_seconds) {
           setCooldown((c) => ({
             remaining_seconds: j.remaining_seconds,
@@ -1811,6 +1861,12 @@ export default function WeeklyBulletinPage() {
                   자동 등록 진행 중
                 </div>
                 <PostStepper currentStep={postStep} />
+                <div style={{
+                  fontSize: 11, color: "#64748b", marginTop: 10, padding: "8px 12px",
+                  background: "#fef9c3", borderRadius: 6, lineHeight: 1.5, textAlign: "center",
+                }}>
+                  💡 UMS 가 입장권을 거부할 때마다 새로 받아 재시도 (최대 5회, 99% 통과)
+                </div>
               </>
             )}
             {autoPostResult && autoPostResult.ok && (
@@ -1819,10 +1875,11 @@ export default function WeeklyBulletinPage() {
                 <div style={{ fontSize: 15, fontWeight: 800, color: "#15803d", marginBottom: 6, textAlign: "center" }}>
                   등록 완료!
                 </div>
-                <div style={{ fontSize: 13, color: "#1e293b", marginBottom: 14, textAlign: "center" }}>
+                <div style={{ fontSize: 13, color: "#1e293b", marginBottom: 4, textAlign: "center" }}>
                   글번호 #{autoPostResult.postNo}
                 </div>
-                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                <AttemptList attempts={autoPostResult.attempts} />
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 14 }}>
                   <a
                     href={`http://www.ums.or.kr/bbs/zboard.php?id=samusil&no=${autoPostResult.postNo}`}
                     target="_blank" rel="noopener noreferrer"
@@ -1840,10 +1897,11 @@ export default function WeeklyBulletinPage() {
                 <div style={{ fontSize: 15, fontWeight: 800, color: "#b91c1c", marginBottom: 6, textAlign: "center" }}>
                   자동등록 실패
                 </div>
-                <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 14, wordBreak: "break-word" }}>
+                <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 4, wordBreak: "break-word" }}>
                   {autoPostResult.error}
                 </div>
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <AttemptList attempts={autoPostResult.attempts} />
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
                   <button onClick={() => { setAutoPostResult(null); setPostStep(null); }} style={primaryBtnStyle}>닫기</button>
                 </div>
               </>
