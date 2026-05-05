@@ -24,6 +24,8 @@ interface PostBody {
   memo: string;
   pdf_base64: string;
   pdf_filename?: string;
+  // 🔬 진단 모드 — 1·2단계(login + write_form)까지 실행, 글 등록 X, cooldown 발동 X.
+  dryRun?: boolean;
 }
 
 async function getAuthUser(req: NextRequest): Promise<{ uid: string } | null> {
@@ -49,9 +51,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
   }
 
-  if (!body.subject || !body.memo || !body.pdf_base64) {
+  if (!body.subject || !body.memo) {
     return NextResponse.json(
-      { ok: false, error: "subject/memo/pdf_base64 필수" },
+      { ok: false, error: "subject/memo 필수" },
+      { status: 400 },
+    );
+  }
+  if (!body.dryRun && !body.pdf_base64) {
+    return NextResponse.json(
+      { ok: false, error: "pdf_base64 필수 (dryRun 모드 아니면)" },
       { status: 400 },
     );
   }
@@ -92,23 +100,29 @@ export async function POST(req: NextRequest) {
   }
   const umsUserId = credRow.ums_user_id;
 
-  // 쿨다운 체크 (사용자 본인 UMS 계정 단위)
-  const { data: cdRows } = await admin.rpc("ums_check_cooldown", {
-    p_ums_user_id: umsUserId,
-  });
-  const cd = (cdRows && cdRows[0]) || { remaining_seconds: 0 };
-  if ((cd.remaining_seconds || 0) > 0) {
-    return NextResponse.json(
-      { ok: false, error: "30분 쿨다운 중", remaining_seconds: cd.remaining_seconds },
-      { status: 429 },
-    );
+  // 쿨다운 체크 (dryRun 시 skip — write_ok 안 보내므로 cooldown 무관)
+  if (!body.dryRun) {
+    const { data: cdRows } = await admin.rpc("ums_check_cooldown", {
+      p_ums_user_id: umsUserId,
+    });
+    const cd = (cdRows && cdRows[0]) || { remaining_seconds: 0 };
+    if ((cd.remaining_seconds || 0) > 0) {
+      return NextResponse.json(
+        { ok: false, error: "30분 쿨다운 중", remaining_seconds: cd.remaining_seconds },
+        { status: 429 },
+      );
+    }
   }
 
-  // PDF
+  // PDF (dryRun 시 비어있어도 OK — upload 단계 skip)
   let pdfBytes: Buffer;
   try {
-    pdfBytes = Buffer.from(body.pdf_base64, "base64");
-    if (pdfBytes.byteLength < 100) throw new Error("PDF 너무 작음");
+    if (body.dryRun && !body.pdf_base64) {
+      pdfBytes = Buffer.from("dryRun-no-pdf"); // 사용 안 됨
+    } else {
+      pdfBytes = Buffer.from(body.pdf_base64, "base64");
+      if (pdfBytes.byteLength < 100) throw new Error("PDF 너무 작음");
+    }
   } catch (e: unknown) {
     return NextResponse.json(
       { ok: false, error: `PDF 디코딩 실패: ${(e as Error).message}` },
@@ -128,6 +142,7 @@ export async function POST(req: NextRequest) {
       memo: body.memo,
       pdf_bytes: pdfBytes,
       pdf_filename: filename,
+      dryRun: body.dryRun,
     });
   } catch (e: unknown) {
     const err = e as Error;
@@ -138,36 +153,43 @@ export async function POST(req: NextRequest) {
     }, { status: 500 });
   }
 
-  // 로그 기록
+  // 로그 기록 (dryRun 시 skip)
   if (!result.ok) {
+    if (!body.dryRun) {
+      await admin.rpc("ums_log_post", {
+        p_ums_user_id: umsUserId,
+        p_status: (result.error || "").includes("30분") ? "rate_limited" : "failed",
+        p_subject: body.subject,
+        p_error_message: result.error,
+        p_chflow_user_id: user.uid,
+        p_dept_id: body.dept_id || null,
+        p_pl_date: result.pl_date || null,
+        p_category: 2,
+      });
+    }
+    return NextResponse.json({ ok: false, error: result.error, debug: result.debug, dryRun: !!body.dryRun }, { status: 500 });
+  }
+
+  if (!body.dryRun) {
     await admin.rpc("ums_log_post", {
       p_ums_user_id: umsUserId,
-      p_status: (result.error || "").includes("30분") ? "rate_limited" : "failed",
+      p_status: "success",
+      p_post_no: result.post_no,
       p_subject: body.subject,
-      p_error_message: result.error,
       p_chflow_user_id: user.uid,
       p_dept_id: body.dept_id || null,
       p_pl_date: result.pl_date || null,
       p_category: 2,
     });
-    return NextResponse.json({ ok: false, error: result.error, debug: result.debug }, { status: 500 });
   }
-
-  await admin.rpc("ums_log_post", {
-    p_ums_user_id: umsUserId,
-    p_status: "success",
-    p_post_no: result.post_no,
-    p_subject: body.subject,
-    p_chflow_user_id: user.uid,
-    p_dept_id: body.dept_id || null,
-    p_pl_date: result.pl_date || null,
-    p_category: 2,
-  });
 
   return NextResponse.json({
     ok: true,
+    dryRun: !!body.dryRun,
     post_no: result.post_no,
-    post_url: `http://www.ums.or.kr/bbs/zboard.php?id=samusil&no=${result.post_no}`,
+    post_url: result.post_no ? `http://www.ums.or.kr/bbs/zboard.php?id=samusil&no=${result.post_no}` : null,
     subject: body.subject,
+    pl_date: result.pl_date,
+    debug: body.dryRun ? result.debug : undefined,
   });
 }

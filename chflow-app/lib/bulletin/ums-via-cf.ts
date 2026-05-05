@@ -141,6 +141,10 @@ export interface UmsAutoPostInput {
   pdf_bytes: Buffer;
   pdf_filename: string;
   category?: number;
+  // 🔬 진단 모드 — 1·2단계(login + write_form)까지만 실행하고 종료.
+  // 3단계(upload), 4단계(write_ok) skip → cooldown 발동 X, 게시판 흔적 X.
+  // 차단 본질 진단용.
+  dryRun?: boolean;
 }
 
 export interface UmsAutoPostResult {
@@ -439,6 +443,15 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     pl_user: plUser,
     spam_hint: spamDebug.hint,
   });
+
+  // 🔬 dryRun — 1·2단계 통과 확인하고 종료. 글 등록 X, cooldown X.
+  if (input.dryRun) {
+    return {
+      ok: true,
+      pl_date: plDate,
+      debug,
+    };
+  }
 
   // ── 3. PDF 업로드 (Plupload — 1MB 단위 청크 분할) ──
   // PoC 메모: 1MB 초과 시 청크 나눠서 chunk=0..N, chunks=N+1 로 반복.
