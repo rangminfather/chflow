@@ -258,7 +258,9 @@ function makeLogin1stCookie(): string {
 
 // 외부 wrapper — login + write_form 묶음을 N회 재시도 (PHPSESSID 새로 받기 위해).
 // 한 세션이 거부되면 그 안에서는 영원히 거부 (D 진단 결과). 새 login 으로 새 세션 받아야 통과.
-const SESSION_RETRIES = 5;
+// 통과율 ~65% 가정: 0.35^6 = 0.18% 실패 = 99.82% 통과.
+// Vercel maxDuration=60s 안전 마진 위해 6회 (7회는 빠듯).
+const SESSION_RETRIES = 6;
 
 export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostResult> {
   const allAttempts: WriteFormAttempt[] = [];

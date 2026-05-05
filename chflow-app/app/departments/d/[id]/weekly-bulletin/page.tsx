@@ -1901,8 +1901,19 @@ export default function WeeklyBulletinPage() {
                   {autoPostResult.error}
                 </div>
                 <AttemptList attempts={autoPostResult.attempts} />
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
-                  <button onClick={() => { setAutoPostResult(null); setPostStep(null); }} style={primaryBtnStyle}>닫기</button>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14, flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => { setAutoPostResult(null); setPostStep(null); }}
+                    style={resetBtnStyle}
+                  >
+                    닫기
+                  </button>
+                  <button
+                    onClick={() => { setAutoPostResult(null); setPostStep(null); handleAutoPost(); }}
+                    style={primaryBtnStyle}
+                  >
+                    🔄 다시 시도
+                  </button>
                 </div>
               </>
             )}
