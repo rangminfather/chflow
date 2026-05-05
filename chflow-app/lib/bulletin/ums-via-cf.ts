@@ -551,52 +551,79 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
     all_responses: uploadResponses.join(" | "),
   });
 
-  // ── 4. write_ok.php — CP949 multipart ──
-  // 외국 IP (Cloudflare LAX 등) 에서는 w_key_spam 답변 필요.
-  // 정답이 폼 안내에 따라 달라지므로 환경변수 UMS_SPAM_ANSWER 로 override 가능.
+  // ── 4. write_ok.php — CP949 multipart + 스팸차단 답 후보 다양화 ──
+  // UMS 가 외국 IP 에선 w_key_spam 답변 검증. "명성교회" 거부 확인됨 (5/6 진단).
+  // 폼 안내문: "명성교회 ('예' 김종혁목사) 을 적어주세요"
+  // 후보 환경변수 UMS_SPAM_ANSWERS (CSV) 또는 default 4개 시도.
   const cp = (s: string) => iconv.encode(s, "cp949");
   const category = input.category ?? 2;
-  const spamAnswer = process.env.UMS_SPAM_ANSWER || "명성교회";
-  const writeOkBoundary = "----chflowWo" + Math.random().toString(36).slice(2);
-  const writeOkBody = buildMultipart(writeOkBoundary, [
-    { name: "page", value: cp("1") },
-    { name: "id", value: cp("samusil") },
-    { name: "no", value: cp("") },
-    { name: "select_arrange", value: cp("") },
-    { name: "desc", value: cp("") },
-    { name: "page_num", value: cp("") },
-    { name: "keyword", value: cp("") },
-    { name: "category", value: cp(String(category)) },
-    { name: "sfl", value: cp("") },
-    { name: "mode", value: cp("write") },
-    { name: "pl_user", value: cp(plUser) },
-    { name: "pl_date", value: cp(plDate) },
-    { name: "reg_date_change", value: cp("") },
-    { name: "NameCheck", value: cp("N") },
-    { name: "w_key_spam", value: cp(spamAnswer) },
-    { name: "subject", value: cp(input.subject) },
-    { name: "memo", value: cp(input.memo) },
-  ]);
-  const woRes = await umsViaCf(UMS_WRITE_OK_PATH, {
-    method: "POST",
-    body: writeOkBody,
-    contentType: `multipart/form-data; boundary=${writeOkBoundary}`,
-    cookie: jar.toHeader(),
-    referer: "http://www.ums.or.kr/bbs/write.php?id=samusil&page=1&category=2&mode=write",
-    origin: "http://www.ums.or.kr",
-  });
-  jar.ingest(woRes.setCookies);
-  pushDebug("write_ok", woRes.body, woRes.status, woRes.setCookies, {
-    cookie_sent: jar.toHeader().slice(0, 200),
-  });
+  const spamCandidatesRaw = process.env.UMS_SPAM_ANSWERS;
+  const spamCandidates = spamCandidatesRaw
+    ? spamCandidatesRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    : ["김종혁목사", "명성교회", "김종혁", "예 김종혁목사"];
 
-  const woHtml = iconv.decode(woRes.body, "cp949");
-  const woAlert = woHtml.match(/alertElmBody[^>]*>([\s\S]+?)<\/div>/);
-  if (woAlert && !woHtml.includes('http-equiv="refresh"')) {
-    const msg = woAlert[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-    // 스팸차단 거부 시 폼 응답 분석 단서 모두 노출
+  let woRes!: Awaited<ReturnType<typeof umsViaCf>>;
+  let woHtml = "";
+  let lastSpamMsg = "";
+  let writeOkPassed = false;
+  for (let si = 0; si < spamCandidates.length; si++) {
+    const spamAnswer = spamCandidates[si];
+    const writeOkBoundary = "----chflowWo" + Math.random().toString(36).slice(2);
+    const writeOkBody = buildMultipart(writeOkBoundary, [
+      { name: "page", value: cp("1") },
+      { name: "id", value: cp("samusil") },
+      { name: "no", value: cp("") },
+      { name: "select_arrange", value: cp("") },
+      { name: "desc", value: cp("") },
+      { name: "page_num", value: cp("") },
+      { name: "keyword", value: cp("") },
+      { name: "category", value: cp(String(category)) },
+      { name: "sfl", value: cp("") },
+      { name: "mode", value: cp("write") },
+      { name: "pl_user", value: cp(plUser) },
+      { name: "pl_date", value: cp(plDate) },
+      { name: "reg_date_change", value: cp("") },
+      { name: "NameCheck", value: cp("N") },
+      { name: "w_key_spam", value: cp(spamAnswer) },
+      { name: "subject", value: cp(input.subject) },
+      { name: "memo", value: cp(input.memo) },
+    ]);
+    woRes = await umsViaCf(UMS_WRITE_OK_PATH, {
+      method: "POST",
+      body: writeOkBody,
+      contentType: `multipart/form-data; boundary=${writeOkBoundary}`,
+      cookie: jar.toHeader(),
+      referer: "http://www.ums.or.kr/bbs/write.php?id=samusil&page=1&category=2&mode=write",
+      origin: "http://www.ums.or.kr",
+    });
+    jar.ingest(woRes.setCookies);
+    woHtml = iconv.decode(woRes.body, "cp949");
+    pushDebug(`write_ok_try_${si + 1}`, woRes.body, woRes.status, woRes.setCookies, {
+      spam_answer_tried: spamAnswer,
+      response_size: woRes.body.length,
+    });
+
+    // 통과 = refresh meta 동봉
+    if (woHtml.includes('http-equiv="refresh"')) {
+      writeOkPassed = true;
+      break;
+    }
+
+    // 거부 — alert 분석
+    const woAlert = woHtml.match(/alertElmBody[^>]*>([\s\S]+?)<\/div>/);
+    lastSpamMsg = woAlert
+      ? woAlert[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()
+      : "(no alert)";
+
+    // 스팸차단 외 다른 거부 (예: cooldown, 권한 X) 면 더 시도해도 무의미 — break
+    if (!lastSpamMsg.includes("스팸")) {
+      break;
+    }
+  }
+
+  if (!writeOkPassed) {
     let extra = "";
-    if (msg.includes("스팸")) {
+    if (lastSpamMsg.includes("스팸")) {
       const hiddenSummary = Object.entries(spamDebug.hiddens)
         .filter(([k]) => /spam|key|answer|check|w_/i.test(k))
         .map(([k, v]) => `${k}="${v}"`)
@@ -604,13 +631,13 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
       const jsSummary = spamDebug.jsCandidates.slice(0, 5).join(" | ");
       const cmtSummary = spamDebug.comments.slice(0, 3).map((c) => `[${c}]`).join(" ");
       extra =
-        `\n[보낸답] "${spamAnswer}"` +
+        `\n[시도한 답들] ${spamCandidates.map((c) => `"${c}"`).join(", ")}` +
         `\n[폼안내] ${spamDebug.hint.slice(0, 800)}` +
         (hiddenSummary ? `\n[hidden] ${hiddenSummary}` : "") +
         (jsSummary ? `\n[JS] ${jsSummary}` : "") +
         (cmtSummary ? `\n[주석] ${cmtSummary}` : "");
     }
-    return { ok: false, error: `등록 실패: ${msg}${extra}`, pl_date: plDate, debug };
+    return { ok: false, error: `등록 실패: ${lastSpamMsg}${extra}`, pl_date: plDate, debug };
   }
 
   const refreshM = woHtml.match(/<meta\s+http-equiv="refresh"[^>]*url=([^"'>\s]+)/i);
