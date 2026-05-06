@@ -1055,6 +1055,47 @@ export default function WeeklyBulletinPage() {
       });
       stepTimers.forEach(clearTimeout);
       const j = await r.json();
+
+      // 🔬 라이브 응답 풀 디버그 — 콘솔에서 chflowDiag 와 동일 포맷으로 단계별 확인
+      // (라이브 실패 시 어디서 거부됐는지 추적용)
+      console.log("🚀 라이브 자동등록 응답:", j);
+      if (j.debug) {
+        console.log("=== 단계별 ===");
+        console.table(j.debug.map((d: { step: string; status: number; body_len: number; extra?: Record<string, unknown> }) => ({
+          step: d.step,
+          status: d.status,
+          len: d.body_len,
+          extra: d.extra ? JSON.stringify(d.extra).slice(0, 200) : "",
+        })));
+        const loginStep = j.debug.find((d: { step: string }) => d.step === "login");
+        if (loginStep) {
+          console.log("=== 🔑 login response (71B 정체) ===");
+          console.log(loginStep.body_sample || "(no sample)");
+          console.log("login set-cookies:", loginStep.set_cookies);
+        }
+        const wfStep = j.debug.find((d: { step: string }) => d.step === "write_form");
+        if (wfStep) {
+          console.log("=== ❌ write_form 거부 페이지 샘플 ===");
+          console.log(wfStep.body_sample || "(no sample)");
+        }
+        // upload / write_ok 단계가 있으면 표시 (라이브에만 있는 단계)
+        const upSteps = j.debug.filter((d: { step: string }) => d.step.startsWith("upload"));
+        if (upSteps.length > 0) {
+          console.log("=== 📤 PDF 업로드 단계 ===");
+          console.table(upSteps);
+        }
+        const woStep = j.debug.find((d: { step: string }) => d.step.startsWith("write_ok"));
+        if (woStep) {
+          console.log("=== 📝 write_ok 응답 샘플 ===");
+          console.log(woStep.body_sample || "(no sample)");
+          console.log("extra:", woStep.extra);
+        }
+      }
+      if (j.write_form_attempts) {
+        console.log("=== write.php 시도별 ===");
+        console.table(j.write_form_attempts);
+      }
+
       setAutoPosting(false);
       setPostStep(j.ok ? "done" : "error");
 
