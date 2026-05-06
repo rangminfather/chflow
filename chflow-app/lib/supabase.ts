@@ -31,8 +31,29 @@ if (typeof window !== "undefined") {
     console.log("🔬 진단 결과:", j);
     if (j.debug) {
       console.log("=== 단계별 ===");
-      console.table(j.debug.map((d: { step: string; status: number; body_len: number }) =>
-        ({ step: d.step, status: d.status, len: d.body_len })));
+      console.table(j.debug.map((d: { step: string; status: number; body_len: number; extra?: Record<string, unknown> }) =>
+        ({
+          step: d.step,
+          status: d.status,
+          len: d.body_len,
+          // visit_board: 로그아웃 링크 있으면 ums가 회원으로 인식 = login 성공.
+          // login: response 본문 확인 (71byte alert vs redirect 등)
+          // write_form: alert 메시지
+          extra: d.extra ? JSON.stringify(d.extra).slice(0, 200) : "",
+        })));
+      // login step body sample (71byte 의 정체 보기)
+      const loginStep = j.debug.find((d: { step: string }) => d.step === "login");
+      if (loginStep) {
+        console.log("=== 🔑 login response 본문 (71byte 정체) ===");
+        console.log(loginStep.body_sample || "(no sample)");
+        console.log("login set-cookies:", loginStep.set_cookies);
+      }
+      // write_form 거부 페이지 본문 (34KB 의 정체)
+      const wfStep = j.debug.find((d: { step: string }) => d.step === "write_form");
+      if (wfStep) {
+        console.log("=== ❌ write_form 거부 페이지 샘플 ===");
+        console.log(wfStep.body_sample || "(no sample)");
+      }
     }
     if (j.write_form_attempts) {
       console.log("=== write.php 시도별 다변수 (D 진단) ===");
