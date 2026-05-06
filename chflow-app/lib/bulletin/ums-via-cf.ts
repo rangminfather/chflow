@@ -191,45 +191,45 @@ interface SpamDebug {
 }
 
 function extractSpamDebug(html: string): SpamDebug {
-  // 1. w_key_spam 주변 2000자 (날 텍스트)
+  // 1. w_key_spam 주변 6000자 (앞 5000 + 뒤 1000) — 안내문 전체 + 주변 hidden 다 캡처
   const idx = html.indexOf("w_key_spam");
   let hint = "(not found)";
   let fullContext = "(not found)";
   if (idx > 0) {
-    const start = Math.max(0, idx - 1500);
-    const end = Math.min(html.length, idx + 500);
+    const start = Math.max(0, idx - 5000);
+    const end = Math.min(html.length, idx + 1000);
     fullContext = html.slice(start, end);
     hint = fullContext.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   }
 
-  // 2. 모든 hidden input — 정답이 hidden 으로 박혀있을 가능성
+  // 2. 모든 hidden input — 필터 X. 정답이 어떤 키에라도 박혀있을 수 있음
   const hiddens: Record<string, string> = {};
   const hiddenRe = /<input[^>]*type=["']hidden["'][^>]*>/gi;
   const hiddenMatches = html.match(hiddenRe) || [];
   for (const h of hiddenMatches) {
     const nameM = h.match(/name=["']([^"']+)["']/);
     const valM = h.match(/value=["']([^"']*)["']/);
-    if (nameM && valM) hiddens[nameM[1]] = valM[1].slice(0, 100);
+    if (nameM && valM) hiddens[nameM[1]] = valM[1].slice(0, 200);
   }
 
-  // 3. JS 변수 안에 spam/key/answer/check 관련 (옛 zeroboard 가끔 클라이언트 검증)
+  // 3. 모든 JS 변수 (필터 X) — var/let/const 선언 다 추출
   const jsCandidates: string[] = [];
-  const jsRe = /(?:var|let|const)\s+(\w*(?:[Ss]pam|[Kk]ey|[Aa]nswer)\w*)\s*=\s*["']([^"']+)["']/g;
+  const jsRe = /(?:var|let|const)\s+(\w+)\s*=\s*["']([^"']{1,200})["']/g;
   let m: RegExpExecArray | null;
   while ((m = jsRe.exec(html)) !== null) {
     jsCandidates.push(`${m[1]}="${m[2]}"`);
+    if (jsCandidates.length >= 50) break;
   }
 
-  // 4. HTML 주석 — admin 메모 / 정답 힌트
+  // 4. 모든 HTML 주석 — 답 단서 가능성
   const comments: string[] = [];
   const cmtRe = /<!--([\s\S]*?)-->/g;
   while ((m = cmtRe.exec(html)) !== null) {
     const c = m[1].trim();
-    if (c && c.length < 300 && !/^\s*\/\//.test(c)) {
-      // spam/key/answer 키워드 있는 주석 우선
-      if (/spam|key|answer|차단|로봇/i.test(c)) {
-        comments.unshift(c.slice(0, 200));
-      } else if (comments.length < 10) {
+    if (c && c.length < 500) {
+      if (/spam|key|answer|차단|로봇|명성|김종혁|목사/i.test(c)) {
+        comments.unshift(c.slice(0, 400));
+      } else if (comments.length < 30) {
         comments.push(c.slice(0, 200));
       }
     }
@@ -485,7 +485,18 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
   });
 
   // 🔬 dryRun — 1·2단계 통과 확인하고 종료. 글 등록 X, cooldown X.
+  // 답 정밀 분석을 위해 spamDebug 도 응답에 포함.
   if (input.dryRun) {
+    pushDebug("spam_analysis", Buffer.from(""), 200, [], {
+      hint: spamDebug.hint.slice(0, 2000),
+      fullContext_len: String(spamDebug.fullContext.length),
+      hiddens_json: JSON.stringify(spamDebug.hiddens).slice(0, 2000),
+      jsCandidates_count: String(spamDebug.jsCandidates.length),
+      jsCandidates_first10: spamDebug.jsCandidates.slice(0, 10).join(" | ").slice(0, 1500),
+      comments_count: String(spamDebug.comments.length),
+      comments_first10: spamDebug.comments.slice(0, 10).map((c) => `[${c}]`).join(" ").slice(0, 1500),
+      cookie_jar: jar.toHeader().slice(0, 500),
+    });
     return {
       ok: true,
       pl_date: plDate,
