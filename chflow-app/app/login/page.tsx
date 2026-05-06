@@ -102,6 +102,12 @@ function LoginContent() {
       localStorage.setItem("smartms_remember_me", remember ? "1" : "0");
     }
 
+    // 임시 비밀번호 발급 후 첫 로그인 → 강제 비밀번호 변경 페이지로
+    if (profile.must_change_password) {
+      router.replace("/myinfo?force=password-change");
+      return;
+    }
+
     // replace 사용: /home이 webview 첫 entry가 되어야 종료 시 TWA Activity가 닫힘
     router.replace("/home");
   };

@@ -287,6 +287,14 @@ export default function HomePage() {
                 <span className="admin-btn-label">회원관리</span>
               </button>
               <button
+                onClick={() => router.push("/admin/password-reset")}
+                title="비밀번호 초기화"
+                style={adminBtnStyle("#fef2f2", "#b91c1c")}
+              >
+                <span>🔐</span>
+                <span className="admin-btn-label">비번초기화</span>
+              </button>
+              <button
                 onClick={() => router.push("/admin/votes")}
                 title="투표 관리"
                 style={adminBtnStyle("#f5f3ff", "#5b21b6")}

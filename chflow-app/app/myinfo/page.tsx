@@ -121,12 +121,25 @@ export default function MyInfoPage() {
 
     // 2) 새 비밀번호 적용
     const { error: updErr } = await supabase.auth.updateUser({ password: newPw });
+    if (updErr) { setPwSubmitting(false); setPwMsg(`변경 실패: ${updErr.message}`); return; }
+
+    // 3) must_change_password 플래그 해제 (관리자 초기화 후 첫 변경)
+    if (profile?.must_change_password) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("profiles").update({ must_change_password: false }).eq("id", user.id);
+      }
+    }
     setPwSubmitting(false);
-    if (updErr) { setPwMsg(`변경 실패: ${updErr.message}`); return; }
 
     setCurPw(""); setNewPw(""); setNewPw2("");
     setPwOpen(false);
     showToast("비밀번호가 변경되었습니다");
+
+    // force=password-change 모드였으면 home 으로
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("force") === "password-change") {
+      setTimeout(() => { window.location.href = "/home"; }, 800);
+    }
   };
 
   if (!authChecked || !profile) {
