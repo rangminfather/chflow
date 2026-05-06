@@ -78,19 +78,28 @@ export default {
 
     const buf = await umsRes.arrayBuffer();
 
-    // 진단: Worker outbound IP (UMS 가 보는 우리 IP)
+    // 진단: Worker outbound IP + 그 IP 의 country (UMS 가 보는 우리 IP)
+    // ipinfo.io 한 번 호출로 IP + country 동시에 — 한국 IP 우회 검증용.
     let workerIp = "unknown";
+    let workerCountry = "unknown";
     try {
-      const ipRes = await fetch("https://api.ipify.org?format=json", { cf: { cacheTtl: 0 } });
+      const ipRes = await fetch("https://ipinfo.io/json", { cf: { cacheTtl: 0 } });
       const ipData = await ipRes.json();
-      workerIp = ipData.ip;
+      workerIp = ipData.ip || "unknown";
+      workerCountry = ipData.country || "unknown";
     } catch {/* ignore */}
+    // Worker 가 실행되는 Cloudflare colo (예: ICN, LAX, IAD)
+    // request.cf.colo 는 incoming request 의 edge colo. Smart Placement 가 켜져 있으면
+    // outbound fetch 는 다른 colo (Cf-Placement 헤더 참조) 에서 나갈 수 있음.
+    const workerColo = (request.cf && request.cf.colo) || "unknown";
 
     const respHeaders = {
       ...corsHeaders(),
       "Content-Type": umsRes.headers.get("Content-Type") || "application/octet-stream",
       "X-Forward-Status": String(umsRes.status),
       "X-Worker-Outbound-IP": workerIp,
+      "X-Worker-Outbound-Country": workerCountry,
+      "X-Worker-Colo": workerColo,
     };
 
     // Set-Cookie 들 (다중) — HTTP 헤더 값에 \n 못 들어가므로 base64 인코딩
@@ -116,7 +125,7 @@ function corsHeaders() {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "X-Forward-Cookie, X-Forward-Referer, X-Forward-Content-Type, X-Forward-X-Requested-With, X-Forward-Origin, Content-Type",
-    "Access-Control-Expose-Headers": "X-Forward-Status, X-Forward-Set-Cookie-B64, X-Forward-Location",
+    "Access-Control-Expose-Headers": "X-Forward-Status, X-Forward-Set-Cookie-B64, X-Forward-Location, X-Worker-Outbound-IP, X-Worker-Outbound-Country, X-Worker-Colo",
   };
 }
 
