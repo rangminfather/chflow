@@ -38,6 +38,16 @@ if (typeof window !== "undefined") {
       console.log("=== write.php 시도별 다변수 (D 진단) ===");
       console.table(j.write_form_attempts);
     }
+    // 🔍 답 단서 정밀 분석 (spam_analysis step 의 extra)
+    const spam = j.debug?.find((d: { step: string }) => d.step === "spam_analysis");
+    if (spam) {
+      console.log("=== 🔍 답 단서 정밀 분석 ===");
+      console.log("hint:", spam.extra?.hint);
+      console.log("hiddens:", spam.extra?.hiddens_json);
+      console.log("JS 변수:", spam.extra?.jsCandidates_first10);
+      console.log("주석:", spam.extra?.comments_first10);
+      console.log("cookies:", spam.extra?.cookie_jar);
+    }
     return j;
   };
   // 🔬 N번 호출 자동 반복 + 종합 표. 사용자 1줄로 끝.
