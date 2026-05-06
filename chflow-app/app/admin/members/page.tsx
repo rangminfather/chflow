@@ -236,6 +236,7 @@ function AdminMembersPage() {
             <button onClick={() => setCreating(true)} style={btnPrimary}>+ 회원 추가</button>
             <button onClick={() => setExporting(true)} style={{ ...btnGhost, background: "#dcfce7", color: "#15803d" }}>📥 회원정보 백업</button>
             <button onClick={() => setImporting(true)} style={{ ...btnGhost, background: "#dbeafe", color: "#1e40af" }}>📤 일괄업로드</button>
+            <button onClick={() => router.push("/admin/review")} style={{ ...btnGhost, background: "#fef3c7", color: "#92400e" }}>🔍 데이터 검수</button>
             <button onClick={() => router.push("/admin/dept-staff")} style={{ ...btnGhost, background: "#fce7f3", color: "#9d174d" }}>🏢 부서원 관리</button>
             <button onClick={() => router.push("/admin/rearrange")} style={{ ...btnGhost, background: "#e0e7ff", color: "#4338ca" }}>🔀 재편성</button>
             <button onClick={() => router.push("/admin/pending")} style={btnWarning}>⏳ 가입 대기자</button>

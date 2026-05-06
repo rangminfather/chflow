@@ -303,6 +303,14 @@ export default function HomePage() {
                 <span className="admin-btn-label">재편성</span>
               </button>
               <button
+                onClick={() => router.push("/admin/review")}
+                title="회원 데이터 검수"
+                style={adminBtnStyle("#fef3c7", "#92400e")}
+              >
+                <span>🔍</span>
+                <span className="admin-btn-label">데이터검수</span>
+              </button>
+              <button
                 onClick={() => router.push("/dashboard")}
                 title="와이어프레임"
                 style={adminBtnStyle("#f0fdf4", "#15803d")}
