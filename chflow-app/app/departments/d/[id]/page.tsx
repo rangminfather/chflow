@@ -84,6 +84,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
       { id: "talent-rules", label: "달란트 규칙", icon: "🏅", desc: "매주 적립 규칙·특별·보너스", color: "#f59e0b", implemented: true },
       { id: "new-friend", label: "새친구등록", icon: "🌟", desc: "새친구 등록카드 · 생활기록부", color: "#ec4899", implemented: true },
       { id: "teacher-attendance", label: "선생님 등록 / 출석", icon: "👨‍🏫", desc: "교사 출석부 · 월별 관리", color: "#0ea5e9", implemented: true },
+      { id: "teacher-assign", label: "담임선생님 지정", icon: "👩‍🏫", desc: "반별 담임 변경 · 회원 연결 (전도사·부장)", color: "#8b5cf6", implemented: true },
       { id: "student-record", label: "학생 출결 조회", icon: "🔍", desc: "개별 학생 출결 이력", color: "#eab308", implemented: true },
     ],
   },
