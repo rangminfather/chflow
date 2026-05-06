@@ -46,7 +46,7 @@ const COMMON_MENUS = [
   { id: "facility",   label: "시설 이용 신청",  icon: "🏛️", color: "#f59e0b", desc: "예배실/교육관 등" },
   { id: "vehicle",    label: "차량 이용 신청",  icon: "🚐", color: "#f59e0b", desc: "교회 차량" },
   { id: "booking",    label: "예약 캘린더",     icon: "📆", color: "#f59e0b", desc: "내 예약 / 전체 현황" },
-  { id: "myinfo",     label: "내 정보",         icon: "⚙️", color: "#64748b", desc: "프로필 수정" },
+  { id: "myinfo",     label: "내 정보",         icon: "⚙️", color: "#64748b", desc: "프로필 / 비밀번호 변경", href: "/myinfo" },
 ];
 
 // 가정교회 메뉴
