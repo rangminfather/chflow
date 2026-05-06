@@ -63,6 +63,8 @@ export default function AdminDeptPage() {
   const [processing, setProcessing] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<DeptMember | null>(null);
+  const [approvingJoin, setApprovingJoin] = useState<PendingJoin | null>(null);
+  const [pickedGrade, setPickedGrade] = useState<number>(3);
 
   useEffect(() => {
     (async () => {
@@ -102,14 +104,25 @@ export default function AdminDeptPage() {
     setSidebarOpen(false);
   };
 
-  const handleApprove = async (j: PendingJoin) => {
-    if (!confirm(`${j.user_name}님의 ${j.category} / ${j.dept_name} 가입을 승인하시겠습니까?`)) return;
-    setProcessing(j.id);
-    const { error } = await supabase.rpc("admin_approve_dept_join", { p_join_id: j.id, p_approved: true });
+  const handleApprove = (j: PendingJoin) => {
+    setApprovingJoin(j);
+    setPickedGrade(3);
+  };
+
+  const doApprove = async () => {
+    if (!approvingJoin) return;
+    setProcessing(approvingJoin.id);
+    const { error } = await supabase.rpc("admin_approve_dept_join", {
+      p_join_id: approvingJoin.id,
+      p_approved: true,
+      p_grade: pickedGrade,
+    });
     setProcessing(null);
     if (error) { alert(`승인 실패: ${error.message}`); return; }
+    const deptId = approvingJoin.department_id;
+    setApprovingJoin(null);
     loadAll();
-    if (selectedDeptId === j.department_id) loadMembers(selectedDeptId);
+    if (selectedDeptId === deptId) loadMembers(selectedDeptId);
   };
 
   const handleReject = async (j: PendingJoin) => {
@@ -302,6 +315,60 @@ export default function AdminDeptPage() {
           </div>
         </div>
       </div>
+
+      {/* === 승인 + 등급 선택 모달 === */}
+      {approvingJoin && (
+        <div onClick={() => setApprovingJoin(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 440, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 6 }}>✅ 부서 가입 승인</div>
+            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+              <strong>{approvingJoin.user_name}</strong>님을 <strong>{approvingJoin.dept_name}</strong>에 가입 승인합니다.
+              <br />이 부서원의 등급(권한)을 선택하세요.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[
+                { g: 0, label: "전도사 · 교육사", desc: "모든 메뉴 (공지·학생·행정·부서)" },
+                { g: 1, label: "부장", desc: "모든 메뉴 (공지·학생·행정·부서)" },
+                { g: 2, label: "부부장 · 총무 · 서기", desc: "공지 · 학생 · 행정" },
+                { g: 3, label: "교사", desc: "공지 · 학생 (출결 · 달란트 · 우리반)" },
+                { g: 4, label: "학부모", desc: "공지 (읽기 · 댓글)" },
+              ].map((row) => (
+                <button
+                  key={row.g}
+                  onClick={() => setPickedGrade(row.g)}
+                  style={{
+                    padding: "12px 14px",
+                    background: pickedGrade === row.g ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "#f8fafc",
+                    color: pickedGrade === row.g ? "#fff" : "#1e293b",
+                    border: pickedGrade === row.g ? "1px solid transparent" : "1px solid #e2e8f0",
+                    borderRadius: 10,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    textAlign: "left",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: pickedGrade === row.g ? "rgba(255,255,255,0.2)" : "#eef2ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: pickedGrade === row.g ? "#fff" : "#6366f1" }}>{row.g}</div>
+                  <div>
+                    <div>{row.label}</div>
+                    <div style={{ fontSize: 10, fontWeight: 500, color: pickedGrade === row.g ? "rgba(255,255,255,0.8)" : "#94a3b8", marginTop: 2 }}>{row.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+              <button onClick={() => setApprovingJoin(null)} style={{ flex: 1, padding: 12, background: "#f1f5f9", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "#64748b", cursor: "pointer", fontFamily: "inherit" }}>취소</button>
+              <button onClick={doApprove} disabled={processing === approvingJoin.id} style={{ flex: 1, padding: 12, background: "linear-gradient(135deg, #10b981, #059669)", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer", fontFamily: "inherit" }}>
+                {processing === approvingJoin.id ? "처리 중..." : `등급 ${pickedGrade} 으로 승인`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* === 임명 모달 === */}
       {editingMember && (
