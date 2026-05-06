@@ -265,9 +265,15 @@ function makeLogin1stCookie(): string {
 
 // 외부 wrapper — login + write_form 묶음을 N회 재시도 (PHPSESSID 새로 받기 위해).
 // 한 세션이 거부되면 그 안에서는 영원히 거부 (D 진단 결과). 새 login 으로 새 세션 받아야 통과.
-// 통과율 ~65% 가정: 0.35^6 = 0.18% 실패 = 99.82% 통과.
-// Vercel maxDuration=60s 안전 마진 위해 6회 (7회는 빠듯).
-const SESSION_RETRIES = 6;
+// 통과율 ~65% 가정: 0.35^3 = 4.3% 실패 = 95.7% 통과.
+// 6회 → 3회로 축소: 짧은 시간 내 반복 시도 시 ums 가 봇으로 분류해 일시적 권한 거부
+// ("사용권한이 없습니다") 를 거는 사례 확인됨. 신뢰성보다 ums 측 차단 회피 우선.
+// 실패해도 사용자가 5~10분 후 재시도하면 충분.
+const SESSION_RETRIES = 3;
+
+// 시도 간 간격 — 너무 빠르면 봇으로 분류. ums 측 정상 회원 글쓰기 흐름 흉내.
+const SESSION_DELAY_BASE_MS = 4000;
+const SESSION_DELAY_JITTER_MS = 2000;
 
 export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostResult> {
   const allAttempts: WriteFormAttempt[] = [];
@@ -285,11 +291,16 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
       return { ...result, write_form_attempts: allAttempts };
     }
     // 실패 → 다음 iteration 에서 새 login + 새 PHPSESSID
+    // 단, 마지막 시도는 sleep 생략 (어차피 더 안 함).
+    if (k < SESSION_RETRIES) {
+      const delay = SESSION_DELAY_BASE_MS + Math.floor(Math.random() * SESSION_DELAY_JITTER_MS);
+      await new Promise((r) => setTimeout(r, delay));
+    }
   }
 
   return {
     ...lastResult,
-    error: `${SESSION_RETRIES}회 새 세션 시도 모두 거부 (PHPSESSID 마다 60% 통과율 가설로 0.4^${SESSION_RETRIES}=${(Math.pow(0.4, SESSION_RETRIES) * 100).toFixed(1)}% 발생). 마지막: ${lastResult.error}`,
+    error: `${SESSION_RETRIES}회 새 세션 시도 모두 거부. 마지막: ${lastResult.error}. 5~10분 후 재시도해주세요 (ums 측 일시 차단 가능성).`,
     write_form_attempts: allAttempts,
   };
 }
