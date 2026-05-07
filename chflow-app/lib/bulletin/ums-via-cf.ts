@@ -355,15 +355,32 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
   // 우리는 이 단계 없이 바로 login_check.php POST → ums 가 새 PHPSESSID 발급은 해주지만
   // "이미 발급된 세션에 인증 매핑" 정책이라 우리 PHPSESSID 에는 회원 매핑 안 함 → write.php 거부.
   // → login.php GET 으로 미리 PHPSESSID 받고 그걸로 login_check.php POST 해야 인증 매핑됨.
+  let loginFormHtml = "";
   if (!skipLogin) {
     const preLoginRes = await umsViaCf("/bbs/login.php?id=samusil", {
       method: "GET",
       referer: "http://www.ums.or.kr/main/main.php",
     });
     jar.ingest(preLoginRes.setCookies);
+    loginFormHtml = iconv.decode(preLoginRes.body, "cp949");
+    // 2026-05-07 H14 진단: login.php form 의 모든 input 추출 → 우리가 누락한 hidden field 확인
+    const formInputs: string[] = [];
+    const inputRe = /<input[^>]*name=["']([^"']+)["'][^>]*(?:value=["']([^"']*)["'])?[^>]*>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = inputRe.exec(loginFormHtml)) !== null) {
+      const type = m[0].match(/type=["']([^"']+)["']/)?.[1] || "text";
+      const value = m[2] || "";
+      formInputs.push(`${m[1]}[${type}]=${value.slice(0, 30)}`);
+      if (formInputs.length >= 30) break;
+    }
+    // form action 도 확인
+    const formAction = loginFormHtml.match(/<form[^>]*action=["']([^"']+)["']/i)?.[1] || "(no action)";
     pushDebug("visit_login_form", preLoginRes.body, preLoginRes.status, preLoginRes.setCookies, {
       pre_phpsessid: jar.get("PHPSESSID")?.slice(0, 8) || "(none)",
       cookie_count: String(preLoginRes.setCookies.length),
+      form_action: formAction.slice(0, 100),
+      form_inputs: formInputs.join(" | ").slice(0, 1500),
+      form_input_count: String(formInputs.length),
     });
   }
 
@@ -377,16 +394,21 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
   //    → 사용자 형식이 ums 표준 redirect 흐름
   // jar.toHeader() 로 0단계에서 받은 PHPSESSID 함께 보냄 — 회원 매핑 위해 필수.
   const cleanUserId = input.ums_user_id.replace(/^umsorkr_/, "");
+  // 2026-05-07 H14 진단: 사용자 캡처 순서 (s_url → user_id → password → group_no) 그대로 모방.
+  // URLSearchParams 는 입력 순서 유지함.
+  const loginBodyParams = new URLSearchParams();
+  loginBodyParams.append("s_url", "/main/main.php");
+  loginBodyParams.append("user_id", cleanUserId);
+  loginBodyParams.append("password", input.ums_password);
+  loginBodyParams.append("group_no", "1");
+  const loginBodyStr = loginBodyParams.toString();
+  const loginBodyBuf = Buffer.from(loginBodyStr, "utf8");
+
   const loginRes = skipLogin
     ? { body: Buffer.from("[skipped — using UMS_TEST_COOKIE]"), status: 200, setCookies: [] as string[] }
     : await umsViaCf(UMS_LOGIN_PATH, {
         method: "POST",
-        body: Buffer.from(new URLSearchParams({
-          user_id: cleanUserId,
-          password: input.ums_password,
-          s_url: "/main/main.php",
-          group_no: "1",
-        }).toString(), "utf8"),
+        body: loginBodyBuf,
         contentType: "application/x-www-form-urlencoded",
         cookie: jar.toHeader(),
         referer: "http://www.ums.or.kr/main/main.php",
@@ -404,7 +426,14 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
     });
   } else {
     jar.ingest(loginRes.setCookies);
-    pushDebug("login", loginRes.body, loginRes.status, loginRes.setCookies);
+    // 2026-05-07 H14 진단: 우리 POST 본문 길이 + 본문 자체 (password 마스킹) 진단에 표시
+    // 사용자 content-length=72 와 비교해서 누락 필드 있는지 확인용
+    const maskedBody = loginBodyStr.replace(/password=[^&]+/, "password=****");
+    pushDebug("login", loginRes.body, loginRes.status, loginRes.setCookies, {
+      our_body_len: String(loginBodyBuf.length),
+      our_body_masked: maskedBody,
+      user_id_sent: cleanUserId,
+    });
   }
 
   const loginHtml = skipLogin ? "[skipped]" : iconv.decode(loginRes.body, "cp949");
