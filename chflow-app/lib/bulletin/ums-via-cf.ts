@@ -266,15 +266,12 @@ function makeLogin1stCookie(): string {
   return `${yyyy}-${mm}-${dd}+${day}+${ampm}+${hh}.${mi}.${ss}`;
 }
 
-// 외부 wrapper — login + write_form 묶음을 N회 재시도 (PHPSESSID 새로 받기 위해).
-// 한 세션이 거부되면 그 안에서는 영원히 거부 (D 진단 결과). 새 login 으로 새 세션 받아야 통과.
-// 통과율 ~65% 가정: 0.35^3 = 4.3% 실패 = 95.7% 통과.
-// 6회 → 3회로 축소: 짧은 시간 내 반복 시도 시 ums 가 봇으로 분류해 일시적 권한 거부
-// ("사용권한이 없습니다") 를 거는 사례 확인됨. 신뢰성보다 ums 측 차단 회피 우선.
-// 실패해도 사용자가 5~10분 후 재시도하면 충분.
-const SESSION_RETRIES = 3;
+// 2026-05-07: H7 헤더/쿠키 모방 후에도 라이브 0% 통과 (write.php "사용권한 없음").
+// 새 가설 H4: dwell time 부족 (login → write_form 사이 1.5초). 사람은 게시판 보고 수 초 후 클릭.
+// → 시도 1회만 + dwell 30초로. maxDuration 60s 한계 안에서 가능한 최대 dwell.
+// throttle 누적 최소화도 같이 달성.
+const SESSION_RETRIES = 1;
 
-// 시도 간 간격 — 너무 빠르면 봇으로 분류. ums 측 정상 회원 글쓰기 흐름 흉내.
 const SESSION_DELAY_BASE_MS = 4000;
 const SESSION_DELAY_JITTER_MS = 2000;
 
@@ -434,8 +431,10 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
     member_recognized: hasLogoutLink ? "yes (로그아웃 링크 있음)" : (hasLoginLink ? "no (로그인 링크만)" : "unknown"),
   });
 
-  // 1.5초 대기 (사람 패턴)
-  await new Promise((r) => setTimeout(r, 1500));
+  // 2026-05-07 H4 검증: 사람은 게시판 페이지 보고 수십 초 후 글쓰기 클릭.
+  // 1.5초 → 30초로 늘려서 dwell time 가설 검증.
+  // SESSION_RETRIES=1 이라 maxDuration 60s 한계 안에 fit.
+  await new Promise((r) => setTimeout(r, 30000));
 
   // ── 2. write.php → pl_date 추출 (5회 재시도 + 다변수 진단) ──
   // 매 시도마다 IP, PHPSESSID, 경과시간, 응답사이즈, 통과여부 수집해서 패턴 파악.
@@ -484,12 +483,23 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
     wfHtml.match(/name="pl_user"\s+value="(umsorkr_[^"]+)"/) ||
     wfHtml.match(/name=['"]?pl_user['"]?[^>]*value=['"]?(umsorkr_[^"'\s>]+)/i);
   if (!dateM || !userM) {
-    pushDebug("write_form", wfRes.body, wfRes.status, wfRes.setCookies);
+    // 2026-05-07: alertElmBody 외에 layerAlert.js 가 띄우는 다른 형식의 alert 도 다양하게 추출
+    // ums 의 거부 페이지는 종종 본문 후반부에 alert 메시지를 넣음 → sample 4000자 안에 안 보일 수 있음.
     const wfAlert = wfHtml.match(/alertElmBody[^>]*>([\s\S]+?)<\/div>/);
-    const alertMsg = wfAlert ? wfAlert[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "(no alert)";
+    const layerAlert = wfHtml.match(/layerAlert[^(]*\(\s*['"]([^'"]+)['"]/);
+    const alertScript = wfHtml.match(/alert\s*\(\s*['"]([^'"]+)['"]\s*\)/);
+    const documentTitle = wfHtml.match(/<title[^>]*>([^<]+)<\/title>/);
+    const alertMsg = wfAlert ? wfAlert[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "(no alertElmBody)";
+    pushDebug("write_form", wfRes.body, wfRes.status, wfRes.setCookies, {
+      alert_elm_body: alertMsg.slice(0, 500),
+      layer_alert_msg: layerAlert ? layerAlert[1].slice(0, 500) : "(no layerAlert)",
+      alert_script_msg: alertScript ? alertScript[1].slice(0, 500) : "(no alert script)",
+      title: documentTitle ? documentTitle[1].slice(0, 200) : "(no title)",
+      html_total_len: String(wfHtml.length),
+    });
     return {
       ok: false,
-      error: `write.php 폼 못 받음 (${writeFormAttempts}회 시도). 마지막 alert: "${alertMsg}". 시도별 데이터는 write_form_attempts 참조.`,
+      error: `write.php 폼 못 받음 (${writeFormAttempts}회 시도). alert: "${alertMsg}". layerAlert: "${layerAlert?.[1] || "n/a"}". 시도별 데이터는 write_form_attempts 참조.`,
       debug,
       write_form_attempts: wfAttempts,
     };
