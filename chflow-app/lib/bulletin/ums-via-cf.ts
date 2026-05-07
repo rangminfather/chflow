@@ -325,6 +325,8 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
   // 현재 Worker 코드는 미지원이라 일단 unknown 으로.
   pushDebug("ip_diagnostic", Buffer.from(""), 200, [], {
     vercel_outbound_ip: vercelIp,
+    test_cookie_set: skipLogin ? "yes" : "no",
+    test_cookie_len: String((debugCookie || "").length),
   });
 
   function pushDebug(step: string, body: Buffer, status: number, setCookies: string[], extra?: Record<string, string | number | undefined>) {
