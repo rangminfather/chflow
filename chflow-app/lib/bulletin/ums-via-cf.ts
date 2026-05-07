@@ -328,11 +328,13 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
   });
 
   function pushDebug(step: string, body: Buffer, status: number, setCookies: string[], extra?: Record<string, string | number | undefined>) {
+    // write_form 거부 페이지 진짜 사유 추적용 — sample 길이를 늘려서 alert 본문 + 주변 HTML 다 보이게.
+    const SAMPLE_LEN = step === "write_form" ? 4000 : 600;
     const sample = (() => {
       try {
-        return iconv.decode(body, "cp949").slice(0, 400);
+        return iconv.decode(body, "cp949").slice(0, SAMPLE_LEN);
       } catch {
-        return body.toString("utf8").slice(0, 400);
+        return body.toString("utf8").slice(0, SAMPLE_LEN);
       }
     })();
     debug.push({
