@@ -348,20 +348,22 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
     });
   }
 
-  // ── 0. 메인 페이지 GET (PHPSESSID + bookletSessionID 발급받기) ──
-  // 2026-05-07 H10: 사용자 직접 글쓰기 캡처 분석으로 발견 — 사람은 login_check.php 호출 전에
-  // 이미 PHPSESSID + bookletSessionID 갖고 있음. ums.or.kr / 첫 GET 시 자동 발급되는 것으로 추정.
-  // 이 단계 없이 바로 login_check.php 호출 → ums 가 회원 인증 매핑을 못해서 write.php 거부.
+  // ── 0. login.php GET — PHPSESSID 발급받기 ──
+  // 2026-05-07 H12 (확정): curl 직접 검증 결과 ums 의 PHPSESSID 발급 페이지는 /bbs/login.php?id=samusil
+  // / 와 /main/main.php 는 set-cookie 없음. login.php 만 PHPSESSID 발급.
+  // 사용자는 옛날에 login.php 한 번 거쳐 받은 PHPSESSID 를 24시간+ 재사용 중.
+  // 우리는 이 단계 없이 바로 login_check.php POST → ums 가 새 PHPSESSID 발급은 해주지만
+  // "이미 발급된 세션에 인증 매핑" 정책이라 우리 PHPSESSID 에는 회원 매핑 안 함 → write.php 거부.
+  // → login.php GET 으로 미리 PHPSESSID 받고 그걸로 login_check.php POST 해야 인증 매핑됨.
   if (!skipLogin) {
-    const preMainRes = await umsViaCf("/", {
+    const preLoginRes = await umsViaCf("/bbs/login.php?id=samusil", {
       method: "GET",
-      referer: "http://www.ums.or.kr/",
+      referer: "http://www.ums.or.kr/main/main.php",
     });
-    jar.ingest(preMainRes.setCookies);
-    pushDebug("visit_main_pre", preMainRes.body, preMainRes.status, preMainRes.setCookies, {
+    jar.ingest(preLoginRes.setCookies);
+    pushDebug("visit_login_form", preLoginRes.body, preLoginRes.status, preLoginRes.setCookies, {
       pre_phpsessid: jar.get("PHPSESSID")?.slice(0, 8) || "(none)",
-      pre_booklet: jar.get("bookletSessionID")?.slice(0, 16) || "(none)",
-      cookie_count: String(preMainRes.setCookies.length),
+      cookie_count: String(preLoginRes.setCookies.length),
     });
   }
 
