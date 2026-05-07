@@ -368,20 +368,28 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
   }
 
   // ── 1. 로그인 (또는 UMS_TEST_COOKIE 우회) ──
-  // jar.toHeader() 로 0단계에서 받은 PHPSESSID + bookletSessionID 함께 보냄
+  // 2026-05-07 H13 ⭐⭐⭐ 일주일 미스터리의 진짜 답:
+  // 사용자 form data 캡처 비교 결과 결정적 차이 두 개:
+  // 1) user_id: 사용자 "clyawy" / 우리 "umsorkr_clyawy" → ums 가 prefix 자동 붙여 검색하므로
+  //    우리는 "umsorkr_umsorkr_clyawy" 로 검색됨 → 회원 못 찾음 → 비회원 취급
+  //    write.php 의 pl_user=umsorkr_clyawy hidden 은 ums 내부 표시일 뿐, login user_id 와 다름
+  // 2) s_url: 사용자 "/main/main.php" / 우리 "/bbs/zboard.php?id=samusil"
+  //    → 사용자 형식이 ums 표준 redirect 흐름
+  // jar.toHeader() 로 0단계에서 받은 PHPSESSID 함께 보냄 — 회원 매핑 위해 필수.
+  const cleanUserId = input.ums_user_id.replace(/^umsorkr_/, "");
   const loginRes = skipLogin
     ? { body: Buffer.from("[skipped — using UMS_TEST_COOKIE]"), status: 200, setCookies: [] as string[] }
     : await umsViaCf(UMS_LOGIN_PATH, {
         method: "POST",
         body: Buffer.from(new URLSearchParams({
-          user_id: input.ums_user_id,
+          user_id: cleanUserId,
           password: input.ums_password,
-          s_url: "/bbs/zboard.php?id=samusil",
+          s_url: "/main/main.php",
           group_no: "1",
         }).toString(), "utf8"),
         contentType: "application/x-www-form-urlencoded",
         cookie: jar.toHeader(),
-        referer: "http://www.ums.or.kr/bbs/login.php?id=samusil",
+        referer: "http://www.ums.or.kr/main/main.php",
       });
 
   if (skipLogin) {
