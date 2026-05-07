@@ -13,6 +13,9 @@ interface Student {
   grade: string | null;
   is_active: boolean;
   order_no: number;
+  class_no?: string | null;
+  grade_year?: number | null;
+  teacher_name?: string | null;
 }
 
 interface AttendRow {
@@ -86,7 +89,23 @@ export default function AttendancePage() {
 
   const loadStudents = async () => {
     const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
-    setStudents(data || []);
+    const baseList = (data || []) as Student[];
+    // class_no/grade_year 보강 (RPC 가 그 두 필드 반환 안 함)
+    const { data: meta } = await supabase
+      .from("edu_students")
+      .select("id, class_no, grade_year")
+      .eq("department_id", deptId)
+      .eq("is_active", true);
+    const metaMap: Record<string, { class_no: string | null; grade_year: number | null }> = {};
+    (meta || []).forEach((m: { id: string; class_no: string | null; grade_year: number | null }) => {
+      metaMap[m.id] = { class_no: m.class_no, grade_year: m.grade_year };
+    });
+    const merged = baseList.map((s) => ({
+      ...s,
+      class_no: metaMap[s.id]?.class_no ?? null,
+      grade_year: metaMap[s.id]?.grade_year ?? null,
+    }));
+    setStudents(merged);
   };
 
   const loadAttendance = async () => {
@@ -299,10 +318,45 @@ export default function AttendancePage() {
                 </tr>
               </thead>
               <tbody>
-                {students.map((s) => {
-                  const summary = monthlySummary(s.id);
-                  return (
-                    <tr key={s.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                {(() => {
+                  const sorted = [...students].sort((a, b) => {
+                    const ga = a.grade_year ?? 99;
+                    const gb = b.grade_year ?? 99;
+                    if (ga !== gb) return ga - gb;
+                    const ca = a.class_no || "zz";
+                    const cb = b.class_no || "zz";
+                    if (ca !== cb) return ca.localeCompare(cb);
+                    return a.order_no - b.order_no;
+                  });
+                  const colSpan = 3 + sundays.length * 6 + 5 + 1 + 1;
+                  let lastGroup = "__init__";
+                  const rows: React.ReactNode[] = [];
+                  sorted.forEach((s) => {
+                    const group = `${s.grade_year ?? "0"}-${s.class_no ?? "미배정"}`;
+                    if (group !== lastGroup) {
+                      lastGroup = group;
+                      const teacherName = s.teacher_name || "—";
+                      const className = s.class_no || "미배정";
+                      const count = sorted.filter((x) => `${x.grade_year ?? "0"}-${x.class_no ?? "미배정"}` === group).length;
+                      rows.push(
+                        <tr key={`g-${group}`}>
+                          <td colSpan={colSpan} style={{
+                            background: "linear-gradient(90deg, #eef2ff 0%, #f5f3ff 100%)",
+                            padding: "10px 14px",
+                            fontWeight: 800,
+                            fontSize: 12,
+                            color: "#1e293b",
+                            borderTop: "2px solid #c7d2fe",
+                            borderBottom: "1px solid #c7d2fe",
+                          }}>
+                            📚 {className}반 <span style={{ color: "#64748b", fontWeight: 600, fontSize: 11, marginLeft: 8 }}>· 담임 {teacherName} · {count}명</span>
+                          </td>
+                        </tr>
+                      );
+                    }
+                    const summary = monthlySummary(s.id);
+                    rows.push(
+                      <tr key={s.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                       <td style={{ textAlign: "center", padding: 4, fontWeight: 700 }}>{s.student_no ?? ""}</td>
                       <td style={{ padding: "4px 8px", fontWeight: 700, whiteSpace: "nowrap" }}>{s.name}</td>
                       <td style={{ textAlign: "center", padding: 4 }}>
@@ -388,8 +442,10 @@ export default function AttendancePage() {
                         >🗑</button>
                       </td>
                     </tr>
-                  );
-                })}
+                    );
+                  });
+                  return rows;
+                })()}
               </tbody>
             </table>
           )}
