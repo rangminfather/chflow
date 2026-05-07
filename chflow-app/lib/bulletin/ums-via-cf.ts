@@ -375,12 +375,15 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
     }
     // form action 도 확인
     const formAction = loginFormHtml.match(/<form[^>]*action=["']([^"']+)["']/i)?.[1] || "(no action)";
+    // 2026-05-07 H14: input name 만 깔끔히 별도 필드로 (200자 슬라이스에도 안 잘리게)
+    const inputNames = formInputs.map((s) => s.split("[")[0]).join(",");
     pushDebug("visit_login_form", preLoginRes.body, preLoginRes.status, preLoginRes.setCookies, {
       pre_phpsessid: jar.get("PHPSESSID")?.slice(0, 8) || "(none)",
       cookie_count: String(preLoginRes.setCookies.length),
       form_action: formAction.slice(0, 100),
-      form_inputs: formInputs.join(" | ").slice(0, 1500),
+      input_names: inputNames.slice(0, 200),
       form_input_count: String(formInputs.length),
+      form_inputs: formInputs.join(" | ").slice(0, 1500),
     });
   }
 
