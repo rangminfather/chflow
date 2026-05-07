@@ -138,7 +138,10 @@ export function buildMultipart(boundary: string, fields: MultipartField[]): Buff
 // 4단계 플로우 (Worker 통과)
 // ──────────────────────────────────────────────────
 const UMS_LOGIN_PATH = "/bbs/login_check.php";
-const UMS_WRITE_FORM_PATH = "/bbs/write.php?id=samusil&page=1&category=2&mode=write";
+// 2026-05-07: 사람 브라우저 캡처 분석 결과 사람은 풀 파라미터 사용 (divpage, select_arrange, desc, no 추가).
+// ums 가 referer/URL 파라미터 검증으로 봇 분류했을 가능성 → 사람 형식 그대로 모방.
+const UMS_WRITE_FORM_PATH = "/bbs/write.php?id=samusil&page=1&divpage=1&category=2&select_arrange=headnum&desc=asc&no=&mode=write&divpage=1";
+const UMS_BOARD_PATH = "/bbs/zboard.php?id=samusil&category=2&page=1&page_num=20&sn=&ss=&sc=&keyword=&select_arrange=headnum&desc=asc";
 const UMS_UPLOAD_PATH = "/core/plupload/upload.php";
 const UMS_WRITE_OK_PATH = "/bbs/skin/PSM_Revolution_DragDrop_board_domi_t_reply_comment/write_ok.php";
 
@@ -390,19 +393,13 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
     return { ok: false, error: "PHPSESSID 쿠키 없음", debug };
   }
 
-  // 사용자 PC F12 와 비교해서 발견한 인증/면제 cookie 들.
-  // 핵심: ip_country=KR — UMS GeoIP cookie. 외국 IP 라도 KR 이면 스팸차단 면제.
-  // 사용자는 평소 한국 IP 로 접속해서 이게 영구 저장됨 → 외국 VPN 켜도 KR 유지.
-  // 우리 server-side fetch 는 매번 빈 cookie store 라 이게 없음 → 외국 IP 로 인식됨.
+  // 2026-05-07: 사용자 캡처 분석 결과 사람은 PHPSESSID + login_1st + recent_cate_samusil 3개만 보냄.
+  // 우리가 강제 inject 했던 ip_country/list_type/list_num 은 사람한테 없음 → 봇 패턴.
+  // Worker 가 KR colo 라 IP 자체가 한국 → ip_country 강제 set 도 불필요.
   //
   // ⚠️ login_1st 는 login_check.php 응답에서 서버가 직접 set 함.
-  // 우리가 추가로 만들어 jar 에 넣으면 서버 발급 값을 덮어쓰게 되어
-  // 시간 약간 차이로 회원 인식 깨짐. 따라서 jar.get 으로 이미 있는지 확인 후
-  // 없을 때만 fallback 으로 추가.
+  // 이미 있으면 보존. 없을 때만 fallback 으로 추가.
   const extraCookies: string[] = [
-    `ip_country=KR`,
-    `list_type_samusil=0`,
-    `list_num_samusil=20`,
     `recent_cate_samusil=${encodeURIComponent('{"key2":"부서주보"}')}`,
   ];
   if (!jar.get("login_1st")) {
@@ -422,7 +419,8 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
   });
 
   // ── 1.5. 사람처럼 게시판 리스트 한 번 방문 (UMS 봇 감지 회피) ──
-  const boardRes = await umsViaCf("/bbs/zboard.php?id=samusil&page=1", {
+  // 2026-05-07: 사람 캡처와 동일한 풀 파라미터 URL 사용
+  const boardRes = await umsViaCf(UMS_BOARD_PATH, {
     method: "GET",
     cookie: jar.toHeader(),
     referer: "http://www.ums.or.kr/",
@@ -452,10 +450,11 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
   for (let attempt = 1; attempt <= WF_MAX_ATTEMPTS; attempt++) {
     writeFormAttempts = attempt;
     const attemptStart = Date.now();
+    // 2026-05-07: 사람 캡처와 동일한 풀 파라미터 referer 로 변경
     wfRes = await umsViaCf(UMS_WRITE_FORM_PATH, {
       method: "GET",
       cookie: jar.toHeader(),
-      referer: "http://www.ums.or.kr/bbs/zboard.php?id=samusil&page=1",
+      referer: `http://www.ums.or.kr${UMS_BOARD_PATH}`,
     });
     jar.ingest(wfRes.setCookies);
     wfHtml = iconv.decode(wfRes.body, "cp949");

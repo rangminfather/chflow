@@ -39,11 +39,19 @@ export default {
 
     const targetUrl = `http://${host}${path}`;
 
+    // 2026-05-07: 사용자 직접 글쓰기 캡처 헤더와 1:1 동일 매칭
+    // - User-Agent: Chrome 124 → 147 (사용자 PC 와 동일)
+    // - Accept: image/apng, signed-exchange 추가 (사람과 동일)
+    // - Accept-Language: en-US, en 추가
+    // - Accept-Encoding, Cache-Control, Upgrade-Insecure-Requests 추가
     const fwdHeaders = {
       "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-      "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+      "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+      "Accept-Encoding": "gzip, deflate",
+      "Cache-Control": "max-age=0",
+      "Upgrade-Insecure-Requests": "1",
       "Referer": request.headers.get("X-Forward-Referer") || "http://www.ums.or.kr/",
     };
 
