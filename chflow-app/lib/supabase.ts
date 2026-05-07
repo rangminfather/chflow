@@ -36,11 +36,15 @@ if (typeof window !== "undefined") {
           step: d.step,
           status: d.status,
           len: d.body_len,
-          // visit_board: 로그아웃 링크 있으면 ums가 회원으로 인식 = login 성공.
-          // login: response 본문 확인 (71byte alert vs redirect 등)
-          // write_form: alert 메시지
           extra: d.extra ? JSON.stringify(d.extra).slice(0, 200) : "",
         })));
+      // 2026-05-07 H14: 각 step 의 풀 extra 별도 출력 (200자 슬라이스 없음)
+      console.log("=== 📋 각 step 풀 extra ===");
+      j.debug.forEach((d: { step: string; extra?: Record<string, unknown> }) => {
+        if (d.extra && Object.keys(d.extra).length > 0) {
+          console.log(`[${d.step}]`, d.extra);
+        }
+      });
       // login step body sample (71byte 의 정체 보기)
       const loginStep = j.debug.find((d: { step: string }) => d.step === "login");
       if (loginStep) {
