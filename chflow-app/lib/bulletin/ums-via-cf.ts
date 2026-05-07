@@ -348,7 +348,25 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
     });
   }
 
+  // ── 0. 메인 페이지 GET (PHPSESSID + bookletSessionID 발급받기) ──
+  // 2026-05-07 H10: 사용자 직접 글쓰기 캡처 분석으로 발견 — 사람은 login_check.php 호출 전에
+  // 이미 PHPSESSID + bookletSessionID 갖고 있음. ums.or.kr / 첫 GET 시 자동 발급되는 것으로 추정.
+  // 이 단계 없이 바로 login_check.php 호출 → ums 가 회원 인증 매핑을 못해서 write.php 거부.
+  if (!skipLogin) {
+    const preMainRes = await umsViaCf("/", {
+      method: "GET",
+      referer: "http://www.ums.or.kr/",
+    });
+    jar.ingest(preMainRes.setCookies);
+    pushDebug("visit_main_pre", preMainRes.body, preMainRes.status, preMainRes.setCookies, {
+      pre_phpsessid: jar.get("PHPSESSID")?.slice(0, 8) || "(none)",
+      pre_booklet: jar.get("bookletSessionID")?.slice(0, 16) || "(none)",
+      cookie_count: String(preMainRes.setCookies.length),
+    });
+  }
+
   // ── 1. 로그인 (또는 UMS_TEST_COOKIE 우회) ──
+  // jar.toHeader() 로 0단계에서 받은 PHPSESSID + bookletSessionID 함께 보냄
   const loginRes = skipLogin
     ? { body: Buffer.from("[skipped — using UMS_TEST_COOKIE]"), status: 200, setCookies: [] as string[] }
     : await umsViaCf(UMS_LOGIN_PATH, {
@@ -360,6 +378,7 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
           group_no: "1",
         }).toString(), "utf8"),
         contentType: "application/x-www-form-urlencoded",
+        cookie: jar.toHeader(),
         referer: "http://www.ums.or.kr/bbs/login.php?id=samusil",
       });
 
