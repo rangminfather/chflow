@@ -710,8 +710,6 @@ export default function SignupPage() {
                 <span style={{ color: "#dc2626" }}>[필수]</span> 개인정보 수집·이용에 동의합니다{" "}
                 <a
                   href="/privacy"
-                  target="_blank"
-                  rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
                   style={{ color: "#6366f1", textDecoration: "underline", fontWeight: 700 }}
                 >

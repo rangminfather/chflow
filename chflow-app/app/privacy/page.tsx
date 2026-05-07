@@ -10,7 +10,10 @@ export default function PrivacyPage() {
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
       <div style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-          <button onClick={() => router.back()} style={{
+          <button onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) router.back();
+            else router.push("/signup");
+          }} style={{
             width: 36, height: 36, borderRadius: 10, background: "#f1f5f9",
             border: "none", fontSize: 16, cursor: "pointer", color: "#475569",
           }}>←</button>
@@ -85,7 +88,10 @@ export default function PrivacyPage() {
         </div>
 
         <button
-          onClick={() => router.back()}
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) router.back();
+            else router.push("/signup");
+          }}
           style={{
             width: "100%",
             marginTop: 24,
