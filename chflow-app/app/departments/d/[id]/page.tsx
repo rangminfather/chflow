@@ -63,7 +63,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
     desc: "출결 / 달란트 / 우리반 정보",
     onlyForDept: "초등1부",
     items: [
-      { id: "attendance", label: "출결관리", icon: "📋", desc: "학생 출석부 · 주차별 체크", color: "#10b981", implemented: true },
+      { id: "my-class-attendance", label: "내 반 출결", icon: "📋", desc: "내 담당 반 학생 출석 체크", color: "#10b981", implemented: true },
       { id: "talent", label: "달란트통장", icon: "🏅", desc: "달란트 적립 · 누적 합계", color: "#8b5cf6", implemented: true },
       { id: "my-class", label: "우리반 아이 정보", icon: "👶", desc: "담당 반 학생 정보", color: "#f59e0b", implemented: false },
     ],
@@ -85,6 +85,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
       { id: "new-friend", label: "새친구등록", icon: "🌟", desc: "새친구 등록카드 · 생활기록부", color: "#ec4899", implemented: true },
       { id: "teacher-attendance", label: "선생님 등록 / 출석", icon: "👨‍🏫", desc: "교사 출석부 · 월별 관리", color: "#0ea5e9", implemented: true },
       { id: "teacher-assign", label: "담임선생님 지정", icon: "👩‍🏫", desc: "반별 담임 변경 · 회원 연결 (전도사·부장)", color: "#8b5cf6", implemented: true },
+      { id: "attendance", label: "출결 통합 조회", icon: "📊", desc: "전 반 학생 출결 (관리자 강제 수정 가능)", color: "#10b981", implemented: true },
       { id: "student-record", label: "학생 출결 조회", icon: "🔍", desc: "개별 학생 출결 이력", color: "#eab308", implemented: true },
     ],
   },
