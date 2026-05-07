@@ -96,6 +96,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
     maxGrade: 1,
     desc: "부서원 등급 · 설정",
     items: [
+      { id: "dept-approval", label: "사역 가입 승인", icon: "📥", desc: "본 부서 가입 신청 승인 · 등급 부여", color: "#10b981", implemented: true },
       { id: "members-grade", label: "부서원 등급 관리", icon: "🎖️", desc: "각 부서원 등급(0~4) 변경", color: "#6366f1", implemented: true },
       { id: "promote", label: "진급 마법사", icon: "🎓", desc: "매년 학년 진급 · 반편성 · 담임배정", color: "#dc2626", implemented: true },
     ],
