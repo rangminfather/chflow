@@ -397,10 +397,15 @@ async function umsAutoPostOnce(input: UmsAutoPostInput): Promise<UmsAutoPostResu
   //    → 사용자 형식이 ums 표준 redirect 흐름
   // jar.toHeader() 로 0단계에서 받은 PHPSESSID 함께 보냄 — 회원 매핑 위해 필수.
   const cleanUserId = input.ums_user_id.replace(/^umsorkr_/, "");
-  // 2026-05-07 H14 진단: 사용자 캡처 순서 (s_url → user_id → password → group_no) 그대로 모방.
-  // URLSearchParams 는 입력 순서 유지함.
+  // 2026-05-07 H15 ⭐⭐⭐ 진짜 답: s_url 이중 URL 인코딩
+  // 사용자 raw body 캡처: "s_url=%252Fmain%252Fmain.php" (== %25 + 2F)
+  // 즉 login.php form 에 hidden value="%2Fmain%2Fmain.php" 로 박혀 있고,
+  // 브라우저가 form submit 시 % → %25 인코딩하면 wire format 에서 %252F 가 됨.
+  // ums login_check.php 는 디코딩 후 "%2Fmain%2Fmain.php" 그대로 검증/매핑 (한 번만 디코딩).
+  // 우리가 "/main/main.php" 보내면 디코딩 후 "/main/main.php" 됨 → ums 검증 실패 → 비회원 매핑.
+  // → 우리도 "%2Fmain%2Fmain.php" 보내면 URLSearchParams 가 % → %25 인코딩 → 사용자와 wire 동일.
   const loginBodyParams = new URLSearchParams();
-  loginBodyParams.append("s_url", "/main/main.php");
+  loginBodyParams.append("s_url", "%2Fmain%2Fmain.php");
   loginBodyParams.append("user_id", cleanUserId);
   loginBodyParams.append("password", input.ums_password);
   loginBodyParams.append("group_no", "1");
