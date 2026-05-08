@@ -285,6 +285,10 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   }
 
   // ── 4. write_ok.php POST (CP949) ──
+  // 2026-05-09: 사용자 브라우저 form data 캡쳐 분석 결과 — 첨부파일 매핑은 form 의 view_mode_uploader+
+  // uploader_count + uploader_N_name + uploader_N_status 필드로 ums 서버에 전달됨.
+  // 옛 PoC 패턴이 4/28 에 동작했던 건 ums 가 그땐 pl_date 아래 파일 자동 매핑했기 때문.
+  // 5/8 즈음 ums 가 이걸 끊고 form 필드 명시 의무화함 → 우리 첨부 누락의 진짜 원인.
   const cp = (s: string) => iconv.encode(s, "cp949");
   const category = input.category ?? 2;
   const wokBoundary = "----chflowWo" + Math.random().toString(36).slice(2);
@@ -292,18 +296,27 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
     { name: "page", value: cp("1") },
     { name: "id", value: cp("samusil") },
     { name: "no", value: cp("") },
-    { name: "select_arrange", value: cp("") },
-    { name: "desc", value: cp("") },
+    { name: "select_arrange", value: cp("headnum") },
+    { name: "desc", value: cp("asc") },
     { name: "page_num", value: cp("") },
     { name: "keyword", value: cp("") },
-    { name: "category", value: cp(String(category)) },
+    { name: "category", value: cp("") }, // hidden 첫 번째 (사용자 캡쳐와 동일)
     { name: "sfl", value: cp("") },
     { name: "mode", value: cp("write") },
     { name: "pl_user", value: cp(plUser) },
     { name: "pl_date", value: cp(plDate) },
     { name: "reg_date_change", value: cp("") },
     { name: "NameCheck", value: cp("N") },
+    { name: "category", value: cp(String(category)) }, // dropdown 두 번째 = 실제 값 (PHP 가 마지막 값 채택)
+    { name: "reserv_zy", value: cp("") },
+    { name: "password", value: cp("") },
     { name: "subject", value: cp(input.subject) },
+    { name: "psm_data1", value: cp("") },
+    // 첨부파일 매핑 — 빠지면 PDF 안 붙음
+    { name: "view_mode_uploader", value: cp("on") },
+    { name: "uploader_0_name", value: cp(input.pdf_filename) },
+    { name: "uploader_0_status", value: cp("done") },
+    { name: "uploader_count", value: cp("1") },
     { name: "memo", value: cp(input.memo) },
   ]);
 
