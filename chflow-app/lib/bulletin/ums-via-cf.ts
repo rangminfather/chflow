@@ -192,9 +192,10 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   const debug: DebugStep[] = [];
 
   function pushDebug(step: string, body: Buffer, status: number, setCookies: string[], extra?: Record<string, string | number | undefined>) {
+    const SAMPLE_LEN = step.startsWith("write_ok") ? 4000 : 600;
     const sample = (() => {
-      try { return iconv.decode(body, "cp949").slice(0, 600); }
-      catch { return body.toString("utf8").slice(0, 600); }
+      try { return iconv.decode(body, "cp949").slice(0, SAMPLE_LEN); }
+      catch { return body.toString("utf8").slice(0, SAMPLE_LEN); }
     })();
     debug.push({ step, status, body_len: body.length, body_sample: sample, set_cookies: setCookies, cookie_jar_after: jar.toHeader(), extra });
   }
@@ -289,71 +290,95 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   // uploader_count + uploader_N_name + uploader_N_status 필드로 ums 서버에 전달됨.
   // 옛 PoC 패턴이 4/28 에 동작했던 건 ums 가 그땐 pl_date 아래 파일 자동 매핑했기 때문.
   // 5/8 즈음 ums 가 이걸 끊고 form 필드 명시 의무화함 → 우리 첨부 누락의 진짜 원인.
+  //
+  // 스팸차단: ums 가 비-한국 residential IP (Cloudflare/AWS 포함) 에서는 w_key_spam 검증.
+  // 폼 안내문: 명성교회 ("예" 김종혁목사) → 답변 "김종혁목사".
+  // 사용자 가정 IP 에선 검증 안 함 → w_key_spam 무시되므로 항상 보내도 OK.
+  // 답변 변경 가능성 대비 후보 loop (스팸 거부 alert 시 다음 후보 시도, 30초 cooldown 무관).
   const cp = (s: string) => iconv.encode(s, "cp949");
   const category = input.category ?? 2;
-  const wokBoundary = "----chflowWo" + Math.random().toString(36).slice(2);
-  const wokBody = buildMultipart(wokBoundary, [
-    { name: "page", value: cp("1") },
-    { name: "id", value: cp("samusil") },
-    { name: "no", value: cp("") },
-    { name: "select_arrange", value: cp("headnum") },
-    { name: "desc", value: cp("asc") },
-    { name: "page_num", value: cp("") },
-    { name: "keyword", value: cp("") },
-    { name: "category", value: cp("") }, // hidden 첫 번째 (사용자 캡쳐와 동일)
-    { name: "sfl", value: cp("") },
-    { name: "mode", value: cp("write") },
-    { name: "pl_user", value: cp(plUser) },
-    { name: "pl_date", value: cp(plDate) },
-    { name: "reg_date_change", value: cp("") },
-    { name: "NameCheck", value: cp("N") },
-    { name: "category", value: cp(String(category)) }, // dropdown 두 번째 = 실제 값 (PHP 가 마지막 값 채택)
-    { name: "reserv_zy", value: cp("") },
-    { name: "password", value: cp("") },
-    { name: "subject", value: cp(input.subject) },
-    { name: "psm_data1", value: cp("") },
-    // 첨부파일 매핑 — 빠지면 PDF 안 붙음
-    { name: "view_mode_uploader", value: cp("on") },
-    { name: "uploader_0_name", value: cp(input.pdf_filename) },
-    { name: "uploader_0_status", value: cp("done") },
-    { name: "uploader_count", value: cp("1") },
-    { name: "memo", value: cp(input.memo) },
-  ]);
+  const spamCandidates = (process.env.UMS_SPAM_ANSWERS || "김종혁목사,김종혁,명성교회,예 김종혁목사")
+    .split(",").map((s) => s.trim()).filter(Boolean);
 
-  const woRes = await umsViaCf(UMS_WRITE_OK_PATH, {
-    method: "POST",
-    body: wokBody,
-    contentType: `multipart/form-data; boundary=${wokBoundary}`,
-    cookie: jar.toHeader(),
-    referer: "http://www.ums.or.kr/bbs/write.php?id=samusil&page=1&category=2&mode=write",
-    origin: "http://www.ums.or.kr",
-  });
-  jar.ingest(woRes.setCookies);
-  const woHtml = iconv.decode(woRes.body, "cp949");
-  pushDebug("write_ok", woRes.body, woRes.status, woRes.setCookies, {
-    response_size: woRes.body.length,
-  });
+  let woHtml = "";
+  let woRes!: Awaited<ReturnType<typeof umsViaCf>>;
+  let lastSpamMsg = "";
+  let writeOkPassed = false;
 
-  const refreshM = woHtml.match(/<meta\s+http-equiv="refresh"[^>]*url=([^"'>\s]+)/i);
-  if (!refreshM) {
+  for (let si = 0; si < spamCandidates.length; si++) {
+    const spamAnswer = spamCandidates[si];
+    const wokBoundary = "----chflowWo" + Math.random().toString(36).slice(2);
+    // 2026-05-09 보수적 변경: 1469 만들었을 때 동작했던 OLD 필드 그대로 + 최소한만 추가.
+    // (uploader_* 만 PDF 첨부에 필수, w_key_spam 은 cloud IP 스팸검증 통과용)
+    const wokBody = buildMultipart(wokBoundary, [
+      { name: "page", value: cp("1") },
+      { name: "id", value: cp("samusil") },
+      { name: "no", value: cp("") },
+      { name: "select_arrange", value: cp("") },
+      { name: "desc", value: cp("") },
+      { name: "page_num", value: cp("") },
+      { name: "keyword", value: cp("") },
+      { name: "category", value: cp(String(category)) },
+      { name: "sfl", value: cp("") },
+      { name: "mode", value: cp("write") },
+      { name: "pl_user", value: cp(plUser) },
+      { name: "pl_date", value: cp(plDate) },
+      { name: "reg_date_change", value: cp("") },
+      { name: "NameCheck", value: cp("N") },
+      { name: "w_key_spam", value: cp(spamAnswer) },
+      { name: "subject", value: cp(input.subject) },
+      { name: "memo", value: cp(input.memo) },
+      // 첨부파일 매핑 — 빠지면 PDF 안 붙음 (5/9 사용자 캡쳐로 확정)
+      { name: "view_mode_uploader", value: cp("on") },
+      { name: "uploader_0_name", value: cp(input.pdf_filename) },
+      { name: "uploader_0_status", value: cp("done") },
+      { name: "uploader_count", value: cp("1") },
+    ]);
+
+    woRes = await umsViaCf(UMS_WRITE_OK_PATH, {
+      method: "POST",
+      body: wokBody,
+      contentType: `multipart/form-data; boundary=${wokBoundary}`,
+      cookie: jar.toHeader(),
+      referer: "http://www.ums.or.kr/bbs/write.php?id=samusil&page=1&category=2&mode=write",
+      origin: "http://www.ums.or.kr",
+    });
+    jar.ingest(woRes.setCookies);
+    woHtml = iconv.decode(woRes.body, "cp949");
+    pushDebug(`write_ok_try_${si + 1}`, woRes.body, woRes.status, woRes.setCookies, {
+      spam_answer: spamAnswer,
+      response_size: woRes.body.length,
+    });
+
+    // redirect 감지 — ums 가 두 형식 사용:
+    //  (a) 첨부 없을 때: <meta http-equiv="refresh" content="0; url=../../zboard.php?...&no=N">
+    //  (b) 첨부 있을 때: <script>alert("등록 완료", "../../zboard.php?...&no=N&category=2");</script>
+    // 둘 다 redirect URL 안에 [?&]no=N&category= 패턴 있으므로 그걸로 매칭.
+    const redirectM = woHtml.match(/(\.\.\/\.\.\/zboard\.php\?[^"'>\s]*[?&]no=(\d+)&category=\d+)/);
+    if (redirectM) {
+      return {
+        ok: true,
+        post_no: parseInt(redirectM[2], 10),
+        redirect_url: redirectM[1],
+        pl_date: plDate,
+        debug,
+        write_form_attempts: [],
+      };
+    }
+
+    // 거부 — alert 분석
     const alertM = woHtml.match(/alertElmBody[^>]*>([\s\S]+?)<\/div>/);
-    const msg = alertM
+    lastSpamMsg = alertM
       ? alertM[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()
-      : `(no alert, sample: ${woHtml.slice(0, 200)})`;
-    return { ok: false, error: `등록 실패: ${msg}`, pl_date: plDate, debug, write_form_attempts: [] };
-  }
+      : "(no alert)";
 
-  const noM = refreshM[1].match(/[?&]no=(\d+)/);
-  if (!noM) {
-    return { ok: false, error: `글번호 추출 실패 (redirect=${refreshM[1]})`, pl_date: plDate, debug, write_form_attempts: [] };
+    // 스팸차단 외 다른 거부 (cooldown, 권한 X 등) 면 더 시도 무의미
+    if (!lastSpamMsg.includes("스팸")) break;
   }
 
   return {
-    ok: true,
-    post_no: parseInt(noM[1], 10),
-    redirect_url: refreshM[1],
-    pl_date: plDate,
-    debug,
-    write_form_attempts: [],
+    ok: false,
+    error: `등록 실패: ${lastSpamMsg}`,
+    pl_date: plDate, debug, write_form_attempts: [],
   };
 }
