@@ -1,11 +1,13 @@
-// 1클릭 자동등록 v2 — Cloudflare Worker proxy 통해 UMS 4단계
+// 1클릭 자동등록 v2 — Supabase Edge Function (AWS Seoul) 으로 UMS 호출.
+//
+// 2026-05-10: Cloudflare Worker (AS13335) → Supabase Edge (AS16509 AWS Seoul) 우회.
+// rate-limit 분리 + 인프라 단순화. ums-via-cf.ts 는 fallback 용 보존.
 //
 // 사용자별 자격증명 사용 (DB 에서 chflow_user_id 로 조회).
 // 미등록 시 ums_credentials_required 에러 반환 → 클라이언트가 ⚙️ 모달 띄움.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { umsAutoPost } from "@/lib/bulletin/ums-via-cf";
 import { decryptString } from "@/lib/bulletin/creds-crypto";
 
 export const runtime = "nodejs";
@@ -132,23 +134,42 @@ export async function POST(req: NextRequest) {
 
   const filename = body.pdf_filename || `${body.dept_name}_${body.date}.pdf`;
 
-  // 4단계 실행 (Cloudflare Worker proxy 거침)
-  let result: Awaited<ReturnType<typeof umsAutoPost>>;
+  // Supabase Edge Function 호출 (AWS Seoul AS16509 → ums.or.kr 직접)
+  interface EdgeResult {
+    ok: boolean;
+    post_no?: number;
+    redirect_url?: string;
+    pl_date?: string;
+    error?: string;
+    outbound_ip?: string;
+    outbound_org?: string;
+    debug?: unknown[];
+  }
+  let result: EdgeResult;
   try {
-    result = await umsAutoPost({
-      ums_user_id: umsUserId,
-      ums_password: umsPassword,
-      subject: body.subject,
-      memo: body.memo,
-      pdf_bytes: pdfBytes,
-      pdf_filename: filename,
-      dryRun: body.dryRun,
+    const edgeRes = await fetch(`${SUPABASE_URL}/functions/v1/ums-post-bulletin`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${SERVICE_KEY}`,
+      },
+      body: JSON.stringify({
+        ums_user_id: umsUserId,
+        ums_password: umsPassword,
+        subject: body.subject,
+        memo: body.memo,
+        pdf_base64: body.dryRun && !body.pdf_base64 ? undefined : Buffer.from(pdfBytes).toString("base64"),
+        pdf_filename: filename,
+        category: 2,
+        dryRun: body.dryRun,
+      }),
     });
+    result = await edgeRes.json();
   } catch (e: unknown) {
     const err = e as Error;
     return NextResponse.json({
       ok: false,
-      error: `자동등록 함수 throw: ${err.message}`,
+      error: `Edge function 호출 실패: ${err.message}`,
       stack: err.stack?.split("\n").slice(0, 8).join("\n"),
     }, { status: 500 });
   }
@@ -171,7 +192,8 @@ export async function POST(req: NextRequest) {
       ok: false,
       error: result.error,
       debug: result.debug,
-      write_form_attempts: result.write_form_attempts,
+      outbound_ip: result.outbound_ip,
+      outbound_org: result.outbound_org,
       dryRun: !!body.dryRun,
     }, { status: 500 });
   }
@@ -196,7 +218,8 @@ export async function POST(req: NextRequest) {
     post_url: result.post_no ? `http://www.ums.or.kr/bbs/zboard.php?id=samusil&no=${result.post_no}` : null,
     subject: body.subject,
     pl_date: result.pl_date,
+    outbound_ip: result.outbound_ip,
+    outbound_org: result.outbound_org,
     debug: body.dryRun ? result.debug : undefined,
-    write_form_attempts: result.write_form_attempts,
   });
 }
