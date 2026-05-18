@@ -1,0 +1,31 @@
+$ErrorActionPreference = "Stop"
+
+$root = Split-Path -Parent $PSScriptRoot
+$projectJson = Join-Path $root ".vercel\project.json"
+
+if (!(Test-Path $projectJson)) {
+  throw "Missing .vercel\project.json at repo root."
+}
+
+$project = Get-Content $projectJson -Raw | ConvertFrom-Json
+if ($project.projectName -ne "chflow-app" -or $project.projectId -ne "prj_y26PnlBpVtwQLD3mV4WR4ycyuHXv") {
+  throw "Refusing to deploy: root Vercel project must be chflow-app (prj_y26PnlBpVtwQLD3mV4WR4ycyuHXv), got $($project.projectName) / $($project.projectId)."
+}
+
+Push-Location $root
+try {
+  vercel --prod --yes
+  $loginStatus = try {
+    (Invoke-WebRequest -Uri "https://chflow-app.vercel.app/login" -UseBasicParsing -MaximumRedirection 0).StatusCode
+  } catch {
+    $_.Exception.Response.StatusCode.value__
+  }
+
+  if ($loginStatus -ne 200) {
+    throw "Deployment completed, but https://chflow-app.vercel.app/login returned HTTP $loginStatus."
+  }
+
+  vercel inspect chflow-app.vercel.app
+} finally {
+  Pop-Location
+}

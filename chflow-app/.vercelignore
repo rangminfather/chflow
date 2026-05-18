@@ -1,0 +1,12 @@
+.env
+.env.*
+.env.local
+.next/
+node_modules/
+.vercel/output/
+out/
+build/
+dist/
+*.log
+tsconfig.tsbuildinfo
+.next-codex-logs/

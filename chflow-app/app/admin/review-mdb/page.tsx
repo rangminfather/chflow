@@ -3,16 +3,16 @@
 import { useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 
-export default function AdminReviewPage() {
+export default function AdminReviewMdbPage() {
   const router = useRouter();
 
   return (
     <div style={pageStyle}>
       <div style={cardStyle}>
         <HeaderLogo />
-        <div style={titleStyle}>회원 데이터 검수 종료</div>
+        <div style={titleStyle}>MDB 병합검수 종료</div>
         <div style={bodyStyle}>
-          PDF/MDB 검수와 사진 매칭 정리가 완료되어 이 페이지는 운영 메뉴에서 닫았습니다.
+          MDB 병합과 보류 정리가 완료되어 이 페이지는 운영 메뉴에서 닫았습니다.
           이후 수정은 회원관리에서 개별 회원 기준으로 진행합니다.
         </div>
         <button onClick={() => router.push("/admin/members")} style={buttonStyle}>

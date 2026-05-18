@@ -102,3 +102,10 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+.vercel
+
+# Local cleanup archive; keep generated/import artifacts off git.
+MS_AX/archive/
+MS_AX/chflow-project/db-backups/
+MS_AX/extracted-bathelDB/

@@ -12,6 +12,7 @@ interface Member {
   id: string;
   name: string;
   phone: string;
+  home_phone: string | null;
   gender: string | null;
   family_church: string;
   sub_role: string;
@@ -180,6 +181,7 @@ function AdminMembersPage() {
       p_member_id: editing.id,
       p_name: editing.name,
       p_phone: editing.phone,
+      p_home_phone: editing.home_phone,
       p_family_church: editing.family_church,
       p_sub_role: editing.sub_role,
       p_spouse_name: editing.spouse_name,
@@ -236,10 +238,10 @@ function AdminMembersPage() {
             <button onClick={() => setCreating(true)} style={btnPrimary}>+ 회원 추가</button>
             <button onClick={() => setExporting(true)} style={{ ...btnGhost, background: "#dcfce7", color: "#15803d" }}>📥 회원정보 백업</button>
             <button onClick={() => setImporting(true)} style={{ ...btnGhost, background: "#dbeafe", color: "#1e40af" }}>📤 일괄업로드</button>
-            <button onClick={() => router.push("/admin/review")} style={{ ...btnGhost, background: "#fef3c7", color: "#92400e" }}>🔍 데이터 검수</button>
             <button onClick={() => router.push("/admin/dept-staff")} style={{ ...btnGhost, background: "#fce7f3", color: "#9d174d" }}>🏢 부서원 관리</button>
             <button onClick={() => router.push("/admin/rearrange")} style={{ ...btnGhost, background: "#e0e7ff", color: "#4338ca" }}>🔀 재편성</button>
             <button onClick={() => router.push("/admin/pending")} style={btnWarning}>⏳ 가입 대기자</button>
+            <button onClick={() => router.push("/admin/ops-status")} style={{ ...btnGhost, background: "#ecfdf5", color: "#047857" }}>📊 운영 상태</button>
             <button onClick={() => router.push("/home")} style={btnGhost}>← 홈</button>
           </div>
         </div>
@@ -322,7 +324,7 @@ function AdminMembersPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
                 <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                  {["평원", "초원", "목장", "이름", "성별", "자녀", "가정교회", "직분", "배우자", "휴대폰", "주소", "구분", "작업"].map(h => (
+                  {["평원", "초원", "목장", "이름", "성별", "자녀", "가정교회", "직분", "배우자", "휴대폰", "집전화", "주소", "구분", "작업"].map(h => (
                     <th key={h} style={thStyle}>{h}</th>
                   ))}
                 </tr>
@@ -354,6 +356,7 @@ function AdminMembersPage() {
                     <td style={tdStyle}>{m.sub_role || "-"}</td>
                     <td style={{ ...tdStyle, color: "#64748b" }}>{m.spouse_name || "-"}</td>
                     <td style={{ ...tdStyle, whiteSpace: "nowrap", color: "#475569" }}>{m.phone || "-"}</td>
+                    <td style={{ ...tdStyle, whiteSpace: "nowrap", color: "#475569" }}>{m.home_phone || "-"}</td>
                     <td style={{ ...tdStyle, color: "#64748b", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.address || "-"}</td>
                     <td style={tdStyle}>
                       <span style={{
@@ -621,6 +624,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
 
         <FormRow label="이름" value={member.name} onChange={(v) => setMember({ ...member, name: v })} />
         <FormRow label="휴대폰" value={member.phone} onChange={(v) => setMember({ ...member, phone: formatPhone(v) })} placeholder="010-0000-0000" />
+        <FormRow label="집전화" value={member.home_phone || ""} onChange={(v) => setMember({ ...member, home_phone: v })} placeholder="(052)000-0000" />
         <div style={{ marginBottom: 10, display: "flex", gap: 10 }}>
           <div style={{ flex: 1 }}>
             <label style={lblStyle}>성별</label>
