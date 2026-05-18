@@ -135,6 +135,8 @@ Latest applied migrations:
 - `20260517030000_admin_review_close_verified_operational_flags.sql`
 - `20260518010000_admin_review_suppress_verified_operational_exceptions.sql`
 - `20260518011000_admin_review_spouse_homonym_note_unicode.sql`
+- `20260518020000_admin_ops_health_summary.sql`
+- `20260518030000_separate_current_directory_members.sql`
 
 ## App Files Changed For Review Closure
 
@@ -186,6 +188,43 @@ RPC verification:
   - `codex%` profiles: 0
   - `운영점검_%` members: 0
 
+## Current / Reference Member Separation
+
+Applied on 2026-05-18:
+
+- Migration:
+  - `20260518030000_separate_current_directory_members.sql`
+- Current operational member rule:
+  - member is listed in the church directory PDF (`source_page is not null`)
+  - member belongs to a directory pasture through `household_id -> households.pasture_id`
+- Manual active exception:
+  - manual records with pasture assignment and no MDB legacy id remain `active`
+- Reference/legacy rule:
+  - MDB/manual records not backed by the church directory PDF pasture roster are kept, but set to `inactive`
+  - they are not deleted because family relations, phone numbers, birth dates, and historical matching can still be useful
+
+Verified production counts after separation:
+
+- total members: 2,142
+- current active members: 1,282
+- separated inactive/reference members: 860
+
+Operational behavior after the change:
+
+- `admin_search_members_paged(...)` defaults to `active` members only.
+- The admin members page has a status filter:
+  - current members
+  - separated/reference members
+  - all members
+- `find_member_for_signup(...)` only matches active members.
+- `search_member_candidates(...)` only returns active members.
+
+Deletion policy:
+
+- Do not bulk-delete the 860 separated members yet.
+- Next safe deletion pass should start from inactive MDB-only records with no profile, no education/student link, no offerings, and no family relation.
+- Prefer export/report first, delete second.
+
 ## Deployment Command
 
 Run from repo root:
@@ -204,15 +243,11 @@ vercel inspect https://chflow-app.vercel.app
 
 ## Next Work Candidates
 
-1. Commit or otherwise archive the current worktree changes.
-2. Add a permanent operational smoke-check script so future deploys can re-run login/admin/member CRUD checks.
-3. Start the next product area: person-photo matching for remaining future photos, including support for people who have no photo.
-4. Add a lightweight DB health dashboard or admin-only status page showing:
-   - review flags count
-   - duplicate counts
-   - temp test leftovers
-   - recent deployment/env status
-5. Clean up old temporary/import scripts after confirming which ones are still needed.
+1. Deploy and smoke-check the current/reference member separation UI.
+2. Commit the separation migration and admin members UI update.
+3. Produce an inactive-member deletion candidate report.
+4. Add a permanent operational smoke-check script so future deploys can re-run login/admin/member CRUD checks.
+5. Start the next product area: person-photo matching for remaining future photos, including support for people who have no photo.
 
 ## Cleanup Inventory
 
