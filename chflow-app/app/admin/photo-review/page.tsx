@@ -88,7 +88,7 @@ export default function AdminPhotoReviewPage() {
       setMembers([]);
       setTotal(0);
     } else {
-      const rows = (data || []) as ReviewMember[];
+      const rows = dedupeReviewMembers((data || []) as ReviewMember[]);
       setMembers(rows);
       setTotal(Number(rows[0]?.total_count || 0));
       setSelected((current) => {
@@ -348,6 +348,29 @@ export default function AdminPhotoReviewPage() {
       </main>
     </div>
   );
+}
+
+function dedupeReviewMembers(rows: ReviewMember[]) {
+  const byId = new Map<string, ReviewMember>();
+  for (const row of rows) {
+    const current = byId.get(row.id);
+    if (!current) {
+      byId.set(row.id, row);
+      continue;
+    }
+    const currentScore = expectedCropScore(current);
+    const nextScore = expectedCropScore(row);
+    if (nextScore < currentScore) {
+      byId.set(row.id, { ...row, total_count: current.total_count });
+    }
+  }
+  return Array.from(byId.values());
+}
+
+function expectedCropScore(row: ReviewMember) {
+  if (!row.expected_source_file) return 10;
+  const pageMatch = row.expected_source_file.startsWith(`p${String(row.photo_page || 0).padStart(3, "0")}_`);
+  return pageMatch ? 0 : 1;
 }
 
 function Avatar({ url, name, size }: { url: string | null; name: string; size: number }) {
