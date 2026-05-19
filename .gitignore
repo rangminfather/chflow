@@ -109,6 +109,7 @@ yarn-error.log*
 MS_AX/archive/
 MS_AX/chflow-project/db-backups/
 MS_AX/extracted-bathelDB/
+MS_AX/generated/
 
 # Play Store local helpers and binary release outputs.
 play-store-assets/node_modules/
