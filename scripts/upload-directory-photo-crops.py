@@ -20,6 +20,10 @@ OUTPUT_DIR = ROOT / "MS_AX" / "generated" / "directory_photo_crops_v2"
 BUCKET = "member-photos"
 PREFIX = "directory-crops-v2"
 PHOTO_PAGE_LIMIT = 43
+LABEL_OVERRIDES = {
+    "p006_photo11.png": {"pdf_name": "\uc815\uc21c\uae38"},
+    "p011_photo14.png": {"pdf_name": "\ucd5c\uc131\ud5cc"},
+}
 
 
 def load_env() -> None:
@@ -242,6 +246,9 @@ def build_rows(original_pdf: Path, ocr_pdf: Path) -> list[dict]:
         for photo_index, candidate in enumerate(candidates):
             source_file = f"p{photo_page:03d}_photo{photo_index:02d}.png"
             name, phone = extract_label(lines, candidate["bbox"])
+            override = LABEL_OVERRIDES.get(source_file, {})
+            name = override.get("pdf_name", name)
+            phone = override.get("pdf_phone", phone)
             render_crop(original_page, candidate["bbox"], OUTPUT_DIR / source_file)
             rows.append(
                 {

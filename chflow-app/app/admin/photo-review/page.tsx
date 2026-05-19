@@ -152,6 +152,25 @@ export default function AdminPhotoReviewPage() {
     setSaving(false);
   }
 
+  async function markNoPhoto() {
+    if (!selected) return;
+    const ok = confirm(`${selected.name} 회원은 원본 요람에 등록 사진이 없는 것으로 표시할까요?`);
+    if (!ok) return;
+    setSaving(true);
+    setLastPhotoUrl(selected.photo_url);
+    const { error } = await supabase.rpc("admin_mark_member_no_photo", {
+      p_member_id: selected.id,
+    });
+    if (error) {
+      alert(`사진 없음 처리 실패: ${error.message}`);
+    } else {
+      const updated = { ...selected, photo_url: null, photo_status: "no_photo_in_pdf" };
+      setSelected(updated);
+      setMembers((prev) => prev.map((row) => row.id === selected.id ? updated : row));
+    }
+    setSaving(false);
+  }
+
   const samePageCandidates = useMemo(() => selected?.candidates || [], [selected]);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -266,6 +285,9 @@ export default function AdminPhotoReviewPage() {
                   {lastPhotoUrl !== undefined && (
                     <button style={warnButtonStyle} onClick={restoreLastPhoto} disabled={saving}>직전 사진으로 되돌리기</button>
                   )}
+                  <button style={dangerButtonStyle} onClick={markNoPhoto} disabled={saving}>
+                    사진 없음
+                  </button>
                 </div>
 
                 <div>
@@ -503,6 +525,13 @@ const warnButtonStyle: CSSProperties = {
   borderColor: "#f59e0b",
   color: "#92400e",
   marginTop: 12,
+};
+
+const dangerButtonStyle: CSSProperties = {
+  ...ghostButtonStyle,
+  borderColor: "#ef4444",
+  color: "#991b1b",
+  marginTop: 8,
 };
 
 const mainGridStyle: CSSProperties = {
