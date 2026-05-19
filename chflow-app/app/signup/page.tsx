@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROLES, mapToSystemRole, type Role } from "@/lib/roles";
 import {
@@ -14,6 +14,14 @@ import {
 import ModalBackdrop from "@/components/ModalBackdrop";
 
 type Step = "lookup" | "confirm" | "role" | "info" | "done";
+type RoleGroupId = "clergy" | "officers" | "members" | "nextgen";
+
+const ROLE_GROUPS: { id: RoleGroupId; label: string; roleIds: string[] }[] = [
+  { id: "clergy", label: "\uAD50\uC5ED\uC790", roleIds: ["pastor", "missionary", "evangelist", "pastor_wife", "educator"] },
+  { id: "officers", label: "\uC9C1\uBD84\uC790", roleIds: ["elder", "coordinator", "serving_deacon", "deaconess", "acting_deacon_male", "acting_deacon_female"] },
+  { id: "members", label: "\uC131\uB3C4", roleIds: ["member_male", "member_female"] },
+  { id: "nextgen", label: "\uB2E4\uC74C\uC138\uB300", roleIds: ["youth_male", "youth_female", "teen_male", "teen_female", "child_male", "child_female", "toddler_male", "toddler_female"] },
+];
 
 interface MatchedMember {
   id: string;
@@ -51,8 +59,7 @@ export default function SignupPage() {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [selectedSubRole, setSelectedSubRole] = useState<string | null>(null);
   const [showSubRoleModal, setShowSubRoleModal] = useState<Role | null>(null);
-  const [carouselIdx, setCarouselIdx] = useState(0);
-  const [isMobile, setIsMobile] = useState(false);
+  const [roleGroup, setRoleGroup] = useState<RoleGroupId>("members");
 
   // 정보 입력
   const [name, setName] = useState("");
@@ -70,13 +77,6 @@ export default function SignupPage() {
   // 공통
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth <= 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
 
   // ============ Step 1: 이름+휴대폰 lookup (+ 자녀 가입 분기) ============
   const handleLookup = async (e: React.FormEvent) => {
@@ -216,16 +216,10 @@ export default function SignupPage() {
     return null;
   };
 
-  // ============ Step 3: 직분 선택 (캐러셀) ============
-  const VISIBLE_COUNT = isMobile ? 2 : 4;
-  const STEP_SIZE = isMobile ? 2 : 1;
-  const maxIdx = Math.max(0, ROLES.length - VISIBLE_COUNT);
-  const safeIdx = isMobile
-    ? Math.min(carouselIdx, Math.floor((ROLES.length - 1) / STEP_SIZE) * STEP_SIZE)
-    : Math.min(carouselIdx, maxIdx);
-  const visibleRoles = ROLES.slice(safeIdx, safeIdx + VISIBLE_COUNT);
-  const totalPages = isMobile ? Math.ceil(ROLES.length / STEP_SIZE) : maxIdx + 1;
-  const currentPage = isMobile ? Math.floor(safeIdx / STEP_SIZE) : safeIdx;
+  // ============ Step 3: 직분 선택 ============
+  const visibleRoles = ROLES.filter((role) =>
+    ROLE_GROUPS.find((group) => group.id === roleGroup)?.roleIds.includes(role.id)
+  );
 
   const handleRoleSelect = (role: Role) => {
     setSelectedRole(role);
@@ -527,37 +521,58 @@ export default function SignupPage() {
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-            <button
-              onClick={() => setCarouselIdx(Math.max(0, safeIdx - STEP_SIZE))}
-              disabled={safeIdx === 0}
-              style={arrowBtnStyle(safeIdx === 0)}
-            >◀</button>
-            <div className="role-grid" style={{
-              flex: 1, display: "grid",
-              gridTemplateColumns: `repeat(${VISIBLE_COUNT}, 1fr)`, gap: 10,
-            }}>
-              {visibleRoles.map((role) => (
-                <RoleCard key={role.id} role={role} onClick={() => handleRoleSelect(role)} />
-              ))}
-            </div>
-            <button
-              onClick={() => {
-                const next = safeIdx + STEP_SIZE;
-                if (next < ROLES.length) setCarouselIdx(Math.min(next, isMobile ? next : maxIdx));
-              }}
-              disabled={safeIdx + STEP_SIZE >= ROLES.length}
-              style={arrowBtnStyle(safeIdx + STEP_SIZE >= ROLES.length)}
-            >▶</button>
+          <div className="role-tabs" style={{
+            display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 14,
+          }}>
+            {ROLE_GROUPS.map((group) => {
+              const active = group.id === roleGroup;
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => setRoleGroup(group.id)}
+                  style={{
+                    height: 38,
+                    border: active ? "1px solid #6366f1" : "1px solid #e2e8f0",
+                    background: active ? "#eef2ff" : "#fff",
+                    color: active ? "#4338ca" : "#475569",
+                    borderRadius: 10,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {group.label}
+                </button>
+              );
+            })}
           </div>
 
-          <div style={{ display: "flex", justifyContent: "center", gap: 5, marginTop: 8, flexWrap: "wrap" }}>
-            {Array.from({ length: totalPages }).map((_, i) => (
-              <div key={i} onClick={() => setCarouselIdx(i * STEP_SIZE)} style={{
-                width: i === currentPage ? 22 : 7, height: 7, borderRadius: 4,
-                background: i === currentPage ? "#6366f1" : "#cbd5e1", cursor: "pointer",
-              }} />
+          <div className="role-grid" style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gap: 10,
+            maxHeight: "none",
+            overflowY: "visible",
+            padding: "2px 2px 8px",
+          }}>
+            {visibleRoles.map((role) => (
+              <RoleCard key={role.id} role={role} onClick={() => handleRoleSelect(role)} />
             ))}
+          </div>
+
+          <div style={{ marginTop: 12, display: "flex", justifyContent: "center" }}>
+            <div style={{
+              padding: "4px 10px",
+              borderRadius: 999,
+              background: "#f8fafc",
+              color: "#94a3b8",
+              fontSize: 11,
+              fontWeight: 700,
+            }}>
+              {`${visibleRoles.length}\uAC1C`}
+            </div>
           </div>
         </div>
 
@@ -566,6 +581,10 @@ export default function SignupPage() {
         )}
 
         <style jsx global>{`
+          @media (max-width: 560px) {
+            .role-tabs { grid-template-columns: repeat(2, 1fr) !important; }
+            .role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; max-height: none !important; overflow: visible !important; }
+          }
           @media (max-width: 480px) {
             .subrole-grid { grid-template-columns: repeat(2, 1fr) !important; }
           }
@@ -923,18 +942,6 @@ const errorStyle: React.CSSProperties = {
   color: "#b91c1c",
   marginBottom: 12,
 };
-
-const arrowBtnStyle = (disabled: boolean): React.CSSProperties => ({
-  width: 36,
-  height: 36,
-  borderRadius: "50%",
-  background: disabled ? "#f1f5f9" : "#fff",
-  border: "1.5px solid #e2e8f0",
-  fontSize: 14,
-  cursor: disabled ? "default" : "pointer",
-  color: disabled ? "#cbd5e1" : "#475569",
-  flexShrink: 0,
-});
 
 const infoLabel: React.CSSProperties = {
   fontSize: 11,
