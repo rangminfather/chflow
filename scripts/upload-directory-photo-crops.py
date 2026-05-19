@@ -23,6 +23,17 @@ PHOTO_PAGE_LIMIT = 43
 LABEL_OVERRIDES = {
     "p006_photo11.png": {"pdf_name": "\uc815\uc21c\uae38"},
     "p011_photo14.png": {"pdf_name": "\ucd5c\uc131\ud5cc"},
+    "p024_photo13.png": {"pdf_name": "\uc804\uc9c4\uaddc"},
+    "p028_photo08.png": {"pdf_name": "\ucd5c\uc2b9\uc6b1"},
+    "p028_photo14.png": {"pdf_name": "\ud669\ucc3d\ubaa8"},
+    "p029_photo01.png": {"pdf_name": "\uac15\uba85\uc219"},
+    "p030_photo02.png": {"pdf_name": "\uae40\uacbd\ud654"},
+    "p030_photo07.png": {"pdf_name": "\uae40\uc0c8\ub86c"},
+    "p030_photo10.png": {"pdf_name": "\uae40\uc218\uc9c4", "skip_expected": True},
+    "p031_photo14.png": {"pdf_name": "\ub958\uc544\uc601"},
+    "p034_photo11.png": {"pdf_name": "\uc5c4\uacbd\uc560"},
+    "p036_photo03.png": {"pdf_name": "\uc774\ucc3d\ud76c", "skip_expected": True},
+    "p039_photo11.png": {"pdf_name": "\uae40\uc601\uc219", "skip_expected": True},
 }
 
 
@@ -257,6 +268,7 @@ def build_rows(original_pdf: Path, ocr_pdf: Path) -> list[dict]:
                     "photo_index": photo_index,
                     "pdf_name": name,
                     "pdf_phone": phone,
+                    "_skip_expected": bool(override.get("skip_expected")),
                 }
             )
 
@@ -295,6 +307,9 @@ def attach_expected_members(rows: list[dict], members: list[dict]) -> list[dict]
             by_name[name].append(member)
 
     for row in rows:
+        if row.pop("_skip_expected", False):
+            row["expected_member_id"] = None
+            continue
         candidates = []
         phone = normalize_phone(row.get("pdf_phone"))
         if phone:
