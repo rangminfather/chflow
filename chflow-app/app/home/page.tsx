@@ -287,6 +287,14 @@ export default function HomePage() {
                 <span className="admin-btn-label">회원관리</span>
               </button>
               <button
+                onClick={() => router.push("/admin/photo-review")}
+                title="사진 매칭 검수"
+                style={adminBtnStyle("#ecfeff", "#0e7490")}
+              >
+                <span>📷</span>
+                <span className="admin-btn-label">사진검수</span>
+              </button>
+              <button
                 onClick={() => router.push("/admin/password-reset")}
                 title="비밀번호 초기화"
                 style={adminBtnStyle("#fef2f2", "#b91c1c")}

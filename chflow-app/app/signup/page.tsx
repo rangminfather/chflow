@@ -36,6 +36,7 @@ interface MatchedMember {
   plain_name: string;
   address: string;
   has_account: boolean;
+  photo_url?: string | null;
   // 자녀 매칭 시 부모 정보
   parent_id?: string;
   parent_name?: string;
@@ -450,9 +451,23 @@ export default function SignupPage() {
             marginBottom: 20,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+              {matched.photo_url && (
+                <div style={{
+                  width: 64, height: 64, borderRadius: "50%",
+                  background: "#dbeafe", overflow: "hidden",
+                  border: "2px solid rgba(59, 130, 246, 0.25)",
+                  flexShrink: 0,
+                }}>
+                  <img
+                    src={matched.photo_url}
+                    alt={matched.name}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                </div>
+              )}
               <div style={{
                 width: 56, height: 56, borderRadius: "50%",
-                background: "#dbeafe", display: "flex", alignItems: "center",
+                background: "#dbeafe", display: matched.photo_url ? "none" : "flex", alignItems: "center",
                 justifyContent: "center", fontSize: 28,
               }}>👤</div>
               <div>
