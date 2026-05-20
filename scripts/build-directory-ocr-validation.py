@@ -490,18 +490,21 @@ def write_parsed_workbook(rows: list[ParsedRow], path: Path) -> None:
     workbook.save(path)
 
 
-def index_rows(rows: list[ParsedRow]) -> tuple[dict[tuple[int, str], list[ParsedRow]], dict[tuple[int, str], list[ParsedRow]]]:
+def index_rows(rows: list[ParsedRow]) -> tuple[dict[tuple[int, str], list[ParsedRow]], dict[tuple[int, str], list[ParsedRow]], dict[int, list[ParsedRow]]]:
     by_phone: dict[tuple[int, str], list[ParsedRow]] = defaultdict(list)
     by_name: dict[tuple[int, str], list[ParsedRow]] = defaultdict(list)
+    by_page: dict[int, list[ParsedRow]] = defaultdict(list)
     for row in rows:
         for phone in {norm_phone(row.phone), norm_phone(row.home_phone)} - {""}:
             by_phone[(row.page, phone)].append(row)
         by_name[(row.page, norm_name(row.name))].append(row)
-    return by_phone, by_name
+        by_page[row.page].append(row)
+    return by_phone, by_name, by_page
 
 
-def find_match(member: dict[str, Any], by_phone: dict[tuple[int, str], list[ParsedRow]], by_name: dict[tuple[int, str], list[ParsedRow]]) -> tuple[ParsedRow | None, str]:
+def find_match(member: dict[str, Any], by_phone: dict[tuple[int, str], list[ParsedRow]], by_name: dict[tuple[int, str], list[ParsedRow]], by_page: dict[int, list[ParsedRow]]) -> tuple[ParsedRow | None, str]:
     page = int(member.get("source_page") or 0)
+    name = norm_name(member.get("name"))
     phones = []
     for phone in [norm_phone(member.get("phone")), norm_phone(member.get("home_phone"))]:
         if phone and phone not in phones:
@@ -509,12 +512,15 @@ def find_match(member: dict[str, Any], by_phone: dict[tuple[int, str], list[Pars
     for phone in phones:
         candidates = by_phone.get((page, phone), [])
         if candidates:
-            name = norm_name(member.get("name"))
-            candidates = sorted(candidates, key=lambda row: 0 if norm_name(row.name) == name else 1)
+            candidates = sorted(candidates, key=lambda row: (name_distance(name, row.name), row.y or 0))
             return candidates[0], "page_phone"
     candidates = by_name.get((page, norm_name(member.get("name"))), [])
     if candidates:
         return candidates[0], "page_name"
+    candidates = [row for row in by_page.get(page, []) if name_close(name, row.name)]
+    if candidates:
+        candidates = sorted(candidates, key=lambda row: (name_distance(name, row.name), row.y or 0))
+        return candidates[0], "page_name_fuzzy"
     return None, "no_match"
 
 
@@ -552,11 +558,17 @@ def name_close(left: Any, right: Any) -> bool:
     return bool(a and b and abs(len(a) - len(b)) <= 1 and name_distance(a, b) <= 1)
 
 
+def identity_supported_with_unreadable_role(member: dict[str, Any], row: ParsedRow | None) -> bool:
+    return bool(row and not row.sub_role and (name_equal(member.get("name"), row.name) or name_close(member.get("name"), row.name)))
+
+
 def classify(member: dict[str, Any], old: ParsedRow | None, new: ParsedRow | None) -> str:
     db_name = member.get("name")
     db_role = member.get("sub_role")
     old_name_ok = old is not None and name_equal(db_name, old.name)
     new_name_ok = new is not None and name_equal(db_name, new.name)
+    old_name_close = old is not None and name_close(db_name, old.name)
+    new_name_close = new is not None and name_close(db_name, new.name)
     old_role_ok = old is not None and role_equal(db_role, old.sub_role)
     new_role_ok = new is not None and role_equal(db_role, new.sub_role)
 
@@ -572,6 +584,16 @@ def classify(member: dict[str, Any], old: ParsedRow | None, new: ParsedRow | Non
         return "new_ocr_matches_db"
     if old_name_ok and old_role_ok:
         return "existing_parse_matches_db"
+    if new_name_close and not new_name_ok and new_role_ok:
+        return "new_ocr_fuzzy_name_matches_db"
+    if old_name_close and not old_name_ok and old_role_ok:
+        return "existing_parse_fuzzy_name_matches_db"
+    if identity_supported_with_unreadable_role(member, new) or identity_supported_with_unreadable_role(member, old):
+        return "identity_supported_role_unreadable"
+    if (new_name_ok and new and new.sub_role) or (old_name_ok and old and old.sub_role):
+        return "single_parse_role_review"
+    if (new_name_close and new and new.sub_role) or (old_name_close and old and old.sub_role):
+        return "single_parse_name_role_review"
     return "ambiguous"
 
 
@@ -594,18 +616,21 @@ def build_comparison(existing_rows: list[ParsedRow], new_rows: list[ParsedRow]) 
         select="id,name,status,phone,home_phone,family_church,sub_role,spouse_name,is_child,source_page",
         extra="status=eq.active&source_page=not.is.null&order=source_page.asc,name.asc",
     )
-    existing_by_phone, existing_by_name = index_rows(existing_rows)
-    new_by_phone, new_by_name = index_rows(new_rows)
+    existing_by_phone, existing_by_name, existing_by_page = index_rows(existing_rows)
+    new_by_phone, new_by_name, new_by_page = index_rows(new_rows)
 
     output = []
     for member in members:
         if member.get("is_child"):
             continue
-        old, old_method = find_match(member, existing_by_phone, existing_by_name)
-        new, new_method = find_match(member, new_by_phone, new_by_name)
+        old, old_method = find_match(member, existing_by_phone, existing_by_name, existing_by_page)
+        new, new_method = find_match(member, new_by_phone, new_by_name, new_by_page)
         verdict = classify(member, old, new)
+        review_bucket, review_reason = describe_verdict(verdict)
         comparison_row = {
             "verdict": verdict,
+            "review_bucket": review_bucket,
+            "review_reason": review_reason,
             "member_id": member.get("id"),
             "source_page": member.get("source_page"),
             "db_name": member.get("name"),
@@ -630,9 +655,28 @@ def build_comparison(existing_rows: list[ParsedRow], new_rows: list[ParsedRow]) 
     return output
 
 
+def describe_verdict(verdict: str) -> tuple[str, str]:
+    descriptions = {
+        "all_agree": ("auto_pass", "existing parse, new OCR, and DB agree"),
+        "new_ocr_matches_db": ("auto_pass", "new OCR exactly supports current DB"),
+        "existing_parse_matches_db": ("auto_pass", "existing parse exactly supports current DB"),
+        "new_ocr_fuzzy_name_matches_db": ("auto_pass", "new OCR has a one-character name variation but role supports current DB"),
+        "existing_parse_fuzzy_name_matches_db": ("auto_pass", "existing parse has a one-character name variation but role supports current DB"),
+        "identity_supported_role_unreadable": ("low_priority", "name/phone identity is supported, but role cell was unreadable or blank"),
+        "name_review_ab_agree_db_diff": ("visual_review", "both parses agree on a different close name"),
+        "role_review_ab_agree_db_diff": ("visual_review", "both parses agree on a different role"),
+        "single_parse_role_review": ("visual_review", "one parse supports the identity, but role differs from DB"),
+        "single_parse_name_role_review": ("visual_review", "one parse has a close name candidate and role differs from DB"),
+        "no_pdf_match": ("manual_review", "no reliable row matched in either parse"),
+        "ambiguous": ("manual_review", "matched evidence conflicts or points to another household member"),
+    }
+    return descriptions.get(verdict, ("manual_review", "unclassified disagreement"))
+
+
 def write_comparison_workbook(rows: list[dict[str, Any]], path: Path) -> None:
-    auto_pass = {"all_agree", "new_ocr_matches_db", "existing_parse_matches_db"}
-    visual_review = {"name_review_ab_agree_db_diff", "role_review_ab_agree_db_diff"}
+    auto_pass = {"all_agree", "new_ocr_matches_db", "existing_parse_matches_db", "new_ocr_fuzzy_name_matches_db", "existing_parse_fuzzy_name_matches_db"}
+    visual_review = {"name_review_ab_agree_db_diff", "role_review_ab_agree_db_diff", "single_parse_role_review", "single_parse_name_role_review"}
+    low_priority = {"identity_supported_role_unreadable"}
     manual_review = {"ambiguous", "no_pdf_match"}
 
     workbook = Workbook()
@@ -657,6 +701,8 @@ def write_comparison_workbook(rows: list[dict[str, Any]], path: Path) -> None:
     write_sheet(visual, [row for row in rows if row["verdict"] in visual_review], "DBEAFE")
     manual = workbook.create_sheet("수동 검수 요청")
     write_sheet(manual, [row for row in rows if row["verdict"] in manual_review], "EDE9FE")
+    low = workbook.create_sheet("낮은 우선순위")
+    write_sheet(low, [row for row in rows if row["verdict"] in low_priority], "E0E7FF")
     passed = workbook.create_sheet("자동 통과")
     write_sheet(passed, [row for row in rows if row["verdict"] in auto_pass], "DCFCE7")
 
@@ -693,6 +739,7 @@ def write_diff_crops(pdf_path: Path, comparison_rows: list[dict[str, Any]]) -> N
 
 def write_summary(rows: list[dict[str, Any]], parsed_count: int, path: Path) -> None:
     counts = Counter(row["verdict"] for row in rows)
+    bucket_counts = Counter(row["review_bucket"] for row in rows)
     lines = [
         f"# Directory OCR Validation - {date.today().isoformat()}",
         "",
@@ -716,12 +763,20 @@ def write_summary(rows: list[dict[str, Any]], parsed_count: int, path: Path) -> 
         lines.append(f"- `{key}`: {count}")
     lines.extend([
         "",
+        "## Review Bucket Counts",
+        "",
+    ])
+    for key, count in bucket_counts.most_common():
+        lines.append(f"- `{key}`: {count}")
+    lines.extend([
+        "",
         "## Workbook Sheets",
         "",
         "- `3자 비교`: every compared DB row.",
         "- `차이 후보`: every row except full agreement.",
         "- `시각 확인 후보`: strict name/role candidates that should be checked against crop images before any DB update.",
         "- `수동 검수 요청`: ambiguous rows and rows with no reliable PDF match.",
+        "- `낮은 우선순위`: identity is supported, but role evidence is unreadable or blank.",
         "- `자동 통과`: rows where the current DB is supported by at least one parse path.",
         "",
         "## Interpretation",
@@ -729,8 +784,13 @@ def write_summary(rows: list[dict[str, Any]], parsed_count: int, path: Path) -> 
         "- `all_agree`: existing parse, new OCR parse, and DB agree on name/role.",
         "- `new_ocr_matches_db`: new OCR agrees with DB while existing parse differs or is incomplete.",
         "- `existing_parse_matches_db`: existing parse agrees with DB while new OCR differs or is incomplete.",
+        "- `new_ocr_fuzzy_name_matches_db`: new OCR has a one-character name variation, but role supports the DB.",
+        "- `existing_parse_fuzzy_name_matches_db`: existing parse has a one-character name variation, but role supports the DB.",
+        "- `identity_supported_role_unreadable`: name/phone identity is supported, but role evidence is unreadable or blank.",
         "- `name_review_ab_agree_db_diff`: both parses agree on a different name; requires visual confirmation before any DB change.",
         "- `role_review_ab_agree_db_diff`: both parses agree on a different role; good candidate for visual confirmation.",
+        "- `single_parse_role_review`: one parse supports the identity, but role differs from DB.",
+        "- `single_parse_name_role_review`: one parse has a close name candidate and role differs from DB.",
         "- `ambiguous`: disagreement pattern is not mechanically safe.",
     ])
     path.write_text("\n".join(lines), encoding="utf-8-sig")
