@@ -45,10 +45,46 @@ LAST_DIRECTORY_PAGE = 111
 RENDER_SCALE = 2
 
 USER_CONFIRMED_DB_KEEP_IDS = {
+    # source_page is the pasture/household listing page. A spouse may be
+    # missing from that page or placed in another pasture; MDB spouse data and
+    # role/photo-page OCR can still confirm the relationship.
+    "0a620439-7644-4383-b45c-9d3d3bb0d5e2",  # 노성희: spouse 강희열 confirmed
+    "f49301b2-afbe-4085-a552-e5ba8ccfe520",  # 임태섭: spouse 전민자, no photo confirmed
+    "0245c1d8-96fd-474e-a343-1931bbced9bf",  # 권관옥: phone/spouse confirmed
     "201c686b-11cc-4f97-a8a1-cb19e1b2b006",  # 이석철: 은퇴시무집사 confirmed
+    "901e2d9a-e925-4d32-8ad3-857a1bda3e40",  # 임순이: phone/spouse confirmed
+    "d04dc94e-932a-48a0-8ee8-7ce1efdb5af7",  # 김찬규: was misread as 전진규, spouse 김은지 confirmed
+    "c5ef4139-499b-4d89-b60b-59482ab70e1c",  # 전진규: spouse 구영교 confirmed
+    "43a9f9b4-3d0c-440a-bb1f-fd32dc4a0827",  # 구영교: spouse 전진규 confirmed
+    "68e6467f-c329-4519-9cdf-c8941bbdb5c4",  # 박영란: 은퇴시무권사, spouse 신승원 confirmed
+    "5a582395-1d2b-4b85-8e71-e238279f6ef4",  # 신승원: 은퇴시무집사, spouse 박영란 confirmed
     "86f3b692-04c4-4731-a74d-dcc3b19fc79a",  # 조유태: 은퇴시무집사 confirmed
+    "33b5418d-cb93-4ca5-8f71-fd165b65bf41",  # 박현지: 서리집사, spouse 진영우 confirmed
+    "fc07afc3-6497-4804-9cd8-0f49e266f4db",  # 진영우: 서리집사, spouse 박현지 confirmed
+    "3a31276a-b0de-41d7-8613-64ce0acb4586",  # 김인기: OCR/manual crop corrected from 강민기
+    "e747c5c6-8474-40dc-a4e3-a737b2acf315",  # 박영석: OCR/manual crop corrected from 박영식
+    "caf89ec6-8233-4795-b1c5-698bf55eba91",  # 임순현: OCR/manual crop corrected from 임순혜
+    "b0e146c3-f48a-4234-a17e-a04848523c1a",  # 안준: 집사 confirmed
+    "04971639-0fcb-4cab-aab4-54baf57e7c32",  # 황영애: 권사 confirmed
+    "9518d3e1-1db6-4377-ad6a-f267718ac7d4",  # 한현용: spouse/shared contact OCR false conflict
+    "38dd1bc8-d0be-4d4f-b824-2c097ee55736",  # 이일호: 성도, spouse 조향선 confirmed
+    "51561ecf-deff-42fd-a6ba-0927747b90d5",  # 조향선: 서리집사, spouse 이일호 confirmed
     "b4b0f9f4-2e4f-40d6-ab23-bfc8a172cb5d",  # 한영진: active member, OCR candidate ignored
+    "adcec55a-a524-444a-be0f-6a11a9151c74",  # 신영이: 시무권사, spouse 김지호 confirmed
+    "ddd4ef61-b067-44f7-863a-1eb7bc7a96ab",  # 김지호: 성도, spouse 신영이 confirmed
+    "d60bf316-7040-463a-ad2d-e74cf21a80ba",  # 천미숙: 시무권사, spouse 이정필 confirmed
+    "9b5fd4e2-a5da-4a6e-b697-affef2588f34",  # 이정필: 성도, spouse 천미숙 confirmed
+    "d0d108fd-a19d-42d1-846f-2a0d7a0c60bc",  # 이용순: 교육사 confirmed
     "f3a802c9-3c82-4e75-a890-5fcb51eae435",  # 김성현: 정영교 spouse, no photo confirmed
+    "d0ac186c-1754-47c6-b5d8-8432b33e91d0",  # 노상용: OCR/manual crop confirms DB row
+    "96b8734a-7c62-4a85-92a2-b90d1185d25c",  # 문인옥: OCR/manual crop confirms DB row
+    "c55d1bcd-846e-4b03-8725-ad09936c4acf",  # 쯔엉티프엉: OCR/manual crop confirms DB row
+    "366dd0cd-3991-4d8a-b32b-1deb87cddb55",  # 연무진: OCR/manual crop confirms DB row
+    "3b2da086-73cd-47a4-bbe3-120002e236d2",  # 김건희: OCR/manual crop corrected from duplicate 김근수
+    "46914331-75c0-421a-b7c6-cecef31fe09e",  # 이영신: OCR/manual crop corrected from 이명선
+    "87941a31-9c10-4ffa-af08-a255c12fef3c",  # 박선옥: OCR/manual crop corrected from 주성철
+    "ceb92bfb-4fac-4d53-9005-5a4917e7775b",  # 박정숙: OCR/manual crop corrected from 송혜숙
+    "d9902676-e879-4673-ba52-7986fb6a299d",  # 박강민: OCR/manual crop corrected from 박강인
     "f1733b7d-d61d-42b5-a939-af9575ff7999",  # 김홍남: 은퇴시무집사 confirmed
     "ac5fbb3a-de60-47c2-82dd-7573802547d5",  # 김근수: 은퇴시무집사 confirmed
     "0db5745d-e948-41d7-abd2-fb62f3837104",  # 조석호: 교육사 confirmed
@@ -618,6 +654,29 @@ def classify(member: dict[str, Any], old: ParsedRow | None, new: ParsedRow | Non
     return "ambiguous"
 
 
+def family_shared_contact_conflict(
+    member: dict[str, Any],
+    old: ParsedRow | None,
+    new: ParsedRow | None,
+    household_names: set[str],
+) -> bool:
+    candidate_names = [
+        row.name
+        for row in (old, new)
+        if row and row.name and not name_close(member.get("name"), row.name)
+    ]
+    if not candidate_names:
+        return False
+
+    spouse_name = norm_name(member.get("spouse_name"))
+    family_names = {norm_name(name) for name in household_names if name}
+    if spouse_name:
+        family_names.add(spouse_name)
+    family_names.discard(norm_name(member.get("name")))
+
+    return bool(family_names) and all(norm_name(name) in family_names for name in candidate_names)
+
+
 def crop_filename(row: dict[str, Any]) -> str:
     if row["verdict"] == "all_agree":
         return ""
@@ -634,11 +693,16 @@ def build_comparison(existing_rows: list[ParsedRow], new_rows: list[ParsedRow]) 
     load_env()
     members = fetch_all(
         "members",
-        select="id,name,status,phone,home_phone,family_church,sub_role,spouse_name,is_child,source_page",
+        select="id,name,status,phone,home_phone,family_church,sub_role,spouse_name,is_child,source_page,household_id",
         extra="status=eq.active&source_page=not.is.null&order=source_page.asc,name.asc",
     )
     existing_by_phone, existing_by_name, existing_by_page = index_rows(existing_rows)
     new_by_phone, new_by_name, new_by_page = index_rows(new_rows)
+    names_by_household: dict[str, set[str]] = defaultdict(set)
+    for member in members:
+        household_id = str(member.get("household_id") or "")
+        if household_id and member.get("name"):
+            names_by_household[household_id].add(str(member.get("name")))
 
     output = []
     for member in members:
@@ -647,6 +711,13 @@ def build_comparison(existing_rows: list[ParsedRow], new_rows: list[ParsedRow]) 
         old, old_method = find_match(member, existing_by_phone, existing_by_name, existing_by_page)
         new, new_method = find_match(member, new_by_phone, new_by_name, new_by_page)
         verdict = classify(member, old, new)
+        if verdict == "ambiguous" and family_shared_contact_conflict(
+            member,
+            old,
+            new,
+            names_by_household.get(str(member.get("household_id") or ""), set()),
+        ):
+            verdict = "family_shared_contact"
         review_bucket, review_reason = describe_verdict(verdict)
         comparison_row = {
             "verdict": verdict,
@@ -656,6 +727,7 @@ def build_comparison(existing_rows: list[ParsedRow], new_rows: list[ParsedRow]) 
             "source_page": member.get("source_page"),
             "db_name": member.get("name"),
             "db_sub_role": normalize_role(member.get("sub_role")),
+            "db_spouse_name": member.get("spouse_name"),
             "db_phone": member.get("phone"),
             "db_home_phone": member.get("home_phone"),
             "existing_match_method": old_method,
@@ -689,6 +761,7 @@ def describe_verdict(verdict: str) -> tuple[str, str]:
         "role_review_ab_agree_db_diff": ("visual_review", "both parses agree on a different role"),
         "single_parse_role_review": ("visual_review", "one parse supports the identity, but role differs from DB"),
         "single_parse_name_role_review": ("visual_review", "one parse has a close name candidate and role differs from DB"),
+        "family_shared_contact": ("low_priority", "OCR matched a spouse/household member through shared contact info"),
         "no_pdf_match": ("manual_review", "no reliable row matched in either parse"),
         "ambiguous": ("manual_review", "matched evidence conflicts or points to another household member"),
     }
@@ -698,7 +771,7 @@ def describe_verdict(verdict: str) -> tuple[str, str]:
 def write_comparison_workbook(rows: list[dict[str, Any]], path: Path) -> Path:
     auto_pass = {"all_agree", "user_confirmed_db", "new_ocr_matches_db", "existing_parse_matches_db", "new_ocr_fuzzy_name_matches_db", "existing_parse_fuzzy_name_matches_db"}
     visual_review = {"name_review_ab_agree_db_diff", "role_review_ab_agree_db_diff", "single_parse_role_review", "single_parse_name_role_review"}
-    low_priority = {"identity_supported_role_unreadable"}
+    low_priority = {"identity_supported_role_unreadable", "family_shared_contact"}
     manual_review = {"ambiguous", "no_pdf_match"}
     user_review_headers = [
         "user_decision",
