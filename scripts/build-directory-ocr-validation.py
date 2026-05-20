@@ -673,24 +673,35 @@ def describe_verdict(verdict: str) -> tuple[str, str]:
     return descriptions.get(verdict, ("manual_review", "unclassified disagreement"))
 
 
-def write_comparison_workbook(rows: list[dict[str, Any]], path: Path) -> None:
+def write_comparison_workbook(rows: list[dict[str, Any]], path: Path) -> Path:
     auto_pass = {"all_agree", "new_ocr_matches_db", "existing_parse_matches_db", "new_ocr_fuzzy_name_matches_db", "existing_parse_fuzzy_name_matches_db"}
     visual_review = {"name_review_ab_agree_db_diff", "role_review_ab_agree_db_diff", "single_parse_role_review", "single_parse_name_role_review"}
     low_priority = {"identity_supported_role_unreadable"}
     manual_review = {"ambiguous", "no_pdf_match"}
+    user_review_headers = [
+        "user_decision",
+        "confirmed_name",
+        "confirmed_sub_role",
+        "photo_note",
+        "user_note",
+    ]
 
     workbook = Workbook()
     ws = workbook.active
     ws.title = "3자 비교"
     headers = list(rows[0].keys()) if rows else []
 
-    def write_sheet(sheet: Any, sheet_rows: list[dict[str, Any]], fill: str) -> None:
-        sheet.append(headers)
+    def write_sheet(sheet: Any, sheet_rows: list[dict[str, Any]], fill: str, include_user_review: bool = False) -> None:
+        sheet_headers = headers + (user_review_headers if include_user_review else [])
+        sheet.append(sheet_headers)
         for cell in sheet[1]:
             cell.font = Font(bold=True)
             cell.fill = PatternFill("solid", fgColor=fill)
         for row in sheet_rows:
-            sheet.append([row.get(header, "") for header in headers])
+            values = [row.get(header, "") for header in headers]
+            if include_user_review:
+                values.extend(["", "", "", "", ""])
+            sheet.append(values)
         sheet.freeze_panes = "A2"
         sheet.auto_filter.ref = sheet.dimensions
 
@@ -698,18 +709,24 @@ def write_comparison_workbook(rows: list[dict[str, Any]], path: Path) -> None:
     diff = workbook.create_sheet("차이 후보")
     write_sheet(diff, [row for row in rows if row["verdict"] != "all_agree"], "FEE2E2")
     visual = workbook.create_sheet("시각 확인 후보")
-    write_sheet(visual, [row for row in rows if row["verdict"] in visual_review], "DBEAFE")
+    write_sheet(visual, [row for row in rows if row["verdict"] in visual_review], "DBEAFE", include_user_review=True)
     manual = workbook.create_sheet("수동 검수 요청")
-    write_sheet(manual, [row for row in rows if row["verdict"] in manual_review], "EDE9FE")
+    write_sheet(manual, [row for row in rows if row["verdict"] in manual_review], "EDE9FE", include_user_review=True)
     low = workbook.create_sheet("낮은 우선순위")
-    write_sheet(low, [row for row in rows if row["verdict"] in low_priority], "E0E7FF")
+    write_sheet(low, [row for row in rows if row["verdict"] in low_priority], "E0E7FF", include_user_review=True)
     passed = workbook.create_sheet("자동 통과")
     write_sheet(passed, [row for row in rows if row["verdict"] in auto_pass], "DCFCE7")
 
     for sheet in workbook.worksheets:
         for col in sheet.columns:
             sheet.column_dimensions[col[0].column_letter].width = min(34, max(10, max(len(str(cell.value or "")) for cell in col) + 2))
-    workbook.save(path)
+    try:
+        workbook.save(path)
+        return path
+    except PermissionError:
+        fallback = path.with_name(f"{path.stem}_review_columns{path.suffix}")
+        workbook.save(fallback)
+        return fallback
 
 
 def write_diff_crops(pdf_path: Path, comparison_rows: list[dict[str, Any]]) -> None:
@@ -779,6 +796,14 @@ def write_summary(rows: list[dict[str, Any]], parsed_count: int, path: Path) -> 
         "- `낮은 우선순위`: identity is supported, but role evidence is unreadable or blank.",
         "- `자동 통과`: rows where the current DB is supported by at least one parse path.",
         "",
+        "## User Review Columns",
+        "",
+        "- `user_decision`: `DB유지`, `요람반영`, `직접수정`, or `보류`.",
+        "- `confirmed_name`: final name when it should be changed or explicitly confirmed.",
+        "- `confirmed_sub_role`: final role when it should be changed or explicitly confirmed.",
+        "- `photo_note`: photo-specific note such as `사진없음` or `배우자 하옥련 사진 75p`.",
+        "- `user_note`: any other context needed before DB update.",
+        "",
         "## Interpretation",
         "",
         "- `all_agree`: existing parse, new OCR parse, and DB agree on name/role.",
@@ -819,7 +844,7 @@ def main() -> None:
     comparison_xlsx = OUT_ROOT / f"directory_ocr_3way_comparison_{date.today().isoformat()}.xlsx"
     summary_md = OUT_ROOT / f"directory_ocr_validation_summary_{date.today().isoformat()}.md"
     write_parsed_workbook(new_rows, parsed_xlsx)
-    write_comparison_workbook(comparison_rows, comparison_xlsx)
+    comparison_xlsx = write_comparison_workbook(comparison_rows, comparison_xlsx)
     write_diff_crops(pdf_path, comparison_rows)
     write_summary(comparison_rows, len(new_rows), summary_md)
 
