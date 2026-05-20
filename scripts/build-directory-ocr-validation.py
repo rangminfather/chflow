@@ -48,7 +48,7 @@ USER_CONFIRMED_DB_KEEP_IDS = {
     "201c686b-11cc-4f97-a8a1-cb19e1b2b006",  # 이석철: 은퇴시무집사 confirmed
     "86f3b692-04c4-4731-a74d-dcc3b19fc79a",  # 조유태: 은퇴시무집사 confirmed
     "b4b0f9f4-2e4f-40d6-ab23-bfc8a172cb5d",  # 한영진: active member, OCR candidate ignored
-    "f3a802c9-3c82-4e75-a890-5fcb51eae435",  # 김상현: 시무집사 confirmed, 김성현 is separate context
+    "f3a802c9-3c82-4e75-a890-5fcb51eae435",  # 김성현: 정영교 spouse, no photo confirmed
     "f1733b7d-d61d-42b5-a939-af9575ff7999",  # 김홍남: 은퇴시무집사 confirmed
     "ac5fbb3a-de60-47c2-82dd-7573802547d5",  # 김근수: 은퇴시무집사 confirmed
     "0db5745d-e948-41d7-abd2-fb62f3837104",  # 조석호: 교육사 confirmed
