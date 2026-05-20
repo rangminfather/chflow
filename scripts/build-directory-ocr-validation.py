@@ -66,6 +66,10 @@ USER_CONFIRMED_DB_KEEP_IDS = {
     "86f3b692-04c4-4731-a74d-dcc3b19fc79a",  # 조유태: 은퇴시무집사 confirmed
     "33b5418d-cb93-4ca5-8f71-fd165b65bf41",  # 박현지: 서리집사, spouse 진영우 confirmed
     "fc07afc3-6497-4804-9cd8-0f49e266f4db",  # 진영우: 서리집사, spouse 박현지 confirmed
+    "fbe0acfb-0252-4cd6-a292-8c999f0448dc",  # 박순자: p88/MDB family 1050 corrected from 박소자
+    "f16b71c9-beeb-451c-a4b8-b91a63dc99f1",  # 안용기: spouse 박순자 confirmed
+    "e4d5f7dc-baab-470f-a087-6e87608e0c9b",  # 안민호: 안용기/박순자 child confirmed
+    "a8b00caa-6c31-4203-ac9d-ba22c9173772",  # 안준호: 안용기/박순자 child confirmed
     "3a31276a-b0de-41d7-8613-64ce0acb4586",  # 김인기: OCR/manual crop corrected from 강민기
     "e747c5c6-8474-40dc-a4e3-a737b2acf315",  # 박영석: OCR/manual crop corrected from 박영식
     "caf89ec6-8233-4795-b1c5-698bf55eba91",  # 임순현: OCR/manual crop corrected from 임순혜
@@ -74,6 +78,8 @@ USER_CONFIRMED_DB_KEEP_IDS = {
     "9518d3e1-1db6-4377-ad6a-f267718ac7d4",  # 한현용: spouse/shared contact OCR false conflict
     "38dd1bc8-d0be-4d4f-b824-2c097ee55736",  # 이일호: 성도, spouse 조향선 confirmed
     "51561ecf-deff-42fd-a6ba-0927747b90d5",  # 조향선: 서리집사, spouse 이일호 confirmed
+    "1129547b-d1a2-4784-8d8e-584fc0a7b5d1",  # 윤경숙: p92 original corrected from 공준숙
+    "6f433f08-d26d-443b-a899-06f6c1d7cc45",  # 박순형: p92 original corrected from 박승형
     "38864201-b30b-4a79-921f-57bf3fe50793",  # 박은정: no spouse, children 진성/재성, 김지원 unrelated
     "009f6bdb-65d8-4603-8e00-fbe93c43694e",  # 김지원: unrelated to 박은정, shared phone/OCR conflict resolved
     "50588029-f69e-419e-ad1a-a62e91ebac3d",  # 진성: 박은정 child confirmed
@@ -88,6 +94,15 @@ USER_CONFIRMED_DB_KEEP_IDS = {
     "664bd15d-ca60-424f-baa0-75c534c6eeb0",  # 신관익: original p78 corrected from OCR 신관옥
     "9285c644-a516-4c1f-8798-0c965e14d591",  # 백정희: original p78 corrected from OCR 박정희
     "238379a6-40ae-4faf-8994-c54c2f7edba4",  # 신은정: 신관익/백정희 child confirmed
+    "f526a8ee-8397-4cdd-91fc-1e27c6560e52",  # 김은순: p94 original corrected from 장수화
+    "2e26ba2f-b2a7-4a00-9d42-652e03de7dea",  # 전송수: spouse 김은순 confirmed
+    "47ad29d7-bfb1-4283-a97f-8e93716f3616",  # 박수진: p97 original corrected from 박옥진
+    "e3647779-c5f5-45c5-9c4a-6dcaf31a3287",  # 선우석: spouse 박수진 confirmed
+    "dee865f3-e050-4266-be41-40a9c0753f37",  # 정사무엘: p97 original corrected from 박해준
+    "84744504-238d-419f-b289-593699b1e6b7",  # 손미혜: p97 original corrected from 정주원
+    "33d53645-fac4-496c-b132-6071e481767c",  # 장준호: p97 original corrected from 정순호
+    "6de31251-f09e-4e0c-9f60-3f1a373fa85b",  # 김수진: spouse 장준호 confirmed
+    "74e03b92-35b0-492d-8c77-b8d8fde07353",  # 정희은: p97 original corrected from 정화원
     "d0ac186c-1754-47c6-b5d8-8432b33e91d0",  # 노상용: OCR/manual crop confirms DB row
     "96b8734a-7c62-4a85-92a2-b90d1185d25c",  # 문인옥: OCR/manual crop confirms DB row
     "c55d1bcd-846e-4b03-8725-ad09936c4acf",  # 쯔엉티프엉: OCR/manual crop confirms DB row
@@ -97,6 +112,16 @@ USER_CONFIRMED_DB_KEEP_IDS = {
     "87941a31-9c10-4ffa-af08-a255c12fef3c",  # 박선옥: OCR/manual crop corrected from 주성철
     "ceb92bfb-4fac-4d53-9005-5a4917e7775b",  # 박정숙: OCR/manual crop corrected from 송혜숙
     "d9902676-e879-4673-ba52-7986fb6a299d",  # 박강민: OCR/manual crop corrected from 박강인
+    "e14d6409-421c-4fff-a96e-6d10fb16b8fe",  # 박명학: p99 original corrected from 박성혁
+    "5b78a57f-07c4-4360-94b5-27de7222f4b5",  # 조은혜: spouse 박명학 confirmed
+    "7d7b0492-2307-4058-b86a-a42a26b82c81",  # 김상석: p99 original corrected from 박재혁
+    "5d21c7ef-6446-41cd-bb08-db883d62c364",  # 정수연: spouse 김상석 confirmed
+    "e3fa8121-1f42-4f49-9209-fd65854f9fe4",  # 정외섭: p101 original corrected from 정희성
+    "b0d49282-46b5-4206-beb4-5eb5f7b7cbfa",  # 박화선: spouse 정외섭 confirmed
+    "073431d1-ebc8-44c4-80f3-e01e0e05acca",  # 조경자: spouse 김규호 confirmed
+    "91b8a869-c356-44bf-94b9-8e780295c73d",  # 박상범: p110 no phone, OCR phone belonged to 이예소
+    "7f9fad94-8488-4d12-8d76-2f9e7dcae5c1",  # 이예소: p110 phone confirmed
+    "cab7e2da-ccef-4763-8ad2-71ef11f0eb39",  # 정성령: p110 original corrected from 장성영
     "f1733b7d-d61d-42b5-a939-af9575ff7999",  # 김홍남: 은퇴시무집사 confirmed
     "ac5fbb3a-de60-47c2-82dd-7573802547d5",  # 김근수: 은퇴시무집사 confirmed
     "0db5745d-e948-41d7-abd2-fb62f3837104",  # 조석호: 교육사 confirmed
