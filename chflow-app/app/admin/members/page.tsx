@@ -244,6 +244,7 @@ function AdminMembersPage() {
             <button onClick={() => router.push("/admin/dept-staff")} style={{ ...btnGhost, background: "#fce7f3", color: "#9d174d" }}>🏢 부서원 관리</button>
             <button onClick={() => router.push("/admin/rearrange")} style={{ ...btnGhost, background: "#e0e7ff", color: "#4338ca" }}>🔀 재편성</button>
             <button onClick={() => router.push("/admin/pending")} style={btnWarning}>⏳ 가입 대기자</button>
+            <button onClick={() => router.push("/admin/ai-review")} style={{ ...btnGhost, background: "#fff7ed", color: "#c2410c" }}>AI 검수</button>
             <button onClick={() => router.push("/admin/ops-status")} style={{ ...btnGhost, background: "#ecfdf5", color: "#047857" }}>📊 운영 상태</button>
             <button onClick={() => router.push("/home")} style={btnGhost}>← 홈</button>
           </div>
