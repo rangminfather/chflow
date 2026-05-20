@@ -1,0 +1,35 @@
+-- Low-priority OCR cleanup: spouse/shared-phone rows and one clear role fix.
+
+update public.members set phone = '' where id = 'e455b7f6-27b1-4133-a974-f5a78c770d6e'::uuid;
+update public.members set phone = '010-5858-6478' where id = 'c7635608-8fa4-46e6-add3-a05243d0c75d'::uuid;
+update public.members set phone = '' where id = '2ef57e19-fd3b-4c1d-b0ff-4155800f4efe'::uuid;
+update public.members set phone = '010-9333-3882', sub_role = '집사', spouse_name = '홍상의' where id = '11f31292-90bd-4606-a254-71da61ba85bf'::uuid;
+update public.members set phone = '010-4346-6624' where id = 'f343c161-7734-4eee-b176-0b9cdbc38818'::uuid;
+update public.members set phone = '010-2712-9676' where id = '8e000658-f291-4b33-a1a9-03c0a004cdac'::uuid;
+update public.members set spouse_name = '장용환', phone = '010-7734-9199' where id = '134fea1f-04a1-4275-b7d3-d7f61d3d929f'::uuid;
+update public.members set spouse_name = '전예리', phone = '010-5297-3693' where id = '1a704f43-2bec-4c5d-b8dd-537d4791d79b'::uuid;
+update public.members set phone = '' where id = '9ecc68c8-29bf-4e09-a6a4-fe4cb8379e7c'::uuid;
+update public.members set phone = '010-2103-7789' where id = '04971639-0fcb-4cab-aab4-54baf57e7c32'::uuid;
+update public.members set phone = '' where id = 'ccab4e85-fd8b-4bc6-b141-063b8ff26967'::uuid;
+update public.members set status = 'active', source_page = 77, is_child = false, sub_role = '집사', phone = '010-3048-5942', spouse_name = '박이서', photo_status = 'no_photo_in_pdf' where id = '5c8f21ae-f32b-40e8-84c0-e1245976693f'::uuid;
+update public.members set phone = '' where id = '0e259d67-2e29-44ef-9e57-8ecfc73fd65c'::uuid;
+update public.members set phone = '010-9191-9273' where id = '4bdf16d2-70a6-4db1-9f72-ca0292d04040'::uuid;
+update public.members set spouse_name = '박동순', phone = '' where id = '049667b2-ea33-45cc-8a20-304eb86be73d'::uuid;
+update public.members set phone = '010-4578-1792' where id = 'd5fe68ae-63f7-4542-a165-d6592b773f83'::uuid;
+update public.members set spouse_name = '김영미', phone = '' where id = 'b2e60fc3-5fd0-4e92-bf95-60b315717532'::uuid;
+update public.members set phone = '010-2518-9960' where id = '845c07c0-209d-48e3-b3bf-801f56a07333'::uuid;
+update public.members set phone = '010-4547-5958' where id = 'f4d8e080-5fc6-43c2-bc94-ee7f14ecb03f'::uuid;
+update public.members set phone = '010-9206-3133' where id = '13a51c53-3ebb-49f9-a8a5-6890d141a98d'::uuid;
+update public.members set spouse_name = '최매자', phone = '' where id = '6e11d41b-bcf9-4f90-8fbc-c42ebde3e637'::uuid;
+update public.members set phone = '010-9242-1367' where id = 'c61f7c4b-01a1-4ef1-89b8-5bc2ceb5270b'::uuid;
+update public.members set phone = '' where id = '1adfd176-7f15-4c23-b50e-38fc0bc5ca67'::uuid;
+update public.members set phone = '010-2998-4349' where id = '96d2dce9-e24c-4c16-a6a9-410e48b22879'::uuid;
+update public.members set phone = '' where id = '99e582d0-22ba-49a5-a714-2edfa5e8a00b'::uuid;
+update public.members set phone = '010-8959-5482' where id = '7606b07c-89d9-4d8f-8287-5079d5e1cc0a'::uuid;
+update public.members set phone = '' where id = '97bbc398-1097-4244-982e-cedc42b15f1b'::uuid;
+update public.members set phone = '010-8501-3804' where id = 'ca3305f1-1d52-4a73-bc1d-7096c6e834e8'::uuid;
+update public.members set spouse_name = '이은주' where id = '1f362817-1bcc-4600-be8f-baefa4b3683b'::uuid;
+update public.members set phone = '' where id = 'a2aa74f4-a019-4ffb-b446-2ff1aee61ef6'::uuid;
+update public.members set phone = '' where id = '6f315cff-ab03-4b30-a5f6-d3fc8be45ca0'::uuid;
+update public.members set phone = '010-2575-4238' where id = 'd7514041-ca56-43ad-8c65-ebf70a771322'::uuid;
+update public.members set sub_role = '은퇴시무권사' where id = '8b105f59-4f6b-4920-8a8a-6b35b500dd1b'::uuid;

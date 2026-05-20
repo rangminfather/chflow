@@ -122,6 +122,58 @@ USER_CONFIRMED_DB_KEEP_IDS = {
     "91b8a869-c356-44bf-94b9-8e780295c73d",  # 박상범: p110 no phone, OCR phone belonged to 이예소
     "7f9fad94-8488-4d12-8d76-2f9e7dcae5c1",  # 이예소: p110 phone confirmed
     "cab7e2da-ccef-4763-8ad2-71ef11f0eb39",  # 정성령: p110 original corrected from 장성영
+    "750c7c04-d852-4540-b9f2-49d318f5f6e0",  # low priority resolved: 김영숙
+    "5ba31645-3ed9-47ae-b297-e15a73a22d1a",  # low priority resolved: 이희자
+    "489d2da8-65da-45e6-a931-2683504c5dda",  # low priority resolved: 강태욱
+    "754771c8-1f3c-4432-9f93-2e710b70a80c",  # low priority resolved: 강정옥
+    "9c10aae7-15a0-4f8a-87b8-ddfbb4aeb179",  # low priority resolved: 김권수
+    "f10148af-76d8-4e50-a3ee-efe6d3140a5d",  # low priority resolved: 이영찬
+    "d0fe64b5-4a0a-4176-8c90-66c3a74e1bfd",  # low priority resolved: 임영실
+    "e55e67be-7146-45f0-913d-8d8f4970706f",  # low priority resolved: 방원영
+    "91f83932-89fe-4091-9f19-00c0ba8a40ca",  # low priority resolved: 장무환
+    "8c34164d-19fb-49ca-9087-f6c515c69d42",  # low priority resolved: 조은희
+    "3486e004-b3bc-4957-b11b-33aa2ac58a67",  # low priority resolved: 김희영
+    "bae1bcb5-4054-4940-8ee2-bc209ab60f3e",  # low priority resolved: 고은아
+    "1c0a17db-b4d2-41e1-84eb-308924e594ab",  # low priority resolved: 정오금
+    "8b105f59-4f6b-4920-8a8a-6b35b500dd1b",  # low priority resolved: 현춘엽
+    "cd267c86-9f62-41b9-9949-d0dd0a8977d2",  # low priority resolved: 신진호
+    "1a0e3485-d1ad-4c63-9514-e6df3d228568",  # low priority resolved: 김태규
+    "1d070c27-7fef-4d61-b887-0f6cf34e5bd0",  # low priority resolved: 최충천
+    "b7c4ccc1-b87a-49a5-a714-2edfa5e8a00b",  # low priority resolved: 배윤경
+    "b7c4ccc1-b87a-49a2-b8a7-765914a0a67e",  # low priority resolved: 배윤경
+    "5de15393-6546-426d-819e-e4323d4a7d98",  # low priority resolved: 윤희용
+    "ceed981d-4bf3-4712-a814-d32e0f54b964",  # low priority resolved: 김현영
+    "4b0d0696-37af-44ea-9016-b2ba5e72c044",  # low priority resolved: 안정아
+    "6428352a-ee31-4958-895c-57b6de3c40b9",  # low priority resolved: 김효중
+    "f5363603-a6a1-4e3f-9972-c2179440ecb5",  # low priority resolved: 원현우
+    "887f4d2b-39bd-4eb1-bfab-1cfd33e809d2",  # low priority resolved: 이분선
+    "f49c949a-e047-4f02-ae7f-b6761fa980e0",  # low priority resolved: 정화춘
+    "9bb48c6f-162d-493b-b5e0-75f508042b31",  # low priority resolved: 최미옥
+    "511af732-25be-490c-99bc-7da72f81b4a3",  # low priority resolved: 손창명
+    "3deb9273-4bea-43bc-8d8e-7848152a94ca",  # low priority resolved: 김만규
+    "3c28bea9-ba0d-4fe3-81ea-3469de50fa3d",  # low priority resolved: 주완종
+    "1b0d3f4b-c755-4769-8b3a-66f5fe329b0d",  # low priority resolved: 안병희
+    "667cf509-621c-4510-880e-378e0e7cb417",  # low priority resolved: 윤성규
+    "27f75c13-eabb-41e0-affc-4840c7efb156",  # low priority resolved: 하주미
+    "d1cfc18f-71cf-47fe-8f82-a26c0718486b",  # low priority resolved: 허재영
+    "956e3f73-f5df-4c2f-b07e-4d7ccd7d4d33",  # low priority resolved: 황현수
+    "7192c7e5-5e7a-4e48-b15b-55535c4c9288",  # low priority resolved: 박민규
+    "30a72521-0cb9-4505-9d68-f1107578f92d",  # low priority resolved: 엄경애
+    "10386038-c6c0-4b15-b18b-769bb1184343",  # low priority resolved: 백형준
+    "22ee4807-14a1-499c-aae1-b81ac5e12504",  # low priority resolved: 한수봉
+    "047614ee-3159-4048-b576-97234522ee4a",  # low priority resolved: 이봉식
+    "123efa8a-3479-4d59-ab8b-b4abb20b4388",  # low priority resolved: 황광일
+    "ce32b803-e0a6-4eca-b2a8-f3d4f943cae9",  # low priority resolved: 김수현
+    "18ccacfb-cf46-4227-be28-25f5e1fcaa8f",  # low priority resolved: 나주희
+    "9ecc68c8-29bf-4e09-a6a4-fe4cb8379e7c",  # low priority resolved: 최창열
+    "0e259d67-2e29-44ef-9e57-8ecfc73fd65c",  # low priority resolved: 신수식
+    "049667b2-ea33-45cc-8a20-304eb86be73d",  # low priority resolved: 변종태
+    "b2e60fc3-5fd0-4e92-bf95-60b315717532",  # low priority resolved: 이병운
+    "6e11d41b-bcf9-4f90-8fbc-c42ebde3e637",  # low priority resolved: 주용원
+    "1adfd176-7f15-4c23-b50e-38fc0bc5ca67",  # low priority resolved: 김길수
+    "a870d56e-3d50-4118-bb28-853da073186f",  # low priority resolved: 박영훈
+    "97bbc398-1097-4244-982e-cedc42b15f1b",  # low priority resolved: 정규태
+    "1f362817-1bcc-4600-be8f-baefa4b3683b",  # low priority resolved: 방역수
     "f1733b7d-d61d-42b5-a939-af9575ff7999",  # 김홍남: 은퇴시무집사 confirmed
     "ac5fbb3a-de60-47c2-82dd-7573802547d5",  # 김근수: 은퇴시무집사 confirmed
     "0db5745d-e948-41d7-abd2-fb62f3837104",  # 조석호: 교육사 confirmed
