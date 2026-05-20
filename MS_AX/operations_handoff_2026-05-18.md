@@ -367,3 +367,57 @@ Still pending:
    - `장로` -> `시무장로`
    - `집사/시무집사` -> `시무집사` only when PDF evidence is direct.
 4. Keep explicit roles such as 은퇴권사, 명예권사, 은퇴장로, 원로장로, 명예집사 unless the PDF evidence is direct and unambiguous.
+
+## Sub-role Normalization Pass - 2026-05-20
+
+Read-only report script added:
+
+- `scripts/analyze-sub-role-normalization.py`
+
+Generated latest local report files:
+
+- `MS_AX/generated/sub_role_normalization_candidates_2026-05-20.csv`
+- `MS_AX/generated/sub_role_normalization_report_2026-05-20.md`
+
+Report inputs:
+
+- Production Supabase `members`, read through service-role REST.
+- Parsed directory PDF workbook from the cleanup archive:
+  - `MS_AX/archive/2026-05-18_cleanup_candidates/extraction_outputs/parsed-data/명성교회_회원DB_검수용_v2.1.xlsx`
+
+Matching rule:
+
+- same normalized member name
+- same directory `source_page`
+- phone overlap preferred; unique name/page accepted for report classification
+
+Safe automatic update applied manually:
+
+- Migration/query file:
+  - `chflow-project/supabase/migrations/20260520010000_sub_role_safe_normalization.sql`
+- Applied with:
+  - `npx supabase db query --linked --file supabase\migrations\20260520010000_sub_role_safe_normalization.sql`
+- Updated:
+  - 강범석, page 110, `집사` -> `서리집사`
+- Guard conditions used:
+  - exact member id
+  - `status = 'active'`
+  - `name = '강범석'`
+  - `source_page = 110`
+  - current `sub_role = '집사'`
+  - phone digits match `01044145451`
+
+Verification after update:
+
+- Production row now has `sub_role = '서리집사'`.
+- Re-running the report produced:
+  - direct differing matches: 46
+  - safe automatic candidates: 0
+  - manual review candidates: 46
+
+Remaining work:
+
+1. Review the 46 manual candidates in the CSV.
+2. Do not bulk-apply them without human confirmation.
+3. Focus first on rows where the PDF role is explicit but does not cross role family.
+4. Keep 은퇴/명예/원로 roles unchanged unless PDF evidence is direct and user-verified.
