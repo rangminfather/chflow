@@ -49,7 +49,12 @@ USER_CONFIRMED_DB_KEEP_IDS = {
     # missing from that page or placed in another pasture; MDB spouse data and
     # role/photo-page OCR can still confirm the relationship.
     "0a620439-7644-4383-b45c-9d3d3bb0d5e2",  # 노성희: spouse 강희열 confirmed
+    "6cab1b79-e934-4e37-a830-db4c2a6253f8",  # 남정희: 김성환 spouse, no photo confirmed
+    "fae1ccb5-e56e-48d9-bc65-e3fe77f4ee26",  # 김성환: 남정희 spouse, photo only confirmed
     "f49301b2-afbe-4085-a552-e5ba8ccfe520",  # 임태섭: spouse 전민자, no photo confirmed
+    "f3318f4e-e1ba-4cfd-a4af-2179e7a37d1f",  # 박기완: 김현숙 spouse, no photo confirmed
+    "f91e1ac8-fc5e-4af2-9bf9-383a35f8ea97",  # 김현숙: 시무권사, spouse 박기완 confirmed
+    "34398216-107a-4759-a016-b50edfab769b",  # 박영석: 김현숙/박기완 child confirmed
     "0245c1d8-96fd-474e-a343-1931bbced9bf",  # 권관옥: phone/spouse confirmed
     "201c686b-11cc-4f97-a8a1-cb19e1b2b006",  # 이석철: 은퇴시무집사 confirmed
     "901e2d9a-e925-4d32-8ad3-857a1bda3e40",  # 임순이: phone/spouse confirmed
@@ -69,6 +74,10 @@ USER_CONFIRMED_DB_KEEP_IDS = {
     "9518d3e1-1db6-4377-ad6a-f267718ac7d4",  # 한현용: spouse/shared contact OCR false conflict
     "38dd1bc8-d0be-4d4f-b824-2c097ee55736",  # 이일호: 성도, spouse 조향선 confirmed
     "51561ecf-deff-42fd-a6ba-0927747b90d5",  # 조향선: 서리집사, spouse 이일호 confirmed
+    "38864201-b30b-4a79-921f-57bf3fe50793",  # 박은정: no spouse, children 진성/재성, 김지원 unrelated
+    "009f6bdb-65d8-4603-8e00-fbe93c43694e",  # 김지원: unrelated to 박은정, shared phone/OCR conflict resolved
+    "50588029-f69e-419e-ad1a-a62e91ebac3d",  # 진성: 박은정 child confirmed
+    "b7056234-965d-4371-83c7-a2bdcd046d15",  # 재성: 박은정 child confirmed
     "b4b0f9f4-2e4f-40d6-ab23-bfc8a172cb5d",  # 한영진: active member, OCR candidate ignored
     "adcec55a-a524-444a-be0f-6a11a9151c74",  # 신영이: 시무권사, spouse 김지호 confirmed
     "ddd4ef61-b067-44f7-863a-1eb7bc7a96ab",  # 김지호: 성도, spouse 신영이 confirmed
@@ -76,6 +85,9 @@ USER_CONFIRMED_DB_KEEP_IDS = {
     "9b5fd4e2-a5da-4a6e-b697-affef2588f34",  # 이정필: 성도, spouse 천미숙 confirmed
     "d0d108fd-a19d-42d1-846f-2a0d7a0c60bc",  # 이용순: 교육사 confirmed
     "f3a802c9-3c82-4e75-a890-5fcb51eae435",  # 김성현: 정영교 spouse, no photo confirmed
+    "664bd15d-ca60-424f-baa0-75c534c6eeb0",  # 신관익: original p78 corrected from OCR 신관옥
+    "9285c644-a516-4c1f-8798-0c965e14d591",  # 백정희: original p78 corrected from OCR 박정희
+    "238379a6-40ae-4faf-8994-c54c2f7edba4",  # 신은정: 신관익/백정희 child confirmed
     "d0ac186c-1754-47c6-b5d8-8432b33e91d0",  # 노상용: OCR/manual crop confirms DB row
     "96b8734a-7c62-4a85-92a2-b90d1185d25c",  # 문인옥: OCR/manual crop confirms DB row
     "c55d1bcd-846e-4b03-8725-ad09936c4acf",  # 쯔엉티프엉: OCR/manual crop confirms DB row
