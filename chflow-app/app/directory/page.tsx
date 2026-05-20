@@ -1,0 +1,806 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
+import { useRouter } from "next/navigation";
+import HeaderLogo from "@/components/HeaderLogo";
+import ModalBackdrop from "@/components/ModalBackdrop";
+import { supabase } from "@/lib/supabase";
+
+type UserInfo = {
+  role: string;
+  status: string;
+};
+
+type DirRow = {
+  plain_name: string | null;
+  plain_order: number | null;
+  grassland_name: string | null;
+  pasture_name: string | null;
+};
+
+type DirectoryMember = {
+  id: string;
+  name: string;
+  phone: string | null;
+  home_phone: string | null;
+  gender: string | null;
+  family_church: string | null;
+  sub_role: string | null;
+  spouse_name: string | null;
+  address: string | null;
+  pasture_name: string | null;
+  grassland_name: string | null;
+  plain_name: string | null;
+  is_child: boolean | null;
+  photo_url: string | null;
+  household_id: string | null;
+  source_page: number | null;
+  total_count: number;
+};
+
+type ProfileMember = DirectoryMember & {
+  household_home_phone?: string | null;
+};
+
+type RelatedMember = {
+  id?: string;
+  relative_id?: string;
+  name: string;
+  phone: string | null;
+  home_phone?: string | null;
+  family_church?: string | null;
+  sub_role?: string | null;
+  spouse_name?: string | null;
+  is_child?: boolean | null;
+  photo_url: string | null;
+  gender?: string | null;
+  kind?: string;
+  role?: string | null;
+  pasture_name?: string | null;
+  grassland_name?: string | null;
+  plain_name?: string | null;
+  direction?: "ancestor" | "descendant";
+};
+
+type ProfileData = {
+  member: ProfileMember;
+  household_members: RelatedMember[];
+  relations: RelatedMember[];
+  descendants: RelatedMember[];
+};
+
+const PAGE_SIZE = 30;
+
+export default function DirectoryPage() {
+  const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
+  const [user, setUser] = useState<UserInfo | null>(null);
+  const [dirTree, setDirTree] = useState<DirRow[]>([]);
+  const [query, setQuery] = useState("");
+  const [plain, setPlain] = useState("");
+  const [grassland, setGrassland] = useState("");
+  const [pasture, setPasture] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [members, setMembers] = useState<DirectoryMember[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
+
+      const { data } = await supabase.rpc("get_my_full_info");
+      const profile = data?.[0] as UserInfo | undefined;
+      if (!profile || profile.status !== "active") {
+        router.replace("/login?notice=pending");
+        return;
+      }
+
+      setUser(profile);
+      setAuthChecked(true);
+
+      const { data: tree } = await supabase.rpc("directory_tree");
+      setDirTree((tree || []) as DirRow[]);
+      await searchMembers(1, "", "", "", "");
+    })();
+  }, [router]);
+
+  const plainOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const rows: { name: string; order: number }[] = [];
+    for (const row of dirTree) {
+      if (row.plain_name && !seen.has(row.plain_name)) {
+        seen.add(row.plain_name);
+        rows.push({ name: row.plain_name, order: row.plain_order ?? 99 });
+      }
+    }
+    return rows.sort((a, b) => a.order - b.order);
+  }, [dirTree]);
+
+  const grasslandOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of dirTree) {
+      if ((!plain || row.plain_name === plain) && row.grassland_name) set.add(row.grassland_name);
+    }
+    return Array.from(set).sort();
+  }, [dirTree, plain]);
+
+  const pastureOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of dirTree) {
+      if ((!plain || row.plain_name === plain)
+        && (!grassland || row.grassland_name === grassland)
+        && row.pasture_name) set.add(row.pasture_name);
+    }
+    return Array.from(set).sort();
+  }, [dirTree, plain, grassland]);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const isAdmin = !!user && ["admin", "office", "pastor"].includes(user.role);
+
+  async function searchMembers(
+    nextPage = page,
+    nextQuery = query,
+    nextPlain = plain,
+    nextGrassland = grassland,
+    nextPasture = pasture,
+  ) {
+    setLoading(true);
+    const trimmedQuery = nextQuery.trim();
+    const clientFilter = !!trimmedQuery;
+    const { data, error } = await supabase.rpc("admin_search_members_paged", {
+      p_query: null,
+      p_plain: nextPlain || null,
+      p_grassland: nextGrassland || null,
+      p_pasture: nextPasture || null,
+      p_offset: clientFilter ? 0 : (nextPage - 1) * PAGE_SIZE,
+      p_limit: clientFilter ? 1000 : PAGE_SIZE,
+      p_show_children: true,
+      p_show_parents: true,
+      p_member_status: "active",
+    });
+
+    if (error) {
+      alert(`성도 검색 실패: ${error.message}`);
+      setMembers([]);
+      setTotal(0);
+    } else {
+      const rows = (data || []) as DirectoryMember[];
+      const filtered = clientFilter ? rows.filter((member) => memberMatchesQuery(member, trimmedQuery)) : rows;
+      const start = clientFilter ? (nextPage - 1) * PAGE_SIZE : 0;
+      setMembers(clientFilter ? filtered.slice(start, start + PAGE_SIZE) : filtered);
+      setTotal(clientFilter ? filtered.length : Number(rows[0]?.total_count || 0));
+    }
+    setLoading(false);
+  }
+
+  function runSearch() {
+    setPage(1);
+    searchMembers(1, query, plain, grassland, pasture);
+  }
+
+  function resetSearch() {
+    setQuery("");
+    setPlain("");
+    setGrassland("");
+    setPasture("");
+    setPage(1);
+    searchMembers(1, "", "", "", "");
+  }
+
+  function goPage(nextPage: number) {
+    setPage(nextPage);
+    searchMembers(nextPage, query, plain, grassland, pasture);
+  }
+
+  if (!authChecked) {
+    return <div style={loadingStyle}>로딩 중...</div>;
+  }
+
+  return (
+    <div style={pageStyle}>
+      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+      <style>{`
+        @media (max-width: 760px) {
+          .directory-header { align-items: flex-start !important; }
+          .directory-search-row { grid-template-columns: 1fr !important; }
+          .directory-grid { grid-template-columns: 1fr !important; }
+          .directory-actions { width: 100% !important; }
+          .directory-actions button { flex: 1 !important; }
+        }
+      `}</style>
+
+      <header className="directory-header" style={headerStyle}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <HeaderLogo />
+          <div style={{ minWidth: 0 }}>
+            <h1 style={titleStyle}>성도 요람</h1>
+            <div style={subtitleStyle}>이름, 전화번호, 배우자, 목장 기준으로 성도를 조회합니다</div>
+          </div>
+        </div>
+        <div className="directory-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {isAdmin && <button style={ghostButtonStyle} onClick={() => router.push("/admin/members")}>회원관리</button>}
+          <button style={ghostButtonStyle} onClick={() => router.push("/home")}>홈</button>
+        </div>
+      </header>
+
+      <section style={searchPanelStyle}>
+        <div className="directory-search-row" style={searchGridStyle}>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => event.key === "Enter" && runSearch()}
+            placeholder="이름, 전화번호, 배우자 검색"
+            style={inputStyle}
+          />
+          <select
+            value={plain}
+            onChange={(event) => {
+              const next = event.target.value;
+              setPlain(next);
+              setGrassland("");
+              setPasture("");
+            }}
+            style={selectStyle}
+          >
+            <option value="">전체 평원</option>
+            {plainOptions.map((option) => (
+              <option key={option.name} value={option.name}>{plainLabel(option.name)}</option>
+            ))}
+          </select>
+          <select
+            value={grassland}
+            onChange={(event) => {
+              setGrassland(event.target.value);
+              setPasture("");
+            }}
+            style={selectStyle}
+          >
+            <option value="">전체 초원</option>
+            {grasslandOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+          <select value={pasture} onChange={(event) => setPasture(event.target.value)} style={selectStyle}>
+            <option value="">전체 목장</option>
+            {pastureOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+          <button style={buttonStyle} onClick={runSearch} disabled={loading}>{loading ? "조회 중" : "검색"}</button>
+          <button style={ghostButtonStyle} onClick={resetSearch} disabled={loading}>초기화</button>
+        </div>
+      </section>
+
+      <main style={contentStyle}>
+        <div style={resultHeadStyle}>
+          <strong>검색 결과</strong>
+          <span>총 {total.toLocaleString()}명 · {page}/{totalPages} 페이지</span>
+        </div>
+
+        <div className="directory-grid" style={gridStyle}>
+          {members.map((member) => (
+            <button key={member.id} style={memberCardStyle} onClick={() => setSelectedId(member.id)}>
+              <Avatar member={member} size={56} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={memberNameStyle}>
+                  {member.name}
+                  {member.is_child && <span style={tagStyle("#fef3c7", "#92400e")}>자녀</span>}
+                </div>
+                <div style={memberMetaStyle}>{member.sub_role || "직분 미지정"} · {member.family_church || "목원"}</div>
+                <div style={memberMetaStyle}>{member.phone || member.home_phone || "연락처 없음"}</div>
+                <div style={memberPlaceStyle}>{locationText(member)}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {members.length === 0 && !loading && (
+          <div style={emptyStyle}>검색 결과가 없습니다</div>
+        )}
+
+        <div style={pagerStyle}>
+          <button style={ghostButtonStyle} disabled={page <= 1 || loading} onClick={() => goPage(page - 1)}>이전</button>
+          <span>{page} / {totalPages}</span>
+          <button style={ghostButtonStyle} disabled={page >= totalPages || loading} onClick={() => goPage(page + 1)}>다음</button>
+        </div>
+      </main>
+
+      {selectedId && (
+        <DirectoryProfileModal
+          memberId={selectedId}
+          isAdmin={isAdmin}
+          onClose={() => setSelectedId(null)}
+          onNavigate={setSelectedId}
+        />
+      )}
+    </div>
+  );
+}
+
+function DirectoryProfileModal({
+  memberId,
+  isAdmin,
+  onClose,
+  onNavigate,
+}: {
+  memberId: string;
+  isAdmin: boolean;
+  onClose: () => void;
+  onNavigate: (id: string) => void;
+}) {
+  const router = useRouter();
+  const [data, setData] = useState<ProfileData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const { data: profile, error } = await supabase.rpc("admin_member_profile", { p_member_id: memberId });
+      if (error) {
+        alert(`성도 상세 조회 실패: ${error.message}`);
+        onClose();
+      } else {
+        setData(profile as ProfileData);
+      }
+      setLoading(false);
+    })();
+  }, [memberId, onClose]);
+
+  if (loading || !data) {
+    return (
+      <ModalBackdrop onClose={onClose} style={modalBgStyle}>
+        <div style={modalCardStyle}>로딩 중...</div>
+      </ModalBackdrop>
+    );
+  }
+
+  const member = data.member;
+  const relations = [...(data.relations || []), ...(data.descendants || [])];
+
+  return (
+    <ModalBackdrop onClose={onClose} style={modalBgStyle}>
+      <div onClick={(event) => event.stopPropagation()} style={modalCardStyle}>
+        <div style={modalHeaderStyle}>
+          <strong>성도 상세</strong>
+          <button style={closeButtonStyle} onClick={onClose}>×</button>
+        </div>
+
+        <div style={profileTopStyle}>
+          <Avatar member={member} size={112} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={profileNameStyle}>
+              {member.name}
+              {member.is_child && <span style={tagStyle("#fef3c7", "#92400e")}>자녀</span>}
+            </div>
+            <div style={profileMetaStyle}>{member.sub_role || "직분 미지정"} · {member.family_church || "목원"}</div>
+            <InfoLine label="연락처" value={member.phone || member.home_phone || member.household_home_phone || "없음"} />
+            <InfoLine label="배우자" value={member.spouse_name || "없음"} />
+            <InfoLine label="소속" value={locationText(member)} />
+            {member.address && <InfoLine label="주소" value={member.address} />}
+          </div>
+        </div>
+
+        {isAdmin && (
+          <button
+            style={{ ...buttonStyle, width: "100%", marginBottom: 14 }}
+            onClick={() => {
+              const params = new URLSearchParams({ q: member.name });
+              if (member.plain_name) params.set("plain", member.plain_name);
+              if (member.grassland_name) params.set("grassland", member.grassland_name);
+              if (member.pasture_name) params.set("pasture", member.pasture_name);
+              router.push(`/admin/members?${params.toString()}`);
+              onClose();
+            }}
+          >
+            관리자 수정 화면으로 이동
+          </button>
+        )}
+
+        <ProfileSection title={`같은 가족 ${data.household_members?.length || 0}`}>
+          {(data.household_members || []).length > 0 ? (
+            <div style={chipGridStyle}>
+              {data.household_members.map((item) => (
+                <RelatedChip key={item.id || item.name} item={item} onClick={() => item.id && onNavigate(item.id)} />
+              ))}
+            </div>
+          ) : (
+            <div style={sectionEmptyStyle}>등록된 같은 가족이 없습니다</div>
+          )}
+        </ProfileSection>
+
+        <ProfileSection title={`가족 관계 ${relations.length}`}>
+          {relations.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {relations.map((item, index) => (
+                <RelatedRow
+                  key={`${item.relative_id}-${index}`}
+                  item={item}
+                  onClick={() => item.relative_id && onNavigate(item.relative_id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div style={sectionEmptyStyle}>등록된 부모·자녀 관계가 없습니다</div>
+          )}
+        </ProfileSection>
+      </div>
+    </ModalBackdrop>
+  );
+}
+
+function Avatar({ member, size }: { member: { name: string; photo_url: string | null; gender?: string | null }; size: number }) {
+  return (
+    <div style={{
+      width: size,
+      height: size,
+      borderRadius: 8,
+      overflow: "hidden",
+      background: "#e2e8f0",
+      flexShrink: 0,
+      display: "grid",
+      placeItems: "center",
+      color: "#64748b",
+      fontSize: Math.max(14, Math.floor(size / 3)),
+      fontWeight: 900,
+    }}>
+      {member.photo_url ? (
+        <img src={member.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      ) : (
+        <span>{member.name.slice(0, 1)}</span>
+      )}
+    </div>
+  );
+}
+
+function InfoLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={infoLineStyle}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function ProfileSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section style={profileSectionStyle}>
+      <div style={sectionTitleStyle}>{title}</div>
+      {children}
+    </section>
+  );
+}
+
+function RelatedChip({ item, onClick }: { item: RelatedMember; onClick: () => void }) {
+  return (
+    <button style={chipStyle} onClick={onClick}>
+      <Avatar member={{ name: item.name, photo_url: item.photo_url, gender: item.gender }} size={34} />
+      <span style={{ minWidth: 0 }}>
+        <strong style={chipNameStyle}>{item.name}</strong>
+        <span style={chipSubStyle}>{item.is_child ? "자녀" : item.sub_role || item.family_church || "가족"}</span>
+      </span>
+    </button>
+  );
+}
+
+function RelatedRow({ item, onClick }: { item: RelatedMember; onClick: () => void }) {
+  return (
+    <button style={relationRowStyle} onClick={onClick}>
+      <Avatar member={{ name: item.name, photo_url: item.photo_url }} size={40} />
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <strong style={relationNameStyle}>{item.name}</strong>
+        <span style={relationSubStyle}>{relationLabel(item)} · {item.phone || item.home_phone || "연락처 없음"}</span>
+      </span>
+    </button>
+  );
+}
+
+function relationLabel(item: RelatedMember) {
+  if (item.kind === "parent") return item.direction === "descendant" ? "자녀" : roleLabel(item.role) || "부모";
+  if (item.kind === "grandparent") return item.direction === "descendant" ? "손주" : "조부모";
+  if (item.kind === "great_grandparent") return item.direction === "descendant" ? "증손주" : "증조부모";
+  if (item.kind === "spouse") return "배우자";
+  return "관계";
+}
+
+function roleLabel(role?: string | null) {
+  if (role === "father") return "아버지";
+  if (role === "mother") return "어머니";
+  if (role === "husband") return "남편";
+  if (role === "wife") return "아내";
+  return "";
+}
+
+function memberMatchesQuery(member: DirectoryMember, query: string) {
+  const normalizedQuery = query.replace(/\s/g, "").toLowerCase();
+  const digits = query.replace(/\D/g, "");
+  const textFields = [
+    member.name,
+    member.spouse_name,
+    member.sub_role,
+    member.family_church,
+    member.pasture_name,
+    member.grassland_name,
+    member.plain_name,
+  ].map((value) => (value || "").replace(/\s/g, "").toLowerCase());
+  if (textFields.some((value) => value.includes(normalizedQuery))) return true;
+  if (!digits) return false;
+  return [member.phone, member.home_phone]
+    .map((value) => (value || "").replace(/\D/g, ""))
+    .some((value) => value.includes(digits));
+}
+
+function plainLabel(name: string) {
+  if (name === "미정") return name;
+  return name.endsWith("평원") ? name : `${name}평원`;
+}
+
+function locationText(member: { plain_name?: string | null; grassland_name?: string | null; pasture_name?: string | null }) {
+  const parts = [
+    member.plain_name ? plainLabel(member.plain_name) : "",
+    member.grassland_name ? `${member.grassland_name}초원` : "",
+    member.pasture_name ? `${member.pasture_name}목장` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "소속 없음";
+}
+
+const pageStyle: CSSProperties = {
+  minHeight: "100vh",
+  background: "#f8fafc",
+  color: "#0f172a",
+  fontFamily: "'Noto Sans KR', system-ui, sans-serif",
+  padding: 16,
+};
+
+const loadingStyle: CSSProperties = {
+  minHeight: "100vh",
+  display: "grid",
+  placeItems: "center",
+  background: "#f8fafc",
+  color: "#0f172a",
+  fontFamily: "'Noto Sans KR', system-ui, sans-serif",
+};
+
+const headerStyle: CSSProperties = {
+  maxWidth: 1180,
+  margin: "0 auto 14px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+};
+
+const titleStyle: CSSProperties = { margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: 0 };
+const subtitleStyle: CSSProperties = { marginTop: 3, fontSize: 12, color: "#64748b" };
+
+const searchPanelStyle: CSSProperties = {
+  maxWidth: 1180,
+  margin: "0 auto 14px",
+  background: "#fff",
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  padding: 12,
+};
+
+const searchGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(220px, 1fr) 130px 130px 130px auto auto",
+  gap: 8,
+};
+
+const inputStyle: CSSProperties = {
+  height: 40,
+  border: "1px solid #cbd5e1",
+  borderRadius: 8,
+  padding: "0 12px",
+  fontSize: 14,
+  fontFamily: "inherit",
+  background: "#fff",
+  minWidth: 0,
+};
+
+const selectStyle: CSSProperties = {
+  ...inputStyle,
+  padding: "0 10px",
+};
+
+const buttonStyle: CSSProperties = {
+  minHeight: 40,
+  border: 0,
+  borderRadius: 8,
+  padding: "0 14px",
+  background: "#2563eb",
+  color: "#fff",
+  fontSize: 13,
+  fontWeight: 800,
+  fontFamily: "inherit",
+  cursor: "pointer",
+};
+
+const ghostButtonStyle: CSSProperties = {
+  minHeight: 40,
+  border: "1px solid #cbd5e1",
+  borderRadius: 8,
+  padding: "0 14px",
+  background: "#fff",
+  color: "#334155",
+  fontSize: 13,
+  fontWeight: 800,
+  fontFamily: "inherit",
+  cursor: "pointer",
+};
+
+const contentStyle: CSSProperties = {
+  maxWidth: 1180,
+  margin: "0 auto",
+  background: "#fff",
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  overflow: "hidden",
+};
+
+const resultHeadStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  padding: "12px 14px",
+  borderBottom: "1px solid #e2e8f0",
+  fontSize: 13,
+  color: "#475569",
+  flexWrap: "wrap",
+};
+
+const gridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+  gap: 10,
+  padding: 12,
+};
+
+const memberCardStyle: CSSProperties = {
+  display: "flex",
+  gap: 10,
+  alignItems: "center",
+  width: "100%",
+  minHeight: 94,
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  background: "#fff",
+  padding: 10,
+  textAlign: "left",
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+const memberNameStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 6, fontSize: 15, fontWeight: 900, color: "#0f172a" };
+const memberMetaStyle: CSSProperties = { marginTop: 3, fontSize: 12, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const memberPlaceStyle: CSSProperties = { marginTop: 3, fontSize: 11, color: "#2563eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const emptyStyle: CSSProperties = { padding: 40, textAlign: "center", color: "#94a3b8", fontSize: 13 };
+
+const pagerStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+  padding: 12,
+  borderTop: "1px solid #e2e8f0",
+  fontSize: 13,
+  color: "#475569",
+};
+
+const modalBgStyle: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(15,23,42,0.58)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 16,
+  zIndex: 100,
+};
+
+const modalCardStyle: CSSProperties = {
+  width: "100%",
+  maxWidth: 620,
+  maxHeight: "90vh",
+  overflowY: "auto",
+  background: "#fff",
+  borderRadius: 8,
+  boxShadow: "0 20px 60px rgba(15,23,42,0.25)",
+  padding: 18,
+};
+
+const modalHeaderStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  marginBottom: 16,
+  fontSize: 15,
+};
+
+const closeButtonStyle: CSSProperties = {
+  width: 34,
+  height: 34,
+  border: 0,
+  borderRadius: 8,
+  background: "#f1f5f9",
+  color: "#334155",
+  fontSize: 22,
+  cursor: "pointer",
+};
+
+const profileTopStyle: CSSProperties = {
+  display: "flex",
+  gap: 16,
+  alignItems: "flex-start",
+  marginBottom: 16,
+};
+
+const profileNameStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 8, fontSize: 24, fontWeight: 900, color: "#0f172a" };
+const profileMetaStyle: CSSProperties = { marginTop: 3, marginBottom: 10, fontSize: 13, color: "#64748b" };
+
+const infoLineStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "58px minmax(0, 1fr)",
+  gap: 8,
+  marginTop: 5,
+  fontSize: 12,
+  color: "#64748b",
+};
+
+const profileSectionStyle: CSSProperties = {
+  borderTop: "1px solid #e2e8f0",
+  paddingTop: 14,
+  marginTop: 14,
+};
+
+const sectionTitleStyle: CSSProperties = { marginBottom: 10, fontSize: 13, fontWeight: 900, color: "#334155" };
+const sectionEmptyStyle: CSSProperties = { padding: "10px 0", color: "#94a3b8", fontSize: 12 };
+
+const chipGridStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap" };
+const chipStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 7,
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  background: "#fff",
+  padding: 6,
+  minWidth: 130,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  textAlign: "left",
+};
+const chipNameStyle: CSSProperties = { display: "block", fontSize: 12, color: "#0f172a" };
+const chipSubStyle: CSSProperties = { display: "block", fontSize: 10, color: "#64748b" };
+
+const relationRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  width: "100%",
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  background: "#fff",
+  padding: 8,
+  textAlign: "left",
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+const relationNameStyle: CSSProperties = { display: "block", fontSize: 13, color: "#0f172a" };
+const relationSubStyle: CSSProperties = { display: "block", marginTop: 2, fontSize: 11, color: "#64748b" };
+
+function tagStyle(bg: string, color: string): CSSProperties {
+  return {
+    padding: "2px 6px",
+    borderRadius: 6,
+    background: bg,
+    color,
+    fontSize: 10,
+    fontWeight: 800,
+  };
+}

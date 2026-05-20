@@ -72,7 +72,7 @@ function AdminMembersPage() {
   const [authChecked, setAuthChecked] = useState(false);
 
   // 필터/검색 (URL query로 초기화 지원)
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(searchParams.get("q") || "");
   const [filterPlain, setFilterPlain] = useState(searchParams.get("plain") || "");
   const [filterGrassland, setFilterGrassland] = useState(searchParams.get("grassland") || "");
   const [filterPasture, setFilterPasture] = useState(searchParams.get("pasture") || "");
@@ -113,7 +113,8 @@ function AdminMembersPage() {
       const initPlain = searchParams.get("plain") || "";
       const initGrass = searchParams.get("grassland") || "";
       const initPast = searchParams.get("pasture") || "";
-      doSearch(1, "", initPlain, initGrass, initPast, "active", true, true);
+      const initQuery = searchParams.get("q") || "";
+      doSearch(1, initQuery, initPlain, initGrass, initPast, "active", true, true);
     })();
   }, []);
 

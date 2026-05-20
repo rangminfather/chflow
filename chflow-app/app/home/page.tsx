@@ -42,7 +42,7 @@ const COMMON_MENUS = [
   { id: "bulletin",   label: "주보 보기",       icon: "📖", color: "#0ea5e9", desc: "주간 교회 주보" },
   { id: "events",     label: "행사 공지",       icon: "📢", color: "#0ea5e9", desc: "교회 행사/공지사항" },
   { id: "calendar",   label: "행사 달력",       icon: "📅", color: "#0ea5e9", desc: "월간 교회 행사" },
-  { id: "directory",  label: "성도 요람",       icon: "👥", color: "#0ea5e9", desc: "성도 검색/조회" },
+  { id: "directory",  label: "성도 요람",       icon: "👥", color: "#0ea5e9", desc: "성도 검색/조회", href: "/directory" },
   { id: "facility",   label: "시설 이용 신청",  icon: "🏛️", color: "#f59e0b", desc: "예배실/교육관 등" },
   { id: "vehicle",    label: "차량 이용 신청",  icon: "🚐", color: "#f59e0b", desc: "교회 차량" },
   { id: "booking",    label: "예약 캘린더",     icon: "📆", color: "#f59e0b", desc: "내 예약 / 전체 현황" },
@@ -285,14 +285,6 @@ export default function HomePage() {
               >
                 <span>👥</span>
                 <span className="admin-btn-label">회원관리</span>
-              </button>
-              <button
-                onClick={() => router.push("/admin/photo-review")}
-                title="사진 매칭 검수"
-                style={adminBtnStyle("#ecfeff", "#0e7490")}
-              >
-                <span>📷</span>
-                <span className="admin-btn-label">사진검수</span>
               </button>
               <button
                 onClick={() => router.push("/admin/password-reset")}
@@ -743,7 +735,14 @@ function SidebarContent({
       <div style={{ height: 1, background: "#e2e8f0", margin: "16px 0" }} />
       <div style={sidebarLabelStyle}>공통</div>
       {COMMON_MENUS.slice(0, 6).map((menu) => (
-        <SidebarItem key={menu.id} active={activeMenu === menu.id} onClick={() => setActiveMenu(menu.id)}>
+        <SidebarItem
+          key={menu.id}
+          active={activeMenu === menu.id}
+          onClick={() => {
+            setActiveMenu(menu.id);
+            if ("href" in menu && menu.href) router.push(menu.href);
+          }}
+        >
           <span style={{ marginRight: 6 }}>{menu.icon}</span>
           {menu.label}
         </SidebarItem>
