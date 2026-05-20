@@ -44,6 +44,16 @@ FIRST_DIRECTORY_PAGE = 44
 LAST_DIRECTORY_PAGE = 111
 RENDER_SCALE = 2
 
+USER_CONFIRMED_DB_KEEP_IDS = {
+    "201c686b-11cc-4f97-a8a1-cb19e1b2b006",  # 이석철: 은퇴시무집사 confirmed
+    "86f3b692-04c4-4731-a74d-dcc3b19fc79a",  # 조유태: 은퇴시무집사 confirmed
+    "b4b0f9f4-2e4f-40d6-ab23-bfc8a172cb5d",  # 한영진: active member, OCR candidate ignored
+    "f3a802c9-3c82-4e75-a890-5fcb51eae435",  # 김상현: 시무집사 confirmed, 김성현 is separate context
+    "f1733b7d-d61d-42b5-a939-af9575ff7999",  # 김홍남: 은퇴시무집사 confirmed
+    "ac5fbb3a-de60-47c2-82dd-7573802547d5",  # 김근수: 은퇴시무집사 confirmed
+    "0db5745d-e948-41d7-abd2-fb62f3837104",  # 조석호: 교육사 confirmed
+}
+
 ROLE_FIXES = {
     "Al": "시",
     "kl": "시",
@@ -571,6 +581,9 @@ def identity_supported_with_unreadable_role(member: dict[str, Any], row: ParsedR
 
 
 def classify(member: dict[str, Any], old: ParsedRow | None, new: ParsedRow | None) -> str:
+    if str(member.get("id")) in USER_CONFIRMED_DB_KEEP_IDS:
+        return "user_confirmed_db"
+
     db_name = member.get("name")
     db_role = member.get("sub_role")
     old_name_ok = old is not None and name_equal(db_name, old.name)
@@ -666,6 +679,7 @@ def build_comparison(existing_rows: list[ParsedRow], new_rows: list[ParsedRow]) 
 def describe_verdict(verdict: str) -> tuple[str, str]:
     descriptions = {
         "all_agree": ("auto_pass", "existing parse, new OCR, and DB agree"),
+        "user_confirmed_db": ("auto_pass", "DB value was explicitly confirmed despite OCR disagreement"),
         "new_ocr_matches_db": ("auto_pass", "new OCR exactly supports current DB"),
         "existing_parse_matches_db": ("auto_pass", "existing parse exactly supports current DB"),
         "new_ocr_fuzzy_name_matches_db": ("auto_pass", "new OCR has a one-character name variation but role supports current DB"),
@@ -682,7 +696,7 @@ def describe_verdict(verdict: str) -> tuple[str, str]:
 
 
 def write_comparison_workbook(rows: list[dict[str, Any]], path: Path) -> Path:
-    auto_pass = {"all_agree", "new_ocr_matches_db", "existing_parse_matches_db", "new_ocr_fuzzy_name_matches_db", "existing_parse_fuzzy_name_matches_db"}
+    auto_pass = {"all_agree", "user_confirmed_db", "new_ocr_matches_db", "existing_parse_matches_db", "new_ocr_fuzzy_name_matches_db", "existing_parse_fuzzy_name_matches_db"}
     visual_review = {"name_review_ab_agree_db_diff", "role_review_ab_agree_db_diff", "single_parse_role_review", "single_parse_name_role_review"}
     low_priority = {"identity_supported_role_unreadable"}
     manual_review = {"ambiguous", "no_pdf_match"}
@@ -815,6 +829,7 @@ def write_summary(rows: list[dict[str, Any]], parsed_count: int, path: Path) -> 
         "## Interpretation",
         "",
         "- `all_agree`: existing parse, new OCR parse, and DB agree on name/role.",
+        "- `user_confirmed_db`: DB value was explicitly confirmed despite OCR disagreement.",
         "- `new_ocr_matches_db`: new OCR agrees with DB while existing parse differs or is incomplete.",
         "- `existing_parse_matches_db`: existing parse agrees with DB while new OCR differs or is incomplete.",
         "- `new_ocr_fuzzy_name_matches_db`: new OCR has a one-character name variation, but role supports the DB.",
