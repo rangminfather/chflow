@@ -525,7 +525,15 @@ def find_match(member: dict[str, Any], by_phone: dict[tuple[int, str], list[Pars
 
 
 def role_equal(left: Any, right: Any) -> bool:
-    return normalize_role(left) == normalize_role(right)
+    left_role = normalize_role(left)
+    right_role = normalize_role(right)
+    if left_role == right_role:
+        return True
+    equivalent_pairs = {
+        frozenset(("집사", "서리집사")),
+        frozenset(("권사", "시무권사")),
+    }
+    return frozenset((left_role, right_role)) in equivalent_pairs
 
 
 def name_equal(left: Any, right: Any) -> bool:
