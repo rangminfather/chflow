@@ -584,7 +584,7 @@ def classify(member: dict[str, Any], old: ParsedRow | None, new: ParsedRow | Non
         return "no_pdf_match"
     if old_name_ok and new_name_ok and old_role_ok and new_role_ok:
         return "all_agree"
-    if old and new and name_equal(old.name, new.name) and name_close(db_name, new.name) and not name_equal(db_name, new.name):
+    if old and new and name_equal(old.name, new.name) and name_close(db_name, new.name) and len(norm_name(new.name)) == len(norm_name(db_name)) and not name_equal(db_name, new.name):
         return "name_review_ab_agree_db_diff"
     if old and new and old_name_ok and new_name_ok and old.sub_role and new.sub_role and role_equal(old.sub_role, new.sub_role) and not role_equal(db_role, new.sub_role):
         return "role_review_ab_agree_db_diff"
