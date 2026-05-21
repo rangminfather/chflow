@@ -19,7 +19,7 @@ type DirRow = {
   pasture_name: string | null;
 };
 
-type DirectoryMember = {
+type DirectoryPerson = {
   id: string;
   name: string;
   phone: string | null;
@@ -28,18 +28,19 @@ type DirectoryMember = {
   family_church: string | null;
   sub_role: string | null;
   spouse_name: string | null;
-  address: string | null;
   pasture_name: string | null;
   grassland_name: string | null;
   plain_name: string | null;
   is_child: boolean | null;
   photo_url: string | null;
-  household_id: string | null;
-  source_page: number | null;
+};
+
+type DirectoryMember = DirectoryPerson & {
   total_count: number;
 };
 
-type ProfileMember = DirectoryMember & {
+type ProfileMember = DirectoryPerson & {
+  address: string | null;
   household_home_phone?: string | null;
 };
 
@@ -152,18 +153,13 @@ export default function DirectoryPage() {
     nextPasture = pasture,
   ) {
     setLoading(true);
-    const trimmedQuery = nextQuery.trim();
-    const clientFilter = !!trimmedQuery;
-    const { data, error } = await supabase.rpc("admin_search_members_paged", {
-      p_query: null,
+    const { data, error } = await supabase.rpc("directory_search_members", {
+      p_query: nextQuery.trim() || null,
       p_plain: nextPlain || null,
       p_grassland: nextGrassland || null,
       p_pasture: nextPasture || null,
-      p_offset: clientFilter ? 0 : (nextPage - 1) * PAGE_SIZE,
-      p_limit: clientFilter ? 1000 : PAGE_SIZE,
-      p_show_children: true,
-      p_show_parents: true,
-      p_member_status: "active",
+      p_offset: (nextPage - 1) * PAGE_SIZE,
+      p_limit: PAGE_SIZE,
     });
 
     if (error) {
@@ -172,10 +168,8 @@ export default function DirectoryPage() {
       setTotal(0);
     } else {
       const rows = (data || []) as DirectoryMember[];
-      const filtered = clientFilter ? rows.filter((member) => memberMatchesQuery(member, trimmedQuery)) : rows;
-      const start = clientFilter ? (nextPage - 1) * PAGE_SIZE : 0;
-      setMembers(clientFilter ? filtered.slice(start, start + PAGE_SIZE) : filtered);
-      setTotal(clientFilter ? filtered.length : Number(rows[0]?.total_count || 0));
+      setMembers(rows);
+      setTotal(Number(rows[0]?.total_count || 0));
     }
     setLoading(false);
   }
@@ -338,7 +332,7 @@ function DirectoryProfileModal({
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const { data: profile, error } = await supabase.rpc("admin_member_profile", { p_member_id: memberId });
+      const { data: profile, error } = await supabase.rpc("directory_member_profile", { p_member_id: memberId });
       if (error) {
         alert(`성도 상세 조회 실패: ${error.message}`);
         onClose();
@@ -511,25 +505,6 @@ function roleLabel(role?: string | null) {
   if (role === "husband") return "남편";
   if (role === "wife") return "아내";
   return "";
-}
-
-function memberMatchesQuery(member: DirectoryMember, query: string) {
-  const normalizedQuery = query.replace(/\s/g, "").toLowerCase();
-  const digits = query.replace(/\D/g, "");
-  const textFields = [
-    member.name,
-    member.spouse_name,
-    member.sub_role,
-    member.family_church,
-    member.pasture_name,
-    member.grassland_name,
-    member.plain_name,
-  ].map((value) => (value || "").replace(/\s/g, "").toLowerCase());
-  if (textFields.some((value) => value.includes(normalizedQuery))) return true;
-  if (!digits) return false;
-  return [member.phone, member.home_phone]
-    .map((value) => (value || "").replace(/\D/g, ""))
-    .some((value) => value.includes(digits));
 }
 
 function plainLabel(name: string) {
