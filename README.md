@@ -8,6 +8,7 @@
 - Mobile delivery: `chflow-expo` is the React Native Expo WebView shell for Android app builds.
 - `chflow-twa` is not the current mobile release path. Keep it only as a legacy/reference project unless the mobile architecture decision is changed explicitly.
 - When a change affects mobile-only behavior such as Android back handling, launcher assets, or native permissions, verify it in `chflow-expo`; a Vercel deploy alone does not verify the mobile shell.
+- Detailed mobile direction, native responsibilities, and notification strategy: `MOBILE_ARCHITECTURE.md`.
 
 ## 📋 개요
 

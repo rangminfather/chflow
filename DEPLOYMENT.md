@@ -8,6 +8,7 @@ The current delivery decision is split by runtime:
 - Android mobile app: build and release the React Native Expo shell in `chflow-expo`.
 - Do not treat `chflow-twa` as the current mobile release path unless that architecture decision is changed explicitly.
 - `chflow-expo` and legacy `chflow-twa` currently use the same Android package id, so installing a TWA APK can replace the Expo shell on a test phone and bypass native Expo behaviors such as Android back handling.
+- Mobile architecture and notification direction are recorded in `MOBILE_ARCHITECTURE.md`.
 
 Web deploy:
 
