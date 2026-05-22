@@ -44,20 +44,24 @@ type RouterType = ReturnType<typeof useRouter>;
 // =============================================================
 // 디자인 토큰
 // =============================================================
-const COLORS = {
+const C = {
   bgPage:    "#F5F7FA",
   bgCard:    "#FFFFFF",
   text:      "#1F2937",
   textMuted: "#8A94A6",
   border:    "#E5E7EB",
-  accent:    "#6366F1",
-  accentSoft:"#EEF2FF",
-  success:   "#10B981",
-  successSoft:"#ECFDF5",
+
+  // 섹션별 tinted 배경 + 포인트
+  ministryBg:    "#EEF2FF",
+  ministryPoint: "#6366F1",
+  mokjangBg:     "#ECFDF5",
+  mokjangPoint:  "#10B981",
+  commonBg:      "#F1F5F9",
+  commonPoint:   "#3B82F6",
+
   warn:      "#F59E0B",
   warnSoft:  "#FFFBEB",
   danger:    "#EF4444",
-  dangerSoft:"#FEF2F2",
 };
 
 // =============================================================
@@ -73,13 +77,12 @@ type CommonMenu = {
 };
 
 const COMMON_MENUS: CommonMenu[] = [
-  { id: "bulletin",  label: "주보 보기",      icon: "📖", color: "#0EA5E9", desc: "이번 주 주보",       href: "/bulletin" },
-  { id: "directory", label: "성도 요람",      icon: "👥", color: "#10B981", desc: "성도 검색",          href: "/directory" },
-  { id: "myinfo",    label: "내 정보",         icon: "👤", color: "#6366F1", desc: "프로필 관리",        href: "/myinfo" },
-  { id: "feedback",  label: "불편신고/건의",  icon: "💡", color: "#EC4899", desc: "건의사항 접수",      href: "/feedback" },
+  { id: "bulletin",  label: "주보 보기",      icon: "📖", color: "#0EA5E9", desc: "이번 주 주보",   href: "/bulletin" },
+  { id: "directory", label: "성도 요람",      icon: "👥", color: "#10B981", desc: "성도 검색",      href: "/directory" },
+  { id: "myinfo",    label: "내 정보",         icon: "👤", color: "#6366F1", desc: "프로필 관리",    href: "/myinfo" },
+  { id: "feedback",  label: "불편신고/건의",  icon: "💡", color: "#EC4899", desc: "건의사항 접수",  href: "/feedback" },
 ];
 
-// 관리자 전용 추가 메뉴
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "vote",     label: "투표",          icon: "🗳️", color: "#6366F1", desc: "항존직 선거",  href: "/vote" },
   { id: "events",   label: "행사 공지",      icon: "📢", color: "#0EA5E9", desc: "공지사항" },
@@ -102,14 +105,10 @@ export default function HomePage() {
   const [showExitModal, setShowExitModal] = useState(false);
   const [showExitToast, setShowExitToast] = useState(false);
 
-  // === 데이터 로드 ===
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.replace("/login");
-        return;
-      }
+      if (!session) { router.replace("/login"); return; }
       const { data } = await supabase.rpc("get_my_full_info");
       const profile = data?.[0];
       if (!profile || profile.status !== "active") {
@@ -130,13 +129,11 @@ export default function HomePage() {
     })();
   }, [router]);
 
-  // === 뒤로가기 인터셉트 + 종료 확인 (기존 로직 유지) ===
+  // 뒤로가기 가드 (기존 로직 유지)
   const sidebarOpenRef = useRef(sidebarOpen);
   useEffect(() => { sidebarOpenRef.current = sidebarOpen; }, [sidebarOpen]);
-
   const showExitModalRef = useRef(showExitModal);
   useEffect(() => { showExitModalRef.current = showExitModal; }, [showExitModal]);
-
   const exitingRef = useRef(false);
   const popstateInitialized = useRef(false);
 
@@ -144,21 +141,15 @@ export default function HomePage() {
     if (!authChecked) return;
     if (popstateInitialized.current) return;
     popstateInitialized.current = true;
-
     try { window.history.pushState({ smartms_home: true }, "", window.location.href); }
     catch (e) { console.warn("pushState failed", e); }
-
     const handlePopState = () => {
       if (exitingRef.current) return;
-      if (sidebarOpenRef.current) {
-        setSidebarOpen(false);
-      } else if (!showExitModalRef.current) {
-        setShowExitModal(true);
-      }
+      if (sidebarOpenRef.current) setSidebarOpen(false);
+      else if (!showExitModalRef.current) setShowExitModal(true);
       try { window.history.pushState({ smartms_home: true }, "", window.location.href); }
       catch (e) { console.warn("pushState failed", e); }
     };
-
     window.addEventListener("popstate", handlePopState);
     return () => {
       window.removeEventListener("popstate", handlePopState);
@@ -180,9 +171,7 @@ export default function HomePage() {
     try { window.history.back(); } catch {}
     setShowExitToast(true);
   };
-
   const handleExitCancel = () => setShowExitModal(false);
-
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.replace("/login?notice=logout");
@@ -194,20 +183,17 @@ export default function HomePage() {
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
         <div style={{ textAlign: "center" }}>
           <img src="/brand-mark-192.png" style={{ width: 64, height: 64, borderRadius: 14, marginBottom: 12, opacity: 0.85 }} />
-          <div style={{ fontSize: 13, color: COLORS.textMuted }}>로딩 중...</div>
+          <div style={{ fontSize: 13, color: C.textMuted }}>로딩 중...</div>
         </div>
       </div>
     );
   }
 
   const isAdmin = ["admin", "office", "pastor"].includes(user.role);
-  const visibleMenus: CommonMenu[] = isAdmin
-    ? [...COMMON_MENUS, ...ADMIN_EXTRA_MENUS]
-    : COMMON_MENUS;
   const userImage = getRoleImageByLabel(user.sub_role || "");
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.bgPage, fontFamily: "'Noto Sans KR', sans-serif", color: COLORS.text }}>
+    <div style={{ minHeight: "100vh", background: C.bgPage, fontFamily: "'Noto Sans KR', sans-serif", color: C.text }}>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
       <style>{`
@@ -215,14 +201,17 @@ export default function HomePage() {
           .sidebar-desktop { display: none !important; }
           .sidebar-mobile-trigger { display: flex !important; }
           .main-content { padding: 16px !important; }
-          .menu-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+          .common-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
           .header-actions { gap: 6px !important; }
           .admin-btn-label { display: none !important; }
-          .user-summary-meta { flex-direction: column !important; align-items: flex-start !important; gap: 4px !important; }
+          .app-bar { padding: 10px 14px !important; }
         }
         @media (min-width: 769px) {
           .sidebar-mobile-trigger { display: none !important; }
         }
+        /* 한국어 줄바꿈 자연스럽게 */
+        .kr-keep { word-break: keep-all; }
+        .ellipsis-1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
       `}</style>
 
       <AppBar
@@ -244,23 +233,21 @@ export default function HomePage() {
         />
 
         <div className="main-content" style={{ flex: 1, padding: 24, overflowX: "hidden" }}>
-          <div style={{ maxWidth: 960, margin: "0 auto" }}>
-            <UserSummarySection user={user} photoUrl={photoUrl} userImage={userImage} />
+          <div style={{ maxWidth: 920, margin: "0 auto" }}>
+            <UserSummary user={user} photoUrl={photoUrl} userImage={userImage} />
 
             <MinistrySection myDepartments={myDepartments} router={router} />
 
-            <MyMokjangSection user={user} router={router} />
+            <MyMokjangSection user={user} />
 
-            <CommonMenuSection menus={visibleMenus} router={router} />
+            <CommonMenuSection isAdmin={isAdmin} router={router} />
 
             <NoticeBox />
           </div>
         </div>
       </div>
 
-      {showExitModal && (
-        <ExitModal onCancel={handleExitCancel} onConfirm={handleExitConfirm} />
-      )}
+      {showExitModal && <ExitModal onCancel={handleExitCancel} onConfirm={handleExitConfirm} />}
       {showExitToast && <ExitToast />}
     </div>
   );
@@ -277,9 +264,9 @@ function AppBar({ isAdmin, user, router, onMenu, onLogout }: {
   onLogout: () => void;
 }) {
   return (
-    <div style={{
-      background: COLORS.bgCard,
-      borderBottom: `1px solid ${COLORS.border}`,
+    <div className="app-bar" style={{
+      background: C.bgCard,
+      borderBottom: `1px solid ${C.border}`,
       padding: "10px 20px",
       display: "flex",
       alignItems: "center",
@@ -294,14 +281,14 @@ function AppBar({ isAdmin, user, router, onMenu, onLogout }: {
           style={{
             display: "none", alignItems: "center", justifyContent: "center",
             width: 40, height: 40, borderRadius: 10,
-            background: COLORS.bgPage, border: `1px solid ${COLORS.border}`,
-            cursor: "pointer", fontSize: 18, color: COLORS.text,
+            background: C.bgPage, border: `1px solid ${C.border}`,
+            cursor: "pointer", fontSize: 18, color: C.text,
           }}
         >☰</button>
         <HeaderLogo />
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text }}>스마트명성</div>
-          <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: 0.5 }}>Smart Myungsung</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: C.text }}>스마트명성</div>
+          <div style={{ fontSize: 10, color: C.textMuted, letterSpacing: 0.5 }}>Smart Myungsung</div>
         </div>
       </div>
 
@@ -323,8 +310,8 @@ function AppBar({ isAdmin, user, router, onMenu, onLogout }: {
           style={{
             display: "flex", alignItems: "center", gap: 4,
             padding: "8px 12px", borderRadius: 10,
-            background: COLORS.bgPage, border: `1px solid ${COLORS.border}`,
-            color: COLORS.textMuted, cursor: "pointer",
+            background: C.bgPage, border: `1px solid ${C.border}`,
+            color: C.textMuted, cursor: "pointer",
             fontSize: 12, fontWeight: 600, fontFamily: "inherit",
             whiteSpace: "nowrap",
           }}
@@ -345,7 +332,7 @@ function AdminPill({ icon, label, onClick }: { icon: string; label: string; onCl
       style={{
         display: "flex", alignItems: "center", gap: 4,
         padding: "8px 10px", borderRadius: 10,
-        background: COLORS.accentSoft, color: COLORS.accent,
+        background: C.ministryBg, color: C.ministryPoint,
         border: "none", cursor: "pointer",
         fontSize: 12, fontWeight: 700, fontFamily: "inherit",
       }}
@@ -357,32 +344,31 @@ function AdminPill({ icon, label, onClick }: { icon: string; label: string; onCl
 }
 
 // =============================================================
-// 사용자 요약 (앱바 아래)
+// 사용자 요약
 // =============================================================
-function UserSummarySection({ user, photoUrl, userImage }: {
+function UserSummary({ user, photoUrl, userImage }: {
   user: UserInfo;
   photoUrl: string | null;
   userImage: string;
 }) {
-  const subParts = [user.sub_role, user.family_church && user.family_church !== "목원" ? user.family_church : null].filter(Boolean);
+  const subParts = [
+    user.sub_role,
+    user.family_church && user.family_church !== "목원" ? user.family_church : null,
+  ].filter(Boolean) as string[];
+
   return (
     <div style={{
-      background: COLORS.bgCard,
-      border: `1px solid ${COLORS.border}`,
+      background: C.bgCard,
+      border: `1px solid ${C.border}`,
       borderRadius: 18,
-      padding: 18,
-      marginBottom: 18,
+      padding: 16,
+      marginBottom: 20,
       display: "flex",
       alignItems: "center",
       gap: 14,
     }}>
       <div style={{ position: "relative", flexShrink: 0 }}>
-        <PhotoAvatar
-          userId={user.id}
-          photoUrl={photoUrl}
-          size={56}
-          label=""
-        />
+        <PhotoAvatar userId={user.id} photoUrl={photoUrl} size={56} label="" />
         <img
           src={userImage}
           alt=""
@@ -390,225 +376,291 @@ function UserSummarySection({ user, photoUrl, userImage }: {
             position: "absolute", bottom: -4, right: -4,
             width: 26, height: 26, borderRadius: "50%",
             background: "#fff", padding: 1, objectFit: "cover", objectPosition: "top",
-            border: `2px solid ${COLORS.bgCard}`,
-            boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+            border: `2px solid ${C.bgCard}`,
+            boxShadow: "0 2px 6px rgba(15, 23, 42, 0.08)",
           }}
         />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>
+        <div className="ellipsis-1" style={{ fontSize: 18, fontWeight: 800, color: C.text }}>
           {user.name}님 <span style={{ fontSize: 16 }}>🙏</span>
         </div>
-        <div className="user-summary-meta" style={{ marginTop: 4, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontSize: 13, color: COLORS.textMuted }}>
-          {subParts.length > 0 && <span>{subParts.join(" · ")}</span>}
+        {subParts.length > 0 && (
+          <div className="ellipsis-1" style={{ marginTop: 2, fontSize: 13, color: C.textMuted }}>
+            {subParts.join(" · ")}
+          </div>
+        )}
+        <div className="ellipsis-1" style={{ marginTop: 4, fontSize: 12, color: C.textMuted }}>
+          오늘도 평안한 하루 되세요 ✨
         </div>
-        <div style={{ marginTop: 6, fontSize: 13, color: COLORS.textMuted }}>오늘도 평안한 하루 되세요 ✨</div>
       </div>
     </div>
   );
 }
 
 // =============================================================
-// 1) 내 사역 · 부서
+// 1) 내 사역 · 부서 (indigo 섹션)
 // =============================================================
 function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartment[]; router: RouterType }) {
   const approved = myDepartments.filter((d) => d.status === "approved");
   const pending = myDepartments.filter((d) => d.status === "pending");
+  const empty = approved.length === 0 && pending.length === 0;
 
   return (
-    <section style={{ marginBottom: 24 }}>
-      <SectionTitle title="내 사역 · 부서" subtitle="가입된 사역과 부서를 확인하세요" />
+    <SectionContainer bg={C.ministryBg}>
+      <SectionHeader
+        icon="📁"
+        iconColor={C.ministryPoint}
+        title="내 사역 · 부서"
+        subtitle="가입된 사역과 부서를 확인하세요"
+      />
 
-      {approved.length === 0 && pending.length === 0 ? (
-        <div style={cardStyle()}>
-          <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 14 }}>
-            아직 가입된 사역 · 부서가 없습니다
-          </div>
-          <OutlineButton
-            label="+ 다른 사역 · 부서 가입하기"
-            onClick={() => router.push("/departments")}
-          />
+      {empty ? (
+        <div style={{
+          background: C.bgCard, border: `1px solid ${C.border}`,
+          borderRadius: 14, padding: 16, marginBottom: 12,
+          fontSize: 14, color: C.textMuted,
+        }}>
+          아직 가입된 사역 · 부서가 없습니다
         </div>
       ) : (
-        <>
-          <div className="menu-grid" style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 10,
-            marginBottom: 10,
-          }}>
-            {approved.map((d) => (
-              <button
-                key={d.id}
-                onClick={() => router.push(`/departments/d/${d.department_id}`)}
-                style={{
-                  ...cardStyle(),
-                  textAlign: "left",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                }}
-              >
-                <div style={iconBoxStyle(COLORS.accentSoft)}>
-                  <span style={{ fontSize: 22 }}>{d.icon || "📁"}</span>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: 600 }}>{d.category}</div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text, marginTop: 2 }}>{d.name}</div>
-                </div>
-                <StatusBadge tone="success" label="승인됨" />
-              </button>
-            ))}
-
-            {pending.map((d) => (
-              <div
-                key={d.id}
-                style={{
-                  ...cardStyle(),
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                }}
-              >
-                <div style={iconBoxStyle(COLORS.warnSoft)}>
-                  <span style={{ fontSize: 22 }}>{d.icon || "⏳"}</span>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: 600 }}>{d.category}</div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text, marginTop: 2 }}>{d.name}</div>
-                </div>
-                <StatusBadge tone="warn" label="가입중" />
-              </div>
-            ))}
-          </div>
-
-          <OutlineButton
-            label="+ 다른 사역 · 부서 가입하기"
-            onClick={() => router.push("/departments")}
-          />
-        </>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+          {approved.map((d) => (
+            <MinistryCard
+              key={d.id}
+              dept={d}
+              status="approved"
+              onClick={() => router.push(`/departments/d/${d.department_id}`)}
+            />
+          ))}
+          {pending.map((d) => (
+            <MinistryCard
+              key={d.id}
+              dept={d}
+              status="pending"
+              onClick={() => router.push(`/departments/d/${d.department_id}`)}
+            />
+          ))}
+        </div>
       )}
-    </section>
+
+      <OutlineButton
+        label="+ 다른 사역 · 부서 가입하기"
+        color={C.ministryPoint}
+        onClick={() => router.push("/departments")}
+      />
+    </SectionContainer>
+  );
+}
+
+function MinistryCard({ dept, status, onClick }: {
+  dept: MyDepartment;
+  status: "approved" | "pending";
+  onClick: () => void;
+}) {
+  const badge = status === "approved"
+    ? { bg: "#ECFDF5", fg: "#10B981", label: "승인됨" }
+    : { bg: C.warnSoft, fg: C.warn, label: "가입중" };
+
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: "100%",
+        background: C.bgCard,
+        border: `1px solid ${C.border}`,
+        borderRadius: 16,
+        padding: 16,
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        textAlign: "left",
+        boxShadow: "0 1px 2px rgba(15, 23, 42, 0.03)",
+      }}
+    >
+      <div style={iconBox(C.ministryBg)}>
+        <span style={{ fontSize: 22 }}>{dept.icon || "📁"}</span>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="ellipsis-1" style={{ fontSize: 12, color: C.textMuted, fontWeight: 600 }}>
+          {dept.category}
+        </div>
+        <div className="ellipsis-1" style={{ fontSize: 16, fontWeight: 800, color: C.text, marginTop: 2 }}>
+          {dept.name}
+        </div>
+      </div>
+      <span style={{
+        flexShrink: 0,
+        padding: "4px 10px",
+        borderRadius: 999,
+        background: badge.bg,
+        color: badge.fg,
+        fontSize: 11,
+        fontWeight: 800,
+        whiteSpace: "nowrap",
+      }}>{badge.label}</span>
+    </button>
   );
 }
 
 // =============================================================
-// 2) 나의 목장
+// 2) 나의 목장 (green 섹션)
 // =============================================================
-// 상태 분기:
-//  A. user.pasture_name 없음 → 미가입 (가입 신청 버튼)
-//  B. 승인 대기 → TODO: 아직 신청 모델 없음 (별도 RPC/테이블 필요)
-//  C. user.pasture_name 있음 → 소속됨
-//  D. 관리자 배정 → C와 동일 표시
-function MyMokjangSection({ user, router: _router }: { user: UserInfo; router: RouterType }) {
+function MyMokjangSection({ user }: { user: UserInfo }) {
   const hasPasture = !!user.pasture_name;
 
-  // TODO: 목장 가입 신청 시스템이 아직 없음. 라우트가 생기면 router.push("/pasture/request") 등으로 연결.
+  // TODO: 목장 가입 신청 화면(/pasture/request) 추가 시 router.push 로 연결
   const handleJoinRequest = () => {
     alert("목장 가입 신청 기능은 준비 중입니다.\n관리자에게 직접 문의하시거나 잠시만 기다려주세요.");
   };
-
-  // TODO: 목장 상세 화면(/pasture/me 또는 /pasture/[id])이 생기면 연결.
+  // TODO: 목장 상세 화면(/pasture/me 또는 /pasture/[id]) 추가 시 연결
   const handleViewPasture = () => {
     alert("목장 상세 화면은 준비 중입니다.");
   };
+  // TODO: 승인 대기 상태 분기 — pasture_requests 테이블/RPC 추가되면 이 자리에 분기 추가
 
   return (
-    <section style={{ marginBottom: 24 }}>
-      <SectionTitle title="나의 목장" subtitle="소속 목장을 확인하거나 가입 신청하세요" />
+    <SectionContainer bg={C.mokjangBg}>
+      <SectionHeader
+        icon="🌿"
+        iconColor={C.mokjangPoint}
+        title="나의 목장"
+        subtitle="소속 목장을 확인하거나 가입 신청하세요"
+      />
 
       {hasPasture ? (
         <button
           onClick={handleViewPasture}
           style={{
-            ...cardStyle(),
             width: "100%",
-            textAlign: "left",
-            cursor: "pointer",
-            fontFamily: "inherit",
+            background: C.bgCard,
+            border: `1px solid ${C.border}`,
+            borderRadius: 16,
+            padding: 16,
             display: "flex",
             alignItems: "center",
-            gap: 14,
+            gap: 12,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            textAlign: "left",
+            boxShadow: "0 1px 2px rgba(15, 23, 42, 0.03)",
           }}
         >
-          <div style={iconBoxStyle(COLORS.accentSoft)}>
+          <div style={iconBox(C.mokjangBg)}>
             <span style={{ fontSize: 24 }}>🏘️</span>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: 600 }}>
-              {user.plain_name ? `${user.plain_name}평원` : ""}
-              {user.grassland_name ? ` · ${user.grassland_name}초원` : ""}
+            <div className="ellipsis-1" style={{ fontSize: 12, color: C.textMuted, fontWeight: 600 }}>
+              {[user.plain_name && `${user.plain_name}평원`, user.grassland_name && `${user.grassland_name}초원`].filter(Boolean).join(" · ") || "소속 목장"}
             </div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: COLORS.text, marginTop: 2 }}>
+            <div className="ellipsis-1" style={{ fontSize: 17, fontWeight: 800, color: C.text, marginTop: 2 }}>
               {user.pasture_name}목장
             </div>
             {user.spouse_name && (
-              <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 2 }}>
+              <div className="ellipsis-1" style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
                 배우자: {user.spouse_name}
               </div>
             )}
           </div>
-          <div style={{
+          <span style={{
+            flexShrink: 0,
             padding: "8px 14px",
-            background: COLORS.accent,
+            background: C.mokjangPoint,
             color: "#fff",
             borderRadius: 10,
             fontSize: 12,
-            fontWeight: 700,
+            fontWeight: 800,
             whiteSpace: "nowrap",
-          }}>목장 보기</div>
+          }}>목장 보기</span>
         </button>
       ) : (
-        <div style={cardStyle()}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text, marginBottom: 4 }}>
-            아직 소속된 목장이 없습니다
+        <div style={{
+          background: C.bgCard,
+          border: `1px solid ${C.border}`,
+          borderRadius: 16,
+          padding: 18,
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+        }}>
+          <div style={iconBox(C.mokjangBg)}>
+            <span style={{ fontSize: 24 }}>🌿</span>
           </div>
-          <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 14 }}>
-            목장을 찾아 가입 신청할 수 있습니다
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="kr-keep" style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+              아직 소속된 목장이 없습니다
+            </div>
+            <div className="kr-keep" style={{ fontSize: 13, color: C.textMuted, marginTop: 4 }}>
+              목장을 찾아 가입 신청할 수 있습니다
+            </div>
           </div>
           <button
             onClick={handleJoinRequest}
             style={{
-              padding: "12px 18px",
-              background: COLORS.accent,
+              flexShrink: 0,
+              padding: "12px 16px",
+              background: C.mokjangPoint,
               color: "#fff",
               border: "none",
               borderRadius: 12,
-              fontSize: 14,
-              fontWeight: 700,
+              fontSize: 13,
+              fontWeight: 800,
               cursor: "pointer",
               fontFamily: "inherit",
+              whiteSpace: "nowrap",
             }}
           >
             목장 가입 신청
           </button>
         </div>
       )}
-    </section>
+    </SectionContainer>
   );
 }
 
 // =============================================================
-// 3) 공통 메뉴
+// 3) 공통 메뉴 (slate/blue 섹션)
 // =============================================================
-function CommonMenuSection({ menus, router }: { menus: CommonMenu[]; router: RouterType }) {
+function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: RouterType }) {
   return (
-    <section style={{ marginBottom: 24 }}>
-      <SectionTitle title="공통 메뉴" subtitle="모든 성도가 사용할 수 있는 기능" />
-      <div className="menu-grid" style={{
+    <SectionContainer bg={C.commonBg}>
+      <SectionHeader
+        icon="✨"
+        iconColor={C.commonPoint}
+        title="공통 메뉴"
+        subtitle="모든 성도가 사용할 수 있는 기능"
+      />
+      <div className="common-grid" style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+        gridTemplateColumns: "repeat(2, 1fr)",
         gap: 12,
       }}>
-        {menus.map((m) => <MenuCard key={m.id} menu={m} router={router} />)}
+        {COMMON_MENUS.map((m) => <MenuCard key={m.id} menu={m} router={router} />)}
       </div>
-    </section>
+
+      {isAdmin && (
+        <>
+          <div style={{
+            marginTop: 20, marginBottom: 8,
+            fontSize: 12, fontWeight: 700, color: C.textMuted,
+            letterSpacing: 0.4,
+          }}>관리자 메뉴</div>
+          <div className="common-grid" style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: 10,
+          }}>
+            {ADMIN_EXTRA_MENUS.map((m) => <MenuCard key={m.id} menu={m} router={router} compact />)}
+          </div>
+        </>
+      )}
+    </SectionContainer>
   );
 }
 
-function MenuCard({ menu, router }: { menu: CommonMenu; router: RouterType }) {
+function MenuCard({ menu, router, compact }: { menu: CommonMenu; router: RouterType; compact?: boolean }) {
   const handleClick = () => {
     if (menu.href) router.push(menu.href);
     else alert(`${menu.label}은(는) 곧 추가됩니다.`);
@@ -617,39 +669,58 @@ function MenuCard({ menu, router }: { menu: CommonMenu; router: RouterType }) {
     <button
       onClick={handleClick}
       style={{
-        ...cardStyle(),
+        background: C.bgCard,
+        border: `1px solid ${C.border}`,
+        borderRadius: 16,
+        padding: compact ? 14 : 18,
         display: "flex",
         alignItems: "center",
-        gap: 14,
+        gap: 12,
         cursor: "pointer",
         fontFamily: "inherit",
         textAlign: "left",
+        boxShadow: "0 1px 2px rgba(15, 23, 42, 0.03)",
+        minHeight: compact ? 64 : 76,
       }}
     >
-      <div style={iconBoxStyle(`${menu.color}1A`)}>
-        <span style={{ fontSize: 24 }}>{menu.icon}</span>
+      <div style={{
+        width: compact ? 40 : 44,
+        height: compact ? 40 : 44,
+        borderRadius: 12,
+        background: `${menu.color}1A`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+      }}>
+        <span style={{ fontSize: compact ? 20 : 22 }}>{menu.icon}</span>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text }}>{menu.label}</div>
-        <div style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 2 }}>{menu.desc}</div>
+        <div className="ellipsis-1" style={{ fontSize: compact ? 14 : 15, fontWeight: 800, color: C.text }}>
+          {menu.label}
+        </div>
+        <div className="ellipsis-1" style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
+          {menu.desc}
+        </div>
       </div>
     </button>
   );
 }
 
 // =============================================================
-// 하단 안내 박스
+// 하단 안내
 // =============================================================
 function NoticeBox() {
   return (
     <div style={{
       padding: "14px 18px",
-      background: "#F1F5F9",
-      border: `1px solid ${COLORS.border}`,
+      background: C.bgCard,
+      border: `1px solid ${C.border}`,
       borderRadius: 14,
       fontSize: 12,
-      color: "#475569",
+      color: C.textMuted,
       lineHeight: 1.7,
+      marginTop: 4,
     }}>
       💡 직분별 · 사역별 전용 게시판은 추후 추가될 예정입니다.<br />
       현재는 공통 메뉴를 사용할 수 있습니다.
@@ -658,32 +729,63 @@ function NoticeBox() {
 }
 
 // =============================================================
-// 공용 작은 컴포넌트
+// 공용 (섹션 컨테이너 / 헤더 / outline 버튼)
 // =============================================================
-function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+function SectionContainer({ bg, children }: { bg: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>{title}</div>
+    <section style={{
+      background: bg,
+      borderRadius: 24,
+      padding: 20,
+      marginBottom: 24,
+      border: `1px solid ${C.border}`,
+    }}>
+      {children}
+    </section>
+  );
+}
+
+function SectionHeader({ icon, iconColor, title, subtitle }: {
+  icon: string;
+  iconColor: string;
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{
+          fontSize: 16,
+          width: 28, height: 28, borderRadius: 8,
+          background: "rgba(255,255,255,0.7)",
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          color: iconColor,
+        }}>{icon}</span>
+        <div style={{ fontSize: 17, fontWeight: 800, color: C.text }}>{title}</div>
+      </div>
       {subtitle && (
-        <div style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 2 }}>{subtitle}</div>
+        <div style={{ fontSize: 12, color: C.textMuted, marginTop: 6, marginLeft: 36 }}>
+          {subtitle}
+        </div>
       )}
     </div>
   );
 }
 
-function OutlineButton({ label, onClick }: { label: string; onClick: () => void }) {
+function OutlineButton({ label, color, onClick }: { label: string; color: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       style={{
         width: "100%",
-        padding: "12px 16px",
-        background: "#fff",
-        color: COLORS.accent,
-        border: `1.5px solid ${COLORS.accent}`,
-        borderRadius: 12,
+        padding: "14px 16px",
+        minHeight: 52,
+        background: C.bgCard,
+        color: color,
+        border: `1.5px solid ${color}`,
+        borderRadius: 14,
         fontSize: 14,
-        fontWeight: 700,
+        fontWeight: 800,
         cursor: "pointer",
         fontFamily: "inherit",
       }}
@@ -693,34 +795,7 @@ function OutlineButton({ label, onClick }: { label: string; onClick: () => void 
   );
 }
 
-function StatusBadge({ tone, label }: { tone: "success" | "warn"; label: string }) {
-  const bg = tone === "success" ? COLORS.successSoft : COLORS.warnSoft;
-  const fg = tone === "success" ? COLORS.success : COLORS.warn;
-  return (
-    <span style={{
-      padding: "4px 10px",
-      borderRadius: 999,
-      background: bg,
-      color: fg,
-      fontSize: 11,
-      fontWeight: 800,
-      whiteSpace: "nowrap",
-      flexShrink: 0,
-    }}>{label}</span>
-  );
-}
-
-function cardStyle(): React.CSSProperties {
-  return {
-    background: COLORS.bgCard,
-    border: `1px solid ${COLORS.border}`,
-    borderRadius: 18,
-    padding: 20,
-    boxShadow: "0 1px 2px rgba(15, 23, 42, 0.03)",
-  };
-}
-
-function iconBoxStyle(bg: string): React.CSSProperties {
+function iconBox(bg: string): React.CSSProperties {
   return {
     width: 48, height: 48, borderRadius: 12,
     background: bg,
@@ -730,7 +805,7 @@ function iconBoxStyle(bg: string): React.CSSProperties {
 }
 
 // =============================================================
-// 사이드바 (기존 기능 유지, 톤 다운)
+// 사이드바
 // =============================================================
 function DesktopSidebar({ user, myDepartments, router }: {
   user: UserInfo;
@@ -740,8 +815,8 @@ function DesktopSidebar({ user, myDepartments, router }: {
   return (
     <aside className="sidebar-desktop" style={{
       width: 220,
-      background: COLORS.bgCard,
-      borderRight: `1px solid ${COLORS.border}`,
+      background: C.bgCard,
+      borderRight: `1px solid ${C.border}`,
       padding: "20px 12px",
       flexShrink: 0,
     }}>
@@ -764,14 +839,14 @@ function MobileSidebar({ open, onClose, user, myDepartments, router }: {
       zIndex: 50, display: "flex",
     }}>
       <div onClick={(e) => e.stopPropagation()} style={{
-        width: 280, background: COLORS.bgCard, padding: "20px 12px",
+        width: 280, background: C.bgCard, padding: "20px 12px",
         boxShadow: "4px 0 20px rgba(0,0,0,0.12)", overflowY: "auto",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingLeft: 8 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.text }}>메뉴</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: C.text }}>메뉴</div>
           <button onClick={onClose} style={{
-            width: 32, height: 32, borderRadius: 8, background: COLORS.bgPage, border: "none",
-            cursor: "pointer", fontSize: 14, color: COLORS.textMuted,
+            width: 32, height: 32, borderRadius: 8, background: C.bgPage, border: "none",
+            cursor: "pointer", fontSize: 14, color: C.textMuted,
           }}>✕</button>
         </div>
         <SidebarContent user={user} myDepartments={myDepartments} router={router} onNavigate={onClose} />
@@ -790,17 +865,13 @@ function SidebarContent({ user, myDepartments, router, onNavigate }: {
   const sideMenus = isAdmin ? [...COMMON_MENUS, ...ADMIN_EXTRA_MENUS] : COMMON_MENUS;
   const approved = myDepartments.filter((d) => d.status === "approved");
   const pending = myDepartments.filter((d) => d.status === "pending");
-
-  const go = (path: string) => {
-    router.push(path);
-    onNavigate?.();
-  };
+  const go = (path: string) => { router.push(path); onNavigate?.(); };
 
   return (
     <>
       <SideLabel>내 사역 · 부서</SideLabel>
       {approved.length === 0 ? (
-        <div style={{ padding: "8px 12px", fontSize: 11, color: COLORS.textMuted, fontStyle: "italic" }}>
+        <div style={{ padding: "8px 12px", fontSize: 11, color: C.textMuted, fontStyle: "italic" }}>
           배정된 사역이 없습니다
         </div>
       ) : (
@@ -814,7 +885,7 @@ function SidebarContent({ user, myDepartments, router, onNavigate }: {
       {pending.map((d) => (
         <div key={d.id} style={{
           padding: "6px 12px", fontSize: 11,
-          color: COLORS.warn, background: COLORS.warnSoft,
+          color: C.warn, background: C.warnSoft,
           borderRadius: 6, marginBottom: 3,
           display: "flex", alignItems: "center", gap: 4,
         }}>
@@ -826,10 +897,10 @@ function SidebarContent({ user, myDepartments, router, onNavigate }: {
       <button onClick={() => go("/departments")} style={{
         marginTop: 8, width: "100%",
         padding: "10px 12px",
-        background: COLORS.accentSoft,
+        background: C.ministryBg,
         border: "none",
         borderRadius: 8,
-        fontSize: 12, fontWeight: 700, color: COLORS.accent,
+        fontSize: 12, fontWeight: 700, color: C.ministryPoint,
         cursor: "pointer", fontFamily: "inherit",
         textAlign: "center",
       }}>
@@ -865,8 +936,7 @@ function SidebarItem({ children, onClick }: { children: React.ReactNode; onClick
       marginBottom: 3,
       fontSize: 13,
       fontWeight: 500,
-      color: COLORS.text,
-      background: "transparent",
+      color: C.text,
       cursor: "pointer",
     }}>
       {children}
@@ -877,14 +947,14 @@ function SidebarItem({ children, onClick }: { children: React.ReactNode; onClick
 function SideLabel({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
-      fontSize: 10, fontWeight: 700, color: COLORS.textMuted,
+      fontSize: 10, fontWeight: 700, color: C.textMuted,
       letterSpacing: 1, marginBottom: 8, paddingLeft: 8,
     }}>{children}</div>
   );
 }
 
 function SideDivider() {
-  return <div style={{ height: 1, background: COLORS.border, margin: "16px 0" }} />;
+  return <div style={{ height: 1, background: C.border, margin: "16px 0" }} />;
 }
 
 // =============================================================
@@ -904,23 +974,23 @@ function ExitModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: (
         textAlign: "center",
       }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>🙏</div>
-        <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text, marginBottom: 8 }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 8 }}>
           종료하시겠습니까?
         </div>
-        <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 22, lineHeight: 1.7 }}>
+        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 22, lineHeight: 1.7 }}>
           오늘 하루도 주 안에서<br />평안하세요
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={onCancel} style={{
             flex: 1, padding: "13px",
-            background: COLORS.bgPage, color: COLORS.text,
+            background: C.bgPage, color: C.text,
             border: "none", borderRadius: 12,
             fontSize: 14, fontWeight: 700,
             cursor: "pointer", fontFamily: "inherit",
           }}>취소</button>
           <button onClick={onConfirm} style={{
             flex: 1, padding: "13px",
-            background: COLORS.danger, color: "#fff",
+            background: C.danger, color: "#fff",
             border: "none", borderRadius: 12,
             fontSize: 14, fontWeight: 700,
             cursor: "pointer", fontFamily: "inherit",
@@ -948,13 +1018,13 @@ function ExitToast() {
 }
 
 // =============================================================
-// 로딩 스타일
+// 로딩
 // =============================================================
 const loadingStyle: React.CSSProperties = {
   minHeight: "100vh",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: COLORS.bgPage,
+  background: C.bgPage,
   fontFamily: "'Noto Sans KR', sans-serif",
 };
