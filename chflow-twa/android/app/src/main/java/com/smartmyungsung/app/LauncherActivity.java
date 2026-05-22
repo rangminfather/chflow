@@ -19,18 +19,20 @@ public class LauncherActivity extends android.app.Activity {
 
         String packageName = CustomTabsClient.getPackageName(this, null);
         if (packageName == null) {
-            // No Custom Tabs provider, fall back to browser
-            startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, LAUNCH_URI));
+            startActivity(android.content.Intent.createChooser(
+                new android.content.Intent(android.content.Intent.ACTION_VIEW, LAUNCH_URI),
+                null
+            ));
             finish();
             return;
         }
 
-        CustomTabsClient.bindCustomTabsService(this, packageName, new CustomTabsServiceConnection() {
+        boolean bound = CustomTabsClient.bindCustomTabsService(this, packageName, new CustomTabsServiceConnection() {
             @Override
             public void onCustomTabsServiceConnected(ComponentName name, CustomTabsClient client) {
                 CustomTabsSession session = client.newSession(null);
                 if (session == null) {
-                    launchFallback();
+                    launchFallback(packageName);
                     return;
                 }
                 new TrustedWebActivityIntentBuilder(LAUNCH_URI)
@@ -42,12 +44,16 @@ public class LauncherActivity extends android.app.Activity {
             @Override
             public void onServiceDisconnected(ComponentName name) {}
         });
+
+        if (!bound) {
+            launchFallback(packageName);
+        }
     }
 
-    private void launchFallback() {
-        new CustomTabsIntent.Builder()
-            .build()
-            .launchUrl(this, LAUNCH_URI);
+    private void launchFallback(String packageName) {
+        CustomTabsIntent intent = new CustomTabsIntent.Builder().build();
+        intent.intent.setPackage(packageName);
+        intent.launchUrl(this, LAUNCH_URI);
         finish();
     }
 }
