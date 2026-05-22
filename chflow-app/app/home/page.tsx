@@ -46,11 +46,12 @@ const COMMON_MENUS = [
   { id: "facility",   label: "시설 이용 신청",  icon: "🏛️", color: "#f59e0b", desc: "예배실/교육관 등" },
   { id: "vehicle",    label: "차량 이용 신청",  icon: "🚐", color: "#f59e0b", desc: "교회 차량" },
   { id: "booking",    label: "예약 캘린더",     icon: "📆", color: "#f59e0b", desc: "내 예약 / 전체 현황" },
+  { id: "feedback",   label: "불편신고/건의",   icon: "💡", color: "#ec4899", desc: "버그 신고 · 건의사항", href: "/feedback" },
   { id: "myinfo",     label: "내 정보",         icon: "⚙️", color: "#64748b", desc: "프로필 / 비밀번호 변경", href: "/myinfo" },
 ];
 
 // 비관리자도 볼 수 있는 공통 메뉴 (그 외는 관리자한테만 노출)
-const COMMON_MENUS_FOR_ALL = ["bulletin", "directory", "myinfo"];
+const COMMON_MENUS_FOR_ALL = ["bulletin", "directory", "feedback", "myinfo"];
 
 // 가정교회 메뉴
 const PASTURE_MENUS = [
@@ -741,7 +742,7 @@ function SidebarContent({
       <div style={{ height: 1, background: "#e2e8f0", margin: "16px 0" }} />
       <div style={sidebarLabelStyle}>공통</div>
       {(["admin", "office", "pastor"].includes(user.role)
-        ? COMMON_MENUS.slice(0, 6)
+        ? COMMON_MENUS
         : COMMON_MENUS.filter((m) => COMMON_MENUS_FOR_ALL.includes(m.id))
       ).map((menu) => (
         <SidebarItem
