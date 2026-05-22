@@ -6,60 +6,48 @@ import { supabase } from "@/lib/supabase";
 
 export default function SplashPage() {
   const router = useRouter();
-  // stage: 0 = icon + heaven, 1 = icon fading out, 2 = heaven only, 3 = navigating
-  const [stage, setStage] = useState(0);
+  const [exiting, setExiting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    // 1초: 아이콘 페이드아웃 시작
-    const t1 = setTimeout(() => !cancelled && setStage(1), 1000);
-    // 1.5초: 아이콘 완전히 사라짐 (천국 이미지만)
-    const t2 = setTimeout(() => !cancelled && setStage(2), 1500);
-    // 3초: 화면 전환 시작
-    const t3 = setTimeout(async () => {
-      if (cancelled) return;
-      setStage(3);
-
+    const targetPath = (async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      setTimeout(() => {
-        if (cancelled) return;
-        if (session) {
-          supabase.rpc("get_my_status").then(({ data }) => {
-            const profile = data?.[0];
-            if (profile?.status === "active") {
-              // /home을 webview 첫 entry로 만들기 위해 replace 사용
-              // (뒤로가기 종료 시 canGoBack=false → TWA Activity 종료)
-              router.replace("/home");
-            } else {
-              router.replace("/login?notice=pending");
-            }
-          });
-        } else {
-          router.replace("/login");
-        }
-      }, 500);
-    }, 3000);
+      if (!session) return "/login";
+
+      const { data } = await supabase.rpc("get_my_status");
+      const profile = data?.[0];
+      return profile?.status === "active" ? "/home" : "/login?notice=pending";
+    })();
+
+    const exitTimer = setTimeout(() => {
+      if (!cancelled) setExiting(true);
+    }, 1200);
+
+    const navigateTimer = setTimeout(async () => {
+      const path = await targetPath;
+      if (!cancelled) {
+        // /home must be the webview first entry for the TWA exit behavior.
+        router.replace(path);
+      }
+    }, 1680);
 
     return () => {
       cancelled = true;
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
+      clearTimeout(exitTimer);
+      clearTimeout(navigateTimer);
     };
   }, [router]);
 
-  const heavenOpacity = stage >= 3 ? 0 : 1;
-  const iconOpacity = stage >= 1 ? 0 : 1;
-  const iconScale = stage >= 1 ? 1.1 : 1;
-
   return (
     <div
+      className={exiting ? "brand-splash brand-splash-exit" : "brand-splash"}
       style={{
         minHeight: "100vh",
         position: "relative",
         overflow: "hidden",
-        background: "#000",
+        background: "#f3f6f8",
+        color: "#0f172a",
         fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
       }}
     >
@@ -68,44 +56,77 @@ export default function SplashPage() {
         rel="stylesheet"
       />
 
-      {/* 천국 이미지 - 항상 풀 표시 */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backgroundImage: "url(/splash-bg.png)",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          opacity: heavenOpacity,
-          transition: "opacity 0.5s ease-out",
-        }}
-      />
-
-      {/* 아주 가벼운 비네팅 (텍스트 가독성용) */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
+      <style>{`
+        .brand-splash {
+          isolation: isolate;
+          opacity: 1;
+          transition: opacity 420ms ease, transform 420ms ease;
+        }
+        .brand-splash-exit {
+          opacity: 0;
+          transform: scale(1.015);
+        }
+        .brand-surface {
+          position: absolute;
+          inset: 0;
           background:
-            "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.15) 100%)",
-          opacity: heavenOpacity,
-          transition: "opacity 0.5s ease-out",
-          pointerEvents: "none",
-        }}
-      />
+            repeating-linear-gradient(90deg, rgba(37, 99, 235, 0.06) 0 1px, transparent 1px 92px),
+            repeating-linear-gradient(0deg, rgba(15, 118, 110, 0.05) 0 1px, transparent 1px 92px);
+          -webkit-mask-image: radial-gradient(circle at center, black 0%, rgba(0, 0, 0, 0.96) 38%, transparent 82%);
+          mask-image: radial-gradient(circle at center, black 0%, rgba(0, 0, 0, 0.96) 38%, transparent 82%);
+          opacity: 0.9;
+        }
+        .brand-sheen {
+          position: absolute;
+          inset: -18%;
+          background: linear-gradient(115deg, transparent 36%, rgba(255, 255, 255, 0.76) 49%, transparent 62%);
+          transform: translateX(-52%);
+          animation: brandSweep 1500ms cubic-bezier(.22,.85,.24,1) forwards;
+        }
+        .brand-mark {
+          animation: brandRise 620ms cubic-bezier(.2,.9,.2,1) both;
+        }
+        .brand-name {
+          animation: brandRise 620ms 90ms cubic-bezier(.2,.9,.2,1) both;
+        }
+        .brand-progress span {
+          animation: brandFill 1180ms 180ms cubic-bezier(.2,.8,.2,1) both;
+        }
+        @keyframes brandRise {
+          from { opacity: 0; transform: translateY(14px) scale(0.965); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes brandSweep {
+          from { transform: translateX(-52%); }
+          to { transform: translateX(52%); }
+        }
+        @keyframes brandFill {
+          from { transform: scaleX(0); opacity: 0.24; }
+          to { transform: scaleX(1); opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .brand-splash,
+          .brand-mark,
+          .brand-name,
+          .brand-progress span,
+          .brand-sheen {
+            animation: none !important;
+            transition-duration: 1ms !important;
+          }
+        }
+      `}</style>
 
-      {/* 아이콘 - 1초 노출 후 페이드아웃 */}
-      <div
+      <div className="brand-surface" aria-hidden="true" />
+      <div className="brand-sheen" aria-hidden="true" />
+
+      <main
         style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          opacity: iconOpacity,
-          transform: `scale(${iconScale})`,
-          transition: "opacity 0.5s ease-out, transform 0.5s ease-out",
-          pointerEvents: "none",
+          position: "relative",
+          zIndex: 1,
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          padding: 24,
         }}
       >
         <div
@@ -113,33 +134,31 @@ export default function SplashPage() {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 18,
-            padding: "32px 44px",
-            background: "rgba(255,255,255,0.55)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            borderRadius: 28,
-            border: "1px solid rgba(255,255,255,0.7)",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+            gap: 14,
+            textAlign: "center",
+            pointerEvents: "none",
           }}
         >
           <img
+            className="brand-mark"
             src="/icon-192.png"
             alt="스마트명성"
             style={{
-              width: 88,
-              height: 88,
-              borderRadius: 20,
-              boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+              width: 112,
+              height: 112,
+              borderRadius: 28,
+              border: "1px solid rgba(255,255,255,0.92)",
+              boxShadow: "0 22px 56px rgba(15,23,42,0.18)",
             }}
           />
-          <div style={{ textAlign: "center" }}>
+          <div className="brand-name">
             <div
               style={{
-                fontSize: 26,
+                fontSize: 28,
                 fontWeight: 900,
                 color: "#1e293b",
-                letterSpacing: -1,
+                letterSpacing: 0,
+                lineHeight: 1.2,
               }}
             >
               스마트명성
@@ -150,35 +169,38 @@ export default function SplashPage() {
                 fontWeight: 500,
                 color: "#64748b",
                 marginTop: 4,
-                letterSpacing: 0.5,
+                letterSpacing: 0,
               }}
             >
               Smart Myungsung
             </div>
           </div>
+          <div
+            className="brand-progress"
+            aria-hidden="true"
+            style={{
+              width: 118,
+              height: 3,
+              marginTop: 8,
+              borderRadius: 999,
+              background: "rgba(148,163,184,0.28)",
+              overflow: "hidden",
+            }}
+          >
+            <span
+              style={{
+                display: "block",
+                width: "100%",
+                height: "100%",
+                borderRadius: "inherit",
+                transformOrigin: "left center",
+                background: "#2563eb",
+              }}
+            />
+          </div>
         </div>
-      </div>
+      </main>
 
-      {/* 하단 카피라이트 - 천국 이미지와 함께 유지 */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 24,
-          left: 0,
-          right: 0,
-          textAlign: "center",
-          fontSize: 11,
-          color: "#fff",
-          fontWeight: 600,
-          letterSpacing: 0.5,
-          textShadow: "0 2px 8px rgba(0,0,0,0.5)",
-          opacity: heavenOpacity,
-          transition: "opacity 0.5s ease-out",
-          pointerEvents: "none",
-        }}
-      >
-        © 2026 Smart Myungsung Church
-      </div>
     </div>
   );
 }
