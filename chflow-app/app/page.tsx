@@ -22,7 +22,7 @@ export default function SplashPage() {
 
     const exitTimer = setTimeout(() => {
       if (!cancelled) setExiting(true);
-    }, 2380);
+    }, 1000);
 
     const navigateTimer = setTimeout(async () => {
       const path = await targetPath;
@@ -30,7 +30,7 @@ export default function SplashPage() {
         // /home must be the webview first entry for the TWA exit behavior.
         router.replace(path);
       }
-    }, 2800);
+    }, 1180);
 
     return () => {
       cancelled = true;
@@ -60,7 +60,7 @@ export default function SplashPage() {
         .launch-splash {
           isolation: isolate;
           opacity: 1;
-          transition: opacity 420ms ease;
+          transition: opacity 180ms ease;
         }
         .launch-splash-exit {
           opacity: 0;
@@ -77,10 +77,10 @@ export default function SplashPage() {
           inset: -18%;
           background: linear-gradient(118deg, transparent 35%, rgba(255, 255, 255, 0.84) 49%, transparent 64%);
           transform: translateX(-52%);
-          animation: launchSweep 1120ms cubic-bezier(.22,.85,.24,1) forwards;
+          animation: launchSweep 470ms cubic-bezier(.22,.85,.24,1) forwards;
         }
         .corner-mark {
-          animation: cornerIn 720ms 120ms cubic-bezier(.2,.9,.2,1) both;
+          animation: cornerIn 300ms 50ms cubic-bezier(.2,.9,.2,1) both;
         }
         .seed-scene {
           position: relative;
@@ -99,8 +99,8 @@ export default function SplashPage() {
           transform-origin: 46% 54%;
           will-change: opacity, transform;
           animation:
-            dandelionBloom 1440ms 40ms cubic-bezier(.42,.02,.16,1) both,
-            dandelionVeil 1440ms 40ms linear both;
+            dandelionBloom 610ms 20ms cubic-bezier(.42,.02,.16,1) both,
+            dandelionVeil 610ms 20ms linear both;
         }
         .launch-tagline {
           margin-top: -18px;
@@ -111,7 +111,7 @@ export default function SplashPage() {
           color: #49382f;
           opacity: 0;
           text-shadow: 0 2px 16px rgba(255, 249, 242, 0.96);
-          animation: taglineIn 420ms 1540ms cubic-bezier(.2,.9,.2,1) both;
+          animation: taglineIn 180ms 650ms cubic-bezier(.2,.9,.2,1) both;
         }
         @keyframes cornerIn {
           from { opacity: 0; transform: translateY(-8px) scale(0.92); }
