@@ -88,6 +88,25 @@ export default function DirectoryPage() {
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // 모달 열려있을 때 안드로이드 뒤로가기 → 모달만 닫기 (페이지 이탈 방지)
+  const isProfileModalOpen = selectedId !== null;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!isProfileModalOpen) return;
+    let poppedByBack = false;
+    window.history.pushState({ chflowDirectoryModal: true }, "");
+    const onPop = () => {
+      poppedByBack = true;
+      setSelectedId(null);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      // X/배경/이동 등 다른 경로로 닫혔다면 추가된 가드 entry 제거
+      if (!poppedByBack) window.history.back();
+    };
+  }, [isProfileModalOpen]);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
