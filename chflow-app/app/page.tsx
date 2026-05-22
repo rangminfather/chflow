@@ -22,7 +22,7 @@ export default function SplashPage() {
 
     const exitTimer = setTimeout(() => {
       if (!cancelled) setExiting(true);
-    }, 4340);
+    }, 2380);
 
     const navigateTimer = setTimeout(async () => {
       const path = await targetPath;
@@ -30,7 +30,7 @@ export default function SplashPage() {
         // /home must be the webview first entry for the TWA exit behavior.
         router.replace(path);
       }
-    }, 4760);
+    }, 2800);
 
     return () => {
       cancelled = true;
@@ -77,7 +77,7 @@ export default function SplashPage() {
           inset: -18%;
           background: linear-gradient(118deg, transparent 35%, rgba(255, 255, 255, 0.84) 49%, transparent 64%);
           transform: translateX(-52%);
-          animation: launchSweep 2240ms cubic-bezier(.22,.85,.24,1) forwards;
+          animation: launchSweep 1120ms cubic-bezier(.22,.85,.24,1) forwards;
         }
         .corner-mark {
           animation: cornerIn 720ms 120ms cubic-bezier(.2,.9,.2,1) both;
@@ -94,10 +94,13 @@ export default function SplashPage() {
           height: min(78vw, 312px);
           object-fit: contain;
           opacity: 0;
-          transform: translate(-50%, -50%) scale(0.3) rotate(-32deg);
+          backface-visibility: hidden;
+          transform: translate3d(-50%, -50%, 0) scale(0.3) rotate(-32deg);
           transform-origin: 46% 54%;
-          will-change: opacity, transform, filter;
-          animation: dandelionBloom 2880ms 40ms both;
+          will-change: opacity, transform;
+          animation:
+            dandelionBloom 1440ms 40ms cubic-bezier(.42,.02,.16,1) both,
+            dandelionVeil 1440ms 40ms linear both;
         }
         .launch-tagline {
           margin-top: -18px;
@@ -108,7 +111,7 @@ export default function SplashPage() {
           color: #49382f;
           opacity: 0;
           text-shadow: 0 2px 16px rgba(255, 249, 242, 0.96);
-          animation: taglineIn 520ms 3020ms cubic-bezier(.2,.9,.2,1) both;
+          animation: taglineIn 420ms 1540ms cubic-bezier(.2,.9,.2,1) both;
         }
         @keyframes cornerIn {
           from { opacity: 0; transform: translateY(-8px) scale(0.92); }
@@ -119,39 +122,15 @@ export default function SplashPage() {
           to { transform: translateX(52%); }
         }
         @keyframes dandelionBloom {
-          0% {
-            opacity: 0;
-            filter: blur(2.8px);
-            transform: translate(-50%, -50%) scale(0.3) rotate(-32deg);
-            animation-timing-function: cubic-bezier(.44,.02,.82,.34);
-          }
-          24% {
-            opacity: 1;
-            filter: blur(1.6px);
-            transform: translate(-50%, -50%) scale(0.42) rotate(-27deg);
-            animation-timing-function: cubic-bezier(.46,.04,.88,.38);
-          }
-          46% {
-            opacity: 1;
-            filter: blur(0);
-            transform: translate(-50%, -50%) scale(0.9) rotate(-17deg);
-            animation-timing-function: cubic-bezier(.18,.56,.18,.98);
-          }
-          66% {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(2.1) rotate(5deg);
-            animation-timing-function: cubic-bezier(.12,.7,.18,1);
-          }
-          84% {
-            opacity: 0.82;
-            transform: translate(-50%, -50%) scale(3.46) rotate(13deg);
-            animation-timing-function: cubic-bezier(.18,.58,.24,1);
-          }
-          100% {
-            opacity: 0.42;
-            filter: blur(0);
-            transform: translate(-50%, -50%) scale(4.5) rotate(18deg);
-          }
+          from { transform: translate3d(-50%, -50%, 0) scale(0.3) rotate(-32deg); }
+          to { transform: translate3d(-50%, -50%, 0) scale(4.5) rotate(18deg); }
+        }
+        @keyframes dandelionVeil {
+          0% { opacity: 0; }
+          10% { opacity: 1; }
+          66% { opacity: 1; }
+          84% { opacity: 0.82; }
+          100% { opacity: 0.42; }
         }
         @keyframes taglineIn {
           from { opacity: 0; transform: translateY(12px); }
