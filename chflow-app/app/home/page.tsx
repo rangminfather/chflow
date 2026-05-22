@@ -49,6 +49,9 @@ const COMMON_MENUS = [
   { id: "myinfo",     label: "내 정보",         icon: "⚙️", color: "#64748b", desc: "프로필 / 비밀번호 변경", href: "/myinfo" },
 ];
 
+// 비관리자도 볼 수 있는 공통 메뉴 (그 외는 관리자한테만 노출)
+const COMMON_MENUS_FOR_ALL = ["bulletin", "directory", "myinfo"];
+
 // 가정교회 메뉴
 const PASTURE_MENUS = [
   { id: "members",    label: "목장원 목록",     icon: "👨‍👩‍👧", color: "#8b5cf6", desc: "우리 목장 멤버" },
@@ -205,6 +208,9 @@ export default function HomePage() {
   }
 
   const isAdmin = ["admin", "office", "pastor"].includes(user.role);
+  const visibleCommonMenus = isAdmin
+    ? COMMON_MENUS
+    : COMMON_MENUS.filter((m) => COMMON_MENUS_FOR_ALL.includes(m.id));
   const userImage = getRoleImageByLabel(user.sub_role || "");
 
   return (
@@ -492,7 +498,7 @@ export default function HomePage() {
             <div style={{ marginBottom: 28 }}>
               <SectionTitle icon="✨" title="공통 메뉴" subtitle="모든 성도가 사용할 수 있는 기능" />
               <div className="menu-grid" style={menuGridStyle}>
-                {COMMON_MENUS.map(menu => (
+                {visibleCommonMenus.map(menu => (
                   <MenuCard key={menu.id} menu={menu} />
                 ))}
               </div>
@@ -734,7 +740,10 @@ function SidebarContent({
 
       <div style={{ height: 1, background: "#e2e8f0", margin: "16px 0" }} />
       <div style={sidebarLabelStyle}>공통</div>
-      {COMMON_MENUS.slice(0, 6).map((menu) => (
+      {(["admin", "office", "pastor"].includes(user.role)
+        ? COMMON_MENUS.slice(0, 6)
+        : COMMON_MENUS.filter((m) => COMMON_MENUS_FOR_ALL.includes(m.id))
+      ).map((menu) => (
         <SidebarItem
           key={menu.id}
           active={activeMenu === menu.id}
