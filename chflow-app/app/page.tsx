@@ -46,7 +46,7 @@ export default function SplashPage() {
         minHeight: "100vh",
         position: "relative",
         overflow: "hidden",
-        background: "#f3f6f8",
+        background: "#fff9f2",
         color: "#0f172a",
         fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
       }}
@@ -70,8 +70,8 @@ export default function SplashPage() {
           position: absolute;
           inset: 0;
           background:
-            repeating-linear-gradient(90deg, rgba(37, 99, 235, 0.06) 0 1px, transparent 1px 92px),
-            repeating-linear-gradient(0deg, rgba(15, 118, 110, 0.05) 0 1px, transparent 1px 92px);
+            repeating-linear-gradient(90deg, rgba(249, 115, 22, 0.08) 0 1px, transparent 1px 92px),
+            repeating-linear-gradient(0deg, rgba(13, 148, 136, 0.05) 0 1px, transparent 1px 92px);
           -webkit-mask-image: radial-gradient(circle at center, black 0%, rgba(0, 0, 0, 0.96) 38%, transparent 82%);
           mask-image: radial-gradient(circle at center, black 0%, rgba(0, 0, 0, 0.96) 38%, transparent 82%);
           opacity: 0.9;
@@ -79,15 +79,12 @@ export default function SplashPage() {
         .brand-sheen {
           position: absolute;
           inset: -18%;
-          background: linear-gradient(115deg, transparent 36%, rgba(255, 255, 255, 0.76) 49%, transparent 62%);
+          background: linear-gradient(115deg, transparent 36%, rgba(255, 255, 255, 0.82) 49%, transparent 62%);
           transform: translateX(-52%);
           animation: brandSweep 1500ms cubic-bezier(.22,.85,.24,1) forwards;
         }
         .brand-mark {
           animation: brandRise 620ms cubic-bezier(.2,.9,.2,1) both;
-        }
-        .brand-name {
-          animation: brandRise 620ms 90ms cubic-bezier(.2,.9,.2,1) both;
         }
         .brand-progress span {
           animation: brandFill 1180ms 180ms cubic-bezier(.2,.8,.2,1) both;
@@ -107,7 +104,6 @@ export default function SplashPage() {
         @media (prefers-reduced-motion: reduce) {
           .brand-splash,
           .brand-mark,
-          .brand-name,
           .brand-progress span,
           .brand-sheen {
             animation: none !important;
@@ -134,47 +130,23 @@ export default function SplashPage() {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 14,
+            gap: 18,
             textAlign: "center",
             pointerEvents: "none",
           }}
         >
           <img
             className="brand-mark"
-            src="/icon-192.png"
+            src="/icon-512.png"
             alt="스마트명성"
             style={{
-              width: 112,
-              height: 112,
-              borderRadius: 28,
-              border: "1px solid rgba(255,255,255,0.92)",
-              boxShadow: "0 22px 56px rgba(15,23,42,0.18)",
+              width: "clamp(208px, 58vw, 264px)",
+              height: "clamp(208px, 58vw, 264px)",
+              borderRadius: 36,
+              border: "1px solid rgba(255,255,255,0.94)",
+              boxShadow: "0 22px 64px rgba(194,65,12,0.16), 0 8px 24px rgba(15,23,42,0.08)",
             }}
           />
-          <div className="brand-name">
-            <div
-              style={{
-                fontSize: 28,
-                fontWeight: 900,
-                color: "#1e293b",
-                letterSpacing: 0,
-                lineHeight: 1.2,
-              }}
-            >
-              스마트명성
-            </div>
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 500,
-                color: "#64748b",
-                marginTop: 4,
-                letterSpacing: 0,
-              }}
-            >
-              Smart Myungsung
-            </div>
-          </div>
           <div
             className="brand-progress"
             aria-hidden="true"
@@ -183,7 +155,7 @@ export default function SplashPage() {
               height: 3,
               marginTop: 8,
               borderRadius: 999,
-              background: "rgba(148,163,184,0.28)",
+              background: "rgba(194,65,12,0.15)",
               overflow: "hidden",
             }}
           >
@@ -194,7 +166,7 @@ export default function SplashPage() {
                 height: "100%",
                 borderRadius: "inherit",
                 transformOrigin: "left center",
-                background: "#2563eb",
+                background: "#f97316",
               }}
             />
           </div>
