@@ -96,8 +96,10 @@ export default function SplashPage() {
           height: min(78vw, 312px);
           object-fit: contain;
           opacity: 0;
-          transform: translate(-50%, -50%) scale(0.94) rotate(-4deg);
-          animation: dandelionBreathe 2140ms 80ms cubic-bezier(.2,.88,.2,1) both;
+          transform: translate(-50%, -50%) scale(0.9) rotate(-6deg);
+          transform-origin: 46% 54%;
+          will-change: opacity, transform, filter;
+          animation: dandelionSpread 2140ms 80ms both;
         }
         .launch-tagline {
           margin-top: -18px;
@@ -117,11 +119,33 @@ export default function SplashPage() {
           from { transform: translateX(-52%); }
           to { transform: translateX(52%); }
         }
-        @keyframes dandelionBreathe {
-          0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9) rotate(-5deg); }
-          18% { opacity: 0.98; }
-          62% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-2deg); }
-          100% { opacity: 0.92; transform: translate(-50%, -50%) scale(1.012) rotate(0deg); }
+        @keyframes dandelionSpread {
+          0% {
+            opacity: 0;
+            filter: blur(2px);
+            transform: translate(-50%, -50%) scale(0.84) rotate(-8deg);
+            animation-timing-function: cubic-bezier(.12,.82,.18,1);
+          }
+          18% {
+            opacity: 1;
+            filter: blur(0);
+            transform: translate(-50%, -50%) scale(1.025) rotate(-1.6deg);
+            animation-timing-function: cubic-bezier(.14,.72,.24,1);
+          }
+          48% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1.012) rotate(-0.35deg);
+            animation-timing-function: cubic-bezier(.2,.75,.28,1);
+          }
+          74% {
+            opacity: 0.98;
+            transform: translate(-50%, -50%) scale(1) rotate(0deg);
+          }
+          100% {
+            opacity: 0.98;
+            filter: blur(0);
+            transform: translate(-50%, -50%) scale(1) rotate(0deg);
+          }
         }
         @keyframes taglineIn {
           from { opacity: 0; transform: translateY(12px); }
