@@ -108,7 +108,7 @@ function LoginContent() {
       return;
     }
 
-    // replace 사용: /home이 webview 첫 entry가 되어야 종료 시 TWA Activity가 닫힘
+    // replace 사용: /home이 WebView 첫 entry가 되어야 모바일 shell이 root 종료 동작을 안정적으로 처리함
     router.replace("/home");
   };
 

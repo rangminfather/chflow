@@ -27,7 +27,7 @@ export default function SplashPage() {
     const navigateTimer = setTimeout(async () => {
       const path = await targetPath;
       if (!cancelled) {
-        // /home must be the webview first entry for the TWA exit behavior.
+        // Keep /home as the WebView first entry so the native mobile shell owns root-exit handling.
         router.replace(path);
       }
     }, 2100);

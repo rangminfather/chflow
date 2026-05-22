@@ -2,6 +2,13 @@
 
 명성교회 통합 관리 시스템 (Church Management System)
 
+## Architecture Decision
+
+- Web delivery: `chflow-app` is the PWA/web app and is deployed to Vercel.
+- Mobile delivery: `chflow-expo` is the React Native Expo WebView shell for Android app builds.
+- `chflow-twa` is not the current mobile release path. Keep it only as a legacy/reference project unless the mobile architecture decision is changed explicitly.
+- When a change affects mobile-only behavior such as Android back handling, launcher assets, or native permissions, verify it in `chflow-expo`; a Vercel deploy alone does not verify the mobile shell.
+
 ## 📋 개요
 
 명성교회의 성도 관리, 회원 가입, 인증, 가정교회 구조 관리 등을 위한 통합 시스템입니다.
@@ -9,7 +16,7 @@
 - **백엔드**: Supabase (PostgreSQL + Auth + Storage)
 - **프론트엔드**: Next.js 16 (TypeScript + Tailwind CSS)
 - **호스팅**: Vercel
-- **모바일**: PWA + Android TWA (Trusted Web Activity)
+- **모바일**: React Native Expo WebView shell (`chflow-expo`)
 
 ## 🌐 라이브 데모
 
@@ -34,8 +41,11 @@ chflow/
 │   │   └── roles.ts                # 직분 정의 (21개 + 13 서브)
 │   └── public/                     # 정적 파일
 │
-├── chflow-twa/                    # Android TWA 프로젝트
-│   └── android/                    # Android 빌드 (Gradle)
+├── chflow-expo/                   # React Native Expo mobile shell
+│   ├── App.tsx                     # WebView + Android back handling
+│   └── eas.json                    # Android verification/release build profiles
+├── chflow-twa/                    # Legacy/reference Android TWA project
+│   └── android/                    # Legacy Gradle build
 │
 └── MS_AX/                         # 데이터 처리 / 마이그레이션
     ├── chflow-project/
@@ -70,9 +80,9 @@ chflow/
 - 회원 정보 수정 (가정교회/직분/주소/배우자)
 - 회원가입 승인/거절
 
-### 5. PWA + Android 앱
-- 홈 화면 추가 가능
-- TWA로 Google Play 배포 가능
+### 5. Web PWA + React Native mobile shell
+- Web/PWA can be added to a home screen.
+- Google Play mobile release uses the Expo shell in `chflow-expo`.
 
 ## 🚀 개발 환경 설정
 
@@ -101,11 +111,11 @@ npx supabase db query --linked -f supabase/migrations/20260411000000_auth_extens
 npx supabase db query --linked -f supabase/migrations/20260411100000_directory_schema.sql
 ```
 
-### Android TWA 빌드
+### Android Expo build
 
 ```bash
-cd chflow-twa/android
-./gradlew clean assembleRelease bundleRelease
+cd chflow-expo
+eas build -p android --profile verify
 ```
 
 ## 🔐 보안

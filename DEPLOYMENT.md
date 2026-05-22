@@ -1,5 +1,37 @@
 # Deployment Notes
 
+## Delivery Split
+
+The current delivery decision is split by runtime:
+
+- Web/PWA: deploy `chflow-app` to Vercel.
+- Android mobile app: build and release the React Native Expo shell in `chflow-expo`.
+- Do not treat `chflow-twa` as the current mobile release path unless that architecture decision is changed explicitly.
+- `chflow-expo` and legacy `chflow-twa` currently use the same Android package id, so installing a TWA APK can replace the Expo shell on a test phone and bypass native Expo behaviors such as Android back handling.
+
+Web deploy:
+
+```powershell
+cd C:\csh\project\chflow
+.\scripts\deploy-chflow-app.ps1
+```
+
+Android app verification/build path:
+
+```powershell
+cd C:\csh\project\chflow\chflow-expo
+eas build -p android --profile verify
+```
+
+Android production release path:
+
+```powershell
+cd C:\csh\project\chflow\chflow-expo
+eas build -p android --profile production
+```
+
+Web deploys update the PWA/web content used by the mobile WebView, but they do not validate or replace native Expo behavior such as Android back handling, launcher assets, native permissions, or Play Store binaries.
+
 운영 앱의 기준 Vercel 프로젝트는 `chflow-app`입니다.
 
 - 운영 주소: `https://chflow-app.vercel.app`
@@ -32,4 +64,3 @@ vercel inspect chflow-app.vercel.app
 
 - `vercel inspect chflow-app.vercel.app`의 `name`이 `chflow-app`이어야 합니다.
 - `https://chflow-app.vercel.app/login`이 `200 OK`를 반환해야 합니다.
-
