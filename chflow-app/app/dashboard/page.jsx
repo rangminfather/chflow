@@ -1094,7 +1094,7 @@ export default function App() {
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
         <div style={{ textAlign: "center" }}>
-          <img src="/icon-192.png" style={{ width: 64, height: 64, borderRadius: 14, marginBottom: 12, opacity: 0.8 }} />
+          <img src="/brand-mark-192.png" style={{ width: 64, height: 64, borderRadius: 14, marginBottom: 12, opacity: 0.8 }} />
           <div style={{ fontSize: 13, color: "#64748b" }}>로딩 중...</div>
         </div>
       </div>
@@ -1223,7 +1223,7 @@ export default function App() {
       {showInstallBanner && (
         <div style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <img src="/icon-96.png" alt="" style={{ width: 36, height: 36, borderRadius: 8 }} />
+            <img src="/brand-mark-192.png" alt="" style={{ width: 36, height: 36, borderRadius: 8 }} />
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>스마트명성 앱 설치</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.8)" }}>홈 화면에 추가하여 앱처럼 사용하세요</div>

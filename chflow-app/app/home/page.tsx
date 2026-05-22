@@ -197,7 +197,7 @@ export default function HomePage() {
       <div style={loadingStyle}>
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
         <div style={{ textAlign: "center" }}>
-          <img src="/icon-192.png" style={{ width: 64, height: 64, borderRadius: 14, marginBottom: 12, opacity: 0.8 }} />
+          <img src="/brand-mark-192.png" style={{ width: 64, height: 64, borderRadius: 14, marginBottom: 12, opacity: 0.8 }} />
           <div style={{ fontSize: 13, color: "#64748b" }}>로딩 중...</div>
         </div>
       </div>

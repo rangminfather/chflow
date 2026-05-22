@@ -145,7 +145,7 @@ function LoginContent() {
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <img
-            src="/icon-192.png"
+            src="/brand-mark-192.png"
             alt="스마트명성"
             style={{ width: 72, height: 72, borderRadius: 16, marginBottom: 12, boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}
           />

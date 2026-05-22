@@ -25,7 +25,7 @@ export default function HeaderLogo({ size = 32, showText = false }: HeaderLogoPr
       }}
     >
       <img
-        src="/icon-192.png"
+        src="/brand-mark-192.png"
         alt="스마트명성"
         style={{
           width: size,
