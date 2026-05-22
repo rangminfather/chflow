@@ -70,8 +70,8 @@ export const ROLES: Role[] = [
   },
   { id: "acting_deacon_male", label: "서리집사 (남)", image: "/roles/10_acting_deacon_male.png" },
   { id: "acting_deacon_female", label: "서리집사 (여)", image: "/roles/11_acting_deacon_female.png" },
-  { id: "member_male", label: "교인 (남)", image: "/roles/12_member_male.png" },
-  { id: "member_female", label: "교인 (여)", image: "/roles/13_member_female.png" },
+  { id: "member_male", label: "성도 (남)", image: "/roles/12_member_male.png" },
+  { id: "member_female", label: "성도 (여)", image: "/roles/13_member_female.png" },
   { id: "youth_male", label: "청년 (남)", image: "/roles/14_youth_male.png" },
   { id: "youth_female", label: "청년 (여)", image: "/roles/15_youth_female.png" },
   { id: "teen_male", label: "청소년 (남)", image: "/roles/16_teen_male.png" },
@@ -93,9 +93,18 @@ export function mapToSystemRole(roleId: RoleId): string {
 // sub_role 문자열 → 이미지 경로 매핑
 // 관리자가 DB에서 sub_role을 바꾸면 자동으로 이미지도 따라감
 // =============================================================
+// 라벨 별칭 (이름 변경 전 DB값 호환)
+const LABEL_ALIASES: Record<string, string> = {
+  "교인 (남)": "성도 (남)",
+  "교인 (여)": "성도 (여)",
+  "교인(남)": "성도 (남)",
+  "교인(여)": "성도 (여)",
+};
+
 export function getRoleImageByLabel(label: string | null | undefined): string {
   if (!label) return "/roles/default.png";
-  const normalized = label.trim();
+  let normalized = label.trim();
+  if (LABEL_ALIASES[normalized]) normalized = LABEL_ALIASES[normalized];
 
   // 1. 서브직분 먼저 매칭 (담임목사, 시무장로 등)
   for (const role of ROLES) {

@@ -14,12 +14,13 @@ import {
 import ModalBackdrop from "@/components/ModalBackdrop";
 
 type Step = "lookup" | "confirm" | "role" | "info" | "done";
-type RoleGroupId = "clergy" | "officers" | "members" | "nextgen";
+type RoleGroupId = "clergy" | "coworkers" | "permanent" | "members" | "nextgen";
 
 const ROLE_GROUPS: { id: RoleGroupId; label: string; roleIds: string[] }[] = [
-  { id: "clergy", label: "\uAD50\uC5ED\uC790", roleIds: ["pastor", "missionary", "evangelist", "pastor_wife", "educator"] },
-  { id: "officers", label: "\uC9C1\uBD84\uC790", roleIds: ["elder", "coordinator", "serving_deacon", "deaconess", "acting_deacon_male", "acting_deacon_female"] },
-  { id: "members", label: "\uC131\uB3C4", roleIds: ["member_male", "member_female"] },
+  { id: "clergy", label: "\uAD50\uC5ED\uC790", roleIds: ["pastor", "missionary", "evangelist", "pastor_wife"] },
+  { id: "coworkers", label: "\uB3D9\uC5ED\uC790", roleIds: ["educator", "coordinator"] },
+  { id: "permanent", label: "\uD56D\uC874\uC9C1", roleIds: ["elder", "serving_deacon", "deaconess"] },
+  { id: "members", label: "\uC131\uB3C4", roleIds: ["acting_deacon_male", "acting_deacon_female", "member_male", "member_female"] },
   { id: "nextgen", label: "\uB2E4\uC74C\uC138\uB300", roleIds: ["youth_male", "youth_female", "teen_male", "teen_female", "child_male", "child_female", "toddler_male", "toddler_female"] },
 ];
 
@@ -537,7 +538,7 @@ export default function SignupPage() {
           </div>
 
           <div className="role-tabs" style={{
-            display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 14,
+            display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginBottom: 14,
           }}>
             {ROLE_GROUPS.map((group) => {
               const active = group.id === roleGroup;
@@ -597,7 +598,7 @@ export default function SignupPage() {
 
         <style jsx global>{`
           @media (max-width: 560px) {
-            .role-tabs { grid-template-columns: repeat(2, 1fr) !important; }
+            .role-tabs { grid-template-columns: repeat(3, 1fr) !important; }
             .role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; max-height: none !important; overflow: visible !important; }
           }
           @media (max-width: 480px) {
