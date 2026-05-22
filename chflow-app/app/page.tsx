@@ -22,7 +22,7 @@ export default function SplashPage() {
 
     const exitTimer = setTimeout(() => {
       if (!cancelled) setExiting(true);
-    }, 1000);
+    }, 1920);
 
     const navigateTimer = setTimeout(async () => {
       const path = await targetPath;
@@ -30,7 +30,7 @@ export default function SplashPage() {
         // /home must be the webview first entry for the TWA exit behavior.
         router.replace(path);
       }
-    }, 1180);
+    }, 2100);
 
     return () => {
       cancelled = true;
@@ -111,7 +111,7 @@ export default function SplashPage() {
           color: #49382f;
           opacity: 0;
           text-shadow: 0 2px 16px rgba(255, 249, 242, 0.96);
-          animation: taglineIn 180ms 650ms cubic-bezier(.2,.9,.2,1) both;
+          animation: taglineIn 140ms 550ms cubic-bezier(.2,.9,.2,1) both;
         }
         @keyframes cornerIn {
           from { opacity: 0; transform: translateY(-8px) scale(0.92); }
