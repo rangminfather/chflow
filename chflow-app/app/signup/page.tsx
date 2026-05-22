@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROLES, mapToSystemRole, type Role } from "@/lib/roles";
 import {
@@ -79,6 +79,39 @@ export default function SignupPage() {
   // 공통
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // 안드로이드/브라우저 뒤로가기 버튼 → 앱종료 대신 이전 step/모달 닫기
+  // 마운트 시 가드 history entry 1개 추가, popstate 발생할 때마다 한 단계 되돌리고 가드 재충전
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.history.pushState({ chflowSignupGuard: true }, "");
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handlePopState = () => {
+      if (showSubRoleModal) {
+        setShowSubRoleModal(null);
+      } else if (step === "info") {
+        setStep("role");
+      } else if (step === "role") {
+        setStep(matched ? "confirm" : "lookup");
+      } else if (step === "confirm") {
+        setStep("lookup");
+      } else if (step === "done") {
+        router.push("/login?notice=signup");
+        return;
+      } else {
+        // step === "lookup": 회원가입 진입 직전 화면(로그인)으로
+        router.push("/login");
+        return;
+      }
+      // 가드 entry 재충전 (다음 뒤로가기에서도 동일 처리)
+      window.history.pushState({ chflowSignupGuard: true }, "");
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [step, showSubRoleModal, matched, router]);
 
   // ============ Step 1: 이름+휴대폰 lookup (+ 자녀 가입 분기) ============
   const handleLookup = async (e: React.FormEvent) => {
