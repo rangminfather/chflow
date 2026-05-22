@@ -22,7 +22,7 @@ export default function SplashPage() {
 
     const exitTimer = setTimeout(() => {
       if (!cancelled) setExiting(true);
-    }, 2220);
+    }, 4340);
 
     const navigateTimer = setTimeout(async () => {
       const path = await targetPath;
@@ -30,7 +30,7 @@ export default function SplashPage() {
         // /home must be the webview first entry for the TWA exit behavior.
         router.replace(path);
       }
-    }, 2640);
+    }, 4760);
 
     return () => {
       cancelled = true;
@@ -77,7 +77,7 @@ export default function SplashPage() {
           inset: -18%;
           background: linear-gradient(118deg, transparent 35%, rgba(255, 255, 255, 0.84) 49%, transparent 64%);
           transform: translateX(-52%);
-          animation: launchSweep 880ms cubic-bezier(.22,.85,.24,1) forwards;
+          animation: launchSweep 2240ms cubic-bezier(.22,.85,.24,1) forwards;
         }
         .corner-mark {
           animation: cornerIn 720ms 120ms cubic-bezier(.2,.9,.2,1) both;
@@ -94,10 +94,10 @@ export default function SplashPage() {
           height: min(78vw, 312px);
           object-fit: contain;
           opacity: 0;
-          transform: translate(-50%, -50%) scale(0.6) rotate(-24deg);
+          transform: translate(-50%, -50%) scale(0.3) rotate(-32deg);
           transform-origin: 46% 54%;
           will-change: opacity, transform, filter;
-          animation: dandelionBurst 920ms 40ms both;
+          animation: dandelionBloom 2880ms 40ms both;
         }
         .launch-tagline {
           margin-top: -18px;
@@ -107,7 +107,8 @@ export default function SplashPage() {
           letter-spacing: 0;
           color: #49382f;
           opacity: 0;
-          animation: taglineIn 520ms 980ms cubic-bezier(.2,.9,.2,1) both;
+          text-shadow: 0 2px 16px rgba(255, 249, 242, 0.96);
+          animation: taglineIn 520ms 3020ms cubic-bezier(.2,.9,.2,1) both;
         }
         @keyframes cornerIn {
           from { opacity: 0; transform: translateY(-8px) scale(0.92); }
@@ -117,35 +118,39 @@ export default function SplashPage() {
           from { transform: translateX(-52%); }
           to { transform: translateX(52%); }
         }
-        @keyframes dandelionBurst {
+        @keyframes dandelionBloom {
           0% {
             opacity: 0;
-            filter: blur(2.6px);
-            transform: translate(-50%, -50%) scale(0.6) rotate(-24deg);
-            animation-timing-function: cubic-bezier(.5,.02,.92,.34);
+            filter: blur(2.8px);
+            transform: translate(-50%, -50%) scale(0.3) rotate(-32deg);
+            animation-timing-function: cubic-bezier(.44,.02,.82,.34);
           }
-          12% {
+          24% {
             opacity: 1;
-            filter: blur(1.5px);
-            transform: translate(-50%, -50%) scale(0.72) rotate(-19deg);
-            animation-timing-function: cubic-bezier(.44,.04,.9,.42);
+            filter: blur(1.6px);
+            transform: translate(-50%, -50%) scale(0.42) rotate(-27deg);
+            animation-timing-function: cubic-bezier(.46,.04,.88,.38);
           }
-          34% {
+          46% {
             opacity: 1;
             filter: blur(0);
-            transform: translate(-50%, -50%) scale(1.5) rotate(10deg);
-            animation-timing-function: cubic-bezier(.12,.82,.18,1);
+            transform: translate(-50%, -50%) scale(0.9) rotate(-17deg);
+            animation-timing-function: cubic-bezier(.18,.56,.18,.98);
           }
-          62% {
-            opacity: 0.98;
-            transform: translate(-50%, -50%) scale(1.08) rotate(1.2deg);
-            animation-timing-function: cubic-bezier(.18,.7,.22,1);
+          66% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(2.1) rotate(5deg);
+            animation-timing-function: cubic-bezier(.12,.7,.18,1);
           }
-          84%,
+          84% {
+            opacity: 0.82;
+            transform: translate(-50%, -50%) scale(3.46) rotate(13deg);
+            animation-timing-function: cubic-bezier(.18,.58,.24,1);
+          }
           100% {
-            opacity: 0.98;
+            opacity: 0.42;
             filter: blur(0);
-            transform: translate(-50%, -50%) scale(1) rotate(0deg);
+            transform: translate(-50%, -50%) scale(4.5) rotate(18deg);
           }
         }
         @keyframes taglineIn {
