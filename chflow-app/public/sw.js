@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smart-myungsung-v2';
+const CACHE_NAME = 'smart-myungsung-v3';
 const PRECACHE_URLS = ['/', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (e) => {
