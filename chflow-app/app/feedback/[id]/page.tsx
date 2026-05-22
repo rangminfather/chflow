@@ -28,6 +28,7 @@ type Comment = {
 
 type PostDetail = {
   id: string;
+  seq: number;
   title: string;
   body: string;
   status: FeedbackStatus;
@@ -95,33 +96,26 @@ export default function FeedbackDetailPage() {
     // eslint-disable-next-line
   }, []);
 
-  // 뒤로가기 가드 - 이미지 뷰어 열려있으면 뷰어만 닫기
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!viewerUrl) return;
-    window.history.pushState({ chflowFeedbackViewer: true }, "");
-    let popped = false;
-    const onPop = () => { popped = true; setViewerUrl(null); };
-    window.addEventListener("popstate", onPop);
-    return () => {
-      window.removeEventListener("popstate", onPop);
-      if (!popped) window.history.back();
-    };
-  }, [viewerUrl]);
-
-  // 페이지 진입 시 뒤로가기 → 목록
+  // 페이지 진입 시 가드 entry 1개 추가
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.history.pushState({ chflowFeedbackDetail: true }, "");
+  }, []);
+
+  // 뒤로가기: 뷰어 열려있으면 뷰어만 닫고 가드 보충, 아니면 목록으로
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     const onPop = () => {
-      // viewer가 처리하지 않은 popstate만 여기로
-      if (viewerUrl) return;
+      if (viewerUrl) {
+        setViewerUrl(null);
+        window.history.pushState({ chflowFeedbackDetail: true }, "");
+        return;
+      }
       router.replace("/feedback");
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-    // eslint-disable-next-line
-  }, []);
+  }, [viewerUrl, router]);
 
   async function load() {
     setLoading(true);
@@ -262,6 +256,7 @@ export default function FeedbackDetailPage() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+          <span style={seqBadge}>#{post.seq}</span>
           {post.is_private && <span style={lockBadge}>🔒 비공개</span>}
           <span style={{
             padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800,
@@ -480,6 +475,10 @@ const statusBoxStyle: React.CSSProperties = {
 const lockBadge: React.CSSProperties = {
   padding: "2px 8px", borderRadius: 6, background: "#fef3c7",
   color: "#92400e", fontSize: 11, fontWeight: 700,
+};
+const seqBadge: React.CSSProperties = {
+  padding: "2px 8px", borderRadius: 6, background: "#f1f5f9",
+  color: "#475569", fontSize: 11, fontWeight: 800,
 };
 const thumbWrap: React.CSSProperties = {
   position: "relative", aspectRatio: "1", borderRadius: 10,
