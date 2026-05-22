@@ -4,17 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-const seedFlights = [
-  { left: "45%", top: "43%", x: "72px", y: "-118px", mx: "22px", my: "-44px", rotate: "24deg", scale: 0.42, delay: "140ms", duration: "1180ms" },
-  { left: "48%", top: "45%", x: "118px", y: "-94px", mx: "54px", my: "-34px", rotate: "-12deg", scale: 0.34, delay: "220ms", duration: "1220ms" },
-  { left: "50%", top: "40%", x: "146px", y: "-152px", mx: "62px", my: "-62px", rotate: "36deg", scale: 0.3, delay: "300ms", duration: "1320ms" },
-  { left: "43%", top: "47%", x: "44px", y: "-168px", mx: "8px", my: "-62px", rotate: "-26deg", scale: 0.28, delay: "370ms", duration: "1280ms" },
-  { left: "52%", top: "48%", x: "170px", y: "-124px", mx: "86px", my: "-46px", rotate: "18deg", scale: 0.26, delay: "450ms", duration: "1380ms" },
-  { left: "46%", top: "51%", x: "102px", y: "-196px", mx: "38px", my: "-84px", rotate: "44deg", scale: 0.22, delay: "540ms", duration: "1440ms" },
-  { left: "53%", top: "44%", x: "198px", y: "-176px", mx: "96px", my: "-70px", rotate: "-18deg", scale: 0.2, delay: "610ms", duration: "1480ms" },
-  { left: "40%", top: "49%", x: "70px", y: "-92px", mx: "18px", my: "-22px", rotate: "8deg", scale: 0.2, delay: "690ms", duration: "1160ms" },
-];
-
 export default function SplashPage() {
   const router = useRouter();
   const [exiting, setExiting] = useState(false);
@@ -33,7 +22,7 @@ export default function SplashPage() {
 
     const exitTimer = setTimeout(() => {
       if (!cancelled) setExiting(true);
-    }, 1540);
+    }, 2040);
 
     const navigateTimer = setTimeout(async () => {
       const path = await targetPath;
@@ -41,7 +30,7 @@ export default function SplashPage() {
         // /home must be the webview first entry for the TWA exit behavior.
         router.replace(path);
       }
-    }, 1960);
+    }, 2460);
 
     return () => {
       cancelled = true;
@@ -100,28 +89,18 @@ export default function SplashPage() {
           width: min(78vw, 360px);
           height: min(78vw, 360px);
         }
-        .seed-origin {
+        .launch-dandelion {
           position: absolute;
           inset: 50%;
-          width: min(44vw, 202px);
-          height: min(44vw, 202px);
+          width: min(78vw, 312px);
+          height: min(78vw, 312px);
           object-fit: contain;
           opacity: 0;
-          transform: translate(-50%, -50%) scale(0.92) rotate(-6deg);
-          animation: originBreathe 1380ms 80ms cubic-bezier(.2,.88,.2,1) both;
-        }
-        .wind-seed {
-          position: absolute;
-          width: min(35vw, 148px);
-          height: min(35vw, 148px);
-          object-fit: contain;
-          opacity: 0;
-          transform: translate(-50%, -50%) scale(var(--scale)) rotate(-18deg);
-          transform-origin: center;
-          animation: seedLift var(--duration) var(--delay) cubic-bezier(.2,.78,.26,1) both;
+          transform: translate(-50%, -50%) scale(0.94) rotate(-4deg);
+          animation: dandelionBreathe 2140ms 80ms cubic-bezier(.2,.88,.2,1) both;
         }
         .launch-tagline {
-          margin-top: -30px;
+          margin-top: -18px;
           font-size: clamp(19px, 5.1vw, 24px);
           font-weight: 800;
           line-height: 1.25;
@@ -138,32 +117,11 @@ export default function SplashPage() {
           from { transform: translateX(-52%); }
           to { transform: translateX(52%); }
         }
-        @keyframes originBreathe {
-          0% { opacity: 0; transform: translate(-50%, -50%) scale(0.86) rotate(-8deg); }
-          18% { opacity: 0.86; }
-          58% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-4deg); }
-          100% { opacity: 0.38; transform: translate(-50%, -50%) scale(1.035) rotate(-1deg); }
-        }
-        @keyframes seedLift {
-          0% {
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(calc(var(--scale) * 0.82)) rotate(-22deg);
-          }
-          14% { opacity: 0.96; }
-          46% {
-            opacity: 1;
-            transform:
-              translate(calc(-50% + var(--mx)), calc(-50% + var(--my)))
-              scale(var(--scale))
-              rotate(calc(var(--rotate) * 0.42));
-          }
-          100% {
-            opacity: 0;
-            transform:
-              translate(calc(-50% + var(--x)), calc(-50% + var(--y)))
-              scale(calc(var(--scale) * 0.94))
-              rotate(var(--rotate));
-          }
+        @keyframes dandelionBreathe {
+          0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9) rotate(-5deg); }
+          18% { opacity: 0.98; }
+          62% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-2deg); }
+          100% { opacity: 0.92; transform: translate(-50%, -50%) scale(1.012) rotate(0deg); }
         }
         @keyframes taglineIn {
           from { opacity: 0; transform: translateY(12px); }
@@ -172,19 +130,15 @@ export default function SplashPage() {
         @media (prefers-reduced-motion: reduce) {
           .launch-splash,
           .corner-mark,
-          .seed-origin,
-          .wind-seed,
+          .launch-dandelion,
           .launch-tagline,
           .launch-sheen {
             animation: none !important;
             transition-duration: 1ms !important;
           }
-          .seed-origin,
+          .launch-dandelion,
           .launch-tagline {
             opacity: 1;
-          }
-          .wind-seed {
-            display: none;
           }
         }
       `}</style>
@@ -229,27 +183,7 @@ export default function SplashPage() {
           }}
         >
           <div className="seed-scene" aria-hidden="true">
-            <img className="seed-origin" src="/launch-seed-origin.png" alt="" />
-            {seedFlights.map((seed, index) => (
-              <img
-                key={`${seed.x}-${seed.y}-${index}`}
-                className="wind-seed"
-                src="/launch-seed.png"
-                alt=""
-                style={{
-                  left: seed.left,
-                  top: seed.top,
-                  "--x": seed.x,
-                  "--y": seed.y,
-                  "--mx": seed.mx,
-                  "--my": seed.my,
-                  "--rotate": seed.rotate,
-                  "--scale": seed.scale,
-                  "--delay": seed.delay,
-                  "--duration": seed.duration,
-                } as React.CSSProperties}
-              />
-            ))}
+            <img className="launch-dandelion" src="/launch-dandelion.png" alt="" />
           </div>
           <div className="launch-tagline">명성교회를 더 스마트하게</div>
         </div>
