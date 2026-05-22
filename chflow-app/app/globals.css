@@ -18,18 +18,102 @@ body {
   font-family: 'Noto Sans KR', -apple-system, sans-serif;
 }
 
-/* 본문이 헤더 가로 넘침에 끌려 밀리지 않도록 전역 차단
-   (헤더의 .header-actions 안에서만 가로 스크롤 허용) */
-html, body { overflow-x: hidden; }
+/* ========================================================
+   전역 오버플로우 방지 — "어떤 화면에서도 가로 스크롤 금지"
+   ========================================================
+   1) 모든 요소 box-sizing: border-box
+   2) html/body 최대 폭 = 100vw, overflow-x 차단
+   3) 이미지/미디어가 부모를 밀어내지 않도록 max-width: 100%
+*/
+*, *::before, *::after { box-sizing: border-box; }
+html, body {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+img, video, canvas, svg, iframe { max-width: 100%; }
 
+/* 최상위 페이지 컨테이너 안전망 — 어느 페이지든 이 클래스 적용 */
+.app-shell {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* 헤더 가로 스크롤 허용 영역(관리자 핀 버튼 줄) */
 .header-actions {
   flex-wrap: nowrap;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;        /* Firefox */
+  scrollbar-width: none;
 }
-.header-actions::-webkit-scrollbar { display: none; }  /* WebKit */
+.header-actions::-webkit-scrollbar { display: none; }
 .header-actions > * { flex-shrink: 0; }
+
+/* ========================================================
+   레이아웃 안전 유틸 (Tailwind와 함께 또는 단독으로 사용)
+   ======================================================== */
+
+/* 그리드: 2열 / 1열, 자식 폭이 부모를 넘지 않도록 minmax(0, 1fr) */
+.safe-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+}
+.safe-grid-1 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* flex row: 자식이 부모 폭을 밀어내지 않도록 min-width:0 기본 */
+.safe-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+.safe-row > .safe-grow { flex: 1; min-width: 0; }
+.safe-row > .safe-shrink-0 { flex-shrink: 0; }
+
+/* 카드 공통: 100% 폭, border-box, 부모 영역 안에서만 배치 */
+.safe-card {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+/* 한국어 줄바꿈
+   - kr-keep: 단어 단위 유지 (자연스러운 줄바꿈)
+   - kr-break: 매우 긴 토큰도 어디서든 줄바꿈 (URL/이메일 등 fallback)
+*/
+.kr-keep  { word-break: keep-all; overflow-wrap: break-word; }
+.kr-break { word-break: break-word; overflow-wrap: anywhere; }
+
+/* 한 줄 잘림 / 두 줄 잘림 (whitespace-nowrap 남발 대체용) */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 버튼/카드 폭 고정 금지를 보조 — width:auto가 기본인데
+   inline-flex로 인해 자식이 부모를 밀어내는 케이스 방어 */
+button, a { max-width: 100%; }
 
 /* 비밀번호 입력 점(•)이 잘 보이도록 강제 */
 input[type="password"] {
