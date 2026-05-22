@@ -8,6 +8,9 @@ import NotificationBell from "@/components/NotificationBell";
 import PhotoAvatar from "@/components/PhotoAvatar";
 import HeaderLogo from "@/components/HeaderLogo";
 
+// =============================================================
+// 타입
+// =============================================================
 interface UserInfo {
   id: string;
   username: string;
@@ -36,42 +39,70 @@ interface MyDepartment {
   member_role: string;
 }
 
-// 공통 메뉴 (모든 사용자가 접근 가능)
-const COMMON_MENUS = [
-  { id: "vote",      label: "투표",            icon: "🗳️", color: "#6366f1", desc: "항존직 선거 · 각종 투표", href: "/vote" },
-  { id: "bulletin",   label: "주보 보기",       icon: "📖", color: "#0ea5e9", desc: "주간 교회 주보" },
-  { id: "events",     label: "행사 공지",       icon: "📢", color: "#0ea5e9", desc: "교회 행사/공지사항" },
-  { id: "calendar",   label: "행사 달력",       icon: "📅", color: "#0ea5e9", desc: "월간 교회 행사" },
-  { id: "directory",  label: "성도 요람",       icon: "👥", color: "#0ea5e9", desc: "성도 검색/조회", href: "/directory" },
-  { id: "facility",   label: "시설 이용 신청",  icon: "🏛️", color: "#f59e0b", desc: "예배실/교육관 등" },
-  { id: "vehicle",    label: "차량 이용 신청",  icon: "🚐", color: "#f59e0b", desc: "교회 차량" },
-  { id: "booking",    label: "예약 캘린더",     icon: "📆", color: "#f59e0b", desc: "내 예약 / 전체 현황" },
-  { id: "feedback",   label: "불편신고/건의",   icon: "💡", color: "#ec4899", desc: "버그 신고 · 건의사항", href: "/feedback" },
-  { id: "myinfo",     label: "내 정보",         icon: "⚙️", color: "#64748b", desc: "프로필 / 비밀번호 변경", href: "/myinfo" },
+type RouterType = ReturnType<typeof useRouter>;
+
+// =============================================================
+// 디자인 토큰
+// =============================================================
+const COLORS = {
+  bgPage:    "#F5F7FA",
+  bgCard:    "#FFFFFF",
+  text:      "#1F2937",
+  textMuted: "#8A94A6",
+  border:    "#E5E7EB",
+  accent:    "#6366F1",
+  accentSoft:"#EEF2FF",
+  success:   "#10B981",
+  successSoft:"#ECFDF5",
+  warn:      "#F59E0B",
+  warnSoft:  "#FFFBEB",
+  danger:    "#EF4444",
+  dangerSoft:"#FEF2F2",
+};
+
+// =============================================================
+// 메뉴 데이터
+// =============================================================
+type CommonMenu = {
+  id: string;
+  label: string;
+  desc: string;
+  icon: string;
+  color: string;
+  href?: string;
+};
+
+const COMMON_MENUS: CommonMenu[] = [
+  { id: "bulletin",  label: "주보 보기",      icon: "📖", color: "#0EA5E9", desc: "이번 주 주보",       href: "/bulletin" },
+  { id: "directory", label: "성도 요람",      icon: "👥", color: "#10B981", desc: "성도 검색",          href: "/directory" },
+  { id: "myinfo",    label: "내 정보",         icon: "👤", color: "#6366F1", desc: "프로필 관리",        href: "/myinfo" },
+  { id: "feedback",  label: "불편신고/건의",  icon: "💡", color: "#EC4899", desc: "건의사항 접수",      href: "/feedback" },
 ];
 
-// 비관리자도 볼 수 있는 공통 메뉴 (그 외는 관리자한테만 노출)
-const COMMON_MENUS_FOR_ALL = ["bulletin", "directory", "feedback", "myinfo"];
-
-// 가정교회 메뉴
-const PASTURE_MENUS = [
-  { id: "members",    label: "목장원 목록",     icon: "👨‍👩‍👧", color: "#8b5cf6", desc: "우리 목장 멤버" },
-  { id: "schedule",   label: "목장 일정",       icon: "📅", color: "#8b5cf6", desc: "모임 일정" },
-  { id: "attend",     label: "참석 응답",       icon: "✋", color: "#8b5cf6", desc: "모임 참석 여부" },
-  { id: "talent",     label: "달란트 적립",     icon: "🎁", color: "#8b5cf6", desc: "출석/봉사 달란트" },
+// 관리자 전용 추가 메뉴
+const ADMIN_EXTRA_MENUS: CommonMenu[] = [
+  { id: "vote",     label: "투표",          icon: "🗳️", color: "#6366F1", desc: "항존직 선거",  href: "/vote" },
+  { id: "events",   label: "행사 공지",      icon: "📢", color: "#0EA5E9", desc: "공지사항" },
+  { id: "calendar", label: "행사 달력",      icon: "📅", color: "#0EA5E9", desc: "월간 일정" },
+  { id: "facility", label: "시설 신청",      icon: "🏛️", color: "#F59E0B", desc: "교육관/예배실" },
+  { id: "vehicle",  label: "차량 신청",      icon: "🚐", color: "#F59E0B", desc: "교회 차량" },
+  { id: "booking",  label: "예약 캘린더",    icon: "📆", color: "#F59E0B", desc: "예약 현황" },
 ];
 
+// =============================================================
+// 메인
+// =============================================================
 export default function HomePage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState<UserInfo | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [myDepartments, setMyDepartments] = useState<MyDepartment[]>([]);
-  const [activeMenu, setActiveMenu] = useState<string>("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
   const [showExitToast, setShowExitToast] = useState(false);
 
+  // === 데이터 로드 ===
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -79,7 +110,7 @@ export default function HomePage() {
         router.replace("/login");
         return;
       }
-      const { data, error } = await supabase.rpc("get_my_full_info");
+      const { data } = await supabase.rpc("get_my_full_info");
       const profile = data?.[0];
       if (!profile || profile.status !== "active") {
         await supabase.auth.signOut();
@@ -89,11 +120,9 @@ export default function HomePage() {
       setUser(profile);
       setAuthChecked(true);
 
-      // 내가 가입한 부서 로드
       const { data: depts } = await supabase.rpc("get_my_departments");
       if (depts) setMyDepartments(depts);
 
-      // 내 사진 (avatar_url 또는 member.photo_url)
       const { data: photos } = await supabase.rpc("get_my_photos");
       if (photos && photos[0]) {
         setPhotoUrl(photos[0].avatar_url || photos[0].member_photo_url || null);
@@ -101,73 +130,45 @@ export default function HomePage() {
     })();
   }, [router]);
 
-  // === 뒤로가기 인터셉트 + 종료 확인 ===
-  // sidebarOpen을 ref로 추적 (useEffect 재실행 방지)
+  // === 뒤로가기 인터셉트 + 종료 확인 (기존 로직 유지) ===
   const sidebarOpenRef = useRef(sidebarOpen);
   useEffect(() => { sidebarOpenRef.current = sidebarOpen; }, [sidebarOpen]);
 
-  // showExitModal도 ref로 (모달이 이미 떠 있으면 중복 방지)
   const showExitModalRef = useRef(showExitModal);
   useEffect(() => { showExitModalRef.current = showExitModal; }, [showExitModal]);
 
-  // 종료 확정 시 popstate가 계속 뒤로 이동하도록 하는 플래그
   const exitingRef = useRef(false);
-
-  // popstate 인터셉트 - authChecked 후 한 번만 등록
   const popstateInitialized = useRef(false);
+
   useEffect(() => {
     if (!authChecked) return;
     if (popstateInitialized.current) return;
     popstateInitialized.current = true;
 
-    // 가짜 history entry 두 개 추가 (안전 마진)
-    // /home (실제) → /home (가짜1) → /home (가짜2)
-    // 사용자가 뒤로가기 → 가짜2 pop → popstate 발생 → 다시 pushState
-    try {
-      window.history.pushState({ smartms_home: true }, "", window.location.href);
-    } catch (e) {
-      console.warn("pushState failed", e);
-    }
+    try { window.history.pushState({ smartms_home: true }, "", window.location.href); }
+    catch (e) { console.warn("pushState failed", e); }
 
     const handlePopState = () => {
-      // 종료 확정 상태: fake entry 재push 금지 → webview 첫 entry(/home)에 도달
-      // → 다음 물리 뒤로가기에서 Chrome이 canGoBack=false 감지하고 TWA Activity 종료
-      if (exitingRef.current) {
-        return;
-      }
-      // 사이드바 열려있으면 사이드바부터 닫음
+      if (exitingRef.current) return;
       if (sidebarOpenRef.current) {
         setSidebarOpen(false);
       } else if (!showExitModalRef.current) {
-        // 모달이 아직 안 떠있으면 표시
         setShowExitModal(true);
       }
-      // 다시 가짜 entry 추가 (사용자가 뒤로가기를 또 눌러도 모달이 다시 뜨도록)
-      try {
-        window.history.pushState({ smartms_home: true }, "", window.location.href);
-      } catch (e) {
-        console.warn("pushState failed", e);
-      }
+      try { window.history.pushState({ smartms_home: true }, "", window.location.href); }
+      catch (e) { console.warn("pushState failed", e); }
     };
 
     window.addEventListener("popstate", handlePopState);
-
     return () => {
       window.removeEventListener("popstate", handlePopState);
       popstateInitialized.current = false;
     };
   }, [authChecked]);
 
-  // 주의: beforeunload/pagehide에서 토큰 제거하면 페이지 이동 시 로그아웃됨 → 제거
-  // 종료는 명시적으로 handleExitConfirm에서만 처리
-
   const handleExitConfirm = () => {
-    // 중요: 이 함수는 반드시 동기 실행되어야 함
-    // (await가 끼면 user activation이 끊겨 window.close() 등 일부 API가 막힘)
     setShowExitModal(false);
     exitingRef.current = true;
-
-    // 로그아웃: supabase.auth.signOut() 대신 localStorage 직접 정리 (동기)
     const remember = typeof window !== "undefined" ? localStorage.getItem("smartms_remember_me") : null;
     if (remember !== "1") {
       try {
@@ -176,20 +177,11 @@ export default function HomePage() {
         });
       } catch {}
     }
-
-    // 가짜 history entry pop → 현재 webview 위치가 /home(첫 entry)이 됨
-    // 사용자가 물리 뒤로가기 버튼을 한 번 누르면 canGoBack=false → TWA Activity 종료
-    try {
-      window.history.back();
-    } catch {}
-
-    // 안내 토스트 표시
+    try { window.history.back(); } catch {}
     setShowExitToast(true);
   };
 
-  const handleExitCancel = () => {
-    setShowExitModal(false);
-  };
+  const handleExitCancel = () => setShowExitModal(false);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -201,21 +193,21 @@ export default function HomePage() {
       <div style={loadingStyle}>
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
         <div style={{ textAlign: "center" }}>
-          <img src="/brand-mark-192.png" style={{ width: 64, height: 64, borderRadius: 14, marginBottom: 12, opacity: 0.8 }} />
-          <div style={{ fontSize: 13, color: "#64748b" }}>로딩 중...</div>
+          <img src="/brand-mark-192.png" style={{ width: 64, height: 64, borderRadius: 14, marginBottom: 12, opacity: 0.85 }} />
+          <div style={{ fontSize: 13, color: COLORS.textMuted }}>로딩 중...</div>
         </div>
       </div>
     );
   }
 
   const isAdmin = ["admin", "office", "pastor"].includes(user.role);
-  const visibleCommonMenus = isAdmin
-    ? COMMON_MENUS
-    : COMMON_MENUS.filter((m) => COMMON_MENUS_FOR_ALL.includes(m.id));
+  const visibleMenus: CommonMenu[] = isAdmin
+    ? [...COMMON_MENUS, ...ADMIN_EXTRA_MENUS]
+    : COMMON_MENUS;
   const userImage = getRoleImageByLabel(user.sub_role || "");
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: COLORS.bgPage, fontFamily: "'Noto Sans KR', sans-serif", color: COLORS.text }}>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
       <style>{`
@@ -223,812 +215,746 @@ export default function HomePage() {
           .sidebar-desktop { display: none !important; }
           .sidebar-mobile-trigger { display: flex !important; }
           .main-content { padding: 16px !important; }
-          .welcome-bar { padding: 14px 16px !important; flex-wrap: wrap; gap: 8px !important; }
-          .welcome-text-full { display: none !important; }
-          .welcome-text-short { display: block !important; }
           .menu-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
           .header-actions { gap: 6px !important; }
           .admin-btn-label { display: none !important; }
+          .user-summary-meta { flex-direction: column !important; align-items: flex-start !important; gap: 4px !important; }
         }
         @media (min-width: 769px) {
           .sidebar-mobile-trigger { display: none !important; }
-          .welcome-text-short { display: none !important; }
         }
       `}</style>
 
-      {/* === 헤더 === */}
-      <div style={{
-        background: "#fff",
-        borderBottom: "1px solid #e2e8f0",
-        padding: "12px 24px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button
-            className="sidebar-mobile-trigger"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            style={{
-              display: "none",
-              alignItems: "center", justifyContent: "center",
-              width: 36, height: 36, borderRadius: 8,
-              background: "#f1f5f9", border: "none", cursor: "pointer",
-              fontSize: 18, color: "#475569",
-            }}
-          >☰</button>
-          <HeaderLogo />
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>스마트명성</div>
-            <div style={{ fontSize: 10, color: "#94a3b8" }}>Smart Myungsung</div>
+      <AppBar
+        isAdmin={isAdmin}
+        user={user}
+        router={router}
+        onMenu={() => setSidebarOpen((s) => !s)}
+        onLogout={handleLogout}
+      />
+
+      <div style={{ display: "flex", minHeight: "calc(100vh - 64px)" }}>
+        <DesktopSidebar user={user} myDepartments={myDepartments} router={router} />
+        <MobileSidebar
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          user={user}
+          myDepartments={myDepartments}
+          router={router}
+        />
+
+        <div className="main-content" style={{ flex: 1, padding: 24, overflowX: "hidden" }}>
+          <div style={{ maxWidth: 960, margin: "0 auto" }}>
+            <UserSummarySection user={user} photoUrl={photoUrl} userImage={userImage} />
+
+            <MinistrySection myDepartments={myDepartments} router={router} />
+
+            <MyMokjangSection user={user} router={router} />
+
+            <CommonMenuSection menus={visibleMenus} router={router} />
+
+            <NoticeBox />
           </div>
         </div>
+      </div>
 
-        <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* 알림 종 */}
-          <NotificationBell userId={user.id} />
-          {isAdmin && (
-            <>
-              <button
-                onClick={() => router.push("/admin/pending")}
-                title="회원가입 대기자"
-                style={adminBtnStyle("#fef3c7", "#92400e")}
-              >
-                <span>⏳</span>
-                <span className="admin-btn-label">가입자</span>
-              </button>
-              <button
-                onClick={() => router.push("/admin/dept-pending")}
-                title="사역 / 부서 관리"
-                style={adminBtnStyle("#fce7f3", "#9d174d")}
-              >
-                <span>🏢</span>
-                <span className="admin-btn-label">사역·부서</span>
-              </button>
-              <button
-                onClick={() => router.push("/admin/members")}
-                title="회원 관리"
-                style={adminBtnStyle("#eef2ff", "#6366f1")}
-              >
-                <span>👥</span>
-                <span className="admin-btn-label">회원관리</span>
-              </button>
-              <button
-                onClick={() => router.push("/admin/password-reset")}
-                title="비밀번호 초기화"
-                style={adminBtnStyle("#fef2f2", "#b91c1c")}
-              >
-                <span>🔐</span>
-                <span className="admin-btn-label">비번초기화</span>
-              </button>
-              <button
-                onClick={() => router.push("/admin/votes")}
-                title="투표 관리"
-                style={adminBtnStyle("#f5f3ff", "#5b21b6")}
-              >
-                <span>🗳️</span>
-                <span className="admin-btn-label">투표관리</span>
-              </button>
-              <button
-                onClick={() => router.push("/admin/rearrange")}
-                title="초원 재편성"
-                style={adminBtnStyle("#f1f5f9", "#0f172a")}
-              >
-                <span>🔀</span>
-                <span className="admin-btn-label">재편성</span>
-              </button>
-              <button
-                onClick={() => router.push("/dashboard")}
-                title="와이어프레임"
-                style={adminBtnStyle("#f0fdf4", "#15803d")}
-              >
-                <span>📐</span>
-                <span className="admin-btn-label">와이어</span>
-              </button>
-            </>
-          )}
-          <button onClick={handleLogout} style={{
-            display: "flex", alignItems: "center", gap: 5,
-            padding: "8px 14px", borderRadius: 8,
-            background: "#fef2f2", border: "1.5px solid #fecaca",
-            color: "#b91c1c", cursor: "pointer",
-            fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+      {showExitModal && (
+        <ExitModal onCancel={handleExitCancel} onConfirm={handleExitConfirm} />
+      )}
+      {showExitToast && <ExitToast />}
+    </div>
+  );
+}
+
+// =============================================================
+// 상단 앱바
+// =============================================================
+function AppBar({ isAdmin, user, router, onMenu, onLogout }: {
+  isAdmin: boolean;
+  user: UserInfo;
+  router: RouterType;
+  onMenu: () => void;
+  onLogout: () => void;
+}) {
+  return (
+    <div style={{
+      background: COLORS.bgCard,
+      borderBottom: `1px solid ${COLORS.border}`,
+      padding: "10px 20px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        <button
+          className="sidebar-mobile-trigger"
+          onClick={onMenu}
+          aria-label="메뉴"
+          style={{
+            display: "none", alignItems: "center", justifyContent: "center",
+            width: 40, height: 40, borderRadius: 10,
+            background: COLORS.bgPage, border: `1px solid ${COLORS.border}`,
+            cursor: "pointer", fontSize: 18, color: COLORS.text,
+          }}
+        >☰</button>
+        <HeaderLogo />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text }}>스마트명성</div>
+          <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: 0.5 }}>Smart Myungsung</div>
+        </div>
+      </div>
+
+      <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <NotificationBell userId={user.id} />
+        {isAdmin && (
+          <>
+            <AdminPill icon="⏳" label="가입자" onClick={() => router.push("/admin/pending")} />
+            <AdminPill icon="🏢" label="사역·부서" onClick={() => router.push("/admin/dept-pending")} />
+            <AdminPill icon="👥" label="회원관리" onClick={() => router.push("/admin/members")} />
+            <AdminPill icon="🔐" label="비번초기화" onClick={() => router.push("/admin/password-reset")} />
+            <AdminPill icon="🗳️" label="투표관리" onClick={() => router.push("/admin/votes")} />
+            <AdminPill icon="🔀" label="재편성" onClick={() => router.push("/admin/rearrange")} />
+          </>
+        )}
+        <button
+          onClick={onLogout}
+          aria-label="로그아웃"
+          style={{
+            display: "flex", alignItems: "center", gap: 4,
+            padding: "8px 12px", borderRadius: 10,
+            background: COLORS.bgPage, border: `1px solid ${COLORS.border}`,
+            color: COLORS.textMuted, cursor: "pointer",
+            fontSize: 12, fontWeight: 600, fontFamily: "inherit",
             whiteSpace: "nowrap",
-          }}>
-            <span>🚪</span>
-            <span>로그아웃</span>
-          </button>
-        </div>
+          }}
+        >
+          <span>🚪</span>
+          <span>로그아웃</span>
+        </button>
       </div>
+    </div>
+  );
+}
 
-      {/* === 환영 배너 === */}
-      <div className="welcome-bar" style={{
-        background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-        padding: "20px 32px",
-        display: "flex",
-        alignItems: "center",
-        gap: 16,
-      }}>
-        {/* 사진 2개: 직분 아바타 + 요람 사진 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-          {/* 1. 직분 아바타 (PPT 캐릭터) */}
-          <div style={{ position: "relative" }}>
-            <img
-              src={userImage}
-              alt={user.sub_role || "직분"}
-              title="선택한 직분 아바타"
-              style={{
-                width: 64, height: 64, borderRadius: "50%",
-                background: "#fff", padding: 2,
-                objectFit: "cover", objectPosition: "top",
-                border: "2px solid rgba(255,255,255,0.4)",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-              }}
-            />
-            <div style={{
-              position: "absolute", bottom: -2, right: -2,
-              background: "#fff", color: "#6366f1",
-              fontSize: 9, fontWeight: 800,
-              padding: "1px 6px", borderRadius: 8,
-              border: "1.5px solid #6366f1",
-              whiteSpace: "nowrap",
-            }}>직분</div>
-          </div>
+function AdminPill({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title={label}
+      style={{
+        display: "flex", alignItems: "center", gap: 4,
+        padding: "8px 10px", borderRadius: 10,
+        background: COLORS.accentSoft, color: COLORS.accent,
+        border: "none", cursor: "pointer",
+        fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+      }}
+    >
+      <span>{icon}</span>
+      <span className="admin-btn-label">{label}</span>
+    </button>
+  );
+}
 
-          {/* 2. 요람 사진 (실제 본인 사진) */}
-          <div style={{ position: "relative" }}>
-            <PhotoAvatar
-              userId={user.id}
-              photoUrl={photoUrl}
-              size={64}
-              label="요람 사진"
-              onUpdate={(url) => setPhotoUrl(url)}
-            />
-            <div style={{
-              position: "absolute", bottom: -2, left: -2,
-              background: "#fff", color: "#10b981",
-              fontSize: 9, fontWeight: 800,
-              padding: "1px 6px", borderRadius: 8,
-              border: "1.5px solid #10b981",
-              whiteSpace: "nowrap",
-              pointerEvents: "none",
-            }}>요람</div>
-          </div>
-        </div>
-
-        <div style={{ flex: 1, color: "#fff", minWidth: 0 }}>
-          <div className="welcome-text-full" style={{ fontSize: 18, fontWeight: 800 }}>
-            <strong>{user.name}</strong>님 환영합니다! 🙏
-          </div>
-          <div className="welcome-text-short" style={{ display: "none", fontSize: 16, fontWeight: 800 }}>
-            {user.name}님 🙏
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.9, marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
-            {user.sub_role && (
-              <span>📿 직분: <strong>{user.sub_role}</strong></span>
-            )}
-            {user.family_church && user.family_church !== '목원' && (
-              <span>🏠 {user.family_church}</span>
-            )}
-            {user.pasture_name && (
-              <span>🌿 {user.plain_name && `${user.plain_name}평원 · `}{user.pasture_name}목장</span>
-            )}
-          </div>
-        </div>
+// =============================================================
+// 사용자 요약 (앱바 아래)
+// =============================================================
+function UserSummarySection({ user, photoUrl, userImage }: {
+  user: UserInfo;
+  photoUrl: string | null;
+  userImage: string;
+}) {
+  const subParts = [user.sub_role, user.family_church && user.family_church !== "목원" ? user.family_church : null].filter(Boolean);
+  return (
+    <div style={{
+      background: COLORS.bgCard,
+      border: `1px solid ${COLORS.border}`,
+      borderRadius: 18,
+      padding: 18,
+      marginBottom: 18,
+      display: "flex",
+      alignItems: "center",
+      gap: 14,
+    }}>
+      <div style={{ position: "relative", flexShrink: 0 }}>
+        <PhotoAvatar
+          userId={user.id}
+          photoUrl={photoUrl}
+          size={56}
+          label=""
+        />
+        <img
+          src={userImage}
+          alt=""
+          style={{
+            position: "absolute", bottom: -4, right: -4,
+            width: 26, height: 26, borderRadius: "50%",
+            background: "#fff", padding: 1, objectFit: "cover", objectPosition: "top",
+            border: `2px solid ${COLORS.bgCard}`,
+            boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+          }}
+        />
       </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>
+          {user.name}님 <span style={{ fontSize: 16 }}>🙏</span>
+        </div>
+        <div className="user-summary-meta" style={{ marginTop: 4, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, fontSize: 13, color: COLORS.textMuted }}>
+          {subParts.length > 0 && <span>{subParts.join(" · ")}</span>}
+        </div>
+        <div style={{ marginTop: 6, fontSize: 13, color: COLORS.textMuted }}>오늘도 평안한 하루 되세요 ✨</div>
+      </div>
+    </div>
+  );
+}
 
-      {/* === 본문: 사이드바 + 메인 === */}
-      <div style={{ display: "flex", minHeight: "calc(100vh - 145px)" }}>
-        {/* === 데스크탑 사이드바 === */}
-        <div className="sidebar-desktop" style={{
-          width: 220,
-          background: "#fff",
-          borderRight: "1px solid #e2e8f0",
-          padding: "20px 12px",
-          flexShrink: 0,
-        }}>
-          <SidebarContent
-            user={user}
-            myDepartments={myDepartments}
-            activeMenu={activeMenu}
-            setActiveMenu={setActiveMenu}
-            router={router}
+// =============================================================
+// 1) 내 사역 · 부서
+// =============================================================
+function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartment[]; router: RouterType }) {
+  const approved = myDepartments.filter((d) => d.status === "approved");
+  const pending = myDepartments.filter((d) => d.status === "pending");
+
+  return (
+    <section style={{ marginBottom: 24 }}>
+      <SectionTitle title="내 사역 · 부서" subtitle="가입된 사역과 부서를 확인하세요" />
+
+      {approved.length === 0 && pending.length === 0 ? (
+        <div style={cardStyle()}>
+          <div style={{ fontSize: 14, color: COLORS.textMuted, marginBottom: 14 }}>
+            아직 가입된 사역 · 부서가 없습니다
+          </div>
+          <OutlineButton
+            label="+ 다른 사역 · 부서 가입하기"
+            onClick={() => router.push("/departments")}
           />
         </div>
-
-        {/* === 모바일 사이드바 오버레이 === */}
-        {sidebarOpen && (
-          <div onClick={() => setSidebarOpen(false)} style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
-            zIndex: 50, display: "flex",
+      ) : (
+        <>
+          <div className="menu-grid" style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 10,
+            marginBottom: 10,
           }}>
-            <div onClick={(e) => e.stopPropagation()} style={{
-              width: 260, background: "#fff", padding: "20px 12px",
-              boxShadow: "4px 0 20px rgba(0,0,0,0.15)", overflowY: "auto",
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingLeft: 8 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#1e293b" }}>메뉴</div>
-                <button onClick={() => setSidebarOpen(false)} style={{
-                  width: 28, height: 28, borderRadius: 6, background: "#f1f5f9", border: "none",
-                  cursor: "pointer", fontSize: 14,
-                }}>✕</button>
-              </div>
-              <SidebarContent
-                user={user}
-                myDepartments={myDepartments}
-                activeMenu={activeMenu}
-                setActiveMenu={(m) => { setActiveMenu(m); setSidebarOpen(false); }}
-                router={router}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* === 메인 컨텐츠 === */}
-        <div className="main-content" style={{ flex: 1, padding: 24, overflowX: "hidden" }}>
-          <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-            {/* 환영 메시지 */}
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", letterSpacing: 1, marginBottom: 6 }}>
-                MAIN
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: "#1e293b" }}>
-                오늘도 평안한 하루 되세요 ✨
-              </div>
-            </div>
-
-            {/* === 내 사역·부서 섹션 (노령자 배려 - 상단 잘 보이는 위치) === */}
-            <div style={{ marginBottom: 28 }}>
-              <SectionTitle icon="📁" title="내 사역 · 부서" subtitle="가입된 부서 / 사역" />
-              <MyDepartmentsSection myDepartments={myDepartments} router={router} />
-            </div>
-
-            {/* 가정교회 섹션 */}
-            {user.pasture_name && (
-              <div style={{ marginBottom: 28 }}>
-                <SectionTitle icon="🏘️" title="우리 목장" subtitle={`${user.plain_name}평원 · ${user.grassland_name}초원 · ${user.pasture_name}목장`} />
-                <div className="menu-grid" style={menuGridStyle}>
-                  {PASTURE_MENUS.map(menu => (
-                    <MenuCard key={menu.id} menu={menu} />
-                  ))}
+            {approved.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => router.push(`/departments/d/${d.department_id}`)}
+                style={{
+                  ...cardStyle(),
+                  textAlign: "left",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                }}
+              >
+                <div style={iconBoxStyle(COLORS.accentSoft)}>
+                  <span style={{ fontSize: 22 }}>{d.icon || "📁"}</span>
                 </div>
-              </div>
-            )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: 600 }}>{d.category}</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text, marginTop: 2 }}>{d.name}</div>
+                </div>
+                <StatusBadge tone="success" label="승인됨" />
+              </button>
+            ))}
 
-            {/* 공통 메뉴 섹션 */}
-            <div style={{ marginBottom: 28 }}>
-              <SectionTitle icon="✨" title="공통 메뉴" subtitle="모든 성도가 사용할 수 있는 기능" />
-              <div className="menu-grid" style={menuGridStyle}>
-                {visibleCommonMenus.map(menu => (
-                  <MenuCard key={menu.id} menu={menu} />
-                ))}
+            {pending.map((d) => (
+              <div
+                key={d.id}
+                style={{
+                  ...cardStyle(),
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                }}
+              >
+                <div style={iconBoxStyle(COLORS.warnSoft)}>
+                  <span style={{ fontSize: 22 }}>{d.icon || "⏳"}</span>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: 600 }}>{d.category}</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text, marginTop: 2 }}>{d.name}</div>
+                </div>
+                <StatusBadge tone="warn" label="가입중" />
               </div>
-            </div>
-
-            {/* 알림 / 안내 */}
-            <div style={{
-              padding: "16px 20px",
-              background: "#eff6ff",
-              border: "1px solid #bfdbfe",
-              borderRadius: 12,
-              fontSize: 12,
-              color: "#1e40af",
-              lineHeight: 1.7,
-            }}>
-              💡 <strong>안내</strong> · 직분별·사역별 전용 게시판은 차차 추가될 예정입니다.<br />
-              지금은 누구나 공통 메뉴를 사용하실 수 있습니다.
-            </div>
+            ))}
           </div>
-        </div>
-      </div>
 
-      {/* === 종료 확인 모달 === */}
-      {showExitModal && (
-        <div
-          onClick={handleExitCancel}
+          <OutlineButton
+            label="+ 다른 사역 · 부서 가입하기"
+            onClick={() => router.push("/departments")}
+          />
+        </>
+      )}
+    </section>
+  );
+}
+
+// =============================================================
+// 2) 나의 목장
+// =============================================================
+// 상태 분기:
+//  A. user.pasture_name 없음 → 미가입 (가입 신청 버튼)
+//  B. 승인 대기 → TODO: 아직 신청 모델 없음 (별도 RPC/테이블 필요)
+//  C. user.pasture_name 있음 → 소속됨
+//  D. 관리자 배정 → C와 동일 표시
+function MyMokjangSection({ user, router: _router }: { user: UserInfo; router: RouterType }) {
+  const hasPasture = !!user.pasture_name;
+
+  // TODO: 목장 가입 신청 시스템이 아직 없음. 라우트가 생기면 router.push("/pasture/request") 등으로 연결.
+  const handleJoinRequest = () => {
+    alert("목장 가입 신청 기능은 준비 중입니다.\n관리자에게 직접 문의하시거나 잠시만 기다려주세요.");
+  };
+
+  // TODO: 목장 상세 화면(/pasture/me 또는 /pasture/[id])이 생기면 연결.
+  const handleViewPasture = () => {
+    alert("목장 상세 화면은 준비 중입니다.");
+  };
+
+  return (
+    <section style={{ marginBottom: 24 }}>
+      <SectionTitle title="나의 목장" subtitle="소속 목장을 확인하거나 가입 신청하세요" />
+
+      {hasPasture ? (
+        <button
+          onClick={handleViewPasture}
           style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
+            ...cardStyle(),
+            width: "100%",
+            textAlign: "left",
+            cursor: "pointer",
+            fontFamily: "inherit",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            zIndex: 300,
-            padding: 20,
+            gap: 14,
           }}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
+          <div style={iconBoxStyle(COLORS.accentSoft)}>
+            <span style={{ fontSize: 24 }}>🏘️</span>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, color: COLORS.textMuted, fontWeight: 600 }}>
+              {user.plain_name ? `${user.plain_name}평원` : ""}
+              {user.grassland_name ? ` · ${user.grassland_name}초원` : ""}
+            </div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: COLORS.text, marginTop: 2 }}>
+              {user.pasture_name}목장
+            </div>
+            {user.spouse_name && (
+              <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 2 }}>
+                배우자: {user.spouse_name}
+              </div>
+            )}
+          </div>
+          <div style={{
+            padding: "8px 14px",
+            background: COLORS.accent,
+            color: "#fff",
+            borderRadius: 10,
+            fontSize: 12,
+            fontWeight: 700,
+            whiteSpace: "nowrap",
+          }}>목장 보기</div>
+        </button>
+      ) : (
+        <div style={cardStyle()}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: COLORS.text, marginBottom: 4 }}>
+            아직 소속된 목장이 없습니다
+          </div>
+          <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 14 }}>
+            목장을 찾아 가입 신청할 수 있습니다
+          </div>
+          <button
+            onClick={handleJoinRequest}
             style={{
-              background: "#fff",
-              borderRadius: 20,
-              padding: "32px 28px",
-              maxWidth: 360,
-              width: "100%",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-              textAlign: "center",
+              padding: "12px 18px",
+              background: COLORS.accent,
+              color: "#fff",
+              border: "none",
+              borderRadius: 12,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
             }}
           >
-            <div style={{ fontSize: 56, marginBottom: 16 }}>🙏</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: "#1e293b", marginBottom: 10 }}>
-              종료하시겠습니까?
-            </div>
-            <div style={{ fontSize: 13, color: "#64748b", marginBottom: 24, lineHeight: 1.7 }}>
-              오늘 하루도 주 안에서<br />평안하세요
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button
-                onClick={handleExitCancel}
-                style={{
-                  flex: 1,
-                  padding: "14px",
-                  background: "#f1f5f9",
-                  color: "#475569",
-                  border: "none",
-                  borderRadius: 12,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                취소
-              </button>
-              <button
-                onClick={handleExitConfirm}
-                style={{
-                  flex: 1,
-                  padding: "14px",
-                  background: "linear-gradient(135deg, #ef4444, #dc2626)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 12,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  boxShadow: "0 6px 16px rgba(239, 68, 68, 0.3)",
-                }}
-              >
-                종료
-              </button>
-            </div>
-          </div>
+            목장 가입 신청
+          </button>
         </div>
       )}
+    </section>
+  );
+}
 
-      {/* === 종료 안내 토스트 (뒤로가기 한 번 더 요청) === */}
-      {showExitToast && (
-        <div
-          style={{
-            position: "fixed",
-            left: "50%",
-            bottom: 80,
-            transform: "translateX(-50%)",
-            background: "rgba(15, 23, 42, 0.92)",
-            color: "#fff",
-            padding: "14px 22px",
-            borderRadius: 999,
-            fontSize: 14,
-            fontWeight: 600,
-            boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-            zIndex: 400,
-            whiteSpace: "nowrap",
-            pointerEvents: "none",
-          }}
-        >
-          뒤로가기 버튼을 한 번 더 누르시면 종료됩니다
-        </div>
+// =============================================================
+// 3) 공통 메뉴
+// =============================================================
+function CommonMenuSection({ menus, router }: { menus: CommonMenu[]; router: RouterType }) {
+  return (
+    <section style={{ marginBottom: 24 }}>
+      <SectionTitle title="공통 메뉴" subtitle="모든 성도가 사용할 수 있는 기능" />
+      <div className="menu-grid" style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+        gap: 12,
+      }}>
+        {menus.map((m) => <MenuCard key={m.id} menu={m} router={router} />)}
+      </div>
+    </section>
+  );
+}
+
+function MenuCard({ menu, router }: { menu: CommonMenu; router: RouterType }) {
+  const handleClick = () => {
+    if (menu.href) router.push(menu.href);
+    else alert(`${menu.label}은(는) 곧 추가됩니다.`);
+  };
+  return (
+    <button
+      onClick={handleClick}
+      style={{
+        ...cardStyle(),
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        textAlign: "left",
+      }}
+    >
+      <div style={iconBoxStyle(`${menu.color}1A`)}>
+        <span style={{ fontSize: 24 }}>{menu.icon}</span>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text }}>{menu.label}</div>
+        <div style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 2 }}>{menu.desc}</div>
+      </div>
+    </button>
+  );
+}
+
+// =============================================================
+// 하단 안내 박스
+// =============================================================
+function NoticeBox() {
+  return (
+    <div style={{
+      padding: "14px 18px",
+      background: "#F1F5F9",
+      border: `1px solid ${COLORS.border}`,
+      borderRadius: 14,
+      fontSize: 12,
+      color: "#475569",
+      lineHeight: 1.7,
+    }}>
+      💡 직분별 · 사역별 전용 게시판은 추후 추가될 예정입니다.<br />
+      현재는 공통 메뉴를 사용할 수 있습니다.
+    </div>
+  );
+}
+
+// =============================================================
+// 공용 작은 컴포넌트
+// =============================================================
+function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>{title}</div>
+      {subtitle && (
+        <div style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 2 }}>{subtitle}</div>
       )}
     </div>
   );
 }
 
-// =====================================
-type RouterType = ReturnType<typeof useRouter>;
+function OutlineButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: "100%",
+        padding: "12px 16px",
+        background: "#fff",
+        color: COLORS.accent,
+        border: `1.5px solid ${COLORS.accent}`,
+        borderRadius: 12,
+        fontSize: 14,
+        fontWeight: 700,
+        cursor: "pointer",
+        fontFamily: "inherit",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
 
-function SidebarContent({
-  user,
-  myDepartments,
-  activeMenu,
-  setActiveMenu,
-  router,
-}: {
+function StatusBadge({ tone, label }: { tone: "success" | "warn"; label: string }) {
+  const bg = tone === "success" ? COLORS.successSoft : COLORS.warnSoft;
+  const fg = tone === "success" ? COLORS.success : COLORS.warn;
+  return (
+    <span style={{
+      padding: "4px 10px",
+      borderRadius: 999,
+      background: bg,
+      color: fg,
+      fontSize: 11,
+      fontWeight: 800,
+      whiteSpace: "nowrap",
+      flexShrink: 0,
+    }}>{label}</span>
+  );
+}
+
+function cardStyle(): React.CSSProperties {
+  return {
+    background: COLORS.bgCard,
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: 18,
+    padding: 20,
+    boxShadow: "0 1px 2px rgba(15, 23, 42, 0.03)",
+  };
+}
+
+function iconBoxStyle(bg: string): React.CSSProperties {
+  return {
+    width: 48, height: 48, borderRadius: 12,
+    background: bg,
+    display: "flex", alignItems: "center", justifyContent: "center",
+    flexShrink: 0,
+  };
+}
+
+// =============================================================
+// 사이드바 (기존 기능 유지, 톤 다운)
+// =============================================================
+function DesktopSidebar({ user, myDepartments, router }: {
   user: UserInfo;
   myDepartments: MyDepartment[];
-  activeMenu: string;
-  setActiveMenu: (m: string) => void;
   router: RouterType;
 }) {
-  // 카테고리별 그룹핑 (승인된 것만)
-  const approvedDepts = myDepartments.filter((d) => d.status === "approved");
-  const pendingDepts = myDepartments.filter((d) => d.status === "pending");
+  return (
+    <aside className="sidebar-desktop" style={{
+      width: 220,
+      background: COLORS.bgCard,
+      borderRight: `1px solid ${COLORS.border}`,
+      padding: "20px 12px",
+      flexShrink: 0,
+    }}>
+      <SidebarContent user={user} myDepartments={myDepartments} router={router} />
+    </aside>
+  );
+}
 
-  const grouped: Record<string, MyDepartment[]> = {};
-  approvedDepts.forEach((d) => {
-    if (!grouped[d.category]) grouped[d.category] = [];
-    grouped[d.category].push(d);
-  });
+function MobileSidebar({ open, onClose, user, myDepartments, router }: {
+  open: boolean;
+  onClose: () => void;
+  user: UserInfo;
+  myDepartments: MyDepartment[];
+  router: RouterType;
+}) {
+  if (!open) return null;
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.5)",
+      zIndex: 50, display: "flex",
+    }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        width: 280, background: COLORS.bgCard, padding: "20px 12px",
+        boxShadow: "4px 0 20px rgba(0,0,0,0.12)", overflowY: "auto",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingLeft: 8 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.text }}>메뉴</div>
+          <button onClick={onClose} style={{
+            width: 32, height: 32, borderRadius: 8, background: COLORS.bgPage, border: "none",
+            cursor: "pointer", fontSize: 14, color: COLORS.textMuted,
+          }}>✕</button>
+        </div>
+        <SidebarContent user={user} myDepartments={myDepartments} router={router} onNavigate={onClose} />
+      </div>
+    </div>
+  );
+}
+
+function SidebarContent({ user, myDepartments, router, onNavigate }: {
+  user: UserInfo;
+  myDepartments: MyDepartment[];
+  router: RouterType;
+  onNavigate?: () => void;
+}) {
+  const isAdmin = ["admin", "office", "pastor"].includes(user.role);
+  const sideMenus = isAdmin ? [...COMMON_MENUS, ...ADMIN_EXTRA_MENUS] : COMMON_MENUS;
+  const approved = myDepartments.filter((d) => d.status === "approved");
+  const pending = myDepartments.filter((d) => d.status === "pending");
+
+  const go = (path: string) => {
+    router.push(path);
+    onNavigate?.();
+  };
 
   return (
     <>
-      <div style={sidebarLabelStyle}>내 사역 · 부서</div>
-
-      {Object.keys(grouped).length === 0 ? (
-        <div style={{ padding: "10px 12px", fontSize: 11, color: "#cbd5e1", fontStyle: "italic" }}>
+      <SideLabel>내 사역 · 부서</SideLabel>
+      {approved.length === 0 ? (
+        <div style={{ padding: "8px 12px", fontSize: 11, color: COLORS.textMuted, fontStyle: "italic" }}>
           배정된 사역이 없습니다
         </div>
       ) : (
-        Object.entries(grouped).map(([category, depts]) => (
-          <div key={category} style={{ marginBottom: 8 }}>
-            <div style={{
-              padding: "4px 12px",
-              fontSize: 10,
-              fontWeight: 700,
-              color: "#6366f1",
-              letterSpacing: 0.5,
-            }}>
-              📁 {category}
-            </div>
-            {depts.map((d) => (
-              <SidebarItem
-                key={d.id}
-                active={activeMenu === `dept-${d.department_id}`}
-                onClick={() => {
-                  setActiveMenu(`dept-${d.department_id}`);
-                  router.push(`/departments/d/${d.department_id}`);
-                }}
-              >
-                <span style={{ marginRight: 6 }}>{d.icon || "📁"}</span>
-                {d.name}
-              </SidebarItem>
-            ))}
-          </div>
+        approved.map((d) => (
+          <SidebarItem key={d.id} onClick={() => go(`/departments/d/${d.department_id}`)}>
+            <span style={{ marginRight: 6 }}>{d.icon || "📁"}</span>
+            {d.name}
+          </SidebarItem>
         ))
       )}
-
-      {/* 승인 대기 표시 */}
-      {pendingDepts.length > 0 && (
-        <div style={{ marginTop: 4, marginBottom: 8 }}>
-          {pendingDepts.map((d) => (
-            <div key={d.id} style={{
-              padding: "6px 12px",
-              fontSize: 10,
-              color: "#92400e",
-              background: "#fef3c7",
-              borderRadius: 6,
-              marginBottom: 3,
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-            }}>
-              <span>⏳</span>
-              <span style={{ flex: 1 }}>{d.name}</span>
-              <span style={{ fontSize: 9, opacity: 0.7 }}>대기</span>
-            </div>
-          ))}
+      {pending.map((d) => (
+        <div key={d.id} style={{
+          padding: "6px 12px", fontSize: 11,
+          color: COLORS.warn, background: COLORS.warnSoft,
+          borderRadius: 6, marginBottom: 3,
+          display: "flex", alignItems: "center", gap: 4,
+        }}>
+          <span>⏳</span><span style={{ flex: 1 }}>{d.name}</span>
+          <span style={{ fontSize: 10, opacity: 0.7 }}>대기</span>
         </div>
-      )}
+      ))}
 
-      {/* 가입 메뉴 링크 */}
-      <div
-        onClick={() => router.push("/departments")}
-        style={{
-          marginTop: 6,
-          padding: "10px 12px",
-          background: "linear-gradient(135deg, #eef2ff, #ede9fe)",
-          border: "1.5px dashed #c7d2fe",
-          borderRadius: 8,
-          fontSize: 11,
-          fontWeight: 700,
-          color: "#6366f1",
-          cursor: "pointer",
-          textAlign: "center",
-        }}
-      >
-        ➕ 사역 · 부서 가입
-      </div>
+      <button onClick={() => go("/departments")} style={{
+        marginTop: 8, width: "100%",
+        padding: "10px 12px",
+        background: COLORS.accentSoft,
+        border: "none",
+        borderRadius: 8,
+        fontSize: 12, fontWeight: 700, color: COLORS.accent,
+        cursor: "pointer", fontFamily: "inherit",
+        textAlign: "center",
+      }}>
+        + 사역 · 부서 가입
+      </button>
 
       {user.pasture_name && (
         <>
-          <div style={{ height: 1, background: "#e2e8f0", margin: "16px 0" }} />
-          <div style={sidebarLabelStyle}>내 목장</div>
-          <SidebarItem active={activeMenu === "pasture"} onClick={() => setActiveMenu("pasture")}>
+          <SideDivider />
+          <SideLabel>내 목장</SideLabel>
+          <SidebarItem onClick={() => alert("목장 상세 화면은 준비 중입니다.")}>
             🏘️ {user.pasture_name}목장
           </SidebarItem>
         </>
       )}
 
-      <div style={{ height: 1, background: "#e2e8f0", margin: "16px 0" }} />
-      <div style={sidebarLabelStyle}>공통</div>
-      {(["admin", "office", "pastor"].includes(user.role)
-        ? COMMON_MENUS
-        : COMMON_MENUS.filter((m) => COMMON_MENUS_FOR_ALL.includes(m.id))
-      ).map((menu) => (
-        <SidebarItem
-          key={menu.id}
-          active={activeMenu === menu.id}
-          onClick={() => {
-            setActiveMenu(menu.id);
-            if ("href" in menu && menu.href) router.push(menu.href);
-          }}
-        >
-          <span style={{ marginRight: 6 }}>{menu.icon}</span>
-          {menu.label}
+      <SideDivider />
+      <SideLabel>공통</SideLabel>
+      {sideMenus.map((m) => (
+        <SidebarItem key={m.id} onClick={() => m.href ? go(m.href) : alert(`${m.label}은(는) 곧 추가됩니다.`)}>
+          <span style={{ marginRight: 6 }}>{m.icon}</span>{m.label}
         </SidebarItem>
       ))}
     </>
   );
 }
 
-function SidebarItem({ children, active, onClick }: { children: React.ReactNode; active?: boolean; onClick: () => void }) {
+function SidebarItem({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (
     <div onClick={onClick} style={{
-      padding: "8px 12px",
+      padding: "10px 12px",
       borderRadius: 8,
       marginBottom: 3,
-      fontSize: 12,
-      fontWeight: active ? 700 : 500,
-      color: active ? "#6366f1" : "#475569",
-      background: active ? "#eef2ff" : "transparent",
+      fontSize: 13,
+      fontWeight: 500,
+      color: COLORS.text,
+      background: "transparent",
       cursor: "pointer",
-      transition: "all 0.15s",
     }}>
       {children}
     </div>
   );
 }
 
-function SectionTitle({ icon, title, subtitle }: { icon: string; title: string; subtitle?: string }) {
+function SideLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: 8 }}>
-        <span>{icon}</span>{title}
-      </div>
-      {subtitle && (
-        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2, marginLeft: 28 }}>{subtitle}</div>
-      )}
-    </div>
+    <div style={{
+      fontSize: 10, fontWeight: 700, color: COLORS.textMuted,
+      letterSpacing: 1, marginBottom: 8, paddingLeft: 8,
+    }}>{children}</div>
   );
 }
 
-function MyDepartmentsSection({
-  myDepartments,
-  router,
-}: {
-  myDepartments: MyDepartment[];
-  router: RouterType;
-}) {
-  const approved = myDepartments.filter((d) => d.status === "approved");
-  const pending = myDepartments.filter((d) => d.status === "pending");
+function SideDivider() {
+  return <div style={{ height: 1, background: COLORS.border, margin: "16px 0" }} />;
+}
 
-  // 가입된 부서가 없는 경우 - 큰 안내 카드
-  if (approved.length === 0 && pending.length === 0) {
-    return (
-      <div
-        onClick={() => router.push("/departments")}
-        style={{
-          background: "linear-gradient(135deg, #fef3c7, #fde68a)",
-          border: "2px dashed #f59e0b",
-          borderRadius: 16,
-          padding: "32px 24px",
-          textAlign: "center",
-          cursor: "pointer",
-          transition: "all 0.2s",
-        }}
-        onMouseOver={(e) => {
-          e.currentTarget.style.transform = "translateY(-3px)";
-          e.currentTarget.style.boxShadow = "0 12px 24px rgba(245, 158, 11, 0.2)";
-        }}
-        onMouseOut={(e) => {
-          e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.boxShadow = "none";
-        }}
-      >
-        <div style={{ fontSize: 56, marginBottom: 12 }}>📭</div>
-        <div style={{ fontSize: 18, fontWeight: 800, color: "#92400e", marginBottom: 8 }}>
-          배정된 사역이 없습니다
-        </div>
-        <div style={{ fontSize: 13, color: "#a16207", marginBottom: 20, lineHeight: 1.6 }}>
-          관심 있는 사역·부서에 가입하시면<br />
-          여기에 표시됩니다
-        </div>
-        <button
-          style={{
-            padding: "14px 28px",
-            background: "linear-gradient(135deg, #f59e0b, #d97706)",
-            color: "#fff",
-            border: "none",
-            borderRadius: 12,
-            fontSize: 15,
-            fontWeight: 800,
-            cursor: "pointer",
-            fontFamily: "inherit",
-            boxShadow: "0 6px 16px rgba(245, 158, 11, 0.4)",
-          }}
-        >
-          ➕ 사역 · 부서 가입하기
-        </button>
-      </div>
-    );
-  }
-
-  // 가입된 부서가 있는 경우 - 카드 그리드
+// =============================================================
+// 종료 모달 / 토스트
+// =============================================================
+function ExitModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
   return (
-    <div>
-      <div className="menu-grid" style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-        gap: 12,
-        marginBottom: 12,
+    <div onClick={onCancel} style={{
+      position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.5)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 300, padding: 20,
+    }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: "#fff", borderRadius: 20,
+        padding: "28px 24px", maxWidth: 360, width: "100%",
+        boxShadow: "0 20px 60px rgba(15, 23, 42, 0.25)",
+        textAlign: "center",
       }}>
-        {approved.map((d) => (
-          <div
-            key={d.id}
-            onClick={() => router.push(`/departments/d/${d.department_id}`)}
-            style={{
-              background: "#fff",
-              border: "2px solid #c7d2fe",
-              borderRadius: 14,
-              padding: "18px 16px",
-              cursor: "pointer",
-              transition: "all 0.2s",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.borderColor = "#6366f1";
-              e.currentTarget.style.transform = "translateY(-3px)";
-              e.currentTarget.style.boxShadow = "0 12px 24px rgba(99, 102, 241, 0.2)";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.borderColor = "#c7d2fe";
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
-            }}
-          >
-            <div style={{ fontSize: 32, marginBottom: 8 }}>{d.icon || "📁"}</div>
-            <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>{d.category}</div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b" }}>{d.name}</div>
-          </div>
-        ))}
-      </div>
-
-      {pending.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          {pending.map((d) => (
-            <div
-              key={d.id}
-              style={{
-                padding: "12px 16px",
-                background: "#fef3c7",
-                border: "1px solid #fcd34d",
-                borderRadius: 10,
-                fontSize: 12,
-                color: "#92400e",
-                marginBottom: 6,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <span style={{ fontSize: 18 }}>⏳</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700 }}>{d.category} / {d.name}</div>
-                <div style={{ fontSize: 10, opacity: 0.8 }}>관리자 승인 대기 중</div>
-              </div>
-            </div>
-          ))}
+        <div style={{ fontSize: 48, marginBottom: 12 }}>🙏</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text, marginBottom: 8 }}>
+          종료하시겠습니까?
         </div>
-      )}
-
-      <button
-        onClick={() => router.push("/departments")}
-        style={{
-          width: "100%",
-          padding: "12px",
-          background: "linear-gradient(135deg, #eef2ff, #ede9fe)",
-          border: "1.5px dashed #c7d2fe",
-          borderRadius: 10,
-          fontSize: 13,
-          fontWeight: 700,
-          color: "#6366f1",
-          cursor: "pointer",
-          fontFamily: "inherit",
-        }}
-      >
-        ➕ 다른 사역 · 부서 가입하기
-      </button>
+        <div style={{ fontSize: 13, color: COLORS.textMuted, marginBottom: 22, lineHeight: 1.7 }}>
+          오늘 하루도 주 안에서<br />평안하세요
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onCancel} style={{
+            flex: 1, padding: "13px",
+            background: COLORS.bgPage, color: COLORS.text,
+            border: "none", borderRadius: 12,
+            fontSize: 14, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>취소</button>
+          <button onClick={onConfirm} style={{
+            flex: 1, padding: "13px",
+            background: COLORS.danger, color: "#fff",
+            border: "none", borderRadius: 12,
+            fontSize: 14, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>종료</button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function MenuCard({ menu }: { menu: typeof COMMON_MENUS[0] }) {
-  const router = useRouter();
+function ExitToast() {
   return (
-    <div
-      onClick={() => {
-        if ("href" in menu && menu.href) {
-          router.push(menu.href);
-        } else {
-          alert(`${menu.label} - 곧 구현됩니다!`);
-        }
-      }}
-      style={{
-        background: "#fff",
-        border: "1px solid #e2e8f0",
-        borderRadius: 14,
-        padding: "20px 16px",
-        cursor: "pointer",
-        transition: "all 0.2s",
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        minHeight: 120,
-        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-      }}
-      onMouseOver={(e) => {
-        e.currentTarget.style.borderColor = menu.color;
-        e.currentTarget.style.transform = "translateY(-3px)";
-        e.currentTarget.style.boxShadow = `0 8px 20px ${menu.color}33`;
-      }}
-      onMouseOut={(e) => {
-        e.currentTarget.style.borderColor = "#e2e8f0";
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
-      }}
-    >
-      <div style={{
-        width: 44,
-        height: 44,
-        borderRadius: 10,
-        background: `${menu.color}15`,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 22,
-      }}>{menu.icon}</div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>{menu.label}</div>
-      <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.4 }}>{menu.desc}</div>
+    <div style={{
+      position: "fixed", left: "50%", bottom: 80,
+      transform: "translateX(-50%)",
+      background: "rgba(15, 23, 42, 0.92)", color: "#fff",
+      padding: "12px 20px", borderRadius: 999,
+      fontSize: 13, fontWeight: 600,
+      boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
+      zIndex: 400, whiteSpace: "nowrap", pointerEvents: "none",
+    }}>
+      뒤로가기 버튼을 한 번 더 누르시면 종료됩니다
     </div>
   );
 }
 
-// =====================================
-const sidebarLabelStyle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 700,
-  color: "#94a3b8",
-  letterSpacing: 1,
-  marginBottom: 8,
-  paddingLeft: 8,
-};
-
-const menuGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-  gap: 12,
-};
-
-const adminBtnStyle = (bg: string, color: string): React.CSSProperties => ({
-  display: "flex",
-  alignItems: "center",
-  gap: 6,
-  padding: "8px 12px",
-  borderRadius: 8,
-  background: bg,
-  color: color,
-  border: "none",
-  cursor: "pointer",
-  fontSize: 12,
-  fontWeight: 700,
-  fontFamily: "inherit",
-});
-
+// =============================================================
+// 로딩 스타일
+// =============================================================
 const loadingStyle: React.CSSProperties = {
   minHeight: "100vh",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "#f1f5f9",
+  background: COLORS.bgPage,
   fontFamily: "'Noto Sans KR', sans-serif",
 };
