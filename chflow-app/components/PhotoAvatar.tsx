@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Cropper, { Area } from "react-easy-crop";
 import { supabase } from "@/lib/supabase";
 
@@ -25,6 +25,8 @@ export default function PhotoAvatar({
   const [error, setError] = useState("");
   const [currentUrl, setCurrentUrl] = useState<string | null>(photoUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setCurrentUrl(photoUrl); }, [photoUrl]);
 
   // === 크롭 상태 ===
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
