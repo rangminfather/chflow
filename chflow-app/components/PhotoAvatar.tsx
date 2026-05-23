@@ -7,14 +7,22 @@ import { supabase } from "@/lib/supabase";
 interface PhotoAvatarProps {
   userId: string;
   photoUrl: string | null;
+  fallbackUrl?: string | null;
   size?: number;
   label?: string;
-  onUpdate?: (newUrl: string) => void;
+  onUpdate?: (newUrl: string | null) => void;
+}
+
+interface GalleryItem {
+  name: string;
+  url: string;
+  createdAt: string | null;
 }
 
 export default function PhotoAvatar({
   userId,
   photoUrl,
+  fallbackUrl = null,
   size = 80,
   label = "요람 사진",
   onUpdate,
@@ -34,9 +42,38 @@ export default function PhotoAvatar({
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
 
+  // === 갤러리 상태 ===
+  const [gallery, setGallery] = useState<GalleryItem[]>([]);
+  const [loadingGallery, setLoadingGallery] = useState(false);
+  const [deletingPath, setDeletingPath] = useState<string | null>(null);
+
   const onCropComplete = useCallback((_: Area, croppedAreaPixels: Area) => {
     setCroppedAreaPixels(croppedAreaPixels);
   }, []);
+
+  const loadGallery = useCallback(async () => {
+    setLoadingGallery(true);
+    const { data, error: listError } = await supabase.storage
+      .from("member-photos")
+      .list(userId, { limit: 100, sortBy: { column: "created_at", order: "desc" } });
+    if (listError) {
+      setLoadingGallery(false);
+      return;
+    }
+    const items: GalleryItem[] = (data || [])
+      .filter((f) => !f.name.startsWith(".") && f.name !== "profile.png")
+      .map((f) => {
+        const path = `${userId}/${f.name}`;
+        const { data: u } = supabase.storage.from("member-photos").getPublicUrl(path);
+        return { name: f.name, url: u.publicUrl, createdAt: f.created_at };
+      });
+    setGallery(items);
+    setLoadingGallery(false);
+  }, [userId]);
+
+  useEffect(() => {
+    if (showModal && !cropImageSrc) loadGallery();
+  }, [showModal, cropImageSrc, loadGallery]);
 
   const handleClick = () => {
     setShowModal(true);
@@ -56,7 +93,6 @@ export default function PhotoAvatar({
       return;
     }
 
-    // 파일을 dataURL로 읽어서 크롭 모달로 전달
     const reader = new FileReader();
     reader.onload = () => {
       setCropImageSrc(reader.result as string);
@@ -67,7 +103,6 @@ export default function PhotoAvatar({
     reader.readAsDataURL(file);
   };
 
-  // === 크롭한 이미지를 캔버스로 그려서 Blob 생성 ===
   const getCroppedBlob = async (
     imageSrc: string,
     pixelCrop: Area,
@@ -93,11 +128,7 @@ export default function PhotoAvatar({
     );
 
     return new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(
-        (blob) => resolve(blob),
-        "image/jpeg",
-        0.85  // 85% quality - 자동 압축
-      );
+      canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.85);
     });
   };
 
@@ -114,7 +145,6 @@ export default function PhotoAvatar({
         return;
       }
 
-      // 파일 업로드
       const fileName = `${userId}/photo_${Date.now()}.jpg`;
       const { error: uploadError } = await supabase.storage
         .from("member-photos")
@@ -134,7 +164,6 @@ export default function PhotoAvatar({
         .from("member-photos")
         .getPublicUrl(fileName);
 
-      // cache busting
       const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
 
       const { error: rpcError } = await supabase.rpc("update_my_photo", {
@@ -151,7 +180,7 @@ export default function PhotoAvatar({
       onUpdate?.(publicUrl);
       setUploading(false);
       setCropImageSrc(null);
-      setShowModal(false);
+      await loadGallery();
     } catch (e) {
       setError(`오류: ${(e as Error).message}`);
       setUploading(false);
@@ -164,9 +193,63 @@ export default function PhotoAvatar({
     setZoom(1);
   };
 
+  const handleSelectPhoto = async (rawUrl: string) => {
+    const cacheBusted = `${rawUrl.split("?")[0]}?t=${Date.now()}`;
+    const { error: rpcError } = await supabase.rpc("update_my_photo", {
+      p_photo_url: cacheBusted,
+    });
+    if (rpcError) {
+      setError(`저장 실패: ${rpcError.message}`);
+      return;
+    }
+    setCurrentUrl(cacheBusted);
+    onUpdate?.(cacheBusted);
+  };
+
+  const handleDeletePhoto = async (item: GalleryItem) => {
+    if (!confirm("이 사진을 삭제하시겠습니까?")) return;
+    const path = `${userId}/${item.name}`;
+    setDeletingPath(path);
+    const { error: rmError } = await supabase.storage
+      .from("member-photos")
+      .remove([path]);
+    if (rmError) {
+      setDeletingPath(null);
+      setError(`삭제 실패: ${rmError.message}`);
+      return;
+    }
+    // 현재 표시 중이던 사진을 지운 경우 avatar_url 비우고 fallback 으로
+    if (currentUrl && currentUrl.split("?")[0] === item.url.split("?")[0]) {
+      await supabase.rpc("update_my_photo", { p_photo_url: null });
+      const next = fallbackUrl ?? null;
+      setCurrentUrl(next);
+      onUpdate?.(next);
+    }
+    setGallery((g) => g.filter((x) => x.name !== item.name));
+    setDeletingPath(null);
+  };
+
+  const handleClearAvatar = async () => {
+    if (!confirm("요람 사진으로 되돌리시겠습니까?")) return;
+    const { error: rpcError } = await supabase.rpc("update_my_photo", {
+      p_photo_url: null,
+    });
+    if (rpcError) {
+      setError(`처리 실패: ${rpcError.message}`);
+      return;
+    }
+    const next = fallbackUrl ?? null;
+    setCurrentUrl(next);
+    onUpdate?.(next);
+  };
+
   const triggerFileInput = () => {
     fileInputRef.current?.click();
   };
+
+  const isShowingFallback =
+    !!fallbackUrl && currentUrl?.split("?")[0] === fallbackUrl.split("?")[0];
+  const canRevertToFallback = !!fallbackUrl && !isShowingFallback;
 
   return (
     <>
@@ -275,7 +358,7 @@ export default function PhotoAvatar({
         </div>
       </div>
 
-      {/* === 메인 모달 (현재 사진 보기 / 변경) === */}
+      {/* === 메인 모달 === */}
       {showModal && !cropImageSrc && (
         <div
           onClick={() => !uploading && setShowModal(false)}
@@ -284,13 +367,13 @@ export default function PhotoAvatar({
           <div onClick={(e) => e.stopPropagation()} style={modalCardStyle}>
             <div style={modalTitleStyle}>📷 {label}</div>
 
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
               {currentUrl ? (
                 <img
                   src={currentUrl}
                   alt={label}
                   style={{
-                    width: 220, height: 220,
+                    width: 200, height: 200,
                     borderRadius: 16,
                     objectFit: "cover",
                     objectPosition: "center top",
@@ -301,7 +384,7 @@ export default function PhotoAvatar({
               ) : (
                 <div
                   style={{
-                    width: 220, height: 220,
+                    width: 200, height: 200,
                     borderRadius: 16,
                     background: "linear-gradient(135deg, #f1f5f9, #e2e8f0)",
                     border: "3px dashed #cbd5e1",
@@ -312,11 +395,20 @@ export default function PhotoAvatar({
                     color: "#94a3b8",
                   }}
                 >
-                  <div style={{ fontSize: 64, marginBottom: 8 }}>👤</div>
+                  <div style={{ fontSize: 56, marginBottom: 8 }}>👤</div>
                   <div style={{ fontSize: 12, fontWeight: 600 }}>등록된 사진이 없습니다</div>
                 </div>
               )}
             </div>
+
+            {isShowingFallback && (
+              <div style={{
+                fontSize: 11, color: "#64748b", textAlign: "center",
+                marginBottom: 12, fontWeight: 600,
+              }}>
+                요람 사진을 표시 중
+              </div>
+            )}
 
             {error && <div style={errorBoxStyle}>⚠️ {error}</div>}
 
@@ -328,13 +420,106 @@ export default function PhotoAvatar({
               style={{ display: "none" }}
             />
 
-            <div style={{ display: "flex", gap: 10 }}>
+            {/* 갤러리 */}
+            <div style={{
+              marginBottom: 14,
+              padding: "12px 14px",
+              background: "#f8fafc",
+              borderRadius: 12,
+            }}>
+              <div style={{
+                fontSize: 12, fontWeight: 700, color: "#334155",
+                marginBottom: 10, display: "flex", justifyContent: "space-between",
+              }}>
+                <span>🖼️ 내가 올린 사진</span>
+                {gallery.length > 0 && (
+                  <span style={{ color: "#94a3b8", fontWeight: 500 }}>{gallery.length}장</span>
+                )}
+              </div>
+
+              {loadingGallery ? (
+                <div style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", padding: 12 }}>
+                  불러오는 중...
+                </div>
+              ) : gallery.length === 0 ? (
+                <div style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", padding: 12 }}>
+                  아직 올린 사진이 없습니다
+                </div>
+              ) : (
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, 1fr)",
+                  gap: 8,
+                }}>
+                  {gallery.map((item) => {
+                    const isCurrent =
+                      !!currentUrl &&
+                      currentUrl.split("?")[0] === item.url.split("?")[0];
+                    const isDeleting = deletingPath === `${userId}/${item.name}`;
+                    return (
+                      <div key={item.name} style={{ position: "relative" }}>
+                        <img
+                          src={item.url}
+                          alt=""
+                          onClick={() => !isCurrent && handleSelectPhoto(item.url)}
+                          style={{
+                            width: "100%",
+                            aspectRatio: "1",
+                            objectFit: "cover",
+                            objectPosition: "center top",
+                            borderRadius: 8,
+                            cursor: isCurrent ? "default" : "pointer",
+                            border: isCurrent
+                              ? "3px solid #6366f1"
+                              : "1px solid #e2e8f0",
+                            opacity: isDeleting ? 0.4 : 1,
+                          }}
+                        />
+                        {isCurrent && (
+                          <div style={{
+                            position: "absolute", top: 4, left: 4,
+                            background: "#6366f1", color: "#fff",
+                            fontSize: 9, fontWeight: 800,
+                            padding: "2px 6px", borderRadius: 6,
+                          }}>현재</div>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeletePhoto(item);
+                          }}
+                          disabled={isDeleting}
+                          aria-label="삭제"
+                          style={{
+                            position: "absolute", top: 2, right: 2,
+                            width: 22, height: 22, borderRadius: "50%",
+                            background: "rgba(15, 23, 42, 0.75)", color: "#fff",
+                            border: "none", cursor: "pointer",
+                            fontSize: 11, fontWeight: 800,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}
+                        >✕</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: 8, marginBottom: canRevertToFallback ? 8 : 0 }}>
               <button onClick={() => setShowModal(false)} style={btnSecondaryStyle}>닫기</button>
               <button onClick={triggerFileInput} style={btnPrimaryStyle}>
-                {currentUrl ? "📸 사진 변경" : "📸 사진 등록"}
+                {currentUrl ? "📸 새 사진" : "📸 사진 등록"}
               </button>
             </div>
-            <div style={{ fontSize: 10, color: "#94a3b8", textAlign: "center", marginTop: 14 }}>
+
+            {canRevertToFallback && (
+              <button onClick={handleClearAvatar} style={btnFallbackStyle}>
+                ↩ 요람 사진으로 되돌리기
+              </button>
+            )}
+
+            <div style={{ fontSize: 10, color: "#94a3b8", textAlign: "center", marginTop: 12 }}>
               JPG, PNG, WebP, GIF · 최대 10MB
             </div>
           </div>
@@ -351,7 +536,6 @@ export default function PhotoAvatar({
               슬라이더로 확대/축소 (얼굴이 잘 보이도록)
             </div>
 
-            {/* Cropper */}
             <div style={{
               position: "relative",
               width: "100%",
@@ -374,7 +558,6 @@ export default function PhotoAvatar({
               />
             </div>
 
-            {/* Zoom Slider */}
             <div style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                 <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>🔍 확대/축소</span>
@@ -425,7 +608,6 @@ export default function PhotoAvatar({
   );
 }
 
-// 이미지 로드 헬퍼
 function createImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -451,10 +633,10 @@ const modalOverlayStyle: React.CSSProperties = {
 const modalCardStyle: React.CSSProperties = {
   background: "#fff",
   borderRadius: 20,
-  padding: "28px 24px",
-  maxWidth: 400,
+  padding: "24px 20px",
+  maxWidth: 420,
   width: "100%",
-  maxHeight: "90vh",
+  maxHeight: "92vh",
   overflowY: "auto",
   boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
   fontFamily: "'Noto Sans KR', sans-serif",
@@ -464,7 +646,7 @@ const modalTitleStyle: React.CSSProperties = {
   fontSize: 18,
   fontWeight: 800,
   color: "#1e293b",
-  marginBottom: 16,
+  marginBottom: 14,
   textAlign: "center",
 };
 
@@ -480,7 +662,7 @@ const errorBoxStyle: React.CSSProperties = {
 
 const btnSecondaryStyle: React.CSSProperties = {
   flex: 1,
-  padding: "13px",
+  padding: "12px",
   background: "#f1f5f9",
   color: "#64748b",
   border: "none",
@@ -493,7 +675,7 @@ const btnSecondaryStyle: React.CSSProperties = {
 
 const btnPrimaryStyle: React.CSSProperties = {
   flex: 1.5,
-  padding: "13px",
+  padding: "12px",
   background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
   color: "#fff",
   border: "none",
@@ -503,4 +685,17 @@ const btnPrimaryStyle: React.CSSProperties = {
   cursor: "pointer",
   fontFamily: "inherit",
   boxShadow: "0 6px 16px rgba(99, 102, 241, 0.3)",
+};
+
+const btnFallbackStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "11px",
+  background: "#fff",
+  color: "#64748b",
+  border: "1px solid #cbd5e1",
+  borderRadius: 10,
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontFamily: "inherit",
 };

@@ -82,7 +82,8 @@ export default function HomePage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState<UserInfo | null>(null);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [memberPhotoUrl, setMemberPhotoUrl] = useState<string | null>(null);
   const [myDepartments, setMyDepartments] = useState<MyDepartment[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
@@ -107,10 +108,13 @@ export default function HomePage() {
 
       const { data: photos } = await supabase.rpc("get_my_photos");
       if (photos && photos[0]) {
-        setPhotoUrl(photos[0].avatar_url || photos[0].member_photo_url || null);
+        setAvatarUrl(photos[0].avatar_url || null);
+        setMemberPhotoUrl(photos[0].member_photo_url || null);
       }
     })();
   }, [router]);
+
+  const photoUrl = avatarUrl || memberPhotoUrl;
 
   // 뒤로가기 가드 (기존 로직 유지)
   const sidebarOpenRef = useRef(sidebarOpen);
@@ -210,7 +214,13 @@ export default function HomePage() {
 
         <div style={{ flex: 1, minWidth: 0, width: "100%", maxWidth: "100%" }}>
           <PageContent maxWidth={920}>
-            <UserSummary user={user} photoUrl={photoUrl} userImage={userImage} />
+            <UserSummary
+              user={user}
+              photoUrl={photoUrl}
+              memberPhotoUrl={memberPhotoUrl}
+              userImage={userImage}
+              onAvatarChange={(url) => setAvatarUrl(url)}
+            />
 
             <MinistrySection myDepartments={myDepartments} router={router} />
 
@@ -329,10 +339,12 @@ function AdminPill({ icon, label, onClick }: { icon: string; label: string; onCl
 // =============================================================
 // 사용자 요약
 // =============================================================
-function UserSummary({ user, photoUrl, userImage }: {
+function UserSummary({ user, photoUrl, memberPhotoUrl, userImage, onAvatarChange }: {
   user: UserInfo;
   photoUrl: string | null;
+  memberPhotoUrl: string | null;
   userImage: string;
+  onAvatarChange: (url: string | null) => void;
 }) {
   const subParts = [
     user.sub_role,
@@ -343,7 +355,14 @@ function UserSummary({ user, photoUrl, userImage }: {
     <SafeCard padding={16} style={{ marginBottom: 20 }}>
       <SafeRow gap={14}>
         <div style={{ position: "relative", flexShrink: 0 }}>
-          <PhotoAvatar userId={user.id} photoUrl={photoUrl} size={56} label="" />
+          <PhotoAvatar
+            userId={user.id}
+            photoUrl={photoUrl}
+            fallbackUrl={memberPhotoUrl}
+            size={56}
+            label="내 사진"
+            onUpdate={(url) => onAvatarChange(url === memberPhotoUrl ? null : url)}
+          />
           <img
             src={userImage}
             alt=""

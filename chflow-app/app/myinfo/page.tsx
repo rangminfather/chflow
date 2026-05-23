@@ -23,6 +23,7 @@ interface Profile {
   spouse_name: string | null;
   is_child: boolean;
   photo_url: string | null;
+  avatar_url: string | null;
   household_id: string | null;
   address: string | null;
   pasture_name: string | null;
@@ -175,10 +176,16 @@ export default function MyInfoPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <PhotoAvatar
               userId={profile.user_id}
-              photoUrl={profile.photo_url}
+              photoUrl={profile.avatar_url || profile.photo_url}
+              fallbackUrl={profile.photo_url}
               size={80}
               label="내 사진"
-              onUpdate={(url) => setProfile({ ...profile, photo_url: url })}
+              onUpdate={(url) =>
+                setProfile({
+                  ...profile,
+                  avatar_url: url === profile.photo_url ? null : url,
+                })
+              }
             />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 20, fontWeight: 800, color: "#1e293b" }}>{profile.name || "(이름 없음)"}</div>
