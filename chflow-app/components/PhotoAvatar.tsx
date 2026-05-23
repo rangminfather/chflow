@@ -19,6 +19,8 @@ interface GalleryItem {
   createdAt: string | null;
 }
 
+const MAX_GALLERY = 3;
+
 export default function PhotoAvatar({
   userId,
   photoUrl,
@@ -84,6 +86,11 @@ export default function PhotoAvatar({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (gallery.length >= MAX_GALLERY) {
+      setError(`사진은 최대 ${MAX_GALLERY}장까지만 올릴 수 있습니다. 기존 사진을 삭제해주세요.`);
+      e.target.value = "";
+      return;
+    }
     if (file.size > 10 * 1024 * 1024) {
       setError("파일 크기는 10MB 이하만 가능합니다");
       return;
@@ -432,9 +439,7 @@ export default function PhotoAvatar({
                 marginBottom: 10, display: "flex", justifyContent: "space-between",
               }}>
                 <span>🖼️ 내가 올린 사진</span>
-                {gallery.length > 0 && (
-                  <span style={{ color: "#94a3b8", fontWeight: 500 }}>{gallery.length}장</span>
-                )}
+                <span style={{ color: "#94a3b8", fontWeight: 500 }}>{gallery.length} / {MAX_GALLERY}</span>
               </div>
 
               {loadingGallery ? (
@@ -508,8 +513,20 @@ export default function PhotoAvatar({
 
             <div style={{ display: "flex", gap: 8, marginBottom: canRevertToFallback ? 8 : 0 }}>
               <button onClick={() => setShowModal(false)} style={btnSecondaryStyle}>닫기</button>
-              <button onClick={triggerFileInput} style={btnPrimaryStyle}>
-                {currentUrl ? "📸 새 사진" : "📸 사진 등록"}
+              <button
+                onClick={triggerFileInput}
+                disabled={gallery.length >= MAX_GALLERY}
+                style={{
+                  ...btnPrimaryStyle,
+                  ...(gallery.length >= MAX_GALLERY
+                    ? { background: "#cbd5e1", boxShadow: "none", cursor: "not-allowed" }
+                    : {}),
+                }}
+                title={gallery.length >= MAX_GALLERY ? "사진 슬롯이 가득 찼습니다" : ""}
+              >
+                {gallery.length >= MAX_GALLERY
+                  ? `📸 ${MAX_GALLERY}장 가득`
+                  : currentUrl ? "📸 새 사진" : "📸 사진 등록"}
               </button>
             </div>
 
