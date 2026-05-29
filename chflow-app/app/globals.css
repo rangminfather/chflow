@@ -1,21 +1,58 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #0f172a;
+  /* ============================================================
+     chflow 디자인 토큰 — 따뜻한 아이보리 + 세이지 그린 에디토리얼
+     색은 하드코딩 금지, 아래 토큰만 참조할 것.
+     ============================================================ */
+  --bg: #F5F1E8;          /* 앱 배경 - 따뜻한 아이보리 */
+  --surface: #FBF8F1;     /* 카드 */
+  --ink: #2B2722;         /* 본문 텍스트 - 순검정 금지 */
+  --ink-soft: #76705F;    /* 보조 */
+  --ink-faint: #9A9181;   /* 힌트 */
+  --accent: #3E5A4A;      /* 세이지 그린 - 포인트 (이 줄만 바꾸면 테마 교체: 네이비 #2B3A55 / 버건디 #6B2E3A) */
+  --accent-soft: #EAEFE8;
+  --brass: #A4884E;       /* 얇은 선/작은 점 디테일 전용 */
+  --hairline: #E5DECB;    /* 구분선 */
+  --radius: 14px;
+
+  /* 타이포 — 제목은 명조 세리프, 본문은 Pretendard */
+  --app-serif: 'Noto Serif KR', serif;
+  --app-sans: 'Pretendard Variable', Pretendard, 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* 하위호환: 기존 코드가 참조하는 background/foreground 를 새 토큰에 매핑 */
+  --background: var(--bg);
+  --foreground: var(--ink);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+
+  /* 새 토큰을 Tailwind 유틸로 노출:
+     bg-bg / bg-surface / text-ink / text-ink-soft / text-ink-faint /
+     bg-accent / text-accent / bg-accent-soft / text-brass / border-hairline */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-brass: var(--brass);
+  --color-hairline: var(--hairline);
+
+  --font-sans: var(--app-sans);
+  --font-serif: var(--app-serif);
   --font-mono: var(--font-geist-mono);
+  --radius-card: var(--radius);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: 'Noto Sans KR', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--app-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ========================================================
@@ -40,6 +77,48 @@ img, video, canvas, svg, iframe { max-width: 100%; }
   overflow-x: hidden;
 }
 
+/* 교육일지 작성 화면: 우측 편집 영역이 뷰포트 밖으로 밀리지 않도록 제한 */
+.journal-page,
+.journal-layout,
+.journal-content,
+.journal-sidebar {
+  min-width: 0;
+}
+
+.journal-layout {
+  box-sizing: border-box;
+}
+
+.journal-content {
+  max-width: 100%;
+}
+
+.journal-stats-grid > * {
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .journal-header {
+    padding: 10px 12px !important;
+  }
+
+  .journal-layout {
+    flex-direction: column;
+    padding: 12px !important;
+  }
+
+  .journal-sidebar {
+    width: 100% !important;
+    flex: 1 1 auto !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .journal-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
 /* 헤더 가로 스크롤 허용 영역(관리자 핀 버튼 줄) */
 .header-actions {
   flex-wrap: nowrap;
@@ -49,6 +128,12 @@ img, video, canvas, svg, iframe { max-width: 100%; }
 }
 .header-actions::-webkit-scrollbar { display: none; }
 .header-actions > * { flex-shrink: 0; }
+
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 
 /* ========================================================
    레이아웃 안전 유틸 (Tailwind와 함께 또는 단독으로 사용)
@@ -117,37 +202,37 @@ button, a { max-width: 100%; }
 
 /* 비밀번호 입력 점(•)이 잘 보이도록 강제 */
 input[type="password"] {
-  color: #0f172a !important;
-  -webkit-text-fill-color: #0f172a !important;
+  color: var(--ink) !important;
+  -webkit-text-fill-color: var(--ink) !important;
   font-weight: 700 !important;
   letter-spacing: 2px !important;
   font-size: 16px !important;
-  caret-color: #6366f1 !important;
+  caret-color: var(--accent) !important;
 }
 
 /* 일반 텍스트 입력도 진하게 */
 input[type="text"],
 input[type="tel"],
 input[type="email"] {
-  color: #0f172a !important;
-  -webkit-text-fill-color: #0f172a !important;
+  color: var(--ink) !important;
+  -webkit-text-fill-color: var(--ink) !important;
 }
 
-/* 자동완성 시 배경색 흰색 유지 */
+/* 자동완성 시 배경색 유지 */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
-  -webkit-text-fill-color: #0f172a !important;
-  -webkit-box-shadow: 0 0 0 30px white inset !important;
+  -webkit-text-fill-color: var(--ink) !important;
+  -webkit-box-shadow: 0 0 0 30px var(--surface) inset !important;
   font-weight: 600 !important;
 }
 
-/* placeholder는 회색으로 */
+/* placeholder는 흐리게 */
 input::placeholder {
-  color: #94a3b8 !important;
+  color: var(--ink-faint) !important;
   font-weight: 400 !important;
   letter-spacing: normal !important;
-  -webkit-text-fill-color: #94a3b8 !important;
+  -webkit-text-fill-color: var(--ink-faint) !important;
 }
 
 /* ========================================
