@@ -53,17 +53,19 @@ async function ensureBucket(admin: ReturnType<typeof adminClient>) {
   });
 }
 
-function safeName(name: string) {
-  return name.replace(/[\\/:*?"<>|#%{}^~[\]`]/g, "_").replace(/\s+/g, "_").slice(0, 120);
+function safeExtension(name: string) {
+  const ext = name.includes(".") ? name.split(".").pop() : "";
+  const clean = (ext || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 12);
+  return clean ? `.${clean.toLowerCase()}` : "";
 }
 
 function parsePlanName(name: string) {
-  const match = name.match(/^(\d{4})-(\d{2})_(\d+)_(.+)$/);
+  const match = name.match(/^(\d{4})-(\d{2})_(\d+)_monthly-plan(?:\.[a-z0-9]+)?$/);
   if (!match) return { year: null, month: null, originalName: name };
   return {
     year: Number(match[1]),
     month: Number(match[2]),
-    originalName: match[4].replace(/_/g, " "),
+    originalName: `${Number(match[1])}년 ${Number(match[2])}월 월간 교육계획서`,
   };
 }
 
@@ -122,7 +124,7 @@ export async function POST(req: NextRequest) {
   await ensureBucket(admin);
 
   const mm = String(month).padStart(2, "0");
-  const objectName = `${year}-${mm}_${Date.now()}_${safeName(file.name)}`;
+  const objectName = `${year}-${mm}_${Date.now()}_monthly-plan${safeExtension(file.name)}`;
   const path = `${deptId}/${objectName}`;
   const bytes = await file.arrayBuffer();
 
