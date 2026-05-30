@@ -1,667 +1,739 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
+import { supabase } from "@/lib/supabase";
 
-interface TalentSummary {
-  student_id: string;
-  student_no: number;
-  student_name: string;
-  student_type: string;
-  total_pts: number;
-  pts_attendance: number;
-  pts_offering: number;
-  pts_evangelism: number;
-  pts_memory: number;
-  pts_win: number;
-  pts_other: number;
-}
-
-interface TalentRecord {
+interface Student {
   id: string;
-  record_date: string;
-  pts_attendance: number;
-  pts_offering: number;
-  pts_evangelism: number;
-  pts_memory: number;
-  pts_win: number;
-  pts_other: number;
-  note: string | null;
-  created_at: string;
+  student_no: number;
+  name: string;
+  student_type: string;
+  grade: string | null;
+  is_active: boolean;
+  order_no: number;
+  member_id: string | null;
+  teacher_id: string | null;
+  teacher_name: string | null;
 }
 
-interface AutoTalentRow {
-  rule_id: string;
+interface AttendRow {
+  student_id: string;
+  attend_date: string | null;
+  attend_status: string;
+}
+
+interface TalentRule {
+  id: string;
+  rule_kind: string;
   rule_key: string;
   label: string;
-  source: "system" | "custom";
-  count_hits: number;
-  per_hit: number;
-  total: number;
+  points: number;
+  order_no: number;
+  is_active: boolean;
 }
 
-const PT_ITEMS = [
-  { key: "pts_attendance",  label: "출석",  icon: "✅", color: "#10b981" },
-  { key: "pts_offering",    label: "예전",  icon: "🙏", color: "#6366f1" },
-  { key: "pts_evangelism",  label: "전도",  icon: "📢", color: "#f59e0b" },
-  { key: "pts_memory",      label: "암송",  icon: "📖", color: "#0ea5e9" },
-  { key: "pts_win",         label: "우승",  icon: "🏆", color: "#ec4899" },
-  { key: "pts_other",       label: "기타",  icon: "✨", color: "#8b5cf6" },
+interface WeeklyExtra {
+  student_id: string;
+  attend_date: string;
+  rule_id: string;
+  rule_key: string;
+  points: number;
+}
+
+interface OtherRecord {
+  id: string;
+  student_id: string;
+  record_date: string;
+  pts_other: number;
+  note: string | null;
+}
+
+const DEFAULT_WEEKLY_RULES = [
+  { rule_key: "attendance", label: "출석", points: 1, order_no: 0 },
+  { rule_key: "bible_book", label: "성경책 지참", points: 1, order_no: 1 },
+  { rule_key: "verse_memory", label: "요절암송", points: 1, order_no: 2 },
+  { rule_key: "verse_presentation", label: "요절암송발표", points: 1, order_no: 3 },
+  { rule_key: "representative_prayer", label: "대표기도", points: 1, order_no: 4 },
+  { rule_key: "evangelism", label: "전도", points: 1, order_no: 5 },
+  { rule_key: "new_friend_promotion", label: "새친구등반", points: 1, order_no: 6 },
+  { rule_key: "lesson_homework", label: "공과숙제", points: 1, order_no: 7 },
 ];
 
-const EMPTY_RECORD = {
-  date: "",
-  pts_attendance: 0,
-  pts_offering: 0,
-  pts_evangelism: 0,
-  pts_memory: 0,
-  pts_win: 0,
-  pts_other: 0,
-  note: "",
-};
+const CHECK_RULE_KEYS = DEFAULT_WEEKLY_RULES
+  .map((rule) => rule.rule_key)
+  .filter((key) => key !== "attendance");
 
 export default function TalentPage() {
   const router = useRouter();
   const params = useParams();
   const deptId = params.id as string;
+  const weekCardRefs = useRef<Record<string, HTMLElement | null>>({});
 
-  const [summary, setSummary] = useState<TalentSummary[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<TalentSummary | null>(null);
-  const [records, setRecords] = useState<TalentRecord[]>([]);
-  const [autoRows, setAutoRows] = useState<AutoTalentRow[]>([]);
-  const [showWeeklyExtra, setShowWeeklyExtra] = useState(false);
-  const [weeklyExtraMonth, setWeeklyExtraMonth] = useState<{ y: number; m: number }>({ y: new Date().getFullYear(), m: new Date().getMonth() + 1 });
-  const [customRules, setCustomRules] = useState<{ rule_id: string; rule_key: string; label: string; points: number }[]>([]);
-  const [extraChecks, setExtraChecks] = useState<Record<string, boolean>>({}); // key: `${date}_${rule_id}`
-  const [extraSaving, setExtraSaving] = useState<string>("");
-  const [loading, setLoading] = useState(true);
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
   const [authChecked, setAuthChecked] = useState(false);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [editRecord, setEditRecord] = useState<TalentRecord | null>(null);
-  const [form, setForm] = useState({ ...EMPTY_RECORD, date: todayDate() });
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
+  const [myClassName, setMyClassName] = useState("");
+  const [students, setStudents] = useState<Student[]>([]);
+  const [attendance, setAttendance] = useState<AttendRow[]>([]);
+  const [rules, setRules] = useState<TalentRule[]>([]);
+  const [extras, setExtras] = useState<WeeklyExtra[]>([]);
+  const [others, setOthers] = useState<OtherRecord[]>([]);
+  const [saving, setSaving] = useState("");
   const [toast, setToast] = useState("");
+  const [otherModal, setOtherModal] = useState<{ student: Student; date: string } | null>(null);
+  const [otherNote, setOtherNote] = useState("");
+  const [otherAmount, setOtherAmount] = useState("1");
+  const [otherSaving, setOtherSaving] = useState(false);
+
+  const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
+  const currentSundayKey = useMemo(() => getCurrentSundayKey(), []);
+  const todayWeekIndex = useMemo(() => getTodayWeekIndex(sundays), [sundays]);
 
   useEffect(() => {
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.replace("/login"); return; }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+
+      const { data: teacher } = await supabase
+        .from("edu_teachers")
+        .select("id")
+        .eq("department_id", deptId)
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      setMyTeacherId(teacher?.id || null);
       setAuthChecked(true);
-      await loadSummary();
     })();
-  }, []);
-
-  const loadSummary = async () => {
-    setLoading(true);
-    const { data } = await supabase.rpc("edu_get_talent_summary", { p_dept_id: deptId });
-    setSummary(data || []);
-    setLoading(false);
-  };
-
-  const selectStudent = async (s: TalentSummary) => {
-    setSelectedStudent(s);
-    setShowAddForm(false);
-    setEditRecord(null);
-    await Promise.all([loadRecords(s.student_id), loadAuto(s.student_id)]);
-  };
-
-  const loadRecords = async (studentId: string) => {
-    const { data } = await supabase.rpc("edu_get_student_talent", { p_student_id: studentId });
-    setRecords(data || []);
-  };
-
-  const loadAuto = async (studentId: string) => {
-    const { data } = await supabase.rpc("get_student_auto_talent", {
-      p_student_id: studentId,
-      p_year_from: 2020, p_month_from: 1,
-      p_year_to:   2099, p_month_to:   12,
-    });
-    setAutoRows((data as AutoTalentRow[]) || []);
-  };
-
-  const openWeeklyExtra = async () => {
-    if (!selectedStudent) return;
-    const colsR = await supabase.rpc("list_attendance_columns", { p_dept_id: deptId });
-    const all = (colsR.data as { rule_id: string; rule_key: string; label: string; points: number; source: string }[]) || [];
-    setCustomRules(all.filter(c => c.source === "custom"));
-    const extraR = await supabase.rpc("get_dept_weekly_extra", {
-      p_dept_id: deptId, p_year: weeklyExtraMonth.y, p_month: weeklyExtraMonth.m,
-    });
-    const ec: Record<string, boolean> = {};
-    ((extraR.data as { student_id: string; attend_date: string; rule_id: string }[]) || [])
-      .filter(e => e.student_id === selectedStudent.student_id)
-      .forEach(e => { ec[`${e.attend_date}_${e.rule_id}`] = true; });
-    setExtraChecks(ec);
-    setShowWeeklyExtra(true);
-  };
-
-  const reloadExtra = async () => {
-    if (!selectedStudent) return;
-    const extraR = await supabase.rpc("get_dept_weekly_extra", {
-      p_dept_id: deptId, p_year: weeklyExtraMonth.y, p_month: weeklyExtraMonth.m,
-    });
-    const ec: Record<string, boolean> = {};
-    ((extraR.data as { student_id: string; attend_date: string; rule_id: string }[]) || [])
-      .filter(e => e.student_id === selectedStudent.student_id)
-      .forEach(e => { ec[`${e.attend_date}_${e.rule_id}`] = true; });
-    setExtraChecks(ec);
-  };
+  }, [deptId, router]);
 
   useEffect(() => {
-    if (showWeeklyExtra) reloadExtra();
-  }, [weeklyExtraMonth]);
+    if (!authChecked) return;
+    if (!myTeacherId) {
+      setStudents([]);
+      setLoading(false);
+      return;
+    }
+    loadAll(myTeacherId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, myTeacherId, year, month]);
 
-  const toggleExtra = async (date: string, ruleId: string) => {
-    if (!selectedStudent) return;
-    const key = `${date}_${ruleId}`;
-    const next = !extraChecks[key];
-    setExtraSaving(key);
+  useEffect(() => {
+    if (loading || todayWeekIndex < 0) return;
+
+    const target = weekCardRefs.current[sundays[todayWeekIndex]];
+    const timer = window.setTimeout(() => {
+      target?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [loading, students.length, sundays, todayWeekIndex]);
+
+  async function loadAll(teacherId: string) {
+    setLoading(true);
+
+    const classStudents = await loadStudents(teacherId);
+    const studentIds = classStudents.map((student) => student.id);
+    const loadedRules = await ensureDefaultRules();
+
+    const [{ data: attRows }, { data: extraRows }] = await Promise.all([
+      supabase.rpc("edu_get_student_attendance", {
+        p_dept_id: deptId,
+        p_year: year,
+        p_month: month,
+      }),
+      supabase.rpc("get_dept_weekly_extra", {
+        p_dept_id: deptId,
+        p_year: year,
+        p_month: month,
+      }),
+    ]);
+
+    setRules(loadedRules);
+    setAttendance(((attRows || []) as AttendRow[]).filter((row) => studentIds.includes(row.student_id)));
+    setExtras(((extraRows || []) as WeeklyExtra[]).filter((row) => studentIds.includes(row.student_id)));
+    await loadOtherRecords(studentIds);
+    setLoading(false);
+  }
+
+  async function loadStudents(teacherId: string) {
+    const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
+    const all = (data || []) as Student[];
+    const mine = all
+      .filter((student) => student.teacher_id === teacherId)
+      .sort((a, b) => (a.order_no || 0) - (b.order_no || 0) || (a.student_no || 0) - (b.student_no || 0));
+
+    setStudents(mine);
+
+    if (mine.length > 0) {
+      const { data: cls } = await supabase
+        .from("edu_students")
+        .select("class_no")
+        .eq("id", mine[0].id)
+        .maybeSingle();
+      setMyClassName(cls?.class_no || "");
+    } else {
+      setMyClassName("");
+    }
+
+    return mine;
+  }
+
+  async function ensureDefaultRules() {
+    const { data: listed } = await supabase.rpc("list_talent_rules", { p_dept_id: deptId });
+    const current = ((listed || []) as TalentRule[]).filter((rule) => rule.rule_kind === "weekly");
+    const existingKeys = new Set(current.map((rule) => rule.rule_key));
+    const missing = DEFAULT_WEEKLY_RULES.filter((rule) => !existingKeys.has(rule.rule_key));
+
+    if (missing.length > 0) {
+      await supabase.from("edu_talent_rules").insert(
+        missing.map((rule) => ({
+          department_id: deptId,
+          rule_kind: "weekly",
+          rule_key: rule.rule_key,
+          label: rule.label,
+          points: rule.points,
+          order_no: rule.order_no,
+          is_active: true,
+        }))
+      );
+      const { data: refreshed } = await supabase.rpc("list_talent_rules", { p_dept_id: deptId });
+      return ((refreshed || []) as TalentRule[]).filter((rule) => rule.rule_kind === "weekly" && rule.is_active);
+    }
+
+    return current.filter((rule) => rule.is_active);
+  }
+
+  async function loadOtherRecords(studentIds: string[]) {
+    if (studentIds.length === 0 || sundays.length === 0) {
+      setOthers([]);
+      return;
+    }
+
+    const firstDate = sundays[0];
+    const lastDate = getMonthEndKey(year, month);
+    const { data } = await supabase
+      .from("edu_talent_records")
+      .select("id, student_id, record_date, pts_other, note")
+      .eq("department_id", deptId)
+      .in("student_id", studentIds)
+      .gte("record_date", firstDate)
+      .lte("record_date", lastDate)
+      .gt("pts_other", 0);
+
+    setOthers((data || []) as OtherRecord[]);
+  }
+
+  const attendanceMap = useMemo(() => {
+    const map: Record<string, Record<string, AttendRow>> = {};
+    attendance.forEach((row) => {
+      if (!row.attend_date) return;
+      if (!map[row.student_id]) map[row.student_id] = {};
+      map[row.student_id][row.attend_date] = row;
+    });
+    return map;
+  }, [attendance]);
+
+  const extraMap = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    extras.forEach((row) => {
+      map[extraKey(row.student_id, row.attend_date, row.rule_id)] = true;
+    });
+    return map;
+  }, [extras]);
+
+  const otherMap = useMemo(() => {
+    const map: Record<string, OtherRecord> = {};
+    others.forEach((record) => {
+      const key = `${record.student_id}_${record.record_date}`;
+      if (!map[key]) map[key] = record;
+      else {
+        map[key] = {
+          ...map[key],
+          pts_other: map[key].pts_other + record.pts_other,
+          note: [map[key].note, record.note].filter(Boolean).join(" / "),
+        };
+      }
+    });
+    return map;
+  }, [others]);
+
+  const ruleMap = useMemo(() => {
+    const map: Record<string, TalentRule> = {};
+    rules.forEach((rule) => {
+      map[rule.rule_key] = rule;
+    });
+    return map;
+  }, [rules]);
+
+  function getAttendance(studentId: string, date: string) {
+    return attendanceMap[studentId]?.[date];
+  }
+
+  function isPresent(studentId: string, date: string) {
+    return getAttendance(studentId, date)?.attend_status === "출";
+  }
+
+  function isChecked(studentId: string, date: string, rule: TalentRule) {
+    return !!extraMap[extraKey(studentId, date, rule.id)];
+  }
+
+  function getOther(studentId: string, date: string) {
+    return otherMap[`${studentId}_${date}`];
+  }
+
+  function studentWeekTotal(studentId: string, date: string) {
+    const attendancePoints = isPresent(studentId, date) ? getRulePoints("attendance") : 0;
+    const checkPoints = CHECK_RULE_KEYS.reduce((sum, key) => {
+      const rule = ruleMap[key];
+      return sum + (rule && isChecked(studentId, date, rule) ? getRulePoints(key) : 0);
+    }, 0);
+    return attendancePoints + checkPoints + (getOther(studentId, date)?.pts_other || 0);
+  }
+
+  function weekTotal(date: string) {
+    return students.reduce((sum, student) => sum + studentWeekTotal(student.id, date), 0);
+  }
+
+  function getRulePoints(ruleKey: string) {
+    return ruleMap[ruleKey]?.points ?? 1;
+  }
+
+  async function toggleWeeklyItem(student: Student, date: string, rule: TalentRule) {
+    if (getWeekEditState(date, currentSundayKey) !== "current") return;
+
+    const key = extraKey(student.id, date, rule.id);
+    const checked = !extraMap[key];
+    setSaving(key);
+
     const { error } = await supabase.rpc("toggle_weekly_extra", {
-      p_student_id: selectedStudent.student_id,
-      p_dept_id:    deptId,
-      p_date:       date,
-      p_rule_id:    ruleId,
-      p_checked:    next,
+      p_student_id: student.id,
+      p_dept_id: deptId,
+      p_date: date,
+      p_rule_id: rule.id,
+      p_checked: checked,
     });
-    setExtraSaving("");
-    if (error) { showToast("실패: " + error.message); return; }
-    setExtraChecks(s => ({ ...s, [key]: next }));
-    await loadAuto(selectedStudent.student_id);
-  };
 
-  const sundaysInMonth = (y: number, m: number): string[] => {
-    const out: string[] = [];
-    const d = new Date(y, m - 1, 1);
-    while (d.getDay() !== 0) d.setDate(d.getDate() + 1);
-    while (d.getMonth() === m - 1) {
-      out.push(d.toISOString().slice(0, 10));
-      d.setDate(d.getDate() + 7);
+    setSaving("");
+    if (error) {
+      showToast("저장 실패: " + error.message);
+      return;
     }
-    return out;
-  };
 
-  const openAddForm = () => {
-    setEditRecord(null);
-    setForm({ ...EMPTY_RECORD, date: todayDate() });
-    setShowAddForm(true);
-  };
-
-  const openEditForm = (r: TalentRecord) => {
-    setEditRecord(r);
-    setForm({
-      date: r.record_date,
-      pts_attendance: r.pts_attendance,
-      pts_offering: r.pts_offering,
-      pts_evangelism: r.pts_evangelism,
-      pts_memory: r.pts_memory,
-      pts_win: r.pts_win,
-      pts_other: r.pts_other,
-      note: r.note ?? "",
+    setExtras((prev) => {
+      if (!checked) return prev.filter((row) => extraKey(row.student_id, row.attend_date, row.rule_id) !== key);
+      return [
+        ...prev,
+        {
+          student_id: student.id,
+          attend_date: date,
+          rule_id: rule.id,
+          rule_key: rule.rule_key,
+          points: rule.points,
+        },
+      ];
     });
-    setShowAddForm(true);
-  };
+  }
 
-  const handleSave = async () => {
-    if (!selectedStudent) return;
-    setSaving(true);
+  function openOther(student: Student, date: string) {
+    if (getWeekEditState(date, currentSundayKey) !== "current") return;
+    const current = getOther(student.id, date);
+    setOtherModal({ student, date });
+    setOtherAmount(String(current?.pts_other || 1));
+    setOtherNote(current?.note || "");
+  }
+
+  async function saveOther() {
+    if (!otherModal) return;
+    if (getWeekEditState(otherModal.date, currentSundayKey) !== "current") return;
+
+    const amount = Math.max(0, Number(otherAmount) || 0);
+    const current = getOther(otherModal.student.id, otherModal.date);
+    setOtherSaving(true);
+
     try {
-      const { error } = await supabase.rpc("edu_save_talent", {
-        p_id:         editRecord?.id ?? null,
-        p_dept_id:    deptId,
-        p_student_id: selectedStudent.student_id,
-        p_date:       form.date,
-        p_attendance: form.pts_attendance,
-        p_offering:   form.pts_offering,
-        p_evangelism: form.pts_evangelism,
-        p_memory:     form.pts_memory,
-        p_win:        form.pts_win,
-        p_other:      form.pts_other,
-        p_note:       form.note || null,
-      });
-      if (error) throw error;
-      showToast("저장되었습니다 ✅");
-      setShowAddForm(false);
-      setEditRecord(null);
-      await loadRecords(selectedStudent.student_id);
-      await loadSummary();
-    } catch (e: unknown) {
-      showToast("오류: " + (e as Error).message);
+      if (amount === 0 && current?.id) {
+        await supabase.rpc("edu_delete_talent", { p_id: current.id });
+      } else if (amount > 0) {
+        const { error } = await supabase.rpc("edu_save_talent", {
+          p_id: current?.id ?? null,
+          p_dept_id: deptId,
+          p_student_id: otherModal.student.id,
+          p_date: otherModal.date,
+          p_attendance: 0,
+          p_offering: 0,
+          p_evangelism: 0,
+          p_memory: 0,
+          p_win: 0,
+          p_other: amount,
+          p_note: otherNote.trim() || "기타",
+        });
+        if (error) throw error;
+      }
+
+      await loadOtherRecords(students.map((student) => student.id));
+      setOtherModal(null);
+      showToast("저장되었습니다");
+    } catch (error) {
+      showToast("저장 실패: " + (error as Error).message);
     } finally {
-      setSaving(false);
+      setOtherSaving(false);
     }
-  };
+  }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("이 기록을 삭제하시겠습니까?")) return;
-    await supabase.rpc("edu_delete_talent", { p_id: id });
-    if (selectedStudent) await loadRecords(selectedStudent.student_id);
-    await loadSummary();
-    showToast("삭제되었습니다");
-  };
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 2500);
-  };
-
-  const setN = (key: string, val: string) =>
-    setForm((f) => ({ ...f, [key]: Number(val) || 0 }));
-
-  const totalPts = (f: typeof form) =>
-    f.pts_attendance + f.pts_offering + f.pts_evangelism + f.pts_memory + f.pts_win + f.pts_other;
+  function showToast(message: string) {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 2400);
+  }
 
   if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
 
+  if (!myTeacherId) {
+    return (
+      <div style={pageStyle}>
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+        <div style={headerStyle}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+            <HeaderLogo />
+          </div>
+          <div style={titleStyle}>🏅 달란트통장</div>
+          <div style={{ width: 80 }} />
+        </div>
+        <div className="mx-auto max-w-lg px-4 py-14">
+          <div className="rounded-lg border border-slate-200 bg-white px-6 py-10 text-center">
+            <div className="text-[48px]">🙇</div>
+            <div className="mt-4 text-[18px] font-extrabold text-slate-800">본인이 담임으로 등록된 반이 없습니다</div>
+            <div className="mt-2 text-[15px] leading-6 text-slate-500">부장 또는 전도사에게 담임 등록을 요청하세요.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div style={pageStyle}>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
 
-      {/* Header */}
       <div style={headerStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>🏅 달란트통장</div>
-        <div />
+        <div style={titleStyle}>
+          🏅 달란트통장 {myClassName && <span style={{ color: "#6366f1", marginLeft: 6 }}>{myClassName}반</span>}
+        </div>
+        <div style={{ width: 80 }} />
       </div>
 
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16 }}>
-        {!selectedStudent ? (
-          /* 학생 요약 카드 목록 */
-          <>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", marginBottom: 12 }}>
-              학생을 선택하면 달란트 기록을 볼 수 있습니다
-            </div>
-            {loading ? (
-              <div style={{ color: "#94a3b8", textAlign: "center", padding: 60 }}>불러오는 중...</div>
-            ) : summary.length === 0 ? (
-              <div style={{ ...cardStyle, textAlign: "center", padding: 60, color: "#94a3b8" }}>
-                <div style={{ fontSize: 40, marginBottom: 12 }}>📭</div>
-                <div>등록된 학생이 없습니다.<br />출결 메뉴에서 학생을 먼저 추가하세요.</div>
-              </div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
-                {summary.map((s) => (
-                  <div
-                    key={s.student_id}
-                    onClick={() => selectStudent(s)}
-                    style={{
-                      background: "#fff",
-                      borderRadius: 16,
-                      padding: "20px 18px",
-                      cursor: "pointer",
-                      boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-                      border: "2px solid transparent",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.borderColor = "#8b5cf6";
-                      e.currentTarget.style.transform = "translateY(-3px)";
-                      e.currentTarget.style.boxShadow = "0 12px 28px rgba(139,92,246,0.2)";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.borderColor = "transparent";
-                      e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.05)";
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                      <div>
-                        <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>
-                          {s.student_no ? `#${s.student_no}` : ""} {s.student_type}
-                        </div>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>{s.student_name}</div>
-                      </div>
-                      <div style={{
-                        background: "linear-gradient(135deg, #f59e0b, #fbbf24)",
-                        borderRadius: 12,
-                        padding: "6px 12px",
-                        fontSize: 18,
-                        fontWeight: 900,
-                        color: "#fff",
-                        boxShadow: "0 4px 12px rgba(245,158,11,0.3)",
-                      }}>
-                        {s.total_pts}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                      {PT_ITEMS.map((item) => {
-                        const val = (s as unknown as Record<string, number>)[item.key];
-                        if (!val) return null;
-                        return (
-                          <span key={item.key} style={{
-                            fontSize: 10,
-                            padding: "2px 7px",
-                            borderRadius: 6,
-                            background: item.color + "18",
-                            color: item.color,
-                            fontWeight: 700,
-                          }}>
-                            {item.icon} {item.label} {val}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
+      <main className="mx-auto w-full max-w-6xl px-0 py-4 md:px-4">
+        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 md:mx-0">
+          <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
+          <div className="min-w-[140px] text-center text-[19px] font-extrabold text-slate-800">
+            {year}년 {month}월
+          </div>
+          <button onClick={() => nextMonth(year, month, setYear, setMonth)} style={navBtnStyle}>▶</button>
+          <div className="w-full text-center text-[13px] font-semibold text-slate-400">
+            주일 {todayWeekIndex >= 0 ? todayWeekIndex + 1 : Math.min(1, sundays.length)}주차/{sundays.length}주차
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="mx-4 rounded-lg border border-slate-200 bg-white py-16 text-center text-[17px] text-slate-400 md:mx-0">
+            불러오는 중...
+          </div>
+        ) : students.length === 0 ? (
+          <div className="mx-4 rounded-lg border border-slate-200 bg-white py-16 text-center text-[17px] text-slate-400 md:mx-0">
+            담당 반 학생이 없습니다.
+          </div>
         ) : (
-          /* 개인 상세 */
-          <>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-              <button onClick={() => setSelectedStudent(null)} style={backBtnStyle}>← 전체 보기</button>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>
-                {selectedStudent.student_name}의 달란트통장
-              </div>
-              <div style={{
-                marginLeft: "auto",
-                background: "linear-gradient(135deg, #f59e0b, #fbbf24)",
-                borderRadius: 12,
-                padding: "6px 16px",
-                fontSize: 16,
-                fontWeight: 900,
-                color: "#fff",
-              }}>
-                총 {selectedStudent.total_pts}점
-              </div>
-              <button onClick={openAddForm} style={addBtnStyle}>+ 달란트 추가</button>
-            </div>
+          <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 px-[8vw] pb-2 scrollbar-hide md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible md:px-0 md:pb-0">
+            {sundays.map((date, index) => {
+              const editState = getWeekEditState(date, currentSundayKey);
+              const isEditableWeek = editState === "current";
+              const isTodayWeek = index === todayWeekIndex;
 
-            {/* 자동 적립 (부서 규칙 기반) */}
-            {autoRows.length > 0 && (
-              <div style={{ ...cardStyle, marginBottom: 16, background: "linear-gradient(135deg, #eef2ff, #f5f3ff)", border: "1.5px solid #c7d2fe" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#4338ca" }}>⚙️ 자동 적립 (부서 규칙)</div>
-                  <div style={{ fontSize: 11, color: "#6366f1" }}>
-                    합계 <b style={{ fontSize: 16 }}>{autoRows.reduce((s, r) => s + r.total, 0)}</b> 점
-                  </div>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
-                  {autoRows.map((r) => (
-                    <div key={r.rule_id} style={{
-                      background: "#fff", borderRadius: 10, padding: "10px 12px",
-                      border: "1px solid #e0e7ff",
-                    }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#1e293b" }}>{r.label}</div>
-                        <span style={{
-                          fontSize: 9, padding: "1px 5px", borderRadius: 4,
-                          background: r.source === "system" ? "#dcfce7" : "#fef3c7",
-                          color: r.source === "system" ? "#15803d" : "#92400e",
-                          fontWeight: 700,
-                        }}>{r.source === "system" ? "출석" : "주별"}</span>
+              return (
+                <article
+                  key={date}
+                  ref={(node) => { weekCardRefs.current[date] = node; }}
+                  className={[
+                    "shrink-0 w-[84vw] snap-center overflow-hidden rounded-lg bg-white shadow-sm md:w-auto",
+                    isTodayWeek
+                      ? "border-2 border-amber-500 shadow-[0_10px_30px_rgba(217,119,6,0.16)]"
+                      : "border border-slate-300",
+                  ].join(" ")}
+                >
+                  <header className={[
+                    "border-b px-4 py-3",
+                    isTodayWeek ? "border-amber-200 bg-gradient-to-r from-amber-50 to-white" : "border-slate-200 bg-slate-50",
+                  ].join(" ")}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2 text-[19px] font-extrabold text-slate-900">
+                          {index + 1}주차
+                          {isTodayWeek && (
+                            <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[12px] font-extrabold text-amber-800">
+                              오늘 주차
+                            </span>
+                          )}
+                          {!isEditableWeek && (
+                            <span
+                              className={[
+                                "rounded-full border px-2 py-0.5 text-[12px] font-extrabold",
+                                editState === "past"
+                                  ? "border-slate-200 bg-white text-slate-400"
+                                  : "border-sky-200 bg-sky-50 text-sky-700",
+                              ].join(" ")}
+                            >
+                              {editState === "past" ? "수정 마감" : "예정"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 text-[13px] font-semibold text-slate-500">{formatMD(date)} 주일</div>
                       </div>
-                      <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
-                        {r.count_hits}회 × {r.per_hit}점
-                      </div>
-                      <div style={{ fontSize: 16, fontWeight: 900, color: "#4338ca", marginTop: 2 }}>
-                        {r.total}점
+                      <div className={[
+                        "rounded-md border bg-white px-2.5 py-1 text-[13px] font-extrabold",
+                        isTodayWeek ? "border-amber-200 text-amber-800" : "border-slate-200 text-slate-700",
+                      ].join(" ")}
+                      >
+                        {weekTotal(date)}개
                       </div>
                     </div>
-                  ))}
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, gap: 8 }}>
-                  <div style={{ fontSize: 10, color: "#6366f1", lineHeight: 1.5, flex: 1 }}>
-                    💡 <b>출석</b> = 출석부 체크 시 자동. <b>주별</b> = 우측 버튼으로 학생별 체크.
-                  </div>
-                  {autoRows.some(r => r.source === "custom") && (
-                    <button onClick={openWeeklyExtra} style={{
-                      padding: "6px 12px", background: "#6366f1", color: "#fff",
-                      border: "none", borderRadius: 8, fontSize: 11, fontWeight: 700,
-                      cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-                    }}>
-                      ✓ 주별 체크 입력
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
+                  </header>
 
-            {/* 항목별 요약 (수동 입력) */}
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", marginBottom: 6 }}>
-              📝 수동 입력 (특별·보너스)
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8, marginBottom: 16 }}>
-              {PT_ITEMS.map((item) => (
-                <div key={item.key} style={{ ...cardStyle, padding: "12px 8px", textAlign: "center" }}>
-                  <div style={{ fontSize: 20, marginBottom: 4 }}>{item.icon}</div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: item.color }}>
-                    {(selectedStudent as unknown as Record<string, number>)[item.key]}
-                  </div>
-                  <div style={{ fontSize: 10, color: "#94a3b8" }}>{item.label}</div>
-                </div>
-              ))}
-            </div>
+                  <section className="space-y-3 bg-white px-4 py-4">
+                    {students.map((student) => {
+                      const studentTotal = studentWeekTotal(student.id, date);
+                      const present = isPresent(student.id, date);
+                      const other = getOther(student.id, date);
 
-            {/* 추가/편집 폼 */}
-            {showAddForm && (
-              <div style={{ ...cardStyle, marginBottom: 16, border: "2px solid #8b5cf644" }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#1e293b", marginBottom: 14 }}>
-                  {editRecord ? "달란트 수정" : "달란트 추가"}
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 12 }}>
-                  <div style={{ gridColumn: "1 / -1" }}>
-                    <div style={fieldLabel}>날짜</div>
-                    <input
-                      type="date"
-                      value={form.date}
-                      onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                      style={{ ...inputStyle, width: 180 }}
-                    />
-                  </div>
-                  {PT_ITEMS.map((item) => (
-                    <div key={item.key}>
-                      <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4, fontWeight: 700 }}>
-                        {item.icon} {item.label}
-                      </div>
-                      <input
-                        type="number"
-                        min={0}
-                        value={(form as unknown as Record<string, number>)[item.key]}
-                        onChange={(e) => setN(item.key, e.target.value)}
-                        style={{ ...inputStyle, textAlign: "center" }}
-                      />
-                    </div>
-                  ))}
-                  <div style={{ gridColumn: "1 / -1" }}>
-                    <div style={fieldLabel}>비고</div>
-                    <input
-                      type="text"
-                      value={form.note}
-                      onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-                      placeholder="메모 (선택)"
-                      style={{ ...inputStyle, width: "100%" }}
-                    />
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
-                  <div style={{ color: "#f59e0b", fontWeight: 800, fontSize: 14 }}>
-                    합계: {totalPts(form)}점
-                  </div>
-                  <button onClick={() => setShowAddForm(false)} style={cancelBtnStyle}>취소</button>
-                  <button onClick={handleSave} disabled={saving} style={saveBtnStyle}>
-                    {saving ? "저장 중..." : "저장"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* 기록 목록 */}
-            <div style={cardStyle}>
-              {records.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>
-                  아직 기록이 없습니다. &quot;달란트 추가&quot; 버튼을 눌러 기록하세요.
-                </div>
-              ) : (
-                <table style={{ borderCollapse: "collapse", width: "100%" }}>
-                  <thead>
-                    <tr style={{ background: "#f8fafc" }}>
-                      <th style={thStyle("left")}>날짜</th>
-                      {PT_ITEMS.map((item) => (
-                        <th key={item.key} style={thStyle("center")}>{item.icon}</th>
-                      ))}
-                      <th style={thStyle("center")}>합계</th>
-                      <th style={thStyle("left")}>비고</th>
-                      <th style={thStyle("center")}>관리</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {records.map((r) => {
-                      const total = r.pts_attendance + r.pts_offering + r.pts_evangelism + r.pts_memory + r.pts_win + r.pts_other;
                       return (
-                        <tr key={r.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                          <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
-                            {formatDate(r.record_date)}
-                          </td>
-                          {PT_ITEMS.map((item) => (
-                            <td key={item.key} style={{ textAlign: "center", padding: "10px 8px", fontSize: 13 }}>
-                              <span style={{
-                                color: (r as unknown as Record<string, number>)[item.key] > 0 ? item.color : "#e2e8f0",
-                                fontWeight: 700,
-                              }}>
-                                {(r as unknown as Record<string, number>)[item.key] || "-"}
-                              </span>
-                            </td>
-                          ))}
-                          <td style={{ textAlign: "center", padding: "10px 8px" }}>
-                            <span style={{
-                              background: "#fef3c7",
-                              color: "#92400e",
-                              padding: "3px 10px",
-                              borderRadius: 12,
-                              fontSize: 12,
-                              fontWeight: 800,
-                            }}>{total}</span>
-                          </td>
-                          <td style={{ padding: "10px 12px", fontSize: 12, color: "#64748b" }}>{r.note || "-"}</td>
-                          <td style={{ textAlign: "center", padding: "10px 8px" }}>
-                            <button onClick={() => openEditForm(r)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, marginRight: 4 }}>✏️</button>
-                            <button onClick={() => handleDelete(r.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "#ef4444" }}>🗑</button>
-                          </td>
-                        </tr>
+                        <div key={student.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div className="min-w-0 truncate text-[16px] font-extrabold text-slate-800">{student.name}</div>
+                            <span className="shrink-0 rounded-md border border-amber-200 bg-white px-2 py-1 text-[13px] font-extrabold text-amber-700">
+                              {studentTotal}개
+                            </span>
+                          </div>
+
+                          <div className="mb-2 grid grid-cols-2 gap-2">
+                            <div
+                              className={[
+                                "min-h-12 rounded-md border px-2 py-2 text-center text-[15px] font-extrabold leading-tight",
+                                present
+                                  ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                                  : "border-slate-200 bg-white text-slate-400",
+                              ].join(" ")}
+                            >
+                              출석 자동 +{getRulePoints("attendance")}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => openOther(student, date)}
+                              disabled={!isEditableWeek}
+                              className={[
+                                "min-h-12 rounded-md border px-2 py-2 text-center text-[15px] font-extrabold leading-tight",
+                                other
+                                  ? "border-violet-300 bg-violet-50 text-violet-700"
+                                  : "border-slate-200 bg-white text-slate-600",
+                                !isEditableWeek ? "cursor-not-allowed opacity-60" : "",
+                              ].join(" ")}
+                            >
+                              기타 {other ? `+${other.pts_other}` : ""}
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            {CHECK_RULE_KEYS.map((ruleKey) => {
+                              const rule = ruleMap[ruleKey];
+                              const selected = rule ? isChecked(student.id, date, rule) : false;
+                              const key = rule ? extraKey(student.id, date, rule.id) : `${student.id}-${date}-${ruleKey}`;
+
+                              return (
+                                <button
+                                  key={ruleKey}
+                                  type="button"
+                                  onClick={() => rule && toggleWeeklyItem(student, date, rule)}
+                                  disabled={!rule || !isEditableWeek || saving === key}
+                                  className={[
+                                    "min-h-12 rounded-md border px-2 py-2 text-[15px] font-extrabold leading-tight",
+                                    selected
+                                      ? "border-slate-800 bg-slate-800 text-white"
+                                      : "border-slate-200 bg-white text-slate-600",
+                                    (!rule || !isEditableWeek) ? "cursor-not-allowed opacity-60" : "",
+                                  ].join(" ")}
+                                >
+                                  {rule?.label || DEFAULT_WEEKLY_RULES.find((item) => item.rule_key === ruleKey)?.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </>
+                  </section>
+
+                  <footer className="border-t border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[15px] leading-6 text-amber-900">
+                      출석은 내반출결에서 자동 반영됩니다. 기타는 사유와 수량을 직접 입력합니다.
+                    </div>
+                  </footer>
+                </article>
+              );
+            })}
+          </div>
         )}
-      </div>
+      </main>
 
-      {toast && <div style={toastStyle}>{toast}</div>}
-
-      {/* 주별 체크 입력 모달 */}
-      {showWeeklyExtra && selectedStudent && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}
-          onClick={() => setShowWeeklyExtra(false)}>
-          <div onClick={(e) => e.stopPropagation()} style={{
-            background: "#fff", borderRadius: 14, padding: 20,
-            width: "100%", maxWidth: 720, maxHeight: "90vh", overflowY: "auto",
-            fontFamily: "inherit",
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>
-                  ✓ {selectedStudent.student_name} · 주별 체크
-                </div>
-                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>주차별로 항목을 체크하면 자동 적립됩니다</div>
-              </div>
-              <button onClick={() => setShowWeeklyExtra(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8" }}>×</button>
+      {otherModal && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/50 p-4" onClick={() => !otherSaving && setOtherModal(null)}>
+          <div className="w-full max-w-sm rounded-lg bg-white p-5" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-1 text-[19px] font-extrabold text-slate-900">
+              기타 달란트
+            </div>
+            <div className="mb-4 text-[14px] font-semibold text-slate-500">
+              {otherModal.student.name} · {formatMD(otherModal.date)} 주일
             </div>
 
-            {/* 월 선택 */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, padding: "10px 14px", background: "#f8fafc", borderRadius: 8 }}>
-              <button onClick={() => setWeeklyExtraMonth(({ y, m }) => m === 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 })}
-                style={{ ...cancelBtnStyle, padding: "6px 12px" }}>◀</button>
-              <div style={{ flex: 1, textAlign: "center", fontSize: 14, fontWeight: 800, color: "#1e293b" }}>
-                {weeklyExtraMonth.y}년 {weeklyExtraMonth.m}월
-              </div>
-              <button onClick={() => setWeeklyExtraMonth(({ y, m }) => m === 12 ? { y: y + 1, m: 1 } : { y, m: m + 1 })}
-                style={{ ...cancelBtnStyle, padding: "6px 12px" }}>▶</button>
-            </div>
+            <label className="mb-1 block text-[15px] font-bold text-slate-600">사유</label>
+            <input
+              type="text"
+              value={otherNote}
+              onChange={(event) => setOtherNote(event.target.value)}
+              placeholder="예: 특별활동, 찬양, 선생님 재량"
+              className="mb-3 w-full rounded-md border border-slate-300 px-3 py-3 text-[16px] outline-none focus:border-violet-400"
+            />
 
-            {customRules.length === 0 ? (
-              <div style={{ padding: 30, textAlign: "center", color: "#94a3b8", fontSize: 12 }}>
-                주별 체크 가능한 항목이 없습니다.<br />
-                <a href={`/departments/d/${deptId}/talent-rules`} style={{ color: "#6366f1", fontWeight: 600 }}>달란트 규칙</a>에서 매주 적립 항목을 추가하세요.
-              </div>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ background: "#f8fafc" }}>
-                      <th style={{ padding: "8px 10px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#475569", borderBottom: "1px solid #e2e8f0" }}>항목 / 주차</th>
-                      {sundaysInMonth(weeklyExtraMonth.y, weeklyExtraMonth.m).map((d, i) => (
-                        <th key={d} style={{ padding: "8px 6px", textAlign: "center", fontSize: 11, fontWeight: 700, color: "#475569", borderBottom: "1px solid #e2e8f0", minWidth: 50 }}>
-                          {i + 1}주<br /><span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>{d.slice(5).replace("-", "/")}</span>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {customRules.map((r) => (
-                      <tr key={r.rule_id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                        <td style={{ padding: "10px", fontSize: 12 }}>
-                          <div style={{ fontWeight: 700, color: "#1e293b" }}>{r.label}</div>
-                          <div style={{ fontSize: 10, color: "#94a3b8" }}>+{r.points}점/주</div>
-                        </td>
-                        {sundaysInMonth(weeklyExtraMonth.y, weeklyExtraMonth.m).map((d) => {
-                          const k = `${d}_${r.rule_id}`;
-                          const checked = extraChecks[k];
-                          return (
-                            <td key={d} style={{ textAlign: "center", padding: 4 }}>
-                              <button
-                                onClick={() => toggleExtra(d, r.rule_id)}
-                                disabled={extraSaving === k}
-                                style={{
-                                  width: 32, height: 32, borderRadius: 6, border: "none",
-                                  background: checked ? "#6366f1" : "#f1f5f9",
-                                  color: checked ? "#fff" : "#cbd5e1",
-                                  fontSize: 14, fontWeight: 700, cursor: "pointer",
-                                  fontFamily: "inherit",
-                                }}
-                              >
-                                {checked ? "✓" : "·"}
-                              </button>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <label className="mb-1 block text-[15px] font-bold text-slate-600">달란트 수량</label>
+            <input
+              type="number"
+              min={0}
+              value={otherAmount}
+              onChange={(event) => setOtherAmount(event.target.value)}
+              className="mb-4 w-full rounded-md border border-slate-300 px-3 py-3 text-center text-[18px] font-extrabold outline-none focus:border-violet-400"
+            />
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setOtherModal(null)}
+                disabled={otherSaving}
+                className="min-h-12 flex-1 rounded-md bg-slate-100 text-[16px] font-extrabold text-slate-600"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={saveOther}
+                disabled={otherSaving}
+                className="min-h-12 flex-[1.4] rounded-md bg-slate-900 text-[16px] font-extrabold text-white"
+              >
+                {otherSaving ? "저장 중..." : "저장"}
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {toast && <div style={toastStyle}>{toast}</div>}
     </div>
   );
 }
 
-function formatDate(d: string) {
-  const date = new Date(d);
-  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}.${String(date.getDate()).padStart(2, "0")}`;
+function getSundaysInMonth(year: number, month: number): string[] {
+  const sundays: string[] = [];
+  const date = new Date(year, month - 1, 1);
+  while (date.getDay() !== 0) date.setDate(date.getDate() + 1);
+  while (date.getMonth() === month - 1) {
+    sundays.push(formatDateKey(date));
+    date.setDate(date.getDate() + 7);
+  }
+  return sundays;
 }
 
-function todayDate() {
-  return new Date().toISOString().slice(0, 10);
+function getTodayWeekIndex(sundays: string[]) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return sundays.findIndex((dateKey) => {
+    const start = parseDateKey(dateKey);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return today >= start && today <= end;
+  });
 }
 
+function getCurrentSundayKey() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  today.setDate(today.getDate() - today.getDay());
+  return formatDateKey(today);
+}
+
+function getWeekEditState(dateKey: string, currentSundayKey: string) {
+  if (dateKey < currentSundayKey) return "past";
+  if (dateKey > currentSundayKey) return "future";
+  return "current";
+}
+
+function getMonthEndKey(year: number, month: number) {
+  return formatDateKey(new Date(year, month, 0));
+}
+
+function formatDateKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function parseDateKey(dateKey: string) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function formatMD(dateKey: string) {
+  const date = parseDateKey(dateKey);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+function prevMonth(year: number, month: number, setYear: (y: number) => void, setMonth: (m: number) => void) {
+  if (month === 1) {
+    setYear(year - 1);
+    setMonth(12);
+  } else {
+    setMonth(month - 1);
+  }
+}
+
+function nextMonth(year: number, month: number, setYear: (y: number) => void, setMonth: (m: number) => void) {
+  if (month === 12) {
+    setYear(year + 1);
+    setMonth(1);
+  } else {
+    setMonth(month + 1);
+  }
+}
+
+function extraKey(studentId: string, date: string, ruleId: string) {
+  return `${studentId}_${date}_${ruleId}`;
+}
+
+const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" };
 const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
-const cardStyle: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
-const inputStyle: React.CSSProperties = { padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
-const fieldLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 };
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
-const addBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "linear-gradient(135deg, #f59e0b, #fbbf24)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const saveBtnStyle: React.CSSProperties = { padding: "9px 18px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const cancelBtnStyle: React.CSSProperties = { padding: "9px 14px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "inherit" };
-const thStyle = (align: "left" | "center"): React.CSSProperties => ({ padding: "10px 12px", textAlign: align, fontSize: 11, fontWeight: 700, color: "#64748b", borderBottom: "2px solid #e2e8f0", background: "#f8fafc", whiteSpace: "nowrap" });
-const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(15,23,42,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap" };
-const loadingStyle: React.CSSProperties = { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" };
+const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "#1e293b" };
+const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 14, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
+const navBtnStyle: React.CSSProperties = { padding: "7px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 16, cursor: "pointer", fontFamily: "inherit", color: "#475569" };
+const loadingStyle: React.CSSProperties = { ...pageStyle, display: "flex", alignItems: "center", justifyContent: "center" };
+const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(15,23,42,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 14, fontWeight: 700, zIndex: 1100, fontFamily: "inherit", whiteSpace: "nowrap" };

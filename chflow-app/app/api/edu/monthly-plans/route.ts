@@ -1,0 +1,136 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+export const preferredRegion = "icn1";
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const BUCKET = "monthly-plans";
+
+function authedClient(token: string) {
+  return createClient(SUPABASE_URL, ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+function adminClient() {
+  return createClient(SUPABASE_URL, SERVICE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+function tokenFrom(req: NextRequest) {
+  const auth = req.headers.get("Authorization") || "";
+  return auth.startsWith("Bearer ") ? auth.slice(7) : null;
+}
+
+async function verifyGrade(req: NextRequest, deptId: string) {
+  const token = tokenFrom(req);
+  if (!token) return { ok: false as const, status: 401, error: "Unauthenticated" };
+
+  const userClient = authedClient(token);
+  const { data: authData, error: authErr } = await userClient.auth.getUser(token);
+  if (authErr || !authData.user) return { ok: false as const, status: 401, error: "Invalid token" };
+
+  const gradeResp = await userClient.rpc("get_user_grade", { p_dept_id: deptId });
+  const grade = typeof gradeResp.data === "number" ? gradeResp.data : Number(gradeResp.data);
+  if (!Number.isFinite(grade) || grade > 4) {
+    return { ok: false as const, status: 403, error: "부서 접근 권한이 없습니다" };
+  }
+  return { ok: true as const, grade };
+}
+
+async function ensureBucket(admin: ReturnType<typeof adminClient>) {
+  const { data } = await admin.storage.getBucket(BUCKET);
+  if (data) return;
+  await admin.storage.createBucket(BUCKET, {
+    public: false,
+    fileSizeLimit: 25 * 1024 * 1024,
+  });
+}
+
+function safeName(name: string) {
+  return name.replace(/[\\/:*?"<>|#%{}^~[\]`]/g, "_").replace(/\s+/g, "_").slice(0, 120);
+}
+
+function parsePlanName(name: string) {
+  const match = name.match(/^(\d{4})-(\d{2})_(\d+)_(.+)$/);
+  if (!match) return { year: null, month: null, originalName: name };
+  return {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    originalName: match[4].replace(/_/g, " "),
+  };
+}
+
+export async function GET(req: NextRequest) {
+  const deptId = req.nextUrl.searchParams.get("dept_id");
+  if (!deptId) return NextResponse.json({ ok: false, error: "dept_id 필수" }, { status: 400 });
+
+  const verified = await verifyGrade(req, deptId);
+  if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
+
+  const admin = adminClient();
+  await ensureBucket(admin);
+
+  const { data, error } = await admin.storage.from(BUCKET).list(deptId, {
+    limit: 100,
+    sortBy: { column: "created_at", order: "desc" },
+  });
+  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+
+  const files = await Promise.all((data || []).filter((item) => item.name).map(async (item) => {
+    const path = `${deptId}/${item.name}`;
+    const signed = await admin.storage.from(BUCKET).createSignedUrl(path, 60 * 10);
+    const parsed = parsePlanName(item.name);
+    return {
+      name: item.name,
+      path,
+      url: signed.data?.signedUrl || "",
+      size: item.metadata?.size || null,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+      ...parsed,
+    };
+  }));
+
+  return NextResponse.json({ ok: true, files });
+}
+
+export async function POST(req: NextRequest) {
+  const form = await req.formData();
+  const deptId = String(form.get("dept_id") || "");
+  const year = Number(form.get("year"));
+  const month = Number(form.get("month"));
+  const file = form.get("file");
+
+  if (!deptId || !year || !month || !(file instanceof File)) {
+    return NextResponse.json({ ok: false, error: "필수값이 누락되었습니다" }, { status: 400 });
+  }
+
+  const verified = await verifyGrade(req, deptId);
+  if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
+  if (verified.grade > 2) {
+    return NextResponse.json({ ok: false, error: "월간교육등록 권한이 없습니다" }, { status: 403 });
+  }
+
+  const admin = adminClient();
+  await ensureBucket(admin);
+
+  const mm = String(month).padStart(2, "0");
+  const objectName = `${year}-${mm}_${Date.now()}_${safeName(file.name)}`;
+  const path = `${deptId}/${objectName}`;
+  const bytes = await file.arrayBuffer();
+
+  const { error } = await admin.storage.from(BUCKET).upload(path, bytes, {
+    contentType: file.type || "application/octet-stream",
+    upsert: false,
+  });
+  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true, path });
+}

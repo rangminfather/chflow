@@ -31,6 +31,7 @@ interface MenuItem {
   color: string;
   implemented: boolean;  // 구현 안 된 페이지는 클릭 시 "준비 중" 토스트
   onlyForDept?: string;
+  maxGrade?: number;
 }
 
 interface MenuCategory {
@@ -52,7 +53,8 @@ const MENU_CATEGORIES: MenuCategory[] = [
     maxGrade: 4,
     desc: "부서 공지 / 알림 / 댓글",
     items: [
-      { id: "notices", label: "공지 게시판", icon: "📢", desc: "부서 공지·알림·댓글", color: "#0ea5e9", implemented: false },
+      { id: "notices", label: "공지 게시판", icon: "📢", desc: "부서 공지·알림", color: "#0ea5e9", implemented: true },
+      { id: "monthly-plan", label: "월간 교육계획서", icon: "🗓️", desc: "월간 교육계획 파일 조회", color: "#2563eb", implemented: true },
     ],
   },
   {
@@ -65,7 +67,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
     items: [
       { id: "my-class-attendance", label: "내 반 출결", icon: "📋", desc: "내 담당 반 학생 출석 체크", color: "#10b981", implemented: true },
       { id: "talent", label: "달란트통장", icon: "🏅", desc: "달란트 적립 · 누적 합계", color: "#8b5cf6", implemented: true },
-      { id: "my-class", label: "우리반 아이 정보", icon: "👶", desc: "담당 반 학생 정보", color: "#f59e0b", implemented: false },
+      { id: "my-class", label: "우리반 아이 정보", icon: "👶", desc: "담당 반 학생 정보", color: "#f59e0b", implemented: true },
     ],
   },
   {
@@ -78,6 +80,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
     items: [
       { id: "weekly-bulletin", label: "주보 만들기", icon: "📰", desc: "주보 자동 생성·UMS 등록", color: "#14b8a6", implemented: true },
       { id: "journal", label: "교육일지작성", icon: "📓", desc: "일지 · 통계 · 헌금", color: "#6366f1", implemented: true },
+      { id: "monthly-plan-upload", label: "월간교육등록", icon: "🗓️", desc: "월간 교육계획서 등록", color: "#2563eb", implemented: true },
       { id: "students-info", label: "학생정보관리", icon: "📇", desc: "학생 명부 · 인적사항", color: "#f97316", implemented: false },
       { id: "attendance-stats", label: "출결통계", icon: "📊", desc: "선생님·학생 출석 통계", color: "#84cc16", implemented: false },
       { id: "talent-stats", label: "달란트통계", icon: "📈", desc: "달란트 누적·랭킹", color: "#a855f7", implemented: false },
@@ -97,6 +100,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
     desc: "부서원 등급 · 설정",
     items: [
       { id: "dept-approval", label: "사역 가입 승인", icon: "📥", desc: "본 부서 가입 신청 승인 · 등급 부여", color: "#10b981", implemented: true },
+      { id: "monthly-plan-upload", label: "월간교육등록", icon: "🗓️", desc: "월간 교육계획서 등록", color: "#2563eb", implemented: true, maxGrade: 2 },
       { id: "members-grade", label: "부서원 등급 관리", icon: "🎖️", desc: "각 부서원 등급(0~4) 변경", color: "#6366f1", implemented: true },
       { id: "promote", label: "진급 마법사", icon: "🎓", desc: "매년 학년 진급 · 반편성 · 담임배정", color: "#dc2626", implemented: true },
     ],
@@ -122,24 +126,20 @@ export default function DepartmentDetailPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/login"); return; }
       setAuthChecked(true);
-      await load();
+      setLoading(true);
+      const [deptResp, gradeResp] = await Promise.all([
+        supabase.rpc("get_department_info", { p_dept_id: deptId }),
+        supabase.rpc("get_user_grade", { p_dept_id: deptId }),
+      ]);
+      if (!deptResp.error && deptResp.data && deptResp.data.length > 0) {
+        setDept(deptResp.data[0]);
+      }
+      if (!gradeResp.error && gradeResp.data !== null && gradeResp.data !== undefined) {
+        setMyGrade(typeof gradeResp.data === "number" ? gradeResp.data : Number(gradeResp.data));
+      }
+      setLoading(false);
     })();
-  }, []);
-
-  const load = async () => {
-    setLoading(true);
-    const [deptResp, gradeResp] = await Promise.all([
-      supabase.rpc("get_department_info", { p_dept_id: deptId }),
-      supabase.rpc("get_user_grade", { p_dept_id: deptId }),
-    ]);
-    if (!deptResp.error && deptResp.data && deptResp.data.length > 0) {
-      setDept(deptResp.data[0]);
-    }
-    if (!gradeResp.error && gradeResp.data !== null && gradeResp.data !== undefined) {
-      setMyGrade(typeof gradeResp.data === "number" ? gradeResp.data : Number(gradeResp.data));
-    }
-    setLoading(false);
-  };
+  }, [deptId, router]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -206,7 +206,10 @@ export default function DepartmentDetailPage() {
   // 카테고리별 표시 여부 결정
   const visibleCategories = MENU_CATEGORIES.filter((cat) => {
     if (cat.onlyForDept && cat.onlyForDept !== dept.name) return false;
-    return grade <= cat.maxGrade;
+    return cat.items.some((item) => {
+      if (item.onlyForDept && item.onlyForDept !== dept.name) return false;
+      return grade <= (item.maxGrade ?? cat.maxGrade);
+    });
   });
 
   return (
@@ -298,7 +301,7 @@ export default function DepartmentDetailPage() {
                   gap: 10,
                 }}>
                   {cat.items
-                    .filter((item) => !item.onlyForDept || item.onlyForDept === dept.name)
+                    .filter((item) => (!item.onlyForDept || item.onlyForDept === dept.name) && grade <= (item.maxGrade ?? cat.maxGrade))
                     .map((item) => (
                       <MenuCard key={item.id} item={item} onClick={() => handleItemClick(item)} />
                     ))}

@@ -280,12 +280,12 @@ export default function JournalPage() {
   const canPrefill = isNew && !!DEPT_PREFILL_KEY[deptName];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div className="app-shell journal-page" style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
 
       {/* Header */}
-      <div style={headerStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div className="journal-header" style={headerStyle}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
@@ -293,9 +293,9 @@ export default function JournalPage() {
         <button onClick={newJournal} style={addBtnStyle}>+ 새 일지</button>
       </div>
 
-      <div style={{ display: "flex", maxWidth: 1100, margin: "0 auto", padding: 16, gap: 16 }}>
+      <div className="journal-layout" style={{ display: "flex", width: "100%", maxWidth: 1100, margin: "0 auto", padding: 16, gap: 16, minWidth: 0 }}>
         {/* 목록 */}
-        <div style={{ width: 240, flexShrink: 0 }}>
+        <div className="journal-sidebar" style={{ width: 240, flexShrink: 0, minWidth: 0 }}>
           <div style={cardStyle}>
             <div style={sectionLabel}>일지 목록</div>
             {loading ? (
@@ -333,7 +333,7 @@ export default function JournalPage() {
         </div>
 
         {/* 폼 */}
-        <div style={{ flex: 1 }}>
+        <div className="journal-content" style={{ flex: 1, minWidth: 0 }}>
           {!showForm ? (
             <div style={{ ...cardStyle, textAlign: "center", padding: 60, color: "#94a3b8" }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>📓</div>
@@ -483,7 +483,7 @@ export default function JournalPage() {
               {/* 12) 통계 */}
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 8 }}>통계</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                <div className="journal-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
                   {[
                     { key: "stat_reg_male",   label: "등록 남" },
                     { key: "stat_reg_female", label: "등록 여" },
@@ -654,6 +654,9 @@ const headerStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
+  gap: 12,
+  flexWrap: "wrap",
+  minWidth: 0,
 };
 
 const cardStyle: React.CSSProperties = {
@@ -661,10 +664,14 @@ const cardStyle: React.CSSProperties = {
   borderRadius: 14,
   padding: 20,
   boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+  maxWidth: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
+  minWidth: 0,
   padding: "9px 12px",
   border: "1.5px solid #e2e8f0",
   borderRadius: 8,

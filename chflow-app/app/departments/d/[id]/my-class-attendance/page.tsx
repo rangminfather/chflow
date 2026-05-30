@@ -4,7 +4,7 @@
 // 학생 추가/삭제 X (관리자가 행정관리 → 출결 통합 조회 에서 수행).
 // 본인이 담임으로 등록되지 않은 사용자는 빈 화면 + 안내.
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -20,6 +20,8 @@ interface Student {
   member_id: string | null;
   teacher_id: string | null;
   teacher_name: string | null;
+  gender?: string | null;
+  school_name?: string | null;
 }
 
 interface AttendRow {
@@ -38,23 +40,23 @@ interface AttendRow {
   memo: string | null;
 }
 
-const CHECKS = [
-  { key: "had_prayer",     label: "기" },
-  { key: "had_church_sch", label: "교" },
-  { key: "had_worship",    label: "예" },
-  { key: "had_lesson",     label: "공" },
-  { key: "had_bible",      label: "성" },
+const ATTENDANCE_OPTIONS = [
+  { value: "출", label: "출석" },
+  { value: "결", label: "결석" },
+  { value: "인", label: "출석인정" },
 ];
 
-const STATUS_LIST = ["출", "빠", "결", "인"];
 const STATUS_COLOR: Record<string, string> = {
-  출: "#10b981", 빠: "#f59e0b", 결: "#ef4444", 인: "#6366f1",
+  출: "#047857",
+  결: "#b91c1c",
+  인: "#1d4ed8",
 };
 
 export default function MyClassAttendancePage() {
   const router = useRouter();
   const params = useParams();
   const deptId = params.id as string;
+  const weekCardRefs = useRef<Record<string, HTMLElement | null>>({});
 
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -66,8 +68,6 @@ export default function MyClassAttendancePage() {
   const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
   const [myClassName, setMyClassName] = useState<string>("");
   const [saving, setSaving] = useState<string>("");
-  const [toast, setToast] = useState("");
-  const [editMemo, setEditMemo] = useState<Record<string, string>>({});
 
   useEffect(() => {
     (async () => {
@@ -106,13 +106,33 @@ export default function MyClassAttendancePage() {
     const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
     const all = (data || []) as Student[];
     const mine = all.filter((s) => s.teacher_id === teacherId);
-    setStudents(mine);
+    const memberIds = mine.map((s) => s.member_id).filter(Boolean) as string[];
+    const memberInfo: Record<string, { gender: string | null; school_name: string | null }> = {};
+
+    if (memberIds.length > 0) {
+      const { data: members } = await supabase
+        .from("members")
+        .select("id, gender")
+        .in("id", memberIds);
+
+      (members || []).forEach((m: { id: string; gender: string | null }) => {
+        memberInfo[m.id] = { gender: m.gender, school_name: null };
+      });
+    }
+
+    const enriched = mine.map((student) => ({
+      ...student,
+      gender: student.member_id ? memberInfo[student.member_id]?.gender ?? null : null,
+      school_name: student.member_id ? memberInfo[student.member_id]?.school_name ?? null : null,
+    }));
+
+    setStudents(enriched);
     // 반 이름 추측 — 첫 학생의 class_no (없으면 빈)
-    if (mine.length > 0) {
+    if (enriched.length > 0) {
       const { data: cls } = await supabase
         .from("edu_students")
         .select("class_no")
-        .eq("id", mine[0].id)
+        .eq("id", enriched[0].id)
         .maybeSingle();
       if (cls?.class_no) setMyClassName(cls.class_no);
     }
@@ -126,6 +146,19 @@ export default function MyClassAttendancePage() {
   };
 
   const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
+  const currentSundayKey = useMemo(() => getCurrentSundayKey(), []);
+  const todayWeekIndex = useMemo(() => getTodayWeekIndex(sundays), [sundays]);
+
+  useEffect(() => {
+    if (loading || todayWeekIndex < 0) return;
+
+    const target = weekCardRefs.current[sundays[todayWeekIndex]];
+    const timer = window.setTimeout(() => {
+      target?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [loading, students.length, sundays, todayWeekIndex]);
 
   const attMap = useMemo(() => {
     const m: Record<string, Record<string, AttendRow>> = {};
@@ -140,36 +173,12 @@ export default function MyClassAttendancePage() {
   const getCell = (studentId: string, date: string): AttendRow | undefined =>
     attMap[studentId]?.[date];
 
-  const toggleCheck = async (studentId: string, date: string, checkKey: string) => {
-    const cell = getCell(studentId, date);
-    const key = `${studentId}-${date}-${checkKey}`;
-    setSaving(key);
-    const current: Record<string, boolean> = {
-      had_prayer:     cell?.had_prayer     ?? false,
-      had_church_sch: cell?.had_church_sch ?? false,
-      had_worship:    cell?.had_worship    ?? false,
-      had_lesson:     cell?.had_lesson     ?? false,
-      had_bible:      cell?.had_bible      ?? false,
-    };
-    current[checkKey] = !current[checkKey];
-    await supabase.rpc("edu_set_student_attendance", {
-      p_student_id: studentId,
-      p_dept_id:    deptId,
-      p_date:       date,
-      p_prayer:     current.had_prayer,
-      p_church_sch: current.had_church_sch,
-      p_worship:    current.had_worship,
-      p_lesson:     current.had_lesson,
-      p_bible:      current.had_bible,
-      p_status:     cell?.attend_status ?? "출",
-      p_memo:       editMemo[`${studentId}-${date}`] ?? cell?.memo ?? null,
-    });
-    await loadAttendance();
-    setSaving("");
-  };
-
   const setStatus = async (studentId: string, date: string, status: string) => {
+    if (getWeekEditState(date, currentSundayKey) !== "current") return;
+
     const cell = getCell(studentId, date);
+    const key = `${studentId}-${date}-${status}`;
+    setSaving(key);
     await supabase.rpc("edu_set_student_attendance", {
       p_student_id: studentId,
       p_dept_id:    deptId,
@@ -183,16 +192,15 @@ export default function MyClassAttendancePage() {
       p_memo:       cell?.memo ?? null,
     });
     await loadAttendance();
+    setSaving("");
   };
 
-  const monthlySummary = (studentId: string) => {
-    const cells = sundays.map((d) => getCell(studentId, d));
-    const total   = sundays.length;
-    const attend  = cells.filter((c) => c?.attend_status === "출").length;
-    const skip    = cells.filter((c) => c?.attend_status === "빠").length;
-    const absent  = cells.filter((c) => c?.attend_status === "결").length;
-    const excused = cells.filter((c) => c?.attend_status === "인").length;
-    return { total, attend, skip, absent, excused };
+  const weeklySummary = (date: string) => {
+    const cells = students.map((student) => getCell(student.id, date));
+    const attend = cells.filter((c) => normalizeStatus(c?.attend_status) === "출").length;
+    const absent = cells.filter((c) => normalizeStatus(c?.attend_status) === "결").length;
+    const otherChurch = cells.filter((c) => normalizeStatus(c?.attend_status) === "인").length;
+    return { total: students.length, attend, absent, otherChurch };
   };
 
   if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
@@ -207,16 +215,16 @@ export default function MyClassAttendancePage() {
             <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
             <HeaderLogo />
           </div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>📋 내 반 출결</div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: "#1e293b" }}>📋 내 반 출결</div>
           <div style={{ width: 80 }} />
         </div>
         <div style={{ maxWidth: 600, margin: "60px auto", padding: 16 }}>
           <div style={{ ...cardStyle, textAlign: "center", padding: 40 }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>🙇</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b", marginBottom: 8 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: "#1e293b", marginBottom: 8 }}>
               본인이 담임으로 등록된 반이 없습니다
             </div>
-            <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
+            <div style={{ fontSize: 14, color: "#64748b", lineHeight: 1.6 }}>
               부장 또는 전도사에게 담임 등록을 요청하세요.<br />
               (행정관리 → 담임선생님 지정)
             </div>
@@ -230,10 +238,8 @@ export default function MyClassAttendancePage() {
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
       <style>{`
-        .att-table { border-collapse: collapse; }
-        .att-table th, .att-table td { border: 1px solid #e2e8f0; }
-        .check-btn { transition: all 0.1s; }
-        .check-btn:hover { filter: brightness(0.9); }
+        .status-btn { transition: background 0.12s, border-color 0.12s, color 0.12s; }
+        .status-btn:hover { border-color: #94a3b8; }
       `}</style>
 
       <div style={headerStyle}>
@@ -241,153 +247,163 @@ export default function MyClassAttendancePage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>
+        <div style={{ fontSize: 19, fontWeight: 800, color: "#1e293b" }}>
           📋 내 반 출결 {myClassName && <span style={{ color: "#6366f1", marginLeft: 6 }}>{myClassName}반</span>}
         </div>
         <div style={{ width: 80 }} />
       </div>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: 16 }}>
-        <div style={{ background: "#dbeafe", border: "1px solid #bfdbfe", borderRadius: 8, padding: "10px 14px", fontSize: 11, color: "#1e40af", marginBottom: 12, lineHeight: 1.5 }}>
-          💡 본인 담당 반 학생 {students.length}명만 표시됩니다. 학생 추가/삭제는 행정관리자에게 요청하세요.
-        </div>
-
+      <main className="mx-auto w-full max-w-6xl px-0 py-4 md:px-4">
         {/* 월 선택 */}
-        <div style={{ ...cardStyle, marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 md:mx-0">
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", minWidth: 120, textAlign: "center" }}>
+          <div className="min-w-[140px] text-center text-[19px] font-extrabold text-slate-800">
             {year}년 {month}월
           </div>
           <button onClick={() => nextMonth(year, month, setYear, setMonth)} style={navBtnStyle}>▶</button>
-          <div style={{ marginLeft: "auto", fontSize: 11, color: "#94a3b8" }}>
-            주일: {sundays.length}주 · 기=기도, 교=교회학교, 예=예배, 공=공과, 성=성경읽기
+          <div className="w-full text-center text-[13px] font-semibold text-slate-400">
+            주일 {todayWeekIndex >= 0 ? todayWeekIndex + 1 : Math.min(1, sundays.length)}주차/{sundays.length}주차
           </div>
         </div>
 
-        <div style={{ ...cardStyle, overflowX: "auto", padding: 0 }}>
-          {loading ? (
-            <div style={{ color: "#94a3b8", textAlign: "center", padding: 60 }}>불러오는 중...</div>
-          ) : students.length === 0 ? (
-            <div style={{ color: "#94a3b8", textAlign: "center", padding: 60 }}>
-              담당 반 학생이 없습니다. 부장 또는 전도사에게 학생 배정을 요청하세요.
-            </div>
-          ) : (
-            <table className="att-table" style={{ width: "100%", minWidth: 800, fontSize: 11 }}>
-              <thead style={{ background: "#f8fafc" }}>
-                <tr>
-                  <th rowSpan={2} style={thStyle2(50)}>번호</th>
-                  <th rowSpan={2} style={thStyle2(80)}>이름</th>
-                  <th rowSpan={2} style={thStyle2(50)}>구분</th>
-                  {sundays.map((d, i) => (
-                    <th key={d} colSpan={6} style={{ ...thStyle2(0), textAlign: "center", borderBottom: "none" }}>
-                      <div style={{ fontWeight: 700 }}>{i + 1}주 ({formatMD(d)})</div>
-                    </th>
-                  ))}
-                  <th colSpan={5} rowSpan={1} style={{ ...thStyle2(0), textAlign: "center" }}>월합계</th>
-                  <th rowSpan={2} style={thStyle2(60)}>MEMO</th>
-                </tr>
-                <tr>
-                  {sundays.map((d) => (
-                    <>
-                      {CHECKS.map((c) => (
-                        <th key={`${d}-${c.key}`} style={thStyle2(28)}>
-                          <span title={c.key === "had_prayer" ? "기도" : c.key === "had_church_sch" ? "교회학교" : c.key === "had_worship" ? "예배" : c.key === "had_lesson" ? "공과" : "성경읽기"}>
-                            {c.label}
-                          </span>
-                        </th>
-                      ))}
-                      <th key={`${d}-status`} style={thStyle2(32)}>상태</th>
-                    </>
-                  ))}
-                  {["계","출","빠","결","인"].map((l) => (
-                    <th key={l} style={thStyle2(28)}>{l}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((s) => {
-                  const summary = monthlySummary(s.id);
-                  return (
-                    <tr key={s.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700 }}>{s.student_no ?? ""}</td>
-                      <td style={{ padding: "4px 8px", fontWeight: 700, whiteSpace: "nowrap" }}>{s.name}</td>
-                      <td style={{ textAlign: "center", padding: 4 }}>
-                        <span style={{
-                          fontSize: 10, padding: "1px 5px", borderRadius: 4,
-                          background: s.student_type === "정" ? "#eef2ff" : s.student_type === "체험" ? "#fef3c7" : "#f0fdf4",
-                          color: s.student_type === "정" ? "#6366f1" : s.student_type === "체험" ? "#92400e" : "#15803d",
-                          fontWeight: 700,
-                        }}>{s.student_type}</span>
-                      </td>
-                      {sundays.map((d) => {
-                        const cell = getCell(s.id, d);
-                        return (
-                          <>
-                            {CHECKS.map((c) => {
-                              const val = cell ? (cell as unknown as Record<string, boolean>)[c.key] : false;
-                              const key = `${s.id}-${d}-${c.key}`;
+        {loading ? (
+          <div className="mx-4 rounded-lg border border-slate-200 bg-white py-16 text-center text-[17px] text-slate-400 md:mx-0">
+            불러오는 중...
+          </div>
+        ) : students.length === 0 ? (
+          <div className="mx-4 rounded-lg border border-slate-200 bg-white py-16 text-center text-[17px] text-slate-400 md:mx-0">
+            담당 반 학생이 없습니다. 부장 또는 전도사에게 학생 배정을 요청하세요.
+          </div>
+        ) : (
+          <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 px-[8vw] pb-2 scrollbar-hide md:grid md:grid-cols-2 lg:grid-cols-3 md:overflow-visible md:px-0 md:pb-0">
+            {sundays.map((date, index) => {
+              const summary = weeklySummary(date);
+              const isTodayWeek = index === todayWeekIndex;
+              const editState = getWeekEditState(date, currentSundayKey);
+              const isEditableWeek = editState === "current";
+
+              return (
+                <article
+                  key={date}
+                  ref={(node) => { weekCardRefs.current[date] = node; }}
+                  className={[
+                    "shrink-0 w-[84vw] snap-center overflow-hidden rounded-lg bg-white shadow-sm md:w-auto",
+                    isTodayWeek
+                      ? "border-2 border-amber-500 shadow-[0_10px_30px_rgba(217,119,6,0.16)]"
+                      : "border border-slate-300",
+                  ].join(" ")}
+                >
+                  <header className={[
+                    "border-b px-4 py-3",
+                    isTodayWeek
+                      ? "border-amber-200 bg-gradient-to-r from-amber-50 to-white"
+                      : "border-slate-200 bg-slate-50",
+                  ].join(" ")}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 text-[19px] font-extrabold text-slate-900">
+                          {index + 1}주차
+                          {isTodayWeek && (
+                            <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[12px] font-extrabold text-amber-800">
+                              오늘 주차
+                            </span>
+                          )}
+                          {!isEditableWeek && (
+                            <span
+                              className={[
+                                "rounded-full border px-2 py-0.5 text-[12px] font-extrabold",
+                                editState === "past"
+                                  ? "border-slate-200 bg-white text-slate-400"
+                                  : "border-sky-200 bg-sky-50 text-sky-700",
+                              ].join(" ")}
+                            >
+                              {editState === "past" ? "수정 마감" : "예정"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 text-[13px] font-semibold text-slate-500">{formatMD(date)} 주일</div>
+                      </div>
+                      <div className={[
+                        "rounded-md border bg-white px-2.5 py-1 text-[13px] font-extrabold",
+                        isTodayWeek ? "border-amber-200 text-amber-800" : "border-slate-200 text-slate-700",
+                      ].join(" ")}>
+                        {summary.total}명
+                      </div>
+                    </div>
+                  </header>
+
+                  <section className="space-y-2 bg-white px-4 py-4">
+                    {students.map((student) => {
+                      const cell = getCell(student.id, date);
+                      const currentStatus = normalizeStatus(cell?.attend_status);
+
+                      return (
+                        <div key={student.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div className="flex min-w-0 items-baseline gap-2">
+                              <div className="truncate text-[16px] font-extrabold text-slate-800">{student.name}</div>
+                              {studentMeta(student) && (
+                                <div className="shrink-0 text-[12px] font-semibold text-slate-400">
+                                  {studentMeta(student)}
+                                </div>
+                              )}
+                            </div>
+                            <span
+                              className="shrink-0 rounded-md border bg-white px-2 py-1 text-[13px] font-extrabold"
+                              style={{ color: STATUS_COLOR[currentStatus] }}
+                            >
+                              {statusLabel(currentStatus)}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2">
+                            {ATTENDANCE_OPTIONS.map((option) => {
+                              const selected = currentStatus === option.value;
+                              const savingKey = `${student.id}-${date}-${option.value}`;
                               return (
-                                <td key={`${d}-${c.key}`} style={{ textAlign: "center", padding: 2 }}>
-                                  <button
-                                    className="check-btn"
-                                    onClick={() => toggleCheck(s.id, d, c.key)}
-                                    disabled={saving === key}
-                                    style={{
-                                      width: 24, height: 24, borderRadius: 4, border: "none",
-                                      background: val ? "#6366f1" : "#f1f5f9",
-                                      color: val ? "#fff" : "#cbd5e1",
-                                      fontSize: 12, cursor: "pointer",
-                                      display: "flex", alignItems: "center", justifyContent: "center",
-                                      margin: "0 auto",
-                                    }}
-                                  >{val ? "✓" : "·"}</button>
-                                </td>
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  onClick={() => setStatus(student.id, date, option.value)}
+                                  disabled={!isEditableWeek || saving === savingKey}
+                                  className={[
+                                    "status-btn min-h-12 rounded-md border px-1 text-[15px] font-extrabold leading-tight",
+                                    !isEditableWeek
+                                      ? selected
+                                        ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500"
+                                        : "cursor-not-allowed border-slate-200 bg-white text-slate-400 opacity-70"
+                                      : selected
+                                        ? "border-slate-800 bg-slate-800 text-white"
+                                        : "border-slate-200 bg-white text-slate-600",
+                                  ].join(" ")}
+                                >
+                                  {option.label}
+                                </button>
                               );
                             })}
-                            <td key={`${d}-status`} style={{ textAlign: "center", padding: 2 }}>
-                              <select
-                                value={cell?.attend_status ?? "출"}
-                                onChange={(e) => setStatus(s.id, d, e.target.value)}
-                                style={{
-                                  fontSize: 10, padding: "2px 2px", borderRadius: 4,
-                                  border: "1px solid #e2e8f0",
-                                  background: STATUS_COLOR[cell?.attend_status ?? "출"] + "22",
-                                  color: STATUS_COLOR[cell?.attend_status ?? "출"],
-                                  fontWeight: 700, width: 36, fontFamily: "inherit",
-                                }}
-                              >
-                                {STATUS_LIST.map((st) => (
-                                  <option key={st} value={st}>{st}</option>
-                                ))}
-                              </select>
-                            </td>
-                          </>
-                        );
-                      })}
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "#64748b" }}>{summary.total}</td>
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "#10b981" }}>{summary.attend}</td>
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "#f59e0b" }}>{summary.skip}</td>
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "#ef4444" }}>{summary.absent}</td>
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "#6366f1" }}>{summary.excused}</td>
-                      <td style={{ padding: 4 }}>
-                        <input
-                          type="text"
-                          defaultValue={attData.find((a) => a.student_id === s.id)?.memo ?? ""}
-                          placeholder="메모"
-                          onChange={(e) => setEditMemo((m) => ({ ...m, [`${s.id}-memo`]: e.target.value }))}
-                          style={{ width: "100%", fontSize: 10, border: "1px solid #e2e8f0", borderRadius: 4, padding: "2px 4px", boxSizing: "border-box", fontFamily: "inherit" }}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </section>
 
-      {toast && <div style={toastStyle}>{toast}</div>}
+                  <footer className="border-t border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <SummaryBox label="출석" value={summary.attend} />
+                      <SummaryBox label="결석" value={summary.absent} />
+                      <SummaryBox label="출석인정" value={summary.otherChurch} />
+                    </div>
+                    <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[15px] leading-6 text-amber-900">
+                      ※ 출석인정 : 타교회 출석, 전염병 등 부서 재량 출석인정되는 경우
+                    </div>
+                  </footer>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </main>
+
     </div>
   );
 }
@@ -397,13 +413,51 @@ function getSundaysInMonth(year: number, month: number): string[] {
   const d = new Date(year, month - 1, 1);
   while (d.getDay() !== 0) d.setDate(d.getDate() + 1);
   while (d.getMonth() === month - 1) {
-    sundays.push(d.toISOString().slice(0, 10));
+    sundays.push(formatDateKey(d));
     d.setDate(d.getDate() + 7);
   }
   return sundays;
 }
+
+function getTodayWeekIndex(sundays: string[]) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return sundays.findIndex((dateKey) => {
+    const start = parseDateKey(dateKey);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return today >= start && today <= end;
+  });
+}
+
+function getCurrentSundayKey() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  today.setDate(today.getDate() - today.getDay());
+  return formatDateKey(today);
+}
+
+function getWeekEditState(dateKey: string, currentSundayKey: string) {
+  if (dateKey < currentSundayKey) return "past";
+  if (dateKey > currentSundayKey) return "future";
+  return "current";
+}
+
+function formatDateKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function parseDateKey(dateKey: string) {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function formatMD(d: string) {
-  const date = new Date(d);
+  const date = parseDateKey(d);
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 function prevMonth(year: number, month: number, setYear: (y: number) => void, setMonth: (m: number) => void) {
@@ -415,10 +469,37 @@ function nextMonth(year: number, month: number, setYear: (y: number) => void, se
   else setMonth(month + 1);
 }
 
+function statusLabel(status: string) {
+  const labels: Record<string, string> = { 출: "출석", 결: "결석", 인: "출석인정" };
+  return labels[status] || status;
+}
+
+function normalizeStatus(status: string | null | undefined) {
+  if (status === "출" || status === "인") return status;
+  return "결";
+}
+
+function genderLabel(gender: string | null | undefined) {
+  if (gender === "M" || gender === "남") return "남";
+  if (gender === "F" || gender === "여") return "여";
+  return "";
+}
+
+function studentMeta(student: Student) {
+  return [genderLabel(student.gender), student.school_name].filter(Boolean).join(" · ");
+}
+
+function SummaryBox({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white px-2 py-2">
+      <div className="text-[12px] font-bold text-slate-400">{label}</div>
+      <div className="mt-0.5 text-[17px] font-extrabold text-slate-800">{value}</div>
+    </div>
+  );
+}
+
 const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const cardStyle: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
-const navBtnStyle: React.CSSProperties = { padding: "6px 12px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "inherit", color: "#475569" };
-const thStyle2 = (minWidth: number): React.CSSProperties => ({ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 700, color: "#64748b", background: "#f8fafc", whiteSpace: "nowrap", minWidth });
+const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 14, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
+const navBtnStyle: React.CSSProperties = { padding: "7px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 16, cursor: "pointer", fontFamily: "inherit", color: "#475569" };
 const loadingStyle: React.CSSProperties = { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" };
-const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(15,23,42,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap" };
