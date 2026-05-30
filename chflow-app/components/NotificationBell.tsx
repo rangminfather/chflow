@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { Bell } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   fetchNotifications,
@@ -187,17 +188,16 @@ export default function NotificationBell({ userId }: { userId: string }) {
             width: 36,
             height: 36,
             borderRadius: 8,
-            background: open ? "#eef2ff" : "#f1f5f9",
+            background: open ? "var(--accent-soft)" : "var(--bg)",
             border: "none",
             cursor: "pointer",
-            fontSize: 16,
-            color: "#475569",
+            color: open ? "var(--accent)" : "var(--ink-soft)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          🔔
+          <Bell size={18} strokeWidth={1.75} />
           {unreadCount > 0 && (
             <span
               style={{
@@ -239,10 +239,10 @@ export default function NotificationBell({ userId }: { userId: string }) {
                 right: 0,
                 width: 360,
                 maxHeight: 480,
-                background: "#fff",
+                background: "var(--surface)",
                 borderRadius: 14,
-                boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
-                border: "1px solid #e2e8f0",
+                boxShadow: "0 20px 60px rgba(43,39,34,0.12)",
+                border: "1px solid var(--hairline)",
                 zIndex: 70,
                 overflow: "hidden",
                 display: "flex",
@@ -252,17 +252,17 @@ export default function NotificationBell({ userId }: { userId: string }) {
               <div
                 style={{
                   padding: "14px 18px",
-                  borderBottom: "1px solid #e2e8f0",
+                  borderBottom: "1px solid var(--hairline)",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  background: "#f8fafc",
+                  background: "var(--accent-soft)",
                 }}
               >
-                <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b" }}>
-                  🔔 알림
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--app-serif)", fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>
+                  <Bell size={16} strokeWidth={1.75} color="var(--accent)" /> 알림
                 </div>
-                <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
                   {notifications.length}건
                 </div>
               </div>
@@ -272,11 +272,13 @@ export default function NotificationBell({ userId }: { userId: string }) {
                     style={{
                       textAlign: "center",
                       padding: "40px 20px",
-                      color: "#94a3b8",
+                      color: "var(--ink-faint)",
                       fontSize: 12,
                     }}
                   >
-                    <div style={{ fontSize: 32, marginBottom: 8 }}>📭</div>
+                    <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+                      <Bell size={28} strokeWidth={1.5} color="var(--ink-faint)" />
+                    </div>
                     알림이 없습니다
                   </div>
                 ) : (
@@ -286,23 +288,23 @@ export default function NotificationBell({ userId }: { userId: string }) {
                       onClick={() => handleNotifClick(n)}
                       style={{
                         padding: "12px 18px",
-                        borderBottom: "1px solid #f1f5f9",
+                        borderBottom: "1px solid var(--hairline)",
                         cursor: "pointer",
-                        background: n.is_read ? "#fff" : "#eff6ff",
+                        background: n.is_read ? "var(--surface)" : "var(--accent-soft)",
                         transition: "background 0.15s",
                       }}
                       onMouseOver={(e) => {
-                        e.currentTarget.style.background = "#f8fafc";
+                        e.currentTarget.style.background = "var(--bg)";
                       }}
                       onMouseOut={(e) => {
-                        e.currentTarget.style.background = n.is_read ? "#fff" : "#eff6ff";
+                        e.currentTarget.style.background = n.is_read ? "var(--surface)" : "var(--accent-soft)";
                       }}
                     >
                       <div
                         style={{
                           fontSize: 13,
-                          fontWeight: 700,
-                          color: "#1e293b",
+                          fontWeight: 600,
+                          color: "var(--ink)",
                           marginBottom: 4,
                         }}
                       >
@@ -312,7 +314,7 @@ export default function NotificationBell({ userId }: { userId: string }) {
                         <div
                           style={{
                             fontSize: 11,
-                            color: "#64748b",
+                            color: "var(--ink-soft)",
                             lineHeight: 1.5,
                           }}
                         >
@@ -320,7 +322,7 @@ export default function NotificationBell({ userId }: { userId: string }) {
                         </div>
                       )}
                       <div
-                        style={{ fontSize: 10, color: "#94a3b8", marginTop: 6 }}
+                        style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 6 }}
                       >
                         {timeAgo(n.created_at)}
                       </div>

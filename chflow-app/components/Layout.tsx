@@ -146,7 +146,7 @@ export function SectionHeader({
   title,
   subtitle,
 }: {
-  icon: string;
+  icon: ReactNode;
   iconColor: string;
   title: string;
   subtitle?: string;
@@ -159,8 +159,6 @@ export function SectionHeader({
           style={{
             width: 28,
             height: 28,
-            borderRadius: 8,
-            background: "rgba(255,255,255,0.7)",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
@@ -168,7 +166,7 @@ export function SectionHeader({
             fontSize: 16,
           }}
         >{icon}</span>
-        <div className="safe-grow kr-keep" style={{ fontSize: 17, fontWeight: 800, color: T.text }}>
+        <div className="safe-grow kr-keep" style={{ fontFamily: "var(--app-serif)", fontSize: 18, fontWeight: 600, color: T.text }}>
           {title}
         </div>
       </div>

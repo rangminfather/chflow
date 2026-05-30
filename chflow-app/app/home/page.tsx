@@ -8,6 +8,12 @@ import NotificationBell from "@/components/NotificationBell";
 import PhotoAvatar from "@/components/PhotoAvatar";
 import HeaderLogo from "@/components/HeaderLogo";
 import {
+  type LucideIcon,
+  BookOpen, Users, User, Lightbulb, Vote, Megaphone, CalendarDays,
+  Landmark, Bus, CalendarClock, Menu, LogOut, X, Folder, Home,
+  Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid,
+} from "lucide-react";
+import {
   T, PageShell, PageContent,
   Section, SectionHeader,
   SafeCard, SafeRow, SafeGrow, SafeGrid,
@@ -54,25 +60,24 @@ type CommonMenu = {
   id: string;
   label: string;
   desc: string;
-  icon: string;
-  color: string;
+  icon: LucideIcon;
   href?: string;
 };
 
 const COMMON_MENUS: CommonMenu[] = [
-  { id: "bulletin",  label: "주보 보기",      icon: "📖", color: "#0EA5E9", desc: "이번 주 주보",  href: "/bulletin" },
-  { id: "directory", label: "성도 요람",      icon: "👥", color: "#10B981", desc: "성도 검색",     href: "/directory" },
-  { id: "myinfo",    label: "내 정보",         icon: "👤", color: "#6366F1", desc: "프로필 관리",   href: "/myinfo" },
-  { id: "feedback",  label: "불편신고/건의",  icon: "💡", color: "#EC4899", desc: "건의사항 접수", href: "/feedback" },
+  { id: "bulletin",  label: "주보 보기",      icon: BookOpen,  desc: "이번 주 주보",  href: "/bulletin" },
+  { id: "directory", label: "성도 요람",      icon: Users,     desc: "성도 검색",     href: "/directory" },
+  { id: "myinfo",    label: "내 정보",         icon: User,      desc: "프로필 관리",   href: "/myinfo" },
+  { id: "feedback",  label: "불편신고/건의",  icon: Lightbulb, desc: "건의사항 접수", href: "/feedback" },
 ];
 
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [
-  { id: "vote",     label: "투표",          icon: "🗳️", color: "#6366F1", desc: "항존직 선거",  href: "/vote" },
-  { id: "events",   label: "행사 공지",     icon: "📢", color: "#0EA5E9", desc: "공지사항" },
-  { id: "calendar", label: "행사 달력",     icon: "📅", color: "#0EA5E9", desc: "월간 일정" },
-  { id: "facility", label: "시설 신청",     icon: "🏛️", color: "#F59E0B", desc: "교육관/예배실" },
-  { id: "vehicle",  label: "차량 신청",     icon: "🚐", color: "#F59E0B", desc: "교회 차량" },
-  { id: "booking",  label: "예약 캘린더",   icon: "📆", color: "#F59E0B", desc: "예약 현황" },
+  { id: "vote",     label: "투표",          icon: Vote,          desc: "항존직 선거",  href: "/vote" },
+  { id: "events",   label: "행사 공지",     icon: Megaphone,     desc: "공지사항" },
+  { id: "calendar", label: "행사 달력",     icon: CalendarDays,  desc: "월간 일정" },
+  { id: "facility", label: "시설 신청",     icon: Landmark,      desc: "교육관/예배실" },
+  { id: "vehicle",  label: "차량 신청",     icon: Bus,           desc: "교회 차량" },
+  { id: "booking",  label: "예약 캘린더",   icon: CalendarClock, desc: "예약 현황" },
 ];
 
 // =============================================================
@@ -271,10 +276,10 @@ function AppBar({ isAdmin, user, router, onMenu, onLogout }: {
             display: "none", alignItems: "center", justifyContent: "center",
             width: 40, height: 40, borderRadius: 10,
             background: T.bgPage, border: `1px solid ${T.border}`,
-            cursor: "pointer", fontSize: 18, color: T.text,
+            cursor: "pointer", color: T.text,
             flexShrink: 0,
           }}
-        >☰</button>
+        ><Menu size={20} strokeWidth={1.75} /></button>
         <HeaderLogo />
         <div style={{ minWidth: 0 }}>
           <div className="line-clamp-1" style={{ fontSize: 16, fontWeight: 800, color: T.text }}>스마트명성</div>
@@ -286,12 +291,12 @@ function AppBar({ isAdmin, user, router, onMenu, onLogout }: {
         <NotificationBell userId={user.id} />
         {isAdmin && (
           <>
-            <AdminPill icon="⏳" label="가입자" onClick={() => router.push("/admin/pending")} />
-            <AdminPill icon="🏢" label="사역·부서" onClick={() => router.push("/admin/dept-pending")} />
-            <AdminPill icon="👥" label="회원관리" onClick={() => router.push("/admin/members")} />
-            <AdminPill icon="🔐" label="비번초기화" onClick={() => router.push("/admin/password-reset")} />
-            <AdminPill icon="🗳️" label="투표관리" onClick={() => router.push("/admin/votes")} />
-            <AdminPill icon="🔀" label="재편성" onClick={() => router.push("/admin/rearrange")} />
+            <AdminPill icon={<UserPlus size={14} strokeWidth={1.75} />} label="가입자" onClick={() => router.push("/admin/pending")} />
+            <AdminPill icon={<Building2 size={14} strokeWidth={1.75} />} label="사역·부서" onClick={() => router.push("/admin/dept-pending")} />
+            <AdminPill icon={<Users size={14} strokeWidth={1.75} />} label="회원관리" onClick={() => router.push("/admin/members")} />
+            <AdminPill icon={<KeyRound size={14} strokeWidth={1.75} />} label="비번초기화" onClick={() => router.push("/admin/password-reset")} />
+            <AdminPill icon={<Vote size={14} strokeWidth={1.75} />} label="투표관리" onClick={() => router.push("/admin/votes")} />
+            <AdminPill icon={<Shuffle size={14} strokeWidth={1.75} />} label="재편성" onClick={() => router.push("/admin/rearrange")} />
           </>
         )}
         <button
@@ -307,7 +312,7 @@ function AppBar({ isAdmin, user, router, onMenu, onLogout }: {
             flexShrink: 0,
           }}
         >
-          <span>🚪</span>
+          <LogOut size={15} strokeWidth={1.75} />
           <span>로그아웃</span>
         </button>
       </div>
@@ -315,7 +320,7 @@ function AppBar({ isAdmin, user, router, onMenu, onLogout }: {
   );
 }
 
-function AdminPill({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+function AdminPill({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -325,12 +330,12 @@ function AdminPill({ icon, label, onClick }: { icon: string; label: string; onCl
         padding: "8px 10px", borderRadius: 10,
         background: T.ministryBg, color: T.ministryPoint,
         border: "none", cursor: "pointer",
-        fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+        fontSize: 12, fontWeight: 600, fontFamily: "inherit",
         whiteSpace: "nowrap",
         flexShrink: 0,
       }}
     >
-      <span>{icon}</span>
+      <span style={{ display: "inline-flex", alignItems: "center" }}>{icon}</span>
       <span className="admin-btn-label">{label}</span>
     </button>
   );
@@ -404,7 +409,7 @@ function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartmen
   return (
     <Section bg={T.ministryBg}>
       <SectionHeader
-        icon="📁"
+        icon={<Folder size={18} strokeWidth={1.75} />}
         iconColor={T.ministryPoint}
         title="내 사역 · 부서"
         subtitle="가입된 사역과 부서를 확인하세요"
@@ -455,7 +460,7 @@ function MinistryCard({ dept, status, onClick }: {
     <SafeCard onClick={onClick}>
       <SafeRow gap={12}>
         <IconBox bg={T.ministryBg}>
-          <span style={{ fontSize: 22 }}>{dept.icon || "📁"}</span>
+          {dept.icon ? <span style={{ fontSize: 22 }}>{dept.icon}</span> : <Folder size={22} strokeWidth={1.75} color="var(--accent)" />}
         </IconBox>
         <SafeGrow>
           <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
@@ -490,7 +495,7 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
   return (
     <Section bg={T.mokjangBg}>
       <SectionHeader
-        icon="🌿"
+        icon={<Home size={18} strokeWidth={1.75} />}
         iconColor={T.mokjangPoint}
         title="나의 목장"
         subtitle="소속 목장을 확인하거나 가입 신청하세요"
@@ -500,7 +505,7 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
         <SafeCard onClick={handleViewPasture}>
           <SafeRow gap={12}>
             <IconBox bg={T.mokjangBg}>
-              <span style={{ fontSize: 24 }}>🏘️</span>
+              <Home size={24} strokeWidth={1.75} color="var(--accent)" />
             </IconBox>
             <SafeGrow>
               <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
@@ -533,7 +538,7 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
         <SafeCard padding={16}>
           <SafeRow gap={12} align="flex-start">
             <IconBox bg={T.mokjangBg}>
-              <span style={{ fontSize: 24 }}>🌿</span>
+              <Home size={24} strokeWidth={1.75} color="var(--accent)" />
             </IconBox>
             <SafeGrow>
               <div className="kr-keep" style={{ fontSize: 15, fontWeight: 700, color: T.text, lineHeight: 1.4 }}>
@@ -560,7 +565,7 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
   return (
     <Section bg={T.commonBg}>
       <SectionHeader
-        icon="✨"
+        icon={<LayoutGrid size={18} strokeWidth={1.75} />}
         iconColor={T.commonPoint}
         title="공통 메뉴"
         subtitle="모든 성도가 사용할 수 있는 기능"
@@ -593,8 +598,8 @@ function MenuCard({ menu, router, compact }: { menu: CommonMenu; router: RouterT
   return (
     <SafeCard onClick={handleClick} padding={compact ? 14 : 16} style={{ minHeight: compact ? 64 : 76 }}>
       <SafeRow gap={10}>
-        <IconBox bg={`${menu.color}1A`} size={compact ? 40 : 44}>
-          <span style={{ fontSize: compact ? 20 : 22 }}>{menu.icon}</span>
+        <IconBox bg="var(--accent-soft)" size={compact ? 40 : 44}>
+          <menu.icon size={compact ? 20 : 22} strokeWidth={1.75} color="var(--accent)" />
         </IconBox>
         <SafeGrow>
           {/* 긴 메뉴명("불편신고/건의") 보호: kr-break 로 어디서든 줄바꿈 + leading-snug */}
@@ -634,10 +639,16 @@ function NoticeBox() {
         color: T.textMuted,
         lineHeight: 1.7,
         marginTop: 4,
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 8,
       }}
     >
-      💡 직분별 · 사역별 전용 게시판은 추후 추가될 예정입니다.<br />
-      현재는 공통 메뉴를 사용할 수 있습니다.
+      <Lightbulb size={15} strokeWidth={1.75} color="var(--accent)" style={{ flexShrink: 0, marginTop: 2 }} />
+      <span>
+        직분별 · 사역별 전용 게시판은 추후 추가될 예정입니다.<br />
+        현재는 공통 메뉴를 사용할 수 있습니다.
+      </span>
     </div>
   );
 }
@@ -686,8 +697,9 @@ function MobileSidebar({ open, onClose, user, myDepartments, router }: {
           <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>메뉴</div>
           <button onClick={onClose} style={{
             width: 32, height: 32, borderRadius: 8, background: T.bgPage, border: "none",
-            cursor: "pointer", fontSize: 14, color: T.textMuted,
-          }}>✕</button>
+            cursor: "pointer", color: T.textMuted,
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+          }}><X size={16} strokeWidth={1.75} /></button>
         </div>
         <SidebarContent user={user} myDepartments={myDepartments} router={router} onNavigate={onClose} />
       </div>
@@ -717,7 +729,9 @@ function SidebarContent({ user, myDepartments, router, onNavigate }: {
       ) : (
         approved.map((d) => (
           <SidebarItem key={d.id} onClick={() => go(`/departments/d/${d.department_id}`)}>
-            <span style={{ marginRight: 6 }}>{d.icon || "📁"}</span>
+            {d.icon
+              ? <span style={{ marginRight: 6 }}>{d.icon}</span>
+              : <Folder size={15} strokeWidth={1.75} style={{ marginRight: 6, flexShrink: 0 }} />}
             <span className="kr-keep">{d.name}</span>
           </SidebarItem>
         ))
@@ -728,7 +742,7 @@ function SidebarContent({ user, myDepartments, router, onNavigate }: {
           color: T.warn, background: T.warnSoft,
           borderRadius: 6, marginBottom: 3,
         }}>
-          <span className="safe-shrink-0">⏳</span>
+          <Clock size={13} strokeWidth={1.75} className="safe-shrink-0" />
           <span className="safe-grow line-clamp-1 kr-keep">{d.name}</span>
           <span className="safe-shrink-0" style={{ fontSize: 10, opacity: 0.7 }}>대기</span>
         </div>
@@ -752,7 +766,7 @@ function SidebarContent({ user, myDepartments, router, onNavigate }: {
           <SideDivider />
           <SideLabel>내 목장</SideLabel>
           <SidebarItem onClick={() => alert("목장 상세 화면은 준비 중입니다.")}>
-            <span style={{ marginRight: 6 }}>🏘️</span>
+            <Home size={15} strokeWidth={1.75} style={{ marginRight: 6, flexShrink: 0 }} />
             <span className="kr-keep">{user.pasture_name}목장</span>
           </SidebarItem>
         </>
@@ -762,7 +776,7 @@ function SidebarContent({ user, myDepartments, router, onNavigate }: {
       <SideLabel>공통</SideLabel>
       {sideMenus.map((m) => (
         <SidebarItem key={m.id} onClick={() => m.href ? go(m.href) : alert(`${m.label}은(는) 곧 추가됩니다.`)}>
-          <span style={{ marginRight: 6 }}>{m.icon}</span>
+          <m.icon size={15} strokeWidth={1.75} style={{ marginRight: 6, flexShrink: 0 }} />
           <span className="kr-keep">{m.label}</span>
         </SidebarItem>
       ))}
@@ -773,6 +787,8 @@ function SidebarContent({ user, myDepartments, router, onNavigate }: {
 function SidebarItem({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (
     <div onClick={onClick} style={{
+      display: "flex",
+      alignItems: "center",
       padding: "10px 12px",
       borderRadius: 8,
       marginBottom: 3,
