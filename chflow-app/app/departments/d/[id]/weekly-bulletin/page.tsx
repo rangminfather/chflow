@@ -79,6 +79,60 @@ interface DraftMeta {
   last_edited_at: string;
 }
 
+type MonthlyPlanImportField = Extract<
+  keyof FormState,
+  | "guide"
+  | "praise1"
+  | "praise2"
+  | "leader"
+  | "prayerClass"
+  | "scripture"
+  | "sermonTitle"
+  | "preacher"
+  | "nextPrayer"
+  | "lessonNum"
+  | "versePassage"
+  | "twoPartActivity"
+>;
+
+interface MonthlyPlanImport {
+  date: string;
+  sourceFile: string;
+  sheetName: string;
+  fields: Partial<Record<MonthlyPlanImportField, string>>;
+  raw: {
+    sunday: string;
+    sermon: string;
+    leader: string;
+    preacher: string;
+    prayer: string;
+    guide: string;
+    praiseDance: string;
+    activity: string;
+    note: string;
+  };
+  nextPrayerSource: {
+    date: string;
+    sheetName: string;
+    prayer: string;
+  } | null;
+}
+
+const MONTHLY_PLAN_FIELD_LABELS: Array<{ key: MonthlyPlanImportField; label: string }> = [
+  { key: "sermonTitle", label: "강론 제목" },
+  { key: "scripture", label: "성경봉독" },
+  { key: "leader", label: "예배인도" },
+  { key: "preacher", label: "말씀" },
+  { key: "prayerClass", label: "기도" },
+  { key: "nextPrayer", label: "다음 주 기도" },
+  { key: "guide", label: "안내" },
+  { key: "praise1", label: "찬양율동 1" },
+  { key: "praise2", label: "찬양율동 2" },
+  { key: "twoPartActivity", label: "2부 행사" },
+  { key: "lessonNum", label: "공과 회차" },
+  { key: "versePassage", label: "요절암송" },
+];
+
 // ─────────────────────────────────────────────────────────────────
 // 호수 계산
 // ─────────────────────────────────────────────────────────────────
@@ -549,6 +603,9 @@ export default function WeeklyBulletinPage() {
   const [toast, setToast] = useState("");
   const [generating, setGenerating] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
+  const [planImporting, setPlanImporting] = useState(false);
+  const [monthlyPlanImport, setMonthlyPlanImport] = useState<MonthlyPlanImport | null>(null);
+  const [monthlyPlanError, setMonthlyPlanError] = useState("");
 
   const [yearlyTheme, setYearlyTheme] = useState<YearlyTheme | null>(null);
   const [themeEditMode, setThemeEditMode] = useState(false);
@@ -847,7 +904,57 @@ export default function WeeklyBulletinPage() {
 
   const handleDateChange = (newDate: string) => {
     setForm((f) => ({ ...f, date: newDate, issueNumber: calcIssueNumber(newDate) }));
+    setMonthlyPlanImport(null);
+    setMonthlyPlanError("");
     // useEffect 가 loadDraft 트리거함
+  };
+
+  const handleLoadMonthlyPlan = async () => {
+    if (!form.date) {
+      showToast("날짜를 먼저 선택하세요");
+      return;
+    }
+    setPlanImporting(true);
+    setMonthlyPlanError("");
+    setMonthlyPlanImport(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
+      const response = await fetch(
+        `/api/edu/monthly-plans/bulletin-import?dept_id=${deptId}&date=${form.date}`,
+        { headers: { Authorization: `Bearer ${session.access_token}` } }
+      );
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || "월간 교육계획서를 불러오지 못했습니다");
+      }
+      setMonthlyPlanImport(result.plan as MonthlyPlanImport);
+      showToast("월간 교육계획서 항목을 찾았습니다");
+    } catch (e: unknown) {
+      const message = (e as Error).message;
+      setMonthlyPlanError(message);
+      showToast(message);
+    } finally {
+      setPlanImporting(false);
+    }
+  };
+
+  const applyMonthlyPlanImport = (mode: "fill-empty" | "overwrite") => {
+    if (!monthlyPlanImport) return;
+    setForm((current) => {
+      let next: FormState = { ...current };
+      for (const { key } of MONTHLY_PLAN_FIELD_LABELS) {
+        const value = monthlyPlanImport.fields[key];
+        if (!value?.trim()) continue;
+        if (mode === "fill-empty" && String(next[key] || "").trim()) continue;
+        next = { ...next, [key]: value };
+      }
+      return next;
+    });
+    showToast(mode === "fill-empty" ? "빈 항목만 자동 입력했습니다" : "월간계획서 내용으로 적용했습니다");
   };
 
   const handleSaveDraft = async () => {
@@ -1296,6 +1403,132 @@ export default function WeeklyBulletinPage() {
               🔄 {currentPage}페이지 리셋
             </button>
           </div>
+        </div>
+
+        {/* ─── 월간 교육계획서 자동 입력 ─── */}
+        <div style={{
+          ...cardStyle,
+          padding: 14,
+          border: "1px solid #fed7aa",
+          background: "#fffaf5",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: "#9a3412" }}>월간 교육계획서 자동 입력</div>
+              <div style={{ marginTop: 3, fontSize: 12, fontWeight: 700, color: "#c2410c", lineHeight: 1.5 }}>
+                선택한 발행일자와 같은 주일 행을 찾아 예배 순서, 공과, 2부 행사를 채웁니다.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleLoadMonthlyPlan}
+              disabled={planImporting || !form.date}
+              style={{
+                minHeight: 38,
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #fb923c",
+                background: planImporting ? "#fed7aa" : "#ea580c",
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 900,
+                cursor: planImporting ? "default" : "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {planImporting ? "불러오는 중..." : "월간계획 불러오기"}
+            </button>
+          </div>
+
+          {monthlyPlanError && (
+            <div style={{
+              marginTop: 10,
+              padding: "9px 10px",
+              borderRadius: 8,
+              border: "1px solid #fecaca",
+              background: "#fef2f2",
+              color: "#b91c1c",
+              fontSize: 12,
+              fontWeight: 800,
+              lineHeight: 1.5,
+            }}>
+              {monthlyPlanError}
+            </div>
+          )}
+
+          {monthlyPlanImport && (
+            <div style={{ marginTop: 12, borderTop: "1px solid #fed7aa", paddingTop: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#7c2d12" }}>
+                  {monthlyPlanImport.sheetName} 시트 · {monthlyPlanImport.raw.sunday}
+                </div>
+                <div style={{ fontSize: 11, color: "#9a3412", fontWeight: 700 }}>
+                  헌금, 새 친구, 사진, 목장 현황은 건드리지 않음
+                </div>
+              </div>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: isDesktop ? "repeat(2, minmax(0, 1fr))" : "1fr",
+                gap: 8,
+              }}>
+                {MONTHLY_PLAN_FIELD_LABELS
+                  .filter(({ key }) => monthlyPlanImport.fields[key]?.trim())
+                  .map(({ key, label }) => (
+                    <div
+                      key={key}
+                      style={{
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        border: "1px solid #ffedd5",
+                        background: "#fff",
+                        minWidth: 0,
+                      }}
+                    >
+                      <div style={{ fontSize: 11, fontWeight: 900, color: "#c2410c" }}>{label}</div>
+                      <div style={{ marginTop: 3, fontSize: 13, fontWeight: 800, color: "#1e293b", lineHeight: 1.45, wordBreak: "keep-all" }}>
+                        {monthlyPlanImport.fields[key]}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => applyMonthlyPlanImport("fill-empty")}
+                  style={{
+                    padding: "9px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #fb923c",
+                    background: "#fff",
+                    color: "#c2410c",
+                    fontSize: 13,
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  빈칸만 채우기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyMonthlyPlanImport("overwrite")}
+                  style={{
+                    padding: "9px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #ea580c",
+                    background: "#ea580c",
+                    color: "#fff",
+                    fontSize: 13,
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  주보에 적용
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ─── 페이지 선택 탭 (hwpx 1/2/3/4 페이지 구조) ─── */}
