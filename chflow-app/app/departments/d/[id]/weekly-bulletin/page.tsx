@@ -133,6 +133,34 @@ const MONTHLY_PLAN_FIELD_LABELS: Array<{ key: MonthlyPlanImportField; label: str
   { key: "versePassage", label: "요절암송" },
 ];
 
+interface ReviewQuiz {
+  type: QuizType;
+  question: string;
+  choices: string[];
+}
+
+interface ReviewProblem {
+  id: string;
+  path: string;
+  name: string;
+  title: string;
+  lessonNum: string;
+  specialTitle: string;
+  quizzes: ReviewQuiz[];
+}
+
+interface ReviewPlanStatus {
+  status: "missing-plan" | "no-date-row" | "no-lesson" | "ready" | "no-review-match";
+  message: string;
+  plan?: {
+    lessonNum: string;
+    specialTitle: string;
+    activity: string;
+    sermon: string;
+    sheetName: string;
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────
 // 호수 계산
 // ─────────────────────────────────────────────────────────────────
@@ -606,6 +634,13 @@ export default function WeeklyBulletinPage() {
   const [planImporting, setPlanImporting] = useState(false);
   const [monthlyPlanImport, setMonthlyPlanImport] = useState<MonthlyPlanImport | null>(null);
   const [monthlyPlanError, setMonthlyPlanError] = useState("");
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewUploading, setReviewUploading] = useState(false);
+  const [reviewProblems, setReviewProblems] = useState<ReviewProblem[]>([]);
+  const [reviewMatch, setReviewMatch] = useState<ReviewProblem | null>(null);
+  const [reviewPlanStatus, setReviewPlanStatus] = useState<ReviewPlanStatus | null>(null);
+  const [selectedReviewId, setSelectedReviewId] = useState("");
+  const [reviewError, setReviewError] = useState("");
 
   const [yearlyTheme, setYearlyTheme] = useState<YearlyTheme | null>(null);
   const [themeEditMode, setThemeEditMode] = useState(false);
@@ -906,6 +941,9 @@ export default function WeeklyBulletinPage() {
     setForm((f) => ({ ...f, date: newDate, issueNumber: calcIssueNumber(newDate) }));
     setMonthlyPlanImport(null);
     setMonthlyPlanError("");
+    setReviewMatch(null);
+    setReviewPlanStatus(null);
+    setReviewError("");
     // useEffect 가 loadDraft 트리거함
   };
 
@@ -955,6 +993,93 @@ export default function WeeklyBulletinPage() {
       return next;
     });
     showToast(mode === "fill-empty" ? "빈 항목만 자동 입력했습니다" : "월간계획서 내용으로 적용했습니다");
+  };
+
+  const loadReviewProblems = async () => {
+    if (!form.date) {
+      showToast("날짜를 먼저 선택하세요");
+      return;
+    }
+    setReviewLoading(true);
+    setReviewError("");
+    setReviewMatch(null);
+    setReviewPlanStatus(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
+      const response = await fetch(`/api/edu/review-problems?dept_id=${deptId}&date=${form.date}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "복습문제를 불러오지 못했습니다");
+      const problems = (result.problems || []) as ReviewProblem[];
+      setReviewProblems(problems);
+      setReviewMatch((result.match || null) as ReviewProblem | null);
+      setReviewPlanStatus((result.planStatus || null) as ReviewPlanStatus | null);
+      setSelectedReviewId(result.match?.id || problems[0]?.id || "");
+      if (result.match) showToast("월별 계획과 맞는 복습문제를 찾았습니다");
+      else showToast("복습문제 목록을 불러왔습니다");
+    } catch (e: unknown) {
+      const message = (e as Error).message;
+      setReviewError(message);
+      showToast(message);
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
+  const handleReviewUpload = async (files: FileList | null) => {
+    const selected = Array.from(files || []);
+    if (selected.length === 0) return;
+    setReviewUploading(true);
+    setReviewError("");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
+      const payload = new FormData();
+      payload.append("dept_id", deptId);
+      selected.forEach((file) => payload.append("files", file));
+      const response = await fetch("/api/edu/review-problems", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: payload,
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "복습문제 업로드 실패");
+      showToast(`${selected.length}개 복습문제 업로드 완료`);
+      await loadReviewProblems();
+    } catch (e: unknown) {
+      const message = (e as Error).message;
+      setReviewError(message);
+      showToast(message);
+    } finally {
+      setReviewUploading(false);
+    }
+  };
+
+  const applyReviewProblem = (problem: ReviewProblem | null) => {
+    if (!problem) {
+      showToast("선택된 복습문제가 없습니다");
+      return;
+    }
+    if (problem.lessonNum) {
+      setForm((current) => ({ ...current, lessonNum: problem.lessonNum }));
+    }
+    const nextQuizzes = problem.quizzes.length > 0
+      ? problem.quizzes.map((quiz) => ({
+          ...quiz,
+          id: Math.random().toString(36).slice(2),
+          choices: quiz.choices || [],
+        }))
+      : [newQuizItem("mc4")];
+    setQuizzes(nextQuizzes);
+    showToast(`${problem.title} 적용 완료`);
   };
 
   const handleSaveDraft = async () => {
@@ -1736,6 +1861,160 @@ export default function WeeklyBulletinPage() {
           </FormRow>
         </div>
 
+        )}
+
+        {/* 복습문제 자동 입력 (page 3) */}
+        {currentPage === 3 && (
+          <div style={{ ...cardStyle, border: "1px solid #bfdbfe", background: "#f8fbff" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 10 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 900, color: "#1e40af" }}>복습문제 자동 입력</div>
+                <div style={{ marginTop: 3, fontSize: 12, color: "#475569", fontWeight: 700, lineHeight: 1.5 }}>
+                  월별 계획표의 공과 정보와 업로드된 PPTX 복습문제를 매칭합니다.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={loadReviewProblems}
+                disabled={reviewLoading || !form.date}
+                style={{
+                  minHeight: 38,
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #2563eb",
+                  background: reviewLoading ? "#bfdbfe" : "#2563eb",
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 900,
+                  cursor: reviewLoading ? "default" : "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {reviewLoading ? "확인 중..." : "복습문제 찾기"}
+              </button>
+            </div>
+
+            <label style={{
+              display: "block",
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: "1px dashed #93c5fd",
+              background: "#fff",
+              color: "#1d4ed8",
+              fontSize: 13,
+              fontWeight: 900,
+              textAlign: "center",
+              cursor: reviewUploading ? "default" : "pointer",
+            }}>
+              {reviewUploading ? "업로드 중..." : "복습문제 PPTX 업로드"}
+              <input
+                type="file"
+                accept=".pptx"
+                multiple
+                disabled={reviewUploading}
+                onChange={(event) => {
+                  handleReviewUpload(event.target.files);
+                  event.currentTarget.value = "";
+                }}
+                style={{ display: "none" }}
+              />
+            </label>
+
+            {reviewError && (
+              <div style={{ marginTop: 10, padding: 10, borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontSize: 12, fontWeight: 800 }}>
+                {reviewError}
+              </div>
+            )}
+
+            {reviewPlanStatus && (
+              <div style={{
+                marginTop: 10,
+                padding: 10,
+                borderRadius: 8,
+                border: reviewMatch ? "1px solid #86efac" : "1px solid #fde68a",
+                background: reviewMatch ? "#f0fdf4" : "#fffbeb",
+                color: reviewMatch ? "#166534" : "#92400e",
+                fontSize: 12,
+                fontWeight: 800,
+                lineHeight: 1.55,
+              }}>
+                <div>{reviewPlanStatus.message}</div>
+                {reviewPlanStatus.plan && (
+                  <div style={{ marginTop: 3 }}>
+                    계획표: {reviewPlanStatus.plan.sheetName} · {reviewPlanStatus.plan.activity || reviewPlanStatus.plan.sermon}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {reviewMatch && (
+              <div style={{ marginTop: 10, padding: 12, borderRadius: 8, border: "1px solid #bbf7d0", background: "#fff" }}>
+                <div style={{ fontSize: 12, fontWeight: 900, color: "#15803d" }}>자동 매칭됨</div>
+                <div style={{ marginTop: 3, fontSize: 15, fontWeight: 900, color: "#1e293b" }}>
+                  {reviewMatch.title}
+                </div>
+                <div style={{ marginTop: 3, fontSize: 12, fontWeight: 700, color: "#64748b" }}>
+                  {reviewMatch.quizzes.length}문제 · {reviewMatch.lessonNum ? `${reviewMatch.lessonNum}과` : reviewMatch.specialTitle}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => applyReviewProblem(reviewMatch)}
+                  style={{
+                    marginTop: 10,
+                    width: "100%",
+                    minHeight: 40,
+                    borderRadius: 8,
+                    border: "1px solid #16a34a",
+                    background: "#16a34a",
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  매칭된 복습문제 적용
+                </button>
+              </div>
+            )}
+
+            {reviewProblems.length > 0 && (
+              <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 900, color: "#475569" }}>
+                  수동 선택 목록 ({reviewProblems.length}개)
+                </div>
+                <select
+                  value={selectedReviewId}
+                  onChange={(event) => setSelectedReviewId(event.target.value)}
+                  style={inputStyle}
+                >
+                  {reviewProblems.map((problem) => (
+                    <option key={problem.id} value={problem.id}>
+                      {problem.lessonNum ? `${problem.lessonNum}과 - ` : problem.specialTitle ? `${problem.specialTitle} - ` : ""}
+                      {problem.title} ({problem.quizzes.length}문제)
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => applyReviewProblem(reviewProblems.find((problem) => problem.id === selectedReviewId) || null)}
+                  style={{
+                    minHeight: 40,
+                    borderRadius: 8,
+                    border: "1px solid #475569",
+                    background: "#334155",
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: 900,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  선택한 복습문제 적용
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {/* ⑤ 공과 (page 3) — 동적 N문제 */}
