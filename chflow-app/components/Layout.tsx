@@ -17,21 +17,24 @@ import type { CSSProperties, ReactNode, ButtonHTMLAttributes } from "react";
 // =============================================================
 // 디자인 토큰 (앱 전역 공통)
 // =============================================================
+// 색은 globals.css 의 CSS 토큰(var)을 단일 소스로 참조.
+// 포인트는 세이지(--accent) 1색으로 통일, 파스텔 섹션색은 절제된 세이지 톤으로.
+// 상태색(경고/성공/위험)은 의미 전달용이라 그대로 유지.
 export const T = {
-  bgPage:    "#F5F7FA",
-  bgCard:    "#FFFFFF",
-  text:      "#1F2937",
-  textMuted: "#8A94A6",
-  border:    "#E5E7EB",
-  shadowSubtle: "0 1px 2px rgba(15, 23, 42, 0.04)",
+  bgPage:    "var(--bg)",
+  bgCard:    "var(--surface)",
+  text:      "var(--ink)",
+  textMuted: "var(--ink-soft)",
+  border:    "var(--hairline)",
+  shadowSubtle: "none",
 
-  // 섹션 톤
-  ministryBg:    "#EEF2FF",
-  ministryPoint: "#6366F1",
-  mokjangBg:     "#ECFDF5",
-  mokjangPoint:  "#10B981",
-  commonBg:      "#F1F5F9",
-  commonPoint:   "#3B82F6",
+  // 섹션 톤 — 3색 파스텔 → 세이지 포인트 1색으로 통일
+  ministryBg:    "var(--accent-soft)",
+  ministryPoint: "var(--accent)",
+  mokjangBg:     "var(--accent-soft)",
+  mokjangPoint:  "var(--accent)",
+  commonBg:      "var(--accent-soft)",
+  commonPoint:   "var(--accent)",
 
   warn:     "#F59E0B",
   warnSoft: "#FFFBEB",
@@ -52,7 +55,7 @@ export function PageShell({ children, style }: { children: ReactNode; style?: CS
         minHeight: "100vh",
         background: T.bgPage,
         color: T.text,
-        fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
+        fontFamily: "var(--app-sans)",
         ...style,
       }}
     >
