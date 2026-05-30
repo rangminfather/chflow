@@ -281,3 +281,30 @@ input::placeholder {
     opacity: 1;
   }
 }
+
+/* ============================================================
+   전역 테마 매핑 — 시각 전용 (구조·기능·로직 변경 0)
+   다른 페이지(CODEX 등)가 쓰는 Tailwind 색 클래스를 아이보리+세이지
+   토큰에 다시 연결한다. 여기 규칙은 @layer 밖이라 Tailwind 유틸보다
+   우선순위가 높아 클래스 색을 덮어쓴다(인라인 hex 스타일은 못 덮음).
+   상태색(amber/red/emerald/green)은 의미 전달용이라 그대로 둔다.
+   ============================================================ */
+/* 표면(배경) */
+.bg-white { background-color: var(--surface); }
+.bg-slate-50 { background-color: var(--bg); }
+.bg-slate-100, .bg-slate-200 { background-color: var(--accent-soft); }
+
+/* 텍스트 */
+.text-slate-900, .text-slate-800, .text-slate-700 { color: var(--ink); }
+.text-slate-600, .text-slate-500 { color: var(--ink-soft); }
+.text-slate-400, .text-slate-300 { color: var(--ink-faint); }
+
+/* 보더(헤어라인) */
+.border-slate-100, .border-slate-200, .border-slate-300 { border-color: var(--hairline); }
+
+/* 포인트(블루/인디고 → 세이지) */
+.bg-blue-600, .bg-blue-700, .bg-indigo-600, .bg-indigo-700 { background-color: var(--accent); }
+.bg-blue-50, .bg-blue-100, .bg-indigo-50 { background-color: var(--accent-soft); }
+.text-blue-600, .text-blue-700, .text-blue-800, .text-blue-900,
+.text-indigo-600, .text-indigo-700 { color: var(--accent); }
+.border-blue-100, .border-blue-200, .border-indigo-200 { border-color: var(--hairline); }
