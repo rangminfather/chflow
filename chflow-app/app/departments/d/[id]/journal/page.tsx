@@ -178,7 +178,7 @@ export default function JournalPage() {
         const res = await fetch("/api/journal-prefill", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dept_key: key }),
+          body: JSON.stringify({ dept_key: key, issue_date: form.date }),
         });
         const json = await res.json();
         if (prefillCancelRef.cancelled) return;
@@ -277,7 +277,7 @@ export default function JournalPage() {
   if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
 
   const showForm = isNew || selected;
-  const canPrefill = isNew && !!DEPT_PREFILL_KEY[deptName];
+  const canPrefill = !!showForm && !!DEPT_PREFILL_KEY[deptName];
 
   return (
     <div className="app-shell journal-page" style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>

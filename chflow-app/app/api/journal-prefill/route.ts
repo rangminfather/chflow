@@ -310,8 +310,11 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { dept_key?: string };
+    const body = (await req.json()) as { dept_key?: string; issue_date?: string };
     const deptKey = body.dept_key || "초등1부";
+    const issueDate = body.issue_date && /^\d{4}-\d{2}-\d{2}$/.test(body.issue_date)
+      ? body.issue_date
+      : undefined;
     const pattern = DEPT_PATTERNS[deptKey];
     if (!pattern) {
       return NextResponse.json(
@@ -321,7 +324,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 캐시 hit
-    const cached = RESULT_CACHE.get(deptKey);
+    const cacheKey = issueDate ? `${deptKey}:${issueDate}` : deptKey;
+    const cached = RESULT_CACHE.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return NextResponse.json({ ok: true, data: cached.result, cached: true });
     }
@@ -329,11 +333,12 @@ export async function POST(req: NextRequest) {
     const html = await fetchEucKr(LIST_URL);
     const rows = parseBoardList(html);
 
-    const matched = rows.find(
-      (r) =>
-        r.author === pattern.author &&
-        pattern.titleIncludes.every((kw) => r.title.includes(kw)),
+    const candidates = rows.filter(
+      (r) => r.author === pattern.author && pattern.titleIncludes.every((kw) => r.title.includes(kw)),
     );
+    const matched = issueDate
+      ? candidates.find((r) => extractDateFromTitle(r.title, Number(issueDate.slice(0, 4))) === issueDate)
+      : candidates[0];
     if (!matched) {
       // 디버깅: 매칭 실패 사유 추론
       const sameAuthor = rows.filter((r) => r.author === pattern.author);
@@ -341,6 +346,8 @@ export async function POST(req: NextRequest) {
       if (rows.length === 0) {
         const sample = html.replace(/\s+/g, " ").slice(0, 80);
         hint = `게시판 응답을 읽지 못했습니다 (응답 ${html.length}자, 내용: "${sample}"). 사이트 차단 가능성.`;
+      } else if (issueDate && candidates.length > 0) {
+        hint = `${issueDate} 날짜의 '${pattern.titleIncludes.join(",")}' 주보를 찾지 못했습니다. 최근 주보: '${candidates[0]?.title}'`;
       } else if (sameAuthor.length === 0) {
         hint = `'${pattern.author}' 작성 글을 찾지 못함. 첫 글: '${rows[0]?.title}' (${rows[0]?.author})`;
       } else {
@@ -363,7 +370,7 @@ export async function POST(req: NextRequest) {
       source_date: extractDateFromTitle(matched.title, today.getFullYear()),
       ...parsed,
     };
-    RESULT_CACHE.set(deptKey, { result, expiresAt: Date.now() + CACHE_TTL_MS });
+    RESULT_CACHE.set(cacheKey, { result, expiresAt: Date.now() + CACHE_TTL_MS });
     return NextResponse.json({ ok: true, data: result });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "주보 불러오기 실패";
