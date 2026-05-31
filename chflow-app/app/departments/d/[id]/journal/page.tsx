@@ -150,6 +150,73 @@ export default function JournalPage() {
     setPrefillStatus("idle");
   };
 
+  const applyPrefillData = (d: {
+    source_date?: string;
+    edu_topic?: string;
+    scripture?: string;
+    leader?: string;
+    preacher?: string;
+    sermon_title?: string;
+    prayer_lead?: string;
+    praise?: string;
+    joint_activity?: string;
+    lesson_content?: string;
+    events?: string;
+  }) => {
+    setForm((f) => ({
+      ...f,
+      date: d.source_date || f.date,
+      edu_topic: d.edu_topic || f.edu_topic,
+      scripture: d.scripture || f.scripture,
+      leader: d.leader || f.leader,
+      preacher: d.preacher || f.preacher,
+      sermon_title: d.sermon_title || f.sermon_title,
+      prayer_lead: d.prayer_lead || f.prayer_lead,
+      praise: d.praise || f.praise,
+      joint_activity: d.joint_activity || f.joint_activity,
+      lesson_content: d.lesson_content || f.lesson_content,
+      events: d.events || f.events,
+    }));
+  };
+
+  const tryPrefillFromBulletinDraft = async () => {
+    const { data, error } = await supabase.rpc("bulletin_get_draft", {
+      p_dept_id: deptId,
+      p_issue_date: form.date,
+    });
+    if (error) return false;
+    const row = data && data[0];
+    if (!row?.exists_) return false;
+
+    const draft = row.form_data as Partial<{
+      theme: string;
+      scripture: string;
+      leader: string;
+      preacher: string;
+      sermonTitle: string;
+      prayerClass: string;
+      praise1: string;
+      praise2: string;
+      twoPartActivity: string;
+      lessonNum: string;
+      versePassage: string;
+    }>;
+    const praise = [draft.praise1, draft.praise2].filter(Boolean).join(" ");
+    applyPrefillData({
+      source_date: form.date,
+      edu_topic: draft.theme,
+      scripture: draft.scripture,
+      leader: draft.leader,
+      preacher: draft.preacher,
+      sermon_title: draft.sermonTitle,
+      prayer_lead: draft.prayerClass,
+      praise,
+      events: draft.twoPartActivity,
+      lesson_content: [draft.lessonNum ? `${draft.lessonNum}과` : "", draft.versePassage].filter(Boolean).join(" / "),
+    });
+    return true;
+  };
+
   const handlePrefill = async () => {
     const key = DEPT_PREFILL_KEY[deptName];
     if (!key) {
@@ -160,6 +227,19 @@ export default function JournalPage() {
     setPrefilling(true);
     setPrefillLastError("");
     setPrefillStatus("trying");
+
+    const filledFromDraft = await tryPrefillFromBulletinDraft();
+    if (prefillCancelRef.cancelled) return;
+    if (filledFromDraft) {
+      setPrefillStatus("done");
+      showToast("주보 작성 임시저장본에서 불러옴 - 확인 후 저장하세요 ✅");
+      setTimeout(() => {
+        setPrefilling(false);
+        setPrefillStatus("idle");
+        setPrefillAttempt(0);
+      }, 800);
+      return;
+    }
 
     for (let i = 1; i <= MAX_PREFILL_ATTEMPTS; i++) {
       if (prefillCancelRef.cancelled) return;
@@ -185,17 +265,7 @@ export default function JournalPage() {
 
         if (json.ok) {
           const d = json.data;
-          setForm((f) => ({
-            ...f,
-            date: d.source_date || f.date,
-            edu_topic: d.edu_topic || f.edu_topic,
-            scripture: d.scripture || f.scripture,
-            leader: d.leader || f.leader,
-            preacher: d.preacher || f.preacher,
-            sermon_title: d.sermon_title || f.sermon_title,
-            prayer_lead: d.prayer_lead || f.prayer_lead,
-            praise: d.praise || f.praise,
-          }));
+          applyPrefillData(d);
           setPrefillStatus("done");
           showToast(`주보 #${d.source_no} 불러옴 - 확인 후 저장하세요 ✅`);
           // 성공 모달 잠깐 보이고 닫기
