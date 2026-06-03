@@ -74,7 +74,7 @@ const COMMON_MENUS: CommonMenu[] = [
 ];
 
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [
-  { id: "vote",     label: "투표",        icon: Vote,          color: "#4F46E5", bg: "#EEF2FF", desc: "항존직 선거", href: "/vote" },
+  { id: "vote",     label: "투표",        icon: Vote,          color: "#4F46E5", bg: "#EEF2FF", desc: "전자투표", href: "/vote" },
   { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "#0F766E", bg: "#E6F4F1", desc: "공지사항" },
   { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "#2563EB", bg: "#EAF1FF", desc: "월간 일정" },
   { id: "facility", label: "시설 신청",   icon: Landmark,      color: "#B45309", bg: "#FFF2DE", desc: "교육관/예배실" },

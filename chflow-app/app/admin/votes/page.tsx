@@ -359,7 +359,7 @@ export default function AdminVotesPage() {
         <HeaderLogo />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>🗳️ 투표 관리</div>
-          <div style={{ fontSize: 11, color: "#94a3b8" }}>항존직 선거 · 기타 투표</div>
+          <div style={{ fontSize: 11, color: "#94a3b8" }}>전자투표</div>
         </div>
         <button onClick={openCreate} style={primaryBtnStyle}>
           + 새 투표 만들기
