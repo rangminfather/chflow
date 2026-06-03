@@ -86,6 +86,7 @@ export default function DirectoryPage() {
   const [total, setTotal] = useState(0);
   const [members, setMembers] = useState<DirectoryMember[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // 모달 열려있을 때 안드로이드 뒤로가기 → 모달만 닫기 (페이지 이탈 방지)
@@ -127,7 +128,6 @@ export default function DirectoryPage() {
 
       const { data: tree } = await supabase.rpc("directory_tree");
       setDirTree((tree || []) as DirRow[]);
-      await searchMembers(1, "", "", "", "");
     })();
   }, [router]);
 
@@ -164,6 +164,15 @@ export default function DirectoryPage() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isAdmin = !!user && ["admin", "office", "pastor"].includes(user.role);
 
+  function hasSearchCriteria(
+    nextQuery = query,
+    nextPlain = plain,
+    nextGrassland = grassland,
+    nextPasture = pasture,
+  ) {
+    return !!(nextQuery.trim() || nextPlain || nextGrassland || nextPasture);
+  }
+
   async function searchMembers(
     nextPage = page,
     nextQuery = query,
@@ -171,6 +180,15 @@ export default function DirectoryPage() {
     nextGrassland = grassland,
     nextPasture = pasture,
   ) {
+    if (!hasSearchCriteria(nextQuery, nextPlain, nextGrassland, nextPasture)) {
+      setMembers([]);
+      setTotal(0);
+      setHasSearched(false);
+      alert("검색어를 입력하거나 평원/초원/목장을 선택해 주세요.");
+      return;
+    }
+
+    setHasSearched(true);
     setLoading(true);
     const { data, error } = await supabase.rpc("directory_search_members", {
       p_query: nextQuery.trim() || null,
@@ -204,7 +222,9 @@ export default function DirectoryPage() {
     setGrassland("");
     setPasture("");
     setPage(1);
-    searchMembers(1, "", "", "", "");
+    setMembers([]);
+    setTotal(0);
+    setHasSearched(false);
   }
 
   function goPage(nextPage: number) {
@@ -290,35 +310,43 @@ export default function DirectoryPage() {
       <main style={contentStyle}>
         <div style={resultHeadStyle}>
           <strong>검색 결과</strong>
-          <span>총 {total.toLocaleString()}명 · {page}/{totalPages} 페이지</span>
+          <span>{hasSearched ? `총 ${total.toLocaleString()}명 · ${page}/${totalPages} 페이지` : "검색 전"}</span>
         </div>
 
-        <div className="directory-grid" style={gridStyle}>
-          {members.map((member) => (
-            <button key={member.id} style={memberCardStyle} onClick={() => setSelectedId(member.id)}>
-              <Avatar member={member} size={56} />
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={memberNameStyle}>
-                  {member.name}
-                  {member.is_child && <span style={tagStyle("#fef3c7", "#92400e")}>자녀</span>}
+        {hasSearched && (
+          <div className="directory-grid" style={gridStyle}>
+            {members.map((member) => (
+              <button key={member.id} style={memberCardStyle} onClick={() => setSelectedId(member.id)}>
+                <Avatar member={member} size={56} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={memberNameStyle}>
+                    {member.name}
+                    {member.is_child && <span style={tagStyle("#fef3c7", "#92400e")}>자녀</span>}
+                  </div>
+                  <div style={memberMetaStyle}>{member.sub_role || "직분 미지정"} · {member.family_church || "목원"}</div>
+                  <div style={memberMetaStyle}>{member.phone || member.home_phone || "연락처 없음"}</div>
+                  <div style={memberPlaceStyle}>{locationText(member)}</div>
                 </div>
-                <div style={memberMetaStyle}>{member.sub_role || "직분 미지정"} · {member.family_church || "목원"}</div>
-                <div style={memberMetaStyle}>{member.phone || member.home_phone || "연락처 없음"}</div>
-                <div style={memberPlaceStyle}>{locationText(member)}</div>
-              </div>
-            </button>
-          ))}
-        </div>
+              </button>
+            ))}
+          </div>
+        )}
 
-        {members.length === 0 && !loading && (
+        {!hasSearched && !loading && (
+          <div style={emptyStyle}>이름, 전화번호, 배우자 검색어를 입력하거나 소속 필터를 선택해 주세요</div>
+        )}
+
+        {hasSearched && members.length === 0 && !loading && (
           <div style={emptyStyle}>검색 결과가 없습니다</div>
         )}
 
-        <div style={pagerStyle}>
-          <button style={ghostButtonStyle} disabled={page <= 1 || loading} onClick={() => goPage(page - 1)}>이전</button>
-          <span>{page} / {totalPages}</span>
-          <button style={ghostButtonStyle} disabled={page >= totalPages || loading} onClick={() => goPage(page + 1)}>다음</button>
-        </div>
+        {hasSearched && total > 0 && (
+          <div style={pagerStyle}>
+            <button style={ghostButtonStyle} disabled={page <= 1 || loading} onClick={() => goPage(page - 1)}>이전</button>
+            <span>{page} / {totalPages}</span>
+            <button style={ghostButtonStyle} disabled={page >= totalPages || loading} onClick={() => goPage(page + 1)}>다음</button>
+          </div>
+        )}
       </main>
 
       {selectedId && (
