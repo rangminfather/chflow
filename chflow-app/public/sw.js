@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smart-myungsung-v3';
+const CACHE_NAME = 'smart-myungsung-v4';
 const PRECACHE_URLS = ['/', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -19,6 +19,17 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+
+  const url = new URL(e.request.url);
+  const isLocalDev = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  const isNextAsset = url.pathname.startsWith('/_next/');
+  const isApiRoute = url.pathname.startsWith('/api/');
+
+  if (isLocalDev || isNextAsset || isApiRoute) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
+
   e.respondWith(
     fetch(e.request)
       .then((res) => {
