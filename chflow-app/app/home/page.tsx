@@ -197,10 +197,17 @@ export default function HomePage() {
           .admin-btn-label { display: none !important; }
           .home-summary-grid { grid-template-columns: 1fr !important; }
           .home-menu-grid { grid-template-columns: 1fr !important; }
+          .admin-menu-grid { grid-template-columns: 1fr !important; }
           .compact-action { width: 100% !important; justify-content: center !important; }
+          .command-center { grid-template-columns: 1fr !important; padding: 18px !important; }
+          .command-actions { justify-content: stretch !important; }
         }
         @media (min-width: 769px) {
           .sidebar-mobile-trigger { display: none !important; }
+        }
+        @media (min-width: 1024px) {
+          .home-menu-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+          .admin-menu-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
         }
       `}</style>
 
@@ -224,6 +231,13 @@ export default function HomePage() {
 
         <div style={{ flex: 1, minWidth: 0, width: "100%", maxWidth: "100%" }}>
           <PageContent maxWidth={1040}>
+            <CommandCenter
+              user={user}
+              myDepartments={myDepartments}
+              isAdmin={isAdmin}
+              router={router}
+            />
+
             <UserSummary
               user={user}
               photoUrl={photoUrl}
@@ -349,6 +363,138 @@ function AdminPill({ icon, label, onClick }: { icon: React.ReactNode; label: str
       <span style={{ display: "inline-flex", alignItems: "center" }}>{icon}</span>
       <span className="admin-btn-label">{label}</span>
     </button>
+  );
+}
+
+// =============================================================
+// 데스크톱 운영 허브
+// =============================================================
+function CommandCenter({ user, myDepartments, isAdmin, router }: {
+  user: UserInfo;
+  myDepartments: MyDepartment[];
+  isAdmin: boolean;
+  router: RouterType;
+}) {
+  const approvedCount = myDepartments.filter((d) => d.status === "approved").length;
+  const pendingCount = myDepartments.filter((d) => d.status === "pending").length;
+
+  return (
+    <section
+      className="command-center"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1.25fr) minmax(280px, 0.75fr)",
+        gap: 18,
+        alignItems: "stretch",
+        marginBottom: 18,
+        padding: 22,
+        borderRadius: 18,
+        border: "1px solid rgba(62, 90, 74, 0.22)",
+        background: "linear-gradient(135deg, #2F4638 0%, #3E5A4A 52%, #6E6047 100%)",
+        color: "#FFFDF7",
+        boxShadow: "0 24px 56px rgba(47, 70, 56, 0.22)",
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 7,
+          padding: "5px 9px",
+          borderRadius: 999,
+          background: "rgba(255,255,255,0.13)",
+          border: "1px solid rgba(255,255,255,0.18)",
+          fontSize: 12,
+          fontWeight: 800,
+          color: "rgba(255,255,255,0.86)",
+          marginBottom: 12,
+        }}>
+          <LayoutGrid size={14} strokeWidth={1.8} />
+          HOME DASHBOARD
+        </div>
+        <div className="kr-keep" style={{
+          fontFamily: "var(--app-serif)",
+          fontSize: "clamp(26px, 3vw, 36px)",
+          fontWeight: 600,
+          lineHeight: 1.18,
+          letterSpacing: 0,
+        }}>
+          {isAdmin ? "운영 업무를 한 화면에서" : `${user.name}님의 스마트명성 홈`}
+        </div>
+        <div className="kr-keep" style={{
+          marginTop: 10,
+          maxWidth: 560,
+          fontSize: 14,
+          lineHeight: 1.65,
+          color: "rgba(255,255,255,0.78)",
+        }}>
+          사역, 목장, 공통 메뉴를 더 낮은 카드와 선명한 액션으로 정리했습니다.
+        </div>
+        <div className="command-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 18 }}>
+          {isAdmin ? (
+            <>
+              <CommandButton label="회원 관리" onClick={() => router.push("/admin/members")} />
+              <CommandButton label="사역·부서 승인" onClick={() => router.push("/admin/dept-pending")} />
+            </>
+          ) : (
+            <CommandButton label="내 정보 관리" onClick={() => router.push("/myinfo")} />
+          )}
+        </div>
+      </div>
+
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+        gap: 8,
+        alignContent: "end",
+      }}>
+        <CommandStat label="승인 사역" value={`${approvedCount}`} />
+        <CommandStat label="대기" value={`${pendingCount}`} />
+        <CommandStat label="목장" value={user.pasture_name ? "소속" : "미소속"} />
+      </div>
+    </section>
+  );
+}
+
+function CommandButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        minHeight: 38,
+        padding: "0 14px",
+        borderRadius: 9,
+        border: "1px solid rgba(255,255,255,0.24)",
+        background: "rgba(255,255,255,0.92)",
+        color: "#2F4638",
+        fontSize: 13,
+        fontWeight: 900,
+        cursor: "pointer",
+        fontFamily: "inherit",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function CommandStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{
+      minHeight: 76,
+      padding: "12px 10px",
+      borderRadius: 12,
+      background: "rgba(255,255,255,0.12)",
+      border: "1px solid rgba(255,255,255,0.17)",
+      display: "flex",
+      flexDirection: "column",
+      justifyContent: "space-between",
+      minWidth: 0,
+    }}>
+      <div className="line-clamp-1 kr-keep" style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.66)" }}>{label}</div>
+      <div className="line-clamp-1 kr-keep" style={{ fontSize: 20, fontWeight: 900, color: "#FFFDF7" }}>{value}</div>
+    </div>
   );
 }
 
@@ -598,7 +744,7 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
             fontSize: 12, fontWeight: 700, color: T.textMuted,
             letterSpacing: 0.4,
           }}>관리자 메뉴</div>
-          <SafeGrid cols={2} gap={9} className="home-menu-grid">
+          <SafeGrid cols={2} gap={9} className="admin-menu-grid">
             {ADMIN_EXTRA_MENUS.map((m) => <MenuCard key={m.id} menu={m} router={router} compact />)}
           </SafeGrid>
         </>
