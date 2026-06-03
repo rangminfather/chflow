@@ -289,15 +289,18 @@ export function SafeGrid({
   cols = 2,
   gap = 12,
   children,
+  className,
   style,
 }: {
   cols?: 1 | 2;
   gap?: number;
   children: ReactNode;
+  className?: string;
   style?: CSSProperties;
 }) {
   return (
     <div
+      className={className}
       style={{
         display: "grid",
         gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,

@@ -61,23 +61,25 @@ type CommonMenu = {
   label: string;
   desc: string;
   icon: LucideIcon;
+  color: string;
+  bg: string;
   href?: string;
 };
 
 const COMMON_MENUS: CommonMenu[] = [
-  { id: "bulletin",  label: "주보 보기",      icon: BookOpen,  desc: "이번 주 주보",  href: "/bulletin" },
-  { id: "directory", label: "성도 요람",      icon: Users,     desc: "성도 검색",     href: "/directory" },
-  { id: "myinfo",    label: "내 정보",         icon: User,      desc: "프로필 관리",   href: "/myinfo" },
-  { id: "feedback",  label: "불편신고/건의",  icon: Lightbulb, desc: "건의사항 접수", href: "/feedback" },
+  { id: "bulletin",  label: "주보 보기",      icon: BookOpen,  color: "#2F6B4F", bg: "#EAF3ED", desc: "이번 주 주보",  href: "/bulletin" },
+  { id: "directory", label: "성도 요람",      icon: Users,     color: "#336F8F", bg: "#E9F2F7", desc: "성도 검색",     href: "/directory" },
+  { id: "myinfo",    label: "내 정보",        icon: User,      color: "#725A3A", bg: "#F4EDE0", desc: "프로필 관리",   href: "/myinfo" },
+  { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "#B45D3B", bg: "#F8ECE6", desc: "건의사항 접수", href: "/feedback" },
 ];
 
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [
-  { id: "vote",     label: "투표",          icon: Vote,          desc: "항존직 선거",  href: "/vote" },
-  { id: "events",   label: "행사 공지",     icon: Megaphone,     desc: "공지사항" },
-  { id: "calendar", label: "행사 달력",     icon: CalendarDays,  desc: "월간 일정" },
-  { id: "facility", label: "시설 신청",     icon: Landmark,      desc: "교육관/예배실" },
-  { id: "vehicle",  label: "차량 신청",     icon: Bus,           desc: "교회 차량" },
-  { id: "booking",  label: "예약 캘린더",   icon: CalendarClock, desc: "예약 현황" },
+  { id: "vote",     label: "투표",        icon: Vote,          color: "#4F46E5", bg: "#EEF2FF", desc: "항존직 선거", href: "/vote" },
+  { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "#0F766E", bg: "#E6F4F1", desc: "공지사항" },
+  { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "#2563EB", bg: "#EAF1FF", desc: "월간 일정" },
+  { id: "facility", label: "시설 신청",   icon: Landmark,      color: "#B45309", bg: "#FFF2DE", desc: "교육관/예배실" },
+  { id: "vehicle",  label: "차량 신청",   icon: Bus,           color: "#7C3AED", bg: "#F1EBFF", desc: "교회 차량" },
+  { id: "booking",  label: "예약 캘린더", icon: CalendarClock, color: "#BE123C", bg: "#FDECEF", desc: "예약 현황" },
 ];
 
 // =============================================================
@@ -193,6 +195,9 @@ export default function HomePage() {
           .sidebar-desktop { display: none !important; }
           .sidebar-mobile-trigger { display: flex !important; }
           .admin-btn-label { display: none !important; }
+          .home-summary-grid { grid-template-columns: 1fr !important; }
+          .home-menu-grid { grid-template-columns: 1fr !important; }
+          .compact-action { width: 100% !important; justify-content: center !important; }
         }
         @media (min-width: 769px) {
           .sidebar-mobile-trigger { display: none !important; }
@@ -218,7 +223,7 @@ export default function HomePage() {
         />
 
         <div style={{ flex: 1, minWidth: 0, width: "100%", maxWidth: "100%" }}>
-          <PageContent maxWidth={920}>
+          <PageContent maxWidth={1040}>
             <UserSummary
               user={user}
               photoUrl={photoUrl}
@@ -227,9 +232,15 @@ export default function HomePage() {
               onAvatarChange={(url) => setAvatarUrl(url)}
             />
 
-            <MinistrySection myDepartments={myDepartments} router={router} />
-
-            <MyMokjangSection user={user} />
+            <div className="home-summary-grid" style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1.08fr) minmax(0, 0.92fr)",
+              gap: 14,
+              marginBottom: 18,
+            }}>
+              <MinistrySection myDepartments={myDepartments} router={router} />
+              <MyMokjangSection user={user} />
+            </div>
 
             <CommonMenuSection isAdmin={isAdmin} router={router} />
 
@@ -357,7 +368,7 @@ function UserSummary({ user, photoUrl, memberPhotoUrl, userImage, onAvatarChange
   ].filter(Boolean) as string[];
 
   return (
-    <SafeCard padding={16} style={{ marginBottom: 20 }}>
+    <SafeCard padding={14} style={{ marginBottom: 18, borderRadius: 14, background: "rgba(251,248,241,0.9)" }}>
       <SafeRow gap={14}>
         <div style={{ position: "relative", flexShrink: 0 }}>
           <PhotoAvatar
@@ -407,7 +418,7 @@ function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartmen
   const empty = approved.length === 0 && pending.length === 0;
 
   return (
-    <Section bg={T.ministryBg}>
+    <Section bg="rgba(234,239,232,0.72)" style={{ height: "100%", marginBottom: 0 }}>
       <SectionHeader
         icon={<Folder size={18} strokeWidth={1.75} />}
         iconColor={T.ministryPoint}
@@ -416,7 +427,7 @@ function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartmen
       />
 
       {empty ? (
-        <SafeCard padding={16} style={{ marginBottom: 12 }}>
+        <SafeCard padding={13} style={{ marginBottom: 10, borderRadius: 10 }}>
           <div className="kr-keep" style={{ fontSize: 14, color: T.textMuted }}>
             아직 가입된 사역 · 부서가 없습니다
           </div>
@@ -443,9 +454,10 @@ function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartmen
       )}
 
       <OutlineButton
-        label="+ 다른 사역 · 부서 가입하기"
+        label="+ 다른 사역 · 부서"
         color={T.ministryPoint}
         onClick={() => router.push("/departments")}
+        style={compactOutlineButtonStyle}
       />
     </Section>
   );
@@ -457,16 +469,16 @@ function MinistryCard({ dept, status, onClick }: {
   onClick: () => void;
 }) {
   return (
-    <SafeCard onClick={onClick}>
+    <SafeCard onClick={onClick} padding={11} style={{ borderRadius: 10 }}>
       <SafeRow gap={12}>
-        <IconBox bg={T.ministryBg}>
-          {dept.icon ? <span style={{ fontSize: 22 }}>{dept.icon}</span> : <Folder size={22} strokeWidth={1.75} color="var(--accent)" />}
+        <IconBox bg="#EAF3ED" size={40}>
+          {dept.icon ? <span style={{ fontSize: 20 }}>{dept.icon}</span> : <Folder size={20} strokeWidth={1.75} color="var(--accent)" />}
         </IconBox>
         <SafeGrow>
           <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
             {dept.category}
           </div>
-          <div className="line-clamp-1 kr-keep" style={{ fontSize: 16, fontWeight: 800, color: T.text, marginTop: 2 }}>
+          <div className="line-clamp-1 kr-keep" style={{ fontSize: 15, fontWeight: 850, color: T.text, marginTop: 1 }}>
             {dept.name}
           </div>
         </SafeGrow>
@@ -493,7 +505,7 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
   // TODO: 승인 대기 상태 분기 — pasture_requests 테이블/RPC 추가되면 이 자리에 분기 추가
 
   return (
-    <Section bg={T.mokjangBg}>
+    <Section bg="rgba(234,239,232,0.72)" style={{ height: "100%", marginBottom: 0 }}>
       <SectionHeader
         icon={<Home size={18} strokeWidth={1.75} />}
         iconColor={T.mokjangPoint}
@@ -502,10 +514,10 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
       />
 
       {hasPasture ? (
-        <SafeCard onClick={handleViewPasture}>
+        <SafeCard onClick={handleViewPasture} padding={12} style={{ borderRadius: 10 }}>
           <SafeRow gap={12}>
-            <IconBox bg={T.mokjangBg}>
-              <Home size={24} strokeWidth={1.75} color="var(--accent)" />
+            <IconBox bg="#EAF3ED" size={40}>
+              <Home size={21} strokeWidth={1.75} color="var(--accent)" />
             </IconBox>
             <SafeGrow>
               <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
@@ -523,32 +535,37 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
             </SafeGrow>
             <span style={{
               flexShrink: 0,
-              padding: "8px 14px",
-              background: T.mokjangPoint,
-              color: "#fff",
-              borderRadius: 10,
-              fontSize: 12,
-              fontWeight: 800,
+              padding: "6px 10px",
+              background: "#EAF3ED",
+              color: T.mokjangPoint,
+              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 900,
               whiteSpace: "nowrap",
               maxWidth: "100%",
             }}>목장 보기</span>
           </SafeRow>
         </SafeCard>
       ) : (
-        <SafeCard padding={16}>
+        <SafeCard padding={12} style={{ borderRadius: 10 }}>
           <SafeRow gap={12} align="flex-start">
-            <IconBox bg={T.mokjangBg}>
-              <Home size={24} strokeWidth={1.75} color="var(--accent)" />
+            <IconBox bg="#EAF3ED" size={40}>
+              <Home size={21} strokeWidth={1.75} color="var(--accent)" />
             </IconBox>
             <SafeGrow>
-              <div className="kr-keep" style={{ fontSize: 15, fontWeight: 700, color: T.text, lineHeight: 1.4 }}>
+              <div className="kr-keep" style={{ fontSize: 15, fontWeight: 850, color: T.text, lineHeight: 1.35 }}>
                 아직 소속된 목장이 없습니다
               </div>
               <div className="kr-keep" style={{ fontSize: 13, color: T.textMuted, marginTop: 4, lineHeight: 1.5 }}>
                 목장을 찾아 가입 신청할 수 있습니다
               </div>
-              <div style={{ marginTop: 12 }}>
-                <SolidButton label="목장 가입 신청" color={T.mokjangPoint} onClick={handleJoinRequest} style={{ minHeight: 48 }} />
+              <div style={{ marginTop: 10 }}>
+                <SolidButton
+                  label="목장 가입 신청"
+                  color={T.mokjangPoint}
+                  onClick={handleJoinRequest}
+                  style={compactSolidButtonStyle}
+                />
               </div>
             </SafeGrow>
           </SafeRow>
@@ -563,14 +580,14 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
 // =============================================================
 function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: RouterType }) {
   return (
-    <Section bg={T.commonBg}>
+    <Section bg="rgba(251,248,241,0.68)">
       <SectionHeader
         icon={<LayoutGrid size={18} strokeWidth={1.75} />}
         iconColor={T.commonPoint}
         title="공통 메뉴"
         subtitle="모든 성도가 사용할 수 있는 기능"
       />
-      <SafeGrid cols={2} gap={12}>
+      <SafeGrid cols={2} gap={10} className="home-menu-grid">
         {COMMON_MENUS.map((m) => <MenuCard key={m.id} menu={m} router={router} />)}
       </SafeGrid>
 
@@ -581,7 +598,7 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
             fontSize: 12, fontWeight: 700, color: T.textMuted,
             letterSpacing: 0.4,
           }}>관리자 메뉴</div>
-          <SafeGrid cols={2} gap={10}>
+          <SafeGrid cols={2} gap={9} className="home-menu-grid">
             {ADMIN_EXTRA_MENUS.map((m) => <MenuCard key={m.id} menu={m} router={router} compact />)}
           </SafeGrid>
         </>
@@ -596,16 +613,35 @@ function MenuCard({ menu, router, compact }: { menu: CommonMenu; router: RouterT
     else alert(`${menu.label}은(는) 곧 추가됩니다.`);
   };
   return (
-    <SafeCard onClick={handleClick} padding={compact ? 14 : 16} style={{ minHeight: compact ? 64 : 76 }}>
+    <SafeCard
+      onClick={handleClick}
+      padding={compact ? 11 : 12}
+      style={{
+        minHeight: compact ? 58 : 64,
+        borderRadius: 10,
+        background: "rgba(251,248,241,0.94)",
+        transition: "border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease",
+      }}
+      onMouseOver={(e) => {
+        e.currentTarget.style.borderColor = menu.color;
+        e.currentTarget.style.transform = "translateY(-1px)";
+        e.currentTarget.style.boxShadow = `0 12px 24px ${menu.color}1F`;
+      }}
+      onMouseOut={(e) => {
+        e.currentTarget.style.borderColor = T.border;
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = "none";
+      }}
+    >
       <SafeRow gap={10}>
-        <IconBox bg="var(--accent-soft)" size={compact ? 40 : 44}>
-          <menu.icon size={compact ? 20 : 22} strokeWidth={1.75} color="var(--accent)" />
+        <IconBox bg={menu.bg} size={compact ? 36 : 38}>
+          <menu.icon size={compact ? 18 : 19} strokeWidth={1.8} color={menu.color} />
         </IconBox>
         <SafeGrow>
           {/* 긴 메뉴명("불편신고/건의") 보호: kr-break 로 어디서든 줄바꿈 + leading-snug */}
           <div className="kr-break" style={{
             fontSize: compact ? 13 : 14,
-            fontWeight: 800,
+            fontWeight: 850,
             color: T.text,
             lineHeight: 1.25,
           }}>{menu.label}</div>
@@ -818,6 +854,27 @@ function SideLabel({ children }: { children: React.ReactNode }) {
 function SideDivider() {
   return <div style={{ height: 1, background: T.border, margin: "16px 0" }} />;
 }
+
+const compactSolidButtonStyle: React.CSSProperties = {
+  width: "auto",
+  minHeight: 40,
+  padding: "0 16px",
+  borderRadius: 9,
+  fontSize: 13,
+  fontWeight: 850,
+  boxShadow: "0 10px 20px rgba(62, 90, 74, 0.16)",
+};
+
+const compactOutlineButtonStyle: React.CSSProperties = {
+  width: "auto",
+  minHeight: 38,
+  padding: "0 14px",
+  borderRadius: 9,
+  borderWidth: 1,
+  fontSize: 13,
+  fontWeight: 850,
+  background: "rgba(251,248,241,0.9)",
+};
 
 // =============================================================
 // 종료 모달 / 토스트
