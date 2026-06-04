@@ -133,6 +133,20 @@ export default function BulletinPage() {
           <div style={loadingPanelStyle}>최신 주보 확인 중...</div>
         ) : latest ? (
           <>
+            {latest.pdf_url ? (
+              <section style={pdfFrameWrapStyle}>
+                <iframe
+                  title={`${latest.title} PDF`}
+                  src={`${latest.pdf_url}#toolbar=1&navpanes=0`}
+                  style={pdfFrameStyle}
+                />
+              </section>
+            ) : (
+              <section style={pdfFallbackStyle}>
+                저장된 PDF가 없어 교회 홈페이지 원문으로 연결합니다.
+              </section>
+            )}
+
             <article style={latestCardStyle}>
               <div style={latestIconStyle}>
                 <BookOpen size={26} strokeWidth={1.7} />
@@ -243,6 +257,42 @@ const titleStyle: React.CSSProperties = {
   lineHeight: 1.25,
   fontWeight: 850,
   letterSpacing: 0,
+};
+
+const pdfFrameWrapStyle: React.CSSProperties = {
+  width: "100%",
+  height: "calc(100vh - 132px)",
+  minHeight: 520,
+  maxHeight: 900,
+  border: "1px solid var(--hairline)",
+  borderRadius: 12,
+  background: "#fff",
+  overflow: "hidden",
+  marginBottom: 12,
+};
+
+const pdfFrameStyle: React.CSSProperties = {
+  width: "100%",
+  height: "100%",
+  border: "none",
+  display: "block",
+  background: "#fff",
+};
+
+const pdfFallbackStyle: React.CSSProperties = {
+  minHeight: 180,
+  borderRadius: 12,
+  border: "1px solid var(--hairline)",
+  background: "var(--surface)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "var(--ink-soft)",
+  fontSize: 13,
+  lineHeight: 1.5,
+  padding: 16,
+  marginBottom: 12,
+  textAlign: "center",
 };
 
 const latestCardStyle: React.CSSProperties = {
