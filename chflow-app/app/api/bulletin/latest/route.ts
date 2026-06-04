@@ -41,6 +41,7 @@ const VIEW_BASE = "http://www.ums.or.kr/bbs/zboard.php";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const BUCKET = "bulletins";
 let publicListCache: CacheValue | null = null;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const BROWSER_HEADERS = {
   "User-Agent":
@@ -97,6 +98,33 @@ function textFromHtml(value: string) {
 function absoluteJuboUrl(href: string) {
   const normalized = href.startsWith("?") ? `${VIEW_BASE}${href}` : href;
   return new URL(normalized, "http://www.ums.or.kr/bbs/").toString();
+}
+
+function isoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getPreferredSundayTargets(now = new Date()) {
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const todayUtc = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate());
+  const dayOfWeek = new Date(todayUtc).getUTCDay();
+  const currentSunday = new Date(todayUtc - dayOfWeek * DAY_MS);
+  const nextSunday = new Date(currentSunday.getTime() + 7 * DAY_MS);
+
+  return {
+    nextSunday: isoDate(nextSunday),
+    currentSunday: isoDate(currentSunday),
+  };
+}
+
+function pickPreferredBulletin(items: BulletinItem[]) {
+  const targets = getPreferredSundayTargets();
+  return (
+    items.find((item) => item.issue_date === targets.nextSunday) ||
+    items.find((item) => item.issue_date === targets.currentSunday) ||
+    items[0] ||
+    null
+  );
 }
 
 function parseJuboList(html: string): BulletinItem[] {
@@ -220,20 +248,22 @@ export async function GET(req: NextRequest) {
     if (stored.length > 0) {
       return NextResponse.json({
         ok: true,
-        latest: stored[0] ?? null,
+        latest: pickPreferredBulletin(stored),
         items: stored,
         source: "storage",
         cached: false,
+        preferred_dates: getPreferredSundayTargets(),
       });
     }
 
     const publicItems = await loadPublicItems();
     return NextResponse.json({
       ok: true,
-      latest: publicItems.items[0] ?? null,
+      latest: pickPreferredBulletin(publicItems.items),
       items: publicItems.items,
       source: publicItems.source,
       cached: true,
+      preferred_dates: getPreferredSundayTargets(),
     });
   } catch (e) {
     return NextResponse.json(

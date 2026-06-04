@@ -38,6 +38,7 @@ export default function BulletinPage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
   const [items, setItems] = useState<BulletinItem[]>([]);
+  const [selected, setSelected] = useState<BulletinItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -53,6 +54,7 @@ export default function BulletinPage() {
       throw new Error(data.error || "주보 목록을 불러오지 못했습니다");
     }
     setItems(data.items || []);
+    setSelected(data.latest || data.items?.[0] || null);
   };
 
   useEffect(() => {
@@ -103,7 +105,7 @@ export default function BulletinPage() {
     );
   }
 
-  const latest = items[0] ?? null;
+  const latest = selected || items[0] || null;
 
   return (
     <main style={pageStyle}>
@@ -136,7 +138,7 @@ export default function BulletinPage() {
                 <BookOpen size={26} strokeWidth={1.7} />
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={badgeStyle}>최신 주보</div>
+                <div style={badgeStyle}>{latest.issue_date === items[0]?.issue_date ? "기본 주보" : "선택한 주보"}</div>
                 <h2 style={latestTitleStyle}>{latest.title}</h2>
                 <div style={metaStyle}>
                   {formatDate(latest.issue_date)} 발행
@@ -151,9 +153,17 @@ export default function BulletinPage() {
             </article>
 
             <section style={listStyle}>
-              <div style={sectionTitleStyle}>최근 주보</div>
+              <div style={sectionTitleStyle}>주보 목록</div>
               {items.slice(0, 10).map((item) => (
-                <a key={`${item.no}-${item.issue_date}`} href={item.pdf_url || item.url} target="_blank" rel="noopener noreferrer" style={rowStyle}>
+                <button
+                  key={`${item.no}-${item.issue_date}`}
+                  type="button"
+                  onClick={() => setSelected(item)}
+                  style={{
+                    ...rowStyle,
+                    ...(item.issue_date === latest.issue_date ? selectedRowStyle : null),
+                  }}
+                >
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={rowTitleStyle}>{item.title}</div>
                     <div style={rowMetaStyle}>
@@ -161,8 +171,10 @@ export default function BulletinPage() {
                       {item.volume ? ` · ${item.volume}` : ""}
                     </div>
                   </div>
-                  <ExternalLink size={16} strokeWidth={1.8} style={{ flexShrink: 0, color: "#3E5A4A" }} />
-                </a>
+                  <span style={item.issue_date === latest.issue_date ? activeTextStyle : chooseTextStyle}>
+                    {item.issue_date === latest.issue_date ? "선택됨" : "선택"}
+                  </span>
+                </button>
               ))}
             </section>
 
@@ -323,14 +335,25 @@ const sectionTitleStyle: React.CSSProperties = {
 };
 
 const rowStyle: React.CSSProperties = {
+  width: "100%",
   minHeight: 68,
   padding: "12px 16px",
   display: "flex",
   alignItems: "center",
   gap: 12,
   borderBottom: "1px solid var(--hairline)",
-  textDecoration: "none",
+  borderLeft: "none",
+  borderRight: "none",
+  borderTop: "none",
+  background: "transparent",
   color: "var(--ink)",
+  textAlign: "left",
+  fontFamily: "inherit",
+  cursor: "pointer",
+};
+
+const selectedRowStyle: React.CSSProperties = {
+  background: "rgba(62, 90, 74, 0.08)",
 };
 
 const rowTitleStyle: React.CSSProperties = {
@@ -346,6 +369,20 @@ const rowMetaStyle: React.CSSProperties = {
   fontSize: 12,
   color: "var(--ink-soft)",
   lineHeight: 1.35,
+};
+
+const chooseTextStyle: React.CSSProperties = {
+  minWidth: 48,
+  flexShrink: 0,
+  color: "#3E5A4A",
+  fontSize: 12,
+  fontWeight: 850,
+  textAlign: "right",
+};
+
+const activeTextStyle: React.CSSProperties = {
+  ...chooseTextStyle,
+  color: "#A4884E",
 };
 
 const noticeStyle: React.CSSProperties = {
