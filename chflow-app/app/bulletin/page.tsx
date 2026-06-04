@@ -5,6 +5,7 @@ import type React from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, BookOpen, ExternalLink, List, RefreshCw, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import PdfCanvasViewer from "@/components/PdfCanvasViewer";
 
 type BulletinItem = {
   no: number;
@@ -141,10 +142,10 @@ export default function BulletinPage() {
           <>
             {latest.pdf_url ? (
               <section style={pdfFrameWrapStyle}>
-                <iframe
-                  title={`${latest.title} PDF`}
-                  src={`${latest.pdf_url}#toolbar=1&navpanes=0`}
-                  style={pdfFrameStyle}
+                <PdfCanvasViewer
+                  key={latest.pdf_url}
+                  url={latest.pdf_url}
+                  fallbackUrl={latest.pdf_url || latest.url}
                 />
               </section>
             ) : (
@@ -289,14 +290,6 @@ const pdfFrameWrapStyle: React.CSSProperties = {
   background: "#fff",
   overflow: "hidden",
   marginBottom: 12,
-};
-
-const pdfFrameStyle: React.CSSProperties = {
-  width: "100%",
-  height: "100%",
-  border: "none",
-  display: "block",
-  background: "#fff",
 };
 
 const pdfFallbackStyle: React.CSSProperties = {
