@@ -1,0 +1,417 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type React from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, BookOpen, ExternalLink, RefreshCw } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+
+type BulletinItem = {
+  no: number;
+  title: string;
+  volume: string | null;
+  issue_date: string | null;
+  posted_at: string | null;
+  author: string | null;
+  url: string;
+  pdf_url?: string | null;
+  stored?: boolean;
+};
+
+type BulletinResponse = {
+  ok: boolean;
+  latest: BulletinItem | null;
+  items: BulletinItem[];
+  source?: string;
+  cached?: boolean;
+  error?: string;
+};
+
+function formatDate(value: string | null) {
+  if (!value) return "-";
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return value;
+  return `${match[1]}년 ${Number(match[2])}월 ${Number(match[3])}일`;
+}
+
+export default function BulletinPage() {
+  const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
+  const [items, setItems] = useState<BulletinItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadBulletins = async (accessToken: string) => {
+    setError("");
+    const res = await fetch("/api/bulletin/latest", {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const data = (await res.json()) as BulletinResponse;
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || "주보 목록을 불러오지 못했습니다");
+    }
+    setItems(data.items || []);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
+      if (!cancelled) setAuthChecked(true);
+
+      try {
+        await loadBulletins(session.access_token);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "주보 목록을 불러오지 못했습니다");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
+      await loadBulletins(session.access_token);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "주보 목록을 불러오지 못했습니다");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  if (!authChecked) {
+    return (
+      <main style={pageStyle}>
+        <div style={loadingStyle}>불러오는 중...</div>
+      </main>
+    );
+  }
+
+  const latest = items[0] ?? null;
+
+  return (
+    <main style={pageStyle}>
+      <section style={shellStyle}>
+        <header style={headerStyle}>
+          <button type="button" onClick={() => router.push("/home")} aria-label="홈으로" style={iconButtonStyle}>
+            <ArrowLeft size={20} strokeWidth={1.8} />
+          </button>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={eyebrowStyle}>명성교회</div>
+            <h1 style={titleStyle}>주보 보기</h1>
+          </div>
+          <button type="button" onClick={refresh} aria-label="새로고침" disabled={refreshing} style={iconButtonStyle}>
+            <RefreshCw size={19} strokeWidth={1.8} style={{ transform: refreshing ? "rotate(28deg)" : undefined }} />
+          </button>
+        </header>
+
+        {error ? (
+          <div style={emptyStyle}>
+            <div style={emptyTitleStyle}>주보 목록을 가져오지 못했습니다</div>
+            <div style={emptyTextStyle}>{error}</div>
+            <button type="button" onClick={refresh} style={primaryButtonStyle}>다시 불러오기</button>
+          </div>
+        ) : loading ? (
+          <div style={loadingPanelStyle}>최신 주보 확인 중...</div>
+        ) : latest ? (
+          <>
+            <article style={latestCardStyle}>
+              <div style={latestIconStyle}>
+                <BookOpen size={26} strokeWidth={1.7} />
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={badgeStyle}>최신 주보</div>
+                <h2 style={latestTitleStyle}>{latest.title}</h2>
+                <div style={metaStyle}>
+                  {formatDate(latest.issue_date)} 발행
+                  {latest.posted_at ? ` · ${formatDate(latest.posted_at)} 등록` : ""}
+                </div>
+                {latest.volume && <div style={volumeStyle}>{latest.volume}</div>}
+              </div>
+              <a href={latest.pdf_url || latest.url} target="_blank" rel="noopener noreferrer" style={openButtonStyle}>
+                <span>{latest.pdf_url ? "PDF 보기" : "원문 보기"}</span>
+                <ExternalLink size={16} strokeWidth={1.8} />
+              </a>
+            </article>
+
+            <section style={listStyle}>
+              <div style={sectionTitleStyle}>최근 주보</div>
+              {items.slice(0, 10).map((item) => (
+                <a key={`${item.no}-${item.issue_date}`} href={item.pdf_url || item.url} target="_blank" rel="noopener noreferrer" style={rowStyle}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={rowTitleStyle}>{item.title}</div>
+                    <div style={rowMetaStyle}>
+                      {formatDate(item.issue_date)}
+                      {item.volume ? ` · ${item.volume}` : ""}
+                    </div>
+                  </div>
+                  <ExternalLink size={16} strokeWidth={1.8} style={{ flexShrink: 0, color: "#3E5A4A" }} />
+                </a>
+              ))}
+            </section>
+
+            <div style={noticeStyle}>
+              {latest.pdf_url
+                ? "저장된 주보 PDF는 SmartMS 인증 회원에게만 제공됩니다."
+                : "아직 저장된 주보 PDF가 없어 교회 홈페이지 원문으로 연결합니다."}
+            </div>
+          </>
+        ) : (
+          <div style={emptyStyle}>
+            <div style={emptyTitleStyle}>표시할 주보가 없습니다</div>
+            <button type="button" onClick={refresh} style={primaryButtonStyle}>다시 불러오기</button>
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
+
+const pageStyle: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "var(--bg)",
+  color: "var(--ink)",
+  fontFamily: "'Noto Sans KR', var(--app-sans), sans-serif",
+  padding: "clamp(12px, 4vw, 24px)",
+};
+
+const shellStyle: React.CSSProperties = {
+  width: "100%",
+  maxWidth: 900,
+  margin: "0 auto",
+};
+
+const headerStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  marginBottom: 16,
+};
+
+const iconButtonStyle: React.CSSProperties = {
+  width: 42,
+  height: 42,
+  borderRadius: 10,
+  border: "1px solid var(--hairline)",
+  background: "var(--surface)",
+  color: "var(--ink)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  flexShrink: 0,
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 800,
+  color: "var(--accent)",
+  lineHeight: 1.2,
+};
+
+const titleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 24,
+  lineHeight: 1.25,
+  fontWeight: 850,
+  letterSpacing: 0,
+};
+
+const latestCardStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 14,
+  border: "1px solid rgba(62, 90, 74, 0.22)",
+  borderRadius: 14,
+  background: "linear-gradient(135deg, rgba(251,248,241,0.98), rgba(234,239,232,0.92))",
+  padding: "clamp(16px, 4vw, 22px)",
+  marginBottom: 14,
+  flexWrap: "wrap",
+};
+
+const latestIconStyle: React.CSSProperties = {
+  width: 52,
+  height: 52,
+  borderRadius: 12,
+  background: "#EAF3ED",
+  color: "#2F6B4F",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+};
+
+const badgeStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 24,
+  padding: "0 9px",
+  borderRadius: 999,
+  background: "#EAF3ED",
+  color: "#2F6B4F",
+  fontSize: 12,
+  fontWeight: 800,
+  marginBottom: 8,
+};
+
+const latestTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "clamp(20px, 4.8vw, 28px)",
+  lineHeight: 1.25,
+  fontWeight: 850,
+  letterSpacing: 0,
+};
+
+const metaStyle: React.CSSProperties = {
+  marginTop: 8,
+  fontSize: 13,
+  lineHeight: 1.5,
+  color: "var(--ink-soft)",
+};
+
+const volumeStyle: React.CSSProperties = {
+  marginTop: 5,
+  fontSize: 12,
+  fontWeight: 700,
+  color: "#A4884E",
+};
+
+const openButtonStyle: React.CSSProperties = {
+  minHeight: 40,
+  padding: "0 14px",
+  borderRadius: 10,
+  background: "#3E5A4A",
+  color: "#FFFDF7",
+  textDecoration: "none",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 7,
+  fontSize: 13,
+  fontWeight: 850,
+  flexShrink: 0,
+};
+
+const listStyle: React.CSSProperties = {
+  border: "1px solid var(--hairline)",
+  borderRadius: 14,
+  background: "var(--surface)",
+  overflow: "hidden",
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  padding: "13px 16px",
+  borderBottom: "1px solid var(--hairline)",
+  fontSize: 14,
+  fontWeight: 850,
+};
+
+const rowStyle: React.CSSProperties = {
+  minHeight: 68,
+  padding: "12px 16px",
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  borderBottom: "1px solid var(--hairline)",
+  textDecoration: "none",
+  color: "var(--ink)",
+};
+
+const rowTitleStyle: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 800,
+  lineHeight: 1.35,
+  wordBreak: "keep-all",
+  overflowWrap: "anywhere",
+};
+
+const rowMetaStyle: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 12,
+  color: "var(--ink-soft)",
+  lineHeight: 1.35,
+};
+
+const noticeStyle: React.CSSProperties = {
+  marginTop: 12,
+  padding: "12px 14px",
+  borderRadius: 12,
+  background: "rgba(164, 136, 78, 0.1)",
+  color: "#725A3A",
+  fontSize: 12,
+  lineHeight: 1.6,
+};
+
+const loadingStyle: React.CSSProperties = {
+  minHeight: "70vh",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "var(--ink-soft)",
+  fontSize: 14,
+};
+
+const loadingPanelStyle: React.CSSProperties = {
+  minHeight: 180,
+  borderRadius: 14,
+  border: "1px solid var(--hairline)",
+  background: "var(--surface)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "var(--ink-soft)",
+};
+
+const emptyStyle: React.CSSProperties = {
+  minHeight: 220,
+  borderRadius: 14,
+  border: "1px solid var(--hairline)",
+  background: "var(--surface)",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 10,
+  padding: 20,
+  textAlign: "center",
+};
+
+const emptyTitleStyle: React.CSSProperties = {
+  fontSize: 16,
+  fontWeight: 850,
+};
+
+const emptyTextStyle: React.CSSProperties = {
+  maxWidth: 480,
+  fontSize: 13,
+  color: "var(--ink-soft)",
+  lineHeight: 1.5,
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  minHeight: 38,
+  padding: "0 14px",
+  borderRadius: 10,
+  border: "none",
+  background: "#3E5A4A",
+  color: "#FFFDF7",
+  fontSize: 13,
+  fontWeight: 850,
+  cursor: "pointer",
+};

@@ -1,19 +1,24 @@
-// Supabase Edge Function: UMS 게시판/PDF 프록시
+// Supabase Edge Function: UMS board/PDF proxy.
+// Vercel server functions can be blocked by ums.or.kr from some regions, so
+// app APIs call this proxy for board HTML and PDF downloads.
 //
-// Vercel(iad1) 함수에서 ums.or.kr 호출 시 일부 IP가 "Access denied"로 차단됨.
-// Supabase Edge Function 은 다른 IP 풀에서 실행되므로 우회용으로 사용.
-//
-// 동작:
-//   GET ?action=list                -> 게시판 HTML (text)
-//   GET ?action=post&no=<번호>      -> 게시글 본문 HTML (text)
-//   GET ?action=pdf&no=<번호>       -> PDF 바이너리 (m_download.php 경유, 차단 가능)
-//   GET ?action=raw_pdf&path=<경로> -> 정적 PDF 직접 (m_download.php 우회용)
+// GET ?action=list&board=samusil|jubo
+// GET ?action=post&board=samusil|jubo&no=<number>
+// GET ?action=pdf&board=samusil|jubo&no=<number>
+// GET ?action=raw_pdf&board=samusil|jubo&path=<pdf-path>
 
 const BOARD_BASE = "http://ums.or.kr/bbs";
-const LIST_URL = `${BOARD_BASE}/zboard.php?id=samusil&page=1`;
-const POST_URL = (no: number) => `${BOARD_BASE}/zboard.php?id=samusil&no=${no}`;
-const FILE_URL = (no: number) =>
-  `${BOARD_BASE}/skin/PSM_Revolution_DragDrop_board_domi_t_reply_comment/m_download.php?id=samusil&no=${no}&filenum=0&snum=0&hit=0`;
+const ALLOWED_BOARDS = new Set(["samusil", "jubo"]);
+
+const boardOf = (url: URL) => {
+  const board = url.searchParams.get("board") || "samusil";
+  return ALLOWED_BOARDS.has(board) ? board : "samusil";
+};
+
+const LIST_URL = (board: string) => `${BOARD_BASE}/zboard.php?id=${board}&page=1`;
+const POST_URL = (board: string, no: number) => `${BOARD_BASE}/zboard.php?id=${board}&no=${no}`;
+const FILE_URL = (board: string, no: number) =>
+  `${BOARD_BASE}/skin/PSM_Revolution_DragDrop_board_domi_t_reply_comment/m_download.php?id=${board}&no=${no}&filenum=0&snum=0&hit=0`;
 const RAW_PDF_URL = (path: string) => `${BOARD_BASE}/${path.replace(/^\/+/, "")}`;
 
 const BROWSER_HEADERS = {
@@ -31,9 +36,6 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// 검증 결과 ums.or.kr 이 같은 IP에서 첫 요청 일부를 "Access denied"(14자) 로 막고
-// 짧은 시간 안에 재시도하면 통과시키는 패턴이 있음. 응답이 1000자 미만이면
-// 최대 5회까지 점진적 백오프로 재시도.
 async function fetchUms(url: string, refererOverride?: string): Promise<Response> {
   const headers = refererOverride
     ? { ...BROWSER_HEADERS, Referer: refererOverride }
@@ -47,6 +49,7 @@ async function fetchUms(url: string, refererOverride?: string): Promise<Response
     buf = new Uint8Array(await res.clone().arrayBuffer());
     if (buf.byteLength > 1000 && res.status < 400) break;
   }
+
   return new Response(buf, {
     status: res.status,
     headers: {
@@ -63,11 +66,13 @@ Deno.serve(async (req: Request) => {
 
   const url = new URL(req.url);
   const action = url.searchParams.get("action");
+  const board = boardOf(url);
 
   try {
     if (action === "list") {
-      return await fetchUms(LIST_URL);
+      return await fetchUms(LIST_URL(board));
     }
+
     if (action === "post") {
       const no = url.searchParams.get("no");
       if (!no || !/^\d+$/.test(no)) {
@@ -76,8 +81,9 @@ Deno.serve(async (req: Request) => {
           headers: { "Content-Type": "application/json", ...CORS },
         });
       }
-      return await fetchUms(POST_URL(parseInt(no, 10)), `${BOARD_BASE}/zboard.php?id=samusil`);
+      return await fetchUms(POST_URL(board, parseInt(no, 10)), `${BOARD_BASE}/zboard.php?id=${board}`);
     }
+
     if (action === "pdf") {
       const no = url.searchParams.get("no");
       if (!no || !/^\d+$/.test(no)) {
@@ -86,9 +92,9 @@ Deno.serve(async (req: Request) => {
           headers: { "Content-Type": "application/json", ...CORS },
         });
       }
-      // m_download.php 호출 시 게시글 페이지를 referer 로 — 일부 호스팅의 hotlink 검증 통과용
-      return await fetchUms(FILE_URL(parseInt(no, 10)), POST_URL(parseInt(no, 10)));
+      return await fetchUms(FILE_URL(board, parseInt(no, 10)), POST_URL(board, parseInt(no, 10)));
     }
+
     if (action === "raw_pdf") {
       const path = url.searchParams.get("path");
       if (!path || !/^[a-zA-Z0-9_./-]+\.pdf$/i.test(path)) {
@@ -97,8 +103,9 @@ Deno.serve(async (req: Request) => {
           headers: { "Content-Type": "application/json", ...CORS },
         });
       }
-      return await fetchUms(RAW_PDF_URL(path), `${BOARD_BASE}/zboard.php?id=samusil`);
+      return await fetchUms(RAW_PDF_URL(path), `${BOARD_BASE}/zboard.php?id=${board}`);
     }
+
     return new Response(JSON.stringify({ error: "action=list|post|pdf|raw_pdf" }), {
       status: 400,
       headers: { "Content-Type": "application/json", ...CORS },
