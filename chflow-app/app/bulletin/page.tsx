@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BookOpen, ExternalLink, RefreshCw } from "lucide-react";
+import { ArrowLeft, BookOpen, ExternalLink, List, RefreshCw, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type BulletinItem = {
@@ -42,6 +42,7 @@ export default function BulletinPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [showList, setShowList] = useState(false);
 
   const loadBulletins = async (accessToken: string) => {
     setError("");
@@ -118,6 +119,11 @@ export default function BulletinPage() {
             <div style={eyebrowStyle}>명성교회</div>
             <h1 style={titleStyle}>주보 보기</h1>
           </div>
+          {items.length > 0 && (
+            <button type="button" onClick={() => setShowList((v) => !v)} aria-label="주보 목록" style={iconButtonStyle}>
+              <List size={19} strokeWidth={1.8} />
+            </button>
+          )}
           <button type="button" onClick={refresh} aria-label="새로고침" disabled={refreshing} style={iconButtonStyle}>
             <RefreshCw size={19} strokeWidth={1.8} style={{ transform: refreshing ? "rotate(28deg)" : undefined }} />
           </button>
@@ -166,31 +172,45 @@ export default function BulletinPage() {
               </a>
             </article>
 
-            <section style={listStyle}>
-              <div style={sectionTitleStyle}>주보 목록</div>
-              {items.slice(0, 10).map((item) => (
-                <button
-                  key={`${item.no}-${item.issue_date}`}
-                  type="button"
-                  onClick={() => setSelected(item)}
-                  style={{
-                    ...rowStyle,
-                    ...(item.issue_date === latest.issue_date ? selectedRowStyle : null),
-                  }}
-                >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={rowTitleStyle}>{item.title}</div>
-                    <div style={rowMetaStyle}>
-                      {formatDate(item.issue_date)}
-                      {item.volume ? ` · ${item.volume}` : ""}
-                    </div>
+            {showList && (
+              <div style={listOverlayStyle} onClick={() => setShowList(false)}>
+                <div style={listStyle} onClick={(e) => e.stopPropagation()}>
+                  <div style={listHeaderRowStyle}>
+                    <span style={sectionTitleTextStyle}>주보 목록</span>
+                    <button type="button" onClick={() => setShowList(false)} aria-label="닫기" style={listCloseStyle}>
+                      <X size={18} strokeWidth={1.9} />
+                    </button>
                   </div>
-                  <span style={item.issue_date === latest.issue_date ? activeTextStyle : chooseTextStyle}>
-                    {item.issue_date === latest.issue_date ? "선택됨" : "선택"}
-                  </span>
-                </button>
-              ))}
-            </section>
+                  <div style={listScrollStyle}>
+                    {items.slice(0, 10).map((item) => (
+                      <button
+                        key={`${item.no}-${item.issue_date}`}
+                        type="button"
+                        onClick={() => {
+                          setSelected(item);
+                          setShowList(false);
+                        }}
+                        style={{
+                          ...rowStyle,
+                          ...(item.issue_date === latest.issue_date ? selectedRowStyle : null),
+                        }}
+                      >
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={rowTitleStyle}>{item.title}</div>
+                          <div style={rowMetaStyle}>
+                            {formatDate(item.issue_date)}
+                            {item.volume ? ` · ${item.volume}` : ""}
+                          </div>
+                        </div>
+                        <span style={item.issue_date === latest.issue_date ? activeTextStyle : chooseTextStyle}>
+                          {item.issue_date === latest.issue_date ? "선택됨" : "선택"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div style={noticeStyle}>
               {latest.pdf_url
@@ -370,18 +390,62 @@ const openButtonStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
+const listOverlayStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 50,
+  background: "rgba(20, 26, 22, 0.45)",
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "center",
+  padding: "clamp(16px, 6vh, 64px) 16px",
+  overflowY: "auto",
+};
+
 const listStyle: React.CSSProperties = {
+  width: "100%",
+  maxWidth: 520,
+  maxHeight: "80vh",
+  display: "flex",
+  flexDirection: "column",
   border: "1px solid var(--hairline)",
   borderRadius: 14,
   background: "var(--surface)",
   overflow: "hidden",
+  boxShadow: "0 18px 48px rgba(20, 26, 22, 0.28)",
 };
 
-const sectionTitleStyle: React.CSSProperties = {
-  padding: "13px 16px",
+const listHeaderRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+  padding: "11px 12px 11px 16px",
   borderBottom: "1px solid var(--hairline)",
+  flexShrink: 0,
+};
+
+const sectionTitleTextStyle: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 850,
+};
+
+const listCloseStyle: React.CSSProperties = {
+  width: 34,
+  height: 34,
+  borderRadius: 9,
+  border: "1px solid var(--hairline)",
+  background: "var(--surface)",
+  color: "var(--ink)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  flexShrink: 0,
+};
+
+const listScrollStyle: React.CSSProperties = {
+  overflowY: "auto",
 };
 
 const rowStyle: React.CSSProperties = {
