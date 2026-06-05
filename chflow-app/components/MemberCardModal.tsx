@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, formatPhone } from "@/lib/supabase";
 import ModalBackdrop from "./ModalBackdrop";
@@ -11,11 +11,52 @@ interface Props {
   onChanged?: () => void;
 }
 
+interface MemberProfile {
+  id: string;
+  name: string;
+  phone: string | null;
+  gender: string | null;
+  family_church: string | null;
+  sub_role: string | null;
+  spouse_name: string | null;
+  is_child: boolean;
+  photo_url: string | null;
+  plain_name: string | null;
+  grassland_name: string | null;
+  pasture_name: string | null;
+  address: string | null;
+}
+
+interface RelationItem {
+  id?: string;
+  relative_id: string;
+  name: string;
+  kind: string;
+  role: string | null;
+  phone: string | null;
+  photo_url: string | null;
+  plain_name: string | null;
+  pasture_name: string | null;
+}
+
+interface MemberCandidate {
+  id: string;
+  name: string;
+  phone: string | null;
+  photo_url: string | null;
+  birth_date: string | null;
+  is_child: boolean;
+  plain_name: string | null;
+  pasture_name: string | null;
+  family_church: string | null;
+  sub_role: string | null;
+}
+
 interface ProfileData {
-  member: any;
-  household_members: any[] | null;
-  relations: any[] | null;
-  descendants: any[] | null;
+  member: MemberProfile;
+  household_members: MemberProfile[] | null;
+  relations: RelationItem[] | null;
+  descendants: RelationItem[] | null;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -37,7 +78,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [edit, setEdit] = useState<any>({});
+  const [edit, setEdit] = useState<Partial<MemberProfile>>({});
   const [uploading, setUploading] = useState(false);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [showRelAdd, setShowRelAdd] = useState<false | "parent" | "child">(false);
@@ -51,7 +92,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
       const { data: cands } = await supabase.rpc("search_member_candidates", {
         p_name: candidateName, p_phone: null, p_limit: 10,
       });
-      const adults = (cands || []).filter((c: any) => !c.is_child);
+      const adults = ((cands || []) as MemberCandidate[]).filter((c) => !c.is_child);
       if (adults.length === 1) { setStack(prev => [...prev, adults[0].id]); return; }
       if (adults.length > 1) {
         // 여러 명이면 그 중 전화번호/가족 힌트 없으니 첫 번째로. 필요시 선택 UI 확장.
@@ -63,18 +104,19 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   };
   const goBack = () => setStack(prev => prev.length > 1 ? prev.slice(0, -1) : prev);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase.rpc("admin_member_profile", { p_member_id: currentId });
     if (!error && data) {
-      setData(data);
-      setEdit(data.member);
+      const profile = data as ProfileData;
+      setData(profile);
+      setEdit(profile.member);
     }
     setLoading(false);
     setEditing(false);
-  };
+  }, [currentId]);
 
-  useEffect(() => { load(); }, [currentId]);
+  useEffect(() => { load(); }, [load]);
 
   const goToPasture = () => {
     if (!data?.member?.pasture_name) return;
@@ -308,13 +350,13 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
           {data.household_members && data.household_members.length > 0 && (
             <Section title={`👨‍👩‍👧 같은 가족 (${data.household_members.length})`}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {data.household_members.map((hm: any) => (
+                {data.household_members.map((hm) => (
                   <MemberChip key={hm.id} name={hm.name} photoUrl={hm.photo_url}
-                    subtitle={hm.is_child ? "자녀" : (hm.sub_role || hm.family_church)}
+                    subtitle={hm.is_child ? "자녀" : (hm.sub_role || hm.family_church || undefined)}
                     onClick={() => navigateTo(hm.id, hm.name, hm.is_child)} />
                 ))}
               </div>
-              {data.household_members.some((hm: any) => hm.is_child) && (
+              {data.household_members.some((hm) => hm.is_child) && (
                 <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 6 }}>
                   💡 자녀를 클릭하면 같은 이름의 성인 성도가 있을 경우 그 성도 카드로 이동합니다.
                 </div>
@@ -324,7 +366,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
 
           {/* 부모/조상 (토글) — 부모·조부모·증조부모만, 배우자/형제자매 제외 */}
           {showParents && (() => {
-            const ancestors = (data.relations || []).filter((r: any) =>
+            const ancestors = (data.relations || []).filter((r) =>
               ["parent", "grandparent", "great_grandparent"].includes(r.kind));
             return (
               <Section title="👴 부모·조부모" action={
@@ -332,7 +374,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
               }>
                 {ancestors.length > 0 ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {ancestors.map((r: any, i: number) => (
+                    {ancestors.map((r, i: number) => (
                       <RelationRow key={i} relation={r}
                         onClick={() => navigateTo(r.relative_id)}
                         onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "ancestor")} />
@@ -347,7 +389,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
 
           {/* 자녀/후손 (토글) — 자녀·손주·증손주만 */}
           {showChildren && (() => {
-            const desc = (data.descendants || []).filter((r: any) =>
+            const desc = (data.descendants || []).filter((r) =>
               ["parent", "grandparent", "great_grandparent"].includes(r.kind));
             return (
               <Section title="👶 자녀·손주" action={
@@ -355,7 +397,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
               }>
                 {desc.length > 0 ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {desc.map((r: any, i: number) => (
+                    {desc.map((r, i: number) => (
                       <RelationRow key={i} relation={r} reversed
                         onClick={() => navigateTo(r.relative_id)}
                         onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "descendant")} />
@@ -417,8 +459,8 @@ function MemberChip({ name, photoUrl, subtitle, onClick }: { name: string; photo
   );
 }
 
-function RelationRow({ relation, reversed, onRemove, onClick }: { relation: any; reversed?: boolean; onRemove: () => void; onClick?: () => void }) {
-  const roleLabel = ROLE_LABELS[relation.role] || relation.role || relation.kind;
+function RelationRow({ relation, reversed, onRemove, onClick }: { relation: RelationItem; reversed?: boolean; onRemove: () => void; onClick?: () => void }) {
+  const roleLabel = relation.role ? (ROLE_LABELS[relation.role] || relation.role) : relation.kind;
   return (
     <div onClick={onClick}
       style={{
@@ -467,9 +509,9 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [candidates, setCandidates] = useState<any[]>([]);
+  const [candidates, setCandidates] = useState<MemberCandidate[]>([]);
   const [searching, setSearching] = useState(false);
-  const [selected, setSelected] = useState<any>(null);
+  const [selected, setSelected] = useState<MemberCandidate | null>(null);
   const [kind, setKind] = useState<string>(initialKind || "parent");
   const [role, setRole] = useState<string>(initialKind === "child" ? "" : "father");
 
@@ -479,7 +521,7 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
     const { data } = await supabase.rpc("search_member_candidates", {
       p_name: name.trim(), p_phone: phone || null, p_limit: 10,
     });
-    setCandidates(data || []);
+    setCandidates((data || []) as MemberCandidate[]);
     setSearching(false);
   };
 

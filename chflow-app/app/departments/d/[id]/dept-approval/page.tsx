@@ -109,7 +109,6 @@ export default function DeptApprovalPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", paddingBottom: 60, fontFamily: "'Noto Sans KR', sans-serif" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       <HeaderLogo />
 
       <div style={{ maxWidth: 800, margin: "0 auto", padding: 16 }}>

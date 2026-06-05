@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -18,6 +18,18 @@ interface DeptMember {
   grade: number;
   status: string;
   joined_at: string;
+}
+
+interface DeptRow {
+  id: string;
+  category: string;
+  name: string;
+  icon: string | null;
+}
+
+interface DeptMemberCountRow {
+  department_id: string;
+  status: string;
 }
 
 const GRADES = [
@@ -43,21 +55,7 @@ export default function DeptStaffPage() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.replace("/login"); return; }
-      const { data } = await supabase.rpc("get_my_status");
-      const profile = data?.[0];
-      if (!profile || !["admin", "office", "pastor"].includes(profile.role)) {
-        router.replace("/home"); return;
-      }
-      setAuthChecked(true);
-      await loadDepts();
-    })();
-  }, []);
-
-  const loadDepts = async () => {
+  const loadDepts = useCallback(async () => {
     const { data: deptList } = await supabase
       .from("departments")
       .select("id, category, name, icon, order_no")
@@ -72,17 +70,31 @@ export default function DeptStaffPage() {
       .select("department_id, status");
 
     const countMap = new Map<string, number>();
-    (counts || []).forEach((c: any) => {
+    ((counts || []) as DeptMemberCountRow[]).forEach((c) => {
       if (c.status === "approved") {
         countMap.set(c.department_id, (countMap.get(c.department_id) || 0) + 1);
       }
     });
 
-    setDepts(deptList.map((d: any) => ({
+    setDepts((deptList as DeptRow[]).map((d) => ({
       id: d.id, category: d.category, name: d.name, icon: d.icon,
       member_count: countMap.get(d.id) || 0,
     })));
-  };
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace("/login"); return; }
+      const { data } = await supabase.rpc("get_my_status");
+      const profile = data?.[0];
+      if (!profile || !["admin", "office", "pastor"].includes(profile.role)) {
+        router.replace("/home"); return;
+      }
+      setAuthChecked(true);
+      await loadDepts();
+    })();
+  }, [loadDepts, router]);
 
   const loadMembers = async (dept: Dept) => {
     setSelectedDept(dept);
@@ -153,7 +165,6 @@ export default function DeptStaffPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif", padding: 16 }}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         {/* Header */}

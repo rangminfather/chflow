@@ -18,6 +18,14 @@ const SHEET_INFO: { key: SheetKey; label: string; desc: string; required?: boole
 
 const KEY_FILL = "8B4513"; // PK 컬럼은 갈색
 
+type RowValue = string | number | boolean | Date | null | undefined;
+type DataRow = Record<string, RowValue>;
+type DiffChange = Record<string, [RowValue, RowValue]>;
+
+function errorMessage(e: unknown) {
+  return e instanceof Error ? e.message : String(e);
+}
+
 export function ExportMembersModal({ onClose }: { onClose: () => void }) {
   const [sel, setSel] = useState<Record<SheetKey, boolean>>({
     Members: true, Relations: true, Ministries: false, Directory: false,
@@ -44,22 +52,22 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
         supabase.from("grasslands").select("*"),
         supabase.from("plains").select("*"),
       ]);
-      const hMap = new Map((hh.data || []).map((r: any) => [r.id, r]));
-      const pMap = new Map((pa.data || []).map((r: any) => [r.id, r]));
-      const gMap = new Map((gr.data || []).map((r: any) => [r.id, r]));
-      const plMap = new Map((pl.data || []).map((r: any) => [r.id, r]));
+      const hMap = new Map(((hh.data || []) as DataRow[]).map((r) => [r.id, r]));
+      const pMap = new Map(((pa.data || []) as DataRow[]).map((r) => [r.id, r]));
+      const gMap = new Map(((gr.data || []) as DataRow[]).map((r) => [r.id, r]));
+      const plMap = new Map(((pl.data || []) as DataRow[]).map((r) => [r.id, r]));
 
-      let relations: any[] = [];
+      let relations: DataRow[] = [];
       if (sel.Relations) {
         setProgress("가족관계 가져오는 중...");
         const { data } = await supabase.from("member_relations").select("*");
-        relations = data || [];
+        relations = (data || []) as DataRow[];
       }
-      let ministries: any[] = [];
+      let ministries: DataRow[] = [];
       if (sel.Ministries) {
         setProgress("직분/사역 가져오는 중...");
         const { data } = await supabase.from("member_ministries").select("*");
-        ministries = data || [];
+        ministries = (data || []) as DataRow[];
       }
 
       setProgress("엑셀 생성 중...");
@@ -86,12 +94,12 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
       if (sel.Members) {
         const rows = members
           .slice()
-          .sort((a: any, b: any) => (a.excel_row_no || 99999) - (b.excel_row_no || 99999) || (a.name || "").localeCompare(b.name || ""))
-          .map((m: any) => {
-            const hh2: any = hMap.get(m.household_id) || {};
-            const past: any = pMap.get(hh2.pasture_id) || {};
-            const grl: any = gMap.get(past.grassland_id) || {};
-            const pln: any = plMap.get(grl.plain_id) || {};
+          .sort((a: DataRow, b: DataRow) => Number(a.excel_row_no || 99999) - Number(b.excel_row_no || 99999) || String(a.name || "").localeCompare(String(b.name || "")))
+          .map((m: DataRow) => {
+            const hh2: DataRow = hMap.get(m.household_id) || {};
+            const past: DataRow = pMap.get(hh2.pasture_id) || {};
+            const grl: DataRow = gMap.get(past.grassland_id) || {};
+            const pln: DataRow = plMap.get(grl.plain_id) || {};
             return {
               id: m.id,
               excel_row_no: m.excel_row_no,
@@ -125,18 +133,18 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
 
       // Relations
       if (sel.Relations) {
-        const mMap = new Map(members.map((m: any) => [m.id, m]));
+        const mMap = new Map((members as DataRow[]).map((m) => [m.id, m]));
         const rows = relations
-          .map((r: any) => ({
+          .map((r) => ({
             id: r.id,
             subject_id: r.subject_id,
-            subject_name: (mMap.get(r.subject_id) as any)?.name || "",
+            subject_name: mMap.get(r.subject_id)?.name || "",
             relative_id: r.relative_id,
-            relative_name: (mMap.get(r.relative_id) as any)?.name || "",
+            relative_name: mMap.get(r.relative_id)?.name || "",
             kind: r.kind,
             role: r.role,
           }))
-          .sort((a, b) => a.subject_name.localeCompare(b.subject_name) || a.kind.localeCompare(b.kind));
+          .sort((a, b) => String(a.subject_name || "").localeCompare(String(b.subject_name || "")) || String(a.kind || "").localeCompare(String(b.kind || "")));
         const ws = XLSX.utils.json_to_sheet(rows);
         markPkCols(ws, ["id", "subject_id", "relative_id"]);
         XLSX.utils.book_append_sheet(wb, ws, "Relations");
@@ -144,11 +152,11 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
 
       // Ministries
       if (sel.Ministries) {
-        const mMap = new Map(members.map((m: any) => [m.id, m]));
-        const rows = ministries.map((x: any) => ({
+        const mMap = new Map((members as DataRow[]).map((m) => [m.id, m]));
+        const rows = ministries.map((x) => ({
           id: x.id,
           member_id: x.member_id,
-          member_name: (mMap.get(x.member_id) as any)?.name || "",
+          member_name: mMap.get(x.member_id)?.name || "",
           ministry: x.ministry,
           role: x.role,
           notes: x.notes,
@@ -160,10 +168,10 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
 
       // Directory
       if (sel.Directory) {
-        const rows = (hh.data || []).map((h: any) => {
-          const past: any = pMap.get(h.pasture_id) || {};
-          const grl: any = gMap.get(past.grassland_id) || {};
-          const pln: any = plMap.get(grl.plain_id) || {};
+        const rows = ((hh.data || []) as DataRow[]).map((h) => {
+          const past: DataRow = pMap.get(h.pasture_id) || {};
+          const grl: DataRow = gMap.get(past.grassland_id) || {};
+          const pln: DataRow = plMap.get(grl.plain_id) || {};
           return {
             household_id: h.id,
             plain_name: pln.name,
@@ -176,11 +184,11 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
             grassland_id: grl.id,
             plain_id: pln.id,
           };
-        }).sort((a: any, b: any) =>
-          (a.plain_name || "").localeCompare(b.plain_name || "")
-          || (a.grassland_name || "").localeCompare(b.grassland_name || "")
-          || (a.pasture_name || "").localeCompare(b.pasture_name || "")
-          || (a.order_no || 0) - (b.order_no || 0)
+        }).sort((a: DataRow, b: DataRow) =>
+          String(a.plain_name || "").localeCompare(String(b.plain_name || ""))
+          || String(a.grassland_name || "").localeCompare(String(b.grassland_name || ""))
+          || String(a.pasture_name || "").localeCompare(String(b.pasture_name || ""))
+          || Number(a.order_no || 0) - Number(b.order_no || 0)
         );
         const ws = XLSX.utils.json_to_sheet(rows);
         markPkCols(ws, ["household_id", "pasture_id", "grassland_id", "plain_id"]);
@@ -192,8 +200,8 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
       XLSX.writeFile(wb, fileName);
       setProgress(`✓ 다운로드 완료: ${fileName}`);
       setTimeout(onClose, 1500);
-    } catch (e: any) {
-      alert("백업 실패: " + (e?.message || String(e)));
+    } catch (e: unknown) {
+      alert("백업 실패: " + errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -300,9 +308,9 @@ interface DiffResult {
   sheet: string;
   table: string;
   label: string;
-  updates: { id: string; name: string; changes: Record<string, [any, any]>; row: any }[];
-  inserts: any[];
-  deletes: any[];
+  updates: { id: string; name: string; changes: DiffChange; row: DataRow }[];
+  inserts: DataRow[];
+  deletes: DataRow[];
   unchanged: number;
 }
 
@@ -327,8 +335,8 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
         if (!wb.SheetNames.includes(sheetName)) continue;
         const def = SHEET_DEFS[sheetName];
         const ws = wb.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json<any>(ws, { defval: null });
-        const excelRows = rows.map(r => normalizeRow(r, def.cols)).filter(r => r);
+        const rows = XLSX.utils.sheet_to_json<DataRow>(ws, { defval: null });
+        const excelRows = rows.map(r => normalizeRow(r, def.cols)).filter((r): r is DataRow => Boolean(r));
 
         setProgress(`[${sheetName}] DB 비교 중...`);
         const { data: dbRows } = await supabase.from(def.table).select("*");
@@ -341,8 +349,8 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
 
       setDiffs(results);
       setStep("preview");
-    } catch (e: any) {
-      alert("분석 실패: " + (e?.message || String(e)));
+    } catch (e: unknown) {
+      alert("분석 실패: " + errorMessage(e));
     } finally {
       setBusy(false);
       setProgress("");
@@ -400,8 +408,8 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
       setProgress("✓ 완료\n\n" + summary.join("\n"));
       setStep("done");
       onApplied?.();
-    } catch (e: any) {
-      alert("적용 실패: " + (e?.message || String(e)));
+    } catch (e: unknown) {
+      alert("적용 실패: " + errorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -583,8 +591,8 @@ function dateStamp() {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
 }
 
-function normalizeRow(r: any, cols: Record<string, string | null>): any | null {
-  const out: any = {};
+function normalizeRow(r: DataRow, cols: Record<string, string | null>): DataRow | null {
+  const out: DataRow = {};
   let hasAny = false;
   for (const [excelCol, dbCol] of Object.entries(cols)) {
     if (!dbCol) continue;
@@ -604,11 +612,11 @@ function normalizeRow(r: any, cols: Record<string, string | null>): any | null {
   return hasAny ? out : null;
 }
 
-function computeDiff(excelRows: any[], dbRows: any[], pk: string) {
+function computeDiff(excelRows: DataRow[], dbRows: DataRow[], pk: string) {
   const dbMap = new Map(dbRows.map(r => [r[pk], r]));
   const excelIds = new Set<string>();
-  const updates: { id: string; name: string; changes: Record<string, [any, any]>; row: any }[] = [];
-  const inserts: any[] = [];
+  const updates: { id: string; name: string; changes: DiffChange; row: DataRow }[] = [];
+  const inserts: DataRow[] = [];
   let unchanged = 0;
 
   for (const er of excelRows) {
@@ -617,13 +625,13 @@ function computeDiff(excelRows: any[], dbRows: any[], pk: string) {
       inserts.push(er);
       continue;
     }
-    excelIds.add(eid);
-    const dr: any = dbMap.get(eid);
+    excelIds.add(String(eid));
+    const dr = dbMap.get(eid);
     if (!dr) {
       inserts.push(er);
       continue;
     }
-    const changes: Record<string, [any, any]> = {};
+    const changes: DiffChange = {};
     for (const [k, v] of Object.entries(er)) {
       if (k === pk) continue;
       let dbV = dr[k];
@@ -638,13 +646,13 @@ function computeDiff(excelRows: any[], dbRows: any[], pk: string) {
       }
     }
     if (Object.keys(changes).length > 0) {
-      updates.push({ id: eid, name: dr.name || dr.subject_id || dr.member_id || "?", changes, row: er });
+      updates.push({ id: String(eid), name: String(dr.name || dr.subject_id || dr.member_id || "?"), changes, row: er });
     } else {
       unchanged++;
     }
   }
 
-  const deletes = dbRows.filter(r => !excelIds.has(r[pk]));
+  const deletes = dbRows.filter(r => !excelIds.has(String(r[pk])));
   return { updates, inserts, deletes, unchanged };
 }
 

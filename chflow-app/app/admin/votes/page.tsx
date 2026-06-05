@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -111,6 +111,13 @@ export default function AdminVotesPage() {
   const [results, setResults] = useState<ResultRow[]>([]);
   const [resultsLoading, setResultsLoading] = useState(false);
 
+  const loadVotes = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase.rpc("admin_get_votes");
+    setVotes(data || []);
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -124,14 +131,7 @@ export default function AdminVotesPage() {
       setAuthOk(true);
       await loadVotes();
     })();
-  }, [router]);
-
-  async function loadVotes() {
-    setLoading(true);
-    const { data } = await supabase.rpc("admin_get_votes");
-    setVotes(data || []);
-    setLoading(false);
-  }
+  }, [loadVotes, router]);
 
   function openCreate() {
     const now = new Date();
@@ -338,7 +338,6 @@ export default function AdminVotesPage() {
   if (!authOk) {
     return (
       <div style={centerStyle}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
         <div style={{ color: "#64748b", fontSize: 14 }}>로딩 중...</div>
       </div>
     );
@@ -348,7 +347,6 @@ export default function AdminVotesPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
       {/* 헤더 */}
       <div style={{

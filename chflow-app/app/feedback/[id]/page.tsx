@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -83,6 +83,21 @@ export default function FeedbackDetailPage() {
   // 이미지 뷰어
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data, error: e } = await supabase.rpc("get_feedback_post", { p_post_id: postId });
+    if (e) {
+      setError(e.message);
+      setPost(null);
+    } else if (!data) {
+      setError("게시글을 찾을 수 없습니다");
+      setPost(null);
+    } else {
+      setPost(data as PostDetail);
+    }
+    setLoading(false);
+  }, [postId]);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -93,8 +108,7 @@ export default function FeedbackDetailPage() {
       setAuthUserId(session.user.id);
       await load();
     })();
-    // eslint-disable-next-line
-  }, []);
+  }, [load, router]);
 
   // 페이지 진입 시 가드 entry 1개 추가
   useEffect(() => {
@@ -116,21 +130,6 @@ export default function FeedbackDetailPage() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [viewerUrl, router]);
-
-  async function load() {
-    setLoading(true);
-    const { data, error: e } = await supabase.rpc("get_feedback_post", { p_post_id: postId });
-    if (e) {
-      setError(e.message);
-      setPost(null);
-    } else if (!data) {
-      setError("게시글을 찾을 수 없습니다");
-      setPost(null);
-    } else {
-      setPost(data as PostDetail);
-    }
-    setLoading(false);
-  }
 
   function publicUrl(path: string): string {
     const { data } = supabase.storage.from("feedback-attachments").getPublicUrl(path);
@@ -247,7 +246,6 @@ export default function FeedbackDetailPage() {
 
   return (
     <div style={pageStyle}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
       <div style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>

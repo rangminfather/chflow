@@ -209,7 +209,6 @@ export default function MyClassAttendancePage() {
   if (!myTeacherId) {
     return (
       <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
         <div style={headerStyle}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
@@ -236,7 +235,6 @@ export default function MyClassAttendancePage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
       <style>{`
         .status-btn { transition: background 0.12s, border-color 0.12s, color 0.12s; }
         .status-btn:hover { border-color: #94a3b8; }

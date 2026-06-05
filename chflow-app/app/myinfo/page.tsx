@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, formatPhone, usernameToEmail } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -56,6 +56,11 @@ export default function MyInfoPage() {
 
   const [toast, setToast] = useState("");
 
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.rpc("get_my_profile_full");
+    if (!error && data?.[0]) setProfile(data[0]);
+  }, []);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -64,12 +69,7 @@ export default function MyInfoPage() {
       await load();
       setAuthChecked(true);
     })();
-  }, []);
-
-  const load = async () => {
-    const { data, error } = await supabase.rpc("get_my_profile_full");
-    if (!error && data?.[0]) setProfile(data[0]);
-  };
+  }, [load, router]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -155,7 +155,6 @@ export default function MyInfoPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif", paddingBottom: 40 }}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
       {/* Header */}
       <div style={{ background: "#fff", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e2e8f0" }}>

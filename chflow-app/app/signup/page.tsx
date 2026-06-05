@@ -338,7 +338,6 @@ export default function SignupPage() {
   if (step === "done") {
     return (
       <div style={pageStyle}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
         <div style={cardStyle}>
           <div style={{ fontSize: 64, marginBottom: 20, textAlign: "center" }}>🙏</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: "#1e293b", marginBottom: 12, textAlign: "center" }}>
@@ -360,7 +359,6 @@ export default function SignupPage() {
   if (step === "lookup") {
     return (
       <div style={pageStyle}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
         <div style={cardStyle}>
           <BackBar onBack={() => router.push("/login")} title="회원가입" />
 
@@ -466,7 +464,6 @@ export default function SignupPage() {
   if (step === "confirm" && matched) {
     return (
       <div style={pageStyle}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
         <div style={cardStyle}>
           <BackBar onBack={() => setStep("lookup")} title="본인 확인" />
 
@@ -560,7 +557,6 @@ export default function SignupPage() {
   if (step === "role") {
     return (
       <div style={pageStyle}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
         <div style={{ ...cardStyle, maxWidth: 720 }}>
           <BackBar onBack={() => setStep(matched ? "confirm" : "lookup")} title="직분 선택" />
 
@@ -645,7 +641,6 @@ export default function SignupPage() {
   // ============ Step 4: 정보 입력 ============
   return (
     <div style={pageStyle}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
       <div style={{ ...cardStyle, maxWidth: 480 }}>
         <BackBar onBack={() => setStep("role")} title="가입 정보 입력" />
 

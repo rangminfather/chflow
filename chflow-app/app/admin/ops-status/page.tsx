@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
@@ -67,6 +67,19 @@ export default function AdminOpsStatusPage() {
   const [data, setData] = useState<OpsHealth | null>(null);
   const [error, setError] = useState("");
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    const { data: rows, error: rpcError } = await supabase.rpc("admin_ops_health_summary");
+    if (rpcError) {
+      setError(rpcError.message);
+      setData(null);
+    } else {
+      setData((rows?.[0] as OpsHealth | undefined) ?? null);
+    }
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -86,20 +99,7 @@ export default function AdminOpsStatusPage() {
       setAuthChecked(true);
       load();
     })();
-  }, [router]);
-
-  async function load() {
-    setLoading(true);
-    setError("");
-    const { data: rows, error: rpcError } = await supabase.rpc("admin_ops_health_summary");
-    if (rpcError) {
-      setError(rpcError.message);
-      setData(null);
-    } else {
-      setData((rows?.[0] as OpsHealth | undefined) ?? null);
-    }
-    setLoading(false);
-  }
+  }, [load, router]);
 
   const riskTotal = useMemo(() => {
     if (!data) return 0;
@@ -112,7 +112,6 @@ export default function AdminOpsStatusPage() {
 
   return (
     <div style={pageStyle}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
       <div style={wrapStyle}>
         <header style={headerStyle}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

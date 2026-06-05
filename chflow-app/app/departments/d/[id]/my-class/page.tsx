@@ -232,7 +232,6 @@ export default function MyClassPage() {
   if (!myTeacherId) {
     return (
       <div style={pageStyle}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
         <PageHeader deptId={deptId} router={router} myClassName="" />
         <main className="mx-auto max-w-lg px-4 py-14">
           <div className="rounded-lg border border-slate-200 bg-white px-6 py-10 text-center">
@@ -247,7 +246,6 @@ export default function MyClassPage() {
 
   return (
     <div style={pageStyle}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
       <PageHeader deptId={deptId} router={router} myClassName={myClassName} />
 
       <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-4 md:grid-cols-[300px_1fr]">

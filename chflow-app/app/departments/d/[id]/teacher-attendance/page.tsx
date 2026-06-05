@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -41,6 +41,24 @@ export default function TeacherAttendancePage() {
   const [toast, setToast] = useState("");
   const [saving, setSaving] = useState<string>("");
 
+  const loadTeachers = useCallback(async () => {
+    const { data } = await supabase.rpc("edu_list_teachers", { p_dept_id: deptId });
+    setTeachers(data || []);
+  }, [deptId]);
+
+  const loadAttendance = useCallback(async () => {
+    const { data } = await supabase.rpc("edu_get_teacher_attendance", {
+      p_dept_id: deptId, p_year: year, p_month: month,
+    });
+    setAttData(data || []);
+  }, [deptId, month, year]);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([loadTeachers(), loadAttendance()]);
+    setLoading(false);
+  }, [loadAttendance, loadTeachers]);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -48,29 +66,11 @@ export default function TeacherAttendancePage() {
       setAuthChecked(true);
       await loadAll();
     })();
-  }, []);
+  }, [loadAll, router]);
 
   useEffect(() => {
     if (authChecked) loadAttendance();
-  }, [year, month, authChecked]);
-
-  const loadAll = async () => {
-    setLoading(true);
-    await Promise.all([loadTeachers(), loadAttendance()]);
-    setLoading(false);
-  };
-
-  const loadTeachers = async () => {
-    const { data } = await supabase.rpc("edu_list_teachers", { p_dept_id: deptId });
-    setTeachers(data || []);
-  };
-
-  const loadAttendance = async () => {
-    const { data } = await supabase.rpc("edu_get_teacher_attendance", {
-      p_dept_id: deptId, p_year: year, p_month: month,
-    });
-    setAttData(data || []);
-  };
+  }, [authChecked, loadAttendance]);
 
   // 해당 월의 일요일 날짜 배열
   const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
@@ -133,7 +133,6 @@ export default function TeacherAttendancePage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
 
       {/* Header */}
       <div style={headerStyle}>

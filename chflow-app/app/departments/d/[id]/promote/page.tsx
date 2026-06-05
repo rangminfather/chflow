@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -58,6 +58,11 @@ export default function PromotePage() {
   const [toast, setToast] = useState("");
   const [done, setDone] = useState<{ promoted: number; graduated: number } | null>(null);
 
+  const showToast = useCallback((m: string) => {
+    setToast(m);
+    setTimeout(() => setToast(""), 2800);
+  }, []);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -114,9 +119,7 @@ export default function PromotePage() {
 
       setLoading(false);
     })();
-  }, []);
-
-  function showToast(m: string) { setToast(m); setTimeout(() => setToast(""), 2800); }
+  }, [deptId, router, showToast]);
 
   // 학년별 반 개수 변경 시 재분배
   function changeClassCount(g: number, n: number) {
@@ -221,7 +224,6 @@ export default function PromotePage() {
   if (done) {
     return (
       <div style={pageStyle}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
         <div style={{ maxWidth: 520, margin: "60px auto", padding: 24 }}>
           <div style={{ background: "#fff", borderRadius: 16, padding: 32, textAlign: "center" }}>
             <div style={{ fontSize: 56, marginBottom: 14 }}>🎓</div>
@@ -239,7 +241,6 @@ export default function PromotePage() {
 
   return (
     <div style={pageStyle}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
 
       <div style={headerStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

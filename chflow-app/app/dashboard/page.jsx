@@ -1092,7 +1092,6 @@ export default function App() {
   if (!authChecked) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
         <div style={{ textAlign: "center" }}>
           <img src="/brand-mark-192.png" style={{ width: 64, height: 64, borderRadius: 14, marginBottom: 12, opacity: 0.8 }} />
           <div style={{ fontSize: 13, color: "#64748b" }}>로딩 중...</div>
@@ -1106,7 +1105,6 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', -apple-system, sans-serif", color: "#1e293b" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
       <style>{`
         @media (max-width: 768px) {
           .sidebar-desktop { display: none !important; }

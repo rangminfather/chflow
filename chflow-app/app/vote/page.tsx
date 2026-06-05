@@ -56,7 +56,6 @@ export default function VoteListPage() {
   if (!authOk) {
     return (
       <div style={centerStyle}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
         <div style={{ color: "#64748b", fontSize: 14 }}>로딩 중...</div>
       </div>
     );
@@ -64,7 +63,6 @@ export default function VoteListPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
       {/* 헤더 */}
       <div style={{

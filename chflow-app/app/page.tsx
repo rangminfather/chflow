@@ -51,11 +51,6 @@ export default function SplashPage() {
         fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
       }}
     >
-      <link
-        href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap"
-        rel="stylesheet"
-      />
-
       <style>{`
         .launch-splash {
           isolation: isolate;

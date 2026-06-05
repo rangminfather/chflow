@@ -75,7 +75,6 @@ export default function MonthlyPlanUploadPage() {
   if (grade === null || grade > 2) {
     return (
       <div style={pageStyle}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
         <PageHeader deptId={deptId} router={router} />
         <main className="mx-auto max-w-lg px-4 py-14">
           <div className="rounded-lg border border-slate-200 bg-white px-6 py-10 text-center">
@@ -90,7 +89,6 @@ export default function MonthlyPlanUploadPage() {
 
   return (
     <div style={pageStyle}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
       <PageHeader deptId={deptId} router={router} />
 
       <main className="mx-auto w-full max-w-4xl px-4 py-5">

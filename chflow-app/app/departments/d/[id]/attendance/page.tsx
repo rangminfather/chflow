@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -68,26 +68,7 @@ export default function AttendancePage() {
   const [saving, setSaving] = useState<string>("");
   const [editMemo, setEditMemo] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.replace("/login"); return; }
-      setAuthChecked(true);
-      await loadAll();
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (authChecked) loadAttendance();
-  }, [year, month, authChecked]);
-
-  const loadAll = async () => {
-    setLoading(true);
-    await Promise.all([loadStudents(), loadAttendance()]);
-    setLoading(false);
-  };
-
-  const loadStudents = async () => {
+  const loadStudents = useCallback(async () => {
     const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
     const baseList = (data || []) as Student[];
     // class_no/grade_year 보강 (RPC 가 그 두 필드 반환 안 함)
@@ -106,14 +87,33 @@ export default function AttendancePage() {
       grade_year: metaMap[s.id]?.grade_year ?? null,
     }));
     setStudents(merged);
-  };
+  }, [deptId]);
 
-  const loadAttendance = async () => {
+  const loadAttendance = useCallback(async () => {
     const { data } = await supabase.rpc("edu_get_student_attendance", {
       p_dept_id: deptId, p_year: year, p_month: month,
     });
     setAttData(data || []);
-  };
+  }, [deptId, month, year]);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([loadStudents(), loadAttendance()]);
+    setLoading(false);
+  }, [loadAttendance, loadStudents]);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace("/login"); return; }
+      setAuthChecked(true);
+      await loadAll();
+    })();
+  }, [loadAll, router]);
+
+  useEffect(() => {
+    if (authChecked) loadAttendance();
+  }, [authChecked, loadAttendance]);
 
   const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
 
@@ -224,7 +224,6 @@ export default function AttendancePage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
 
       <style>{`
         .att-table { border-collapse: collapse; }

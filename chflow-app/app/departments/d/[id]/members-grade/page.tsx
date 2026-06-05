@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -77,16 +77,12 @@ export default function MembersGradePage() {
   const [appointing, setAppointing] = useState(false);
   const searchSkipRef = useRef(false);
 
-  useEffect(() => {
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.replace("/login"); return; }
-      setAuthChecked(true);
-      await load();
-    })();
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2800);
   }, []);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     const [gradeR, listR] = await Promise.all([
       supabase.rpc("get_user_grade", { p_dept_id: deptId }),
@@ -101,7 +97,16 @@ export default function MembersGradePage() {
       setMembers(listR.data || []);
     }
     setLoading(false);
-  }
+  }, [deptId, showToast]);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace("/login"); return; }
+      setAuthChecked(true);
+      await load();
+    })();
+  }, [load, router]);
 
   async function handleGradeChange(member: Member, newGrade: number) {
     if (member.grade === newGrade) return;
@@ -120,11 +125,6 @@ export default function MembersGradePage() {
       await load();
     }
   }
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 2800);
-  };
 
   // 임명 모달 — 검색 (debounce 250ms)
   useEffect(() => {
@@ -202,7 +202,6 @@ export default function MembersGradePage() {
   if (myGrade === null || myGrade > 1) {
     return (
       <div style={pageStyle}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
         <div style={{ maxWidth: 480, margin: "60px auto", padding: 24 }}>
           <div style={{ background: "#fff", borderRadius: 16, padding: 28, textAlign: "center" }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
@@ -223,7 +222,6 @@ export default function MembersGradePage() {
 
   return (
     <div style={pageStyle}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
 
       <div style={headerStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

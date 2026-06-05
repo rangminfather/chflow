@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -48,6 +48,19 @@ export default function TalentRulesPage() {
   const [editing, setEditing] = useState<Partial<Rule> | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const showToast = useCallback((m: string) => {
+    setToast(m);
+    setTimeout(() => setToast(""), 2800);
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase.rpc("list_talent_rules", { p_dept_id: deptId });
+    setLoading(false);
+    if (error) { showToast("조회 실패: " + error.message); return; }
+    setRules((data as Rule[]) || []);
+  }, [deptId, showToast]);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -57,17 +70,8 @@ export default function TalentRulesPage() {
       setMyGrade(typeof gradeR.data === "number" ? gradeR.data : Number(gradeR.data));
       await load();
     })();
-  }, []);
+  }, [deptId, load, router]);
 
-  async function load() {
-    setLoading(true);
-    const { data, error } = await supabase.rpc("list_talent_rules", { p_dept_id: deptId });
-    setLoading(false);
-    if (error) { showToast("조회 실패: " + error.message); return; }
-    setRules((data as Rule[]) || []);
-  }
-
-  function showToast(m: string) { setToast(m); setTimeout(() => setToast(""), 2800); }
   const canEdit = myGrade !== null && myGrade <= 1;
 
   function openNew(kind: Rule["rule_kind"]) {
@@ -138,7 +142,6 @@ export default function TalentRulesPage() {
 
   return (
     <div style={pageStyle}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
 
       <div style={headerStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase, formatPhone } from "@/lib/supabase";
 import MemberCardModal from "@/components/MemberCardModal";
@@ -97,6 +97,26 @@ function AdminMembersPage() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
 
+  const doSearch = useCallback(async (p: number, q: string, plain: string, grass: string, past: string, status: "active" | "inactive" | "all", showCh: boolean, showPa: boolean) => {
+    setLoading(true);
+    const { data, error } = await supabase.rpc("admin_search_members_paged", {
+      p_query: q || null,
+      p_plain: plain || null,
+      p_grassland: grass || null,
+      p_pasture: past || null,
+      p_offset: (p - 1) * PAGE_SIZE,
+      p_limit: PAGE_SIZE,
+      p_show_children: showCh,
+      p_show_parents: showPa,
+      p_member_status: status,
+    });
+    if (!error && data) {
+      setMembers(data);
+      setTotal(data[0]?.total_count || 0);
+    }
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -116,27 +136,7 @@ function AdminMembersPage() {
       const initQuery = searchParams.get("q") || "";
       doSearch(1, initQuery, initPlain, initGrass, initPast, "active", true, true);
     })();
-  }, []);
-
-  const doSearch = async (p: number, q: string, plain: string, grass: string, past: string, status: "active" | "inactive" | "all", showCh: boolean, showPa: boolean) => {
-    setLoading(true);
-    const { data, error } = await supabase.rpc("admin_search_members_paged", {
-      p_query: q || null,
-      p_plain: plain || null,
-      p_grassland: grass || null,
-      p_pasture: past || null,
-      p_offset: (p - 1) * PAGE_SIZE,
-      p_limit: PAGE_SIZE,
-      p_show_children: showCh,
-      p_show_parents: showPa,
-      p_member_status: status,
-    });
-    if (!error && data) {
-      setMembers(data);
-      setTotal(data[0]?.total_count || 0);
-    }
-    setLoading(false);
-  };
+  }, [doSearch, router, searchParams]);
 
   const runSearch = () => { setPage(1); doSearch(1, query, filterPlain, filterGrassland, filterPasture, memberStatus, showChildren, showParents); };
   const goPage = (p: number) => { setPage(p); doSearch(p, query, filterPlain, filterGrassland, filterPasture, memberStatus, showChildren, showParents); };
@@ -226,7 +226,6 @@ function AdminMembersPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif", padding: 16 }}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
       <div style={{ maxWidth: 1400, margin: "0 auto" }}>
         {/* Header */}

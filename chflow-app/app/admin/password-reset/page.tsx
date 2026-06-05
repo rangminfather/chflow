@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -36,6 +36,15 @@ export default function PasswordResetPage() {
   const [logs, setLogs] = useState<ResetLogRow[]>([]);
   const [error, setError] = useState("");
 
+  const loadLogs = useCallback(async () => {
+    const { data } = await supabase
+      .from("password_reset_log")
+      .select("id, admin_username, target_username, target_name, reason, reset_at")
+      .order("reset_at", { ascending: false })
+      .limit(20);
+    if (data) setLogs(data);
+  }, []);
+
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -52,16 +61,7 @@ export default function PasswordResetPage() {
       setAuthChecked(true);
       loadLogs();
     })();
-  }, [router]);
-
-  async function loadLogs() {
-    const { data } = await supabase
-      .from("password_reset_log")
-      .select("id, admin_username, target_username, target_name, reason, reset_at")
-      .order("reset_at", { ascending: false })
-      .limit(20);
-    if (data) setLogs(data);
-  }
+  }, [loadLogs, router]);
 
   async function doSearch() {
     setError("");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -19,7 +19,6 @@ interface ToastNotification {
   title: string;
   body: string;
   type: string;
-  createdAt: number;
 }
 
 export default function NotificationBell({ userId }: { userId: string }) {
@@ -31,10 +30,76 @@ export default function NotificationBell({ userId }: { userId: string }) {
   const seenIdsRef = useRef<Set<string>>(new Set());
   const initLoadedRef = useRef(false);
 
+  const showToast = useCallback((toast: ToastNotification) => {
+    if (seenIdsRef.current.has(toast.id)) return;
+    seenIdsRef.current.add(toast.id);
+    setToasts((prev) => [...prev, toast]);
+    // 5초 후 자동 제거
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== toast.id));
+    }, 5000);
+  }, []);
+
+  const handleNewNotification = useCallback((n: Notification) => {
+    if (seenIdsRef.current.has(n.id)) return;
+
+    // 진동 (Android Chrome 등 지원 브라우저만 — iOS Safari 는 미지원)
+    try {
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate([200, 100, 200]);
+      }
+    } catch {
+      // 사용자 제스처 정책 등으로 실패해도 무시
+    }
+
+    showToast({
+      id: n.id,
+      title: n.title,
+      body: n.body || "",
+      type: n.type,
+    });
+
+    setNotifications((prev) => {
+      // 중복 방지
+      if (prev.find((p) => p.id === n.id)) return prev;
+      return [n, ...prev];
+    });
+    setUnreadCount((c) => {
+      const next = c + 1;
+      setAppBadge(next);
+      return next;
+    });
+  }, [showToast]);
+
+  const refresh = useCallback(async () => {
+    const [list, count] = await Promise.all([fetchNotifications(30), getUnreadCount()]);
+    setNotifications(list);
+    setUnreadCount(count);
+    setAppBadge(count);
+
+    // 첫 로드 시: 안 읽은 알림이 있으면 토스트로 표시 (최대 1개)
+    if (!initLoadedRef.current) {
+      initLoadedRef.current = true;
+      const unread = list.filter((n) => !n.is_read);
+      if (unread.length > 0) {
+        const latest = unread[0];
+        if (!seenIdsRef.current.has(latest.id)) {
+          seenIdsRef.current.add(latest.id);
+          showToast({
+            id: latest.id,
+            title: latest.title,
+            body: latest.body || "",
+            type: latest.type,
+          });
+        }
+      }
+    }
+  }, [showToast]);
+
   // 초기 로드
   useEffect(() => {
     refresh();
-  }, []);
+  }, [refresh]);
 
   // === Realtime 구독 (즉시) + 폴링 백업 (10초마다) ===
   useEffect(() => {
@@ -81,75 +146,7 @@ export default function NotificationBell({ userId }: { userId: string }) {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
     };
-  }, [userId]);
-
-  const handleNewNotification = (n: Notification) => {
-    if (seenIdsRef.current.has(n.id)) return;
-
-    // 진동 (Android Chrome 등 지원 브라우저만 — iOS Safari 는 미지원)
-    try {
-      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-        navigator.vibrate([200, 100, 200]);
-      }
-    } catch {
-      // 사용자 제스처 정책 등으로 실패해도 무시
-    }
-
-    showToast({
-      id: n.id,
-      title: n.title,
-      body: n.body || "",
-      type: n.type,
-      createdAt: Date.now(),
-    });
-
-    setNotifications((prev) => {
-      // 중복 방지
-      if (prev.find((p) => p.id === n.id)) return prev;
-      return [n, ...prev];
-    });
-    setUnreadCount((c) => {
-      const next = c + 1;
-      setAppBadge(next);
-      return next;
-    });
-  };
-
-  const refresh = async () => {
-    const [list, count] = await Promise.all([fetchNotifications(30), getUnreadCount()]);
-    setNotifications(list);
-    setUnreadCount(count);
-    setAppBadge(count);
-
-    // 첫 로드 시: 안 읽은 알림이 있으면 토스트로 표시 (최대 1개)
-    if (!initLoadedRef.current) {
-      initLoadedRef.current = true;
-      const unread = list.filter((n) => !n.is_read);
-      if (unread.length > 0) {
-        const latest = unread[0];
-        if (!seenIdsRef.current.has(latest.id)) {
-          seenIdsRef.current.add(latest.id);
-          showToast({
-            id: latest.id,
-            title: latest.title,
-            body: latest.body || "",
-            type: latest.type,
-            createdAt: Date.now(),
-          });
-        }
-      }
-    }
-  };
-
-  const showToast = (toast: ToastNotification) => {
-    if (seenIdsRef.current.has(toast.id)) return;
-    seenIdsRef.current.add(toast.id);
-    setToasts((prev) => [...prev, toast]);
-    // 5초 후 자동 제거
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== toast.id));
-    }, 5000);
-  };
+  }, [handleNewNotification, userId]);
 
   const handleBellClick = async () => {
     setOpen(!open);

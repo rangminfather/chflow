@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -27,6 +27,13 @@ export default function AdminPendingPage() {
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState<string | null>(null);
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase.rpc("admin_list_pending_signups");
+    if (!error) setPending(data || []);
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -43,14 +50,7 @@ export default function AdminPendingPage() {
       setAuthChecked(true);
       load();
     })();
-  }, []);
-
-  const load = async () => {
-    setLoading(true);
-    const { data, error } = await supabase.rpc("admin_list_pending_signups");
-    if (!error) setPending(data || []);
-    setLoading(false);
-  };
+  }, [load, router]);
 
   const handleApprove = async (user: PendingUser) => {
     if (!confirm(`${user.name}(${user.username})님의 가입을 승인하시겠습니까?`)) return;
@@ -99,7 +99,6 @@ export default function AdminPendingPage() {
       fontFamily: "'Noto Sans KR', sans-serif",
       padding: 16,
     }}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         {/* Header */}

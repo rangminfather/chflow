@@ -110,7 +110,6 @@ export default function VoteBallotPage({ params }: { params: Promise<{ id: strin
   if (loading) {
     return (
       <div style={centerStyle}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
         <div style={{ color: "#64748b", fontSize: 14 }}>로딩 중...</div>
       </div>
     );
@@ -119,7 +118,6 @@ export default function VoteBallotPage({ params }: { params: Promise<{ id: strin
   if (notFound) {
     return (
       <div style={centerStyle}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 32 }}>🔍</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", marginTop: 8 }}>투표를 찾을 수 없습니다</div>
@@ -135,7 +133,6 @@ export default function VoteBallotPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
       {/* 헤더 */}
       <div style={{

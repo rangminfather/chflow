@@ -21,6 +21,10 @@ interface GalleryItem {
 
 const MAX_GALLERY = 3;
 
+function withCacheBust(url: string) {
+  return `${url.split("?")[0]}?t=${Date.now()}`;
+}
+
 export default function PhotoAvatar({
   userId,
   photoUrl,
@@ -201,7 +205,7 @@ export default function PhotoAvatar({
   };
 
   const handleSelectPhoto = async (rawUrl: string) => {
-    const cacheBusted = `${rawUrl.split("?")[0]}?t=${Date.now()}`;
+    const cacheBusted = withCacheBust(rawUrl);
     const { error: rpcError } = await supabase.rpc("update_my_photo", {
       p_photo_url: cacheBusted,
     });

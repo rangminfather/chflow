@@ -172,7 +172,6 @@ export default function DepartmentDetailPage() {
   if (!dept.is_member) {
     return (
       <div style={pageStyle}>
-        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
         <div style={{ maxWidth: 480, margin: "60px auto", padding: 24 }}>
           <div style={{
             background: "#fff", borderRadius: 20, padding: 32, textAlign: "center",
@@ -215,7 +214,6 @@ export default function DepartmentDetailPage() {
 
   return (
     <div style={pageStyle}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
       <div style={{ maxWidth: 960, margin: "0 auto", padding: 24 }}>
         {/* Header */}

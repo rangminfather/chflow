@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -66,6 +66,22 @@ export default function AdminDeptPage() {
   const [approvingJoin, setApprovingJoin] = useState<PendingJoin | null>(null);
   const [pickedGrade, setPickedGrade] = useState<number>(3);
 
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    const [{ data: pendingData }, { data: deptData }] = await Promise.all([
+      supabase.rpc("admin_list_dept_pending"),
+      supabase.rpc("admin_list_all_departments"),
+    ]);
+    setPending(pendingData || []);
+    setAllDepts(deptData || []);
+    setLoading(false);
+  }, []);
+
+  const loadMembers = useCallback(async (deptId: string) => {
+    const { data, error } = await supabase.rpc("admin_list_dept_members", { p_dept_id: deptId });
+    if (!error) setMembers(data || []);
+  }, []);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -79,23 +95,7 @@ export default function AdminDeptPage() {
       setAuthChecked(true);
       loadAll();
     })();
-  }, []);
-
-  const loadAll = async () => {
-    setLoading(true);
-    const [{ data: pendingData }, { data: deptData }] = await Promise.all([
-      supabase.rpc("admin_list_dept_pending"),
-      supabase.rpc("admin_list_all_departments"),
-    ]);
-    setPending(pendingData || []);
-    setAllDepts(deptData || []);
-    setLoading(false);
-  };
-
-  const loadMembers = async (deptId: string) => {
-    const { data, error } = await supabase.rpc("admin_list_dept_members", { p_dept_id: deptId });
-    if (!error) setMembers(data || []);
-  };
+  }, [loadAll, router]);
 
   const handleDeptSelect = (dept: DeptInfo) => {
     setSelectedDeptId(dept.id);
@@ -160,7 +160,6 @@ export default function AdminDeptPage() {
 
   return (
     <div style={pageStyle}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
       <style>{`
         @media (max-width: 768px) {

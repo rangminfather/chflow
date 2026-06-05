@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -51,6 +51,26 @@ export default function FeedbackListPage() {
   const [scope, setScope] = useState<"all" | "mine">("all");
   const [statusFilter, setStatusFilter] = useState<FeedbackStatus | "all">("all");
 
+  const load = useCallback(async (s: "all" | "mine", st: FeedbackStatus | "all", p: number) => {
+    setLoading(true);
+    const { data, error } = await supabase.rpc("list_feedback_posts", {
+      p_limit: PER_PAGE,
+      p_offset: (p - 1) * PER_PAGE,
+      p_status: st === "all" ? null : st,
+      p_scope: s,
+    });
+    if (error) {
+      console.error(error);
+      setItems([]);
+      setTotal(0);
+    } else {
+      const payload = data as { total: number; rows: FeedbackListItem[] } | null;
+      setItems(payload?.rows || []);
+      setTotal(payload?.total || 0);
+    }
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -70,36 +90,15 @@ export default function FeedbackListPage() {
     return () => window.removeEventListener("popstate", onPop);
   }, [router]);
 
-  useEffect(() => { load(scope, statusFilter, page); }, [scope, statusFilter, page]);
+  useEffect(() => { load(scope, statusFilter, page); }, [load, scope, statusFilter, page]);
 
   // 필터 바뀌면 1페이지로
   useEffect(() => { setPage(1); }, [scope, statusFilter]);
-
-  async function load(s: "all" | "mine", st: FeedbackStatus | "all", p: number) {
-    setLoading(true);
-    const { data, error } = await supabase.rpc("list_feedback_posts", {
-      p_limit: PER_PAGE,
-      p_offset: (p - 1) * PER_PAGE,
-      p_status: st === "all" ? null : st,
-      p_scope: s,
-    });
-    if (error) {
-      console.error(error);
-      setItems([]);
-      setTotal(0);
-    } else {
-      const payload = data as { total: number; rows: FeedbackListItem[] } | null;
-      setItems(payload?.rows || []);
-      setTotal(payload?.total || 0);
-    }
-    setLoading(false);
-  }
 
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
   return (
     <div style={pageStyle}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
       <style>{`
         @media (max-width: 760px) {
           .fb-header { flex-direction: column; align-items: flex-start !important; }

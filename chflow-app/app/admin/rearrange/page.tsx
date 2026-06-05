@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
@@ -71,21 +71,7 @@ export default function RearrangePage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [exportPlains, setExportPlains] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.replace("/login"); return; }
-      const { data } = await supabase.rpc("get_my_status");
-      const profile = data?.[0];
-      if (!profile || !["admin", "office", "pastor"].includes(profile.role)) {
-        router.replace("/home"); return;
-      }
-      setAuthChecked(true);
-      await loadTree();
-    })();
-  }, []);
-
-  const loadTree = async () => {
+  const loadTree = useCallback(async () => {
     setLoading(true);
     const [treeRes, plainsRes, grassRes] = await Promise.all([
       supabase.rpc("rearrange_tree"),
@@ -113,7 +99,21 @@ export default function RearrangePage() {
       setPastures(Array.from(pastureMap.values()));
     }
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace("/login"); return; }
+      const { data } = await supabase.rpc("get_my_status");
+      const profile = data?.[0];
+      if (!profile || !["admin", "office", "pastor"].includes(profile.role)) {
+        router.replace("/home"); return;
+      }
+      setAuthChecked(true);
+      await loadTree();
+    })();
+  }, [loadTree, router]);
 
   // 드래그 시작
   const onDragStart = (kind: "pasture" | "grassland", id: string) => (e: React.DragEvent) => {
@@ -324,7 +324,6 @@ export default function RearrangePage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#0f172a", fontFamily: "'Noto Sans KR', sans-serif", padding: 16, color: "#f1f5f9" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
       {/* Header */}
       <div style={{ maxWidth: 1800, margin: "0 auto 12px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>

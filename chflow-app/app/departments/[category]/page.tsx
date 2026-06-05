@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -27,6 +27,13 @@ export default function CategoryPage() {
   const [confirmDept, setConfirmDept] = useState<Department | null>(null);
   const [requesting, setRequesting] = useState(false);
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase.rpc("get_departments_by_category", { p_category: category });
+    if (!error) setDepts(data || []);
+    setLoading(false);
+  }, [category]);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -34,14 +41,7 @@ export default function CategoryPage() {
       setAuthChecked(true);
       load();
     })();
-  }, []);
-
-  const load = async () => {
-    setLoading(true);
-    const { data, error } = await supabase.rpc("get_departments_by_category", { p_category: category });
-    if (!error) setDepts(data || []);
-    setLoading(false);
-  };
+  }, [load, router]);
 
   const handleRequest = async () => {
     if (!confirmDept) return;
@@ -68,7 +68,6 @@ export default function CategoryPage() {
 
   return (
     <div style={pageStyle}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
         <div style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>

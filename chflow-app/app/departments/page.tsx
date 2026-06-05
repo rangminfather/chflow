@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -25,6 +25,13 @@ export default function DepartmentsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase.rpc("get_department_categories");
+    if (!error) setCategories(data || []);
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -38,14 +45,7 @@ export default function DepartmentsPage() {
       setAuthChecked(true);
       load();
     })();
-  }, []);
-
-  const load = async () => {
-    setLoading(true);
-    const { data, error } = await supabase.rpc("get_department_categories");
-    if (!error) setCategories(data || []);
-    setLoading(false);
-  };
+  }, [load, router]);
 
   if (!authChecked) {
     return <div style={loadingStyle}>로딩 중...</div>;
@@ -53,7 +53,6 @@ export default function DepartmentsPage() {
 
   return (
     <div style={pageStyle}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
         {/* Header */}
