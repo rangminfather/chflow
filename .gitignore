@@ -24,6 +24,8 @@ build/
 dist/
 *.tsbuildinfo
 .cache/
+outputs/
+chflow-app/.next-codex-logs/
 
 # Android / Gradle
 chflow-twa/android/.gradle/
@@ -110,6 +112,10 @@ MS_AX/archive/
 MS_AX/chflow-project/db-backups/
 MS_AX/extracted-bathelDB/
 MS_AX/generated/
+archive/mobile-legacy/**/*.apk
+archive/mobile-legacy/**/*.aab
+archive/mobile-legacy/**/local.properties
+archive/mobile-legacy/**/gradle-wrapper.jar
 
 # Play Store local helpers and binary release outputs.
 play-store-assets/node_modules/
