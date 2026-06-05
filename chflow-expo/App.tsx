@@ -4,17 +4,26 @@ import {
   Alert,
   BackHandler,
   Platform,
-  SafeAreaView,
   StyleSheet,
   View,
 } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, WebViewNavigation } from 'react-native-webview';
 
 const TARGET_URL = 'https://chflow-app.vercel.app';
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppWebView />
+    </SafeAreaProvider>
+  );
+}
+
+function AppWebView() {
   const webViewRef = useRef<WebView>(null);
   const [canGoBack, setCanGoBack] = useState(false);
+  const safeAreaPadding = useSafeAreaPadding();
 
   // Android 물리 뒤로가기 버튼 처리
   useEffect(() => {
@@ -52,9 +61,9 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar style="light" backgroundColor="#6366f1" />
-      <View style={styles.container}>
+    <View style={styles.safe}>
+      <StatusBar style="dark" backgroundColor="#FBF8F1" translucent={false} />
+      <View style={[styles.container, safeAreaPadding]}>
         <WebView
           ref={webViewRef}
           source={{ uri: TARGET_URL }}
@@ -82,14 +91,22 @@ export default function App() {
           style={styles.webview}
         />
       </View>
-    </SafeAreaView>
+    </View>
   );
+}
+
+function useSafeAreaPadding() {
+  const insets = useSafeAreaInsets();
+  return {
+    paddingTop: insets.top,
+    paddingBottom: insets.bottom,
+  };
 }
 
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#6366f1',
+    backgroundColor: '#FBF8F1',
   },
   container: {
     flex: 1,
