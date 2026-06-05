@@ -352,7 +352,7 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
   const apply = async () => {
     if (!diffs) return;
     setBusy(true);
-    let summary: string[] = [];
+    const summary: string[] = [];
     try {
       for (const d of diffs) {
         // 적용 대상 결정 (모드별)

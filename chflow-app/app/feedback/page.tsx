@@ -70,7 +70,7 @@ export default function FeedbackListPage() {
     return () => window.removeEventListener("popstate", onPop);
   }, [router]);
 
-  useEffect(() => { load(scope, statusFilter, page); /* eslint-disable-next-line */ }, [scope, statusFilter, page]);
+  useEffect(() => { load(scope, statusFilter, page); }, [scope, statusFilter, page]);
 
   // 필터 바뀌면 1페이지로
   useEffect(() => { setPage(1); }, [scope, statusFilter]);

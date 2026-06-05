@@ -799,7 +799,6 @@ export default function AdminVotesPage() {
 function Avatar({ url, name, size = 36 }: { url: string | null; name: string; size?: number }) {
   const initial = (name || "?").trim().charAt(0);
   if (url) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
       <img
         src={url}

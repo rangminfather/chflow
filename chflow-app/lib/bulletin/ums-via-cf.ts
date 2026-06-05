@@ -303,7 +303,7 @@ export async function umsAutoPost(input: UmsAutoPostInput): Promise<UmsAutoPostR
   let woHtml = "";
   let woRes!: Awaited<ReturnType<typeof umsViaCf>>;
   let lastSpamMsg = "";
-  let writeOkPassed = false;
+  const writeOkPassed = false;
 
   for (let si = 0; si < spamCandidates.length; si++) {
     const spamAnswer = spamCandidates[si];
