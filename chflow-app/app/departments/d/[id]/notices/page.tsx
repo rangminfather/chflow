@@ -32,18 +32,28 @@ export default function NoticesPage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={titleStyle}>📢 공지사항</div>
+        <div style={titleStyle}>📢 공통</div>
         <div style={{ width: 80 }} />
       </div>
 
       <main className="mx-auto w-full max-w-4xl px-4 py-5">
         <section className="rounded-lg border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-5 py-4">
-            <div className="text-[20px] font-extrabold text-slate-900">공지사항</div>
-            <div className="mt-1 text-[15px] font-semibold text-slate-500">부서 공지와 교육계획서를 확인합니다.</div>
+            <div className="text-[20px] font-extrabold text-slate-900">공통</div>
+            <div className="mt-1 text-[15px] font-semibold text-slate-500">부서 공지, 교육계획서, 주보를 확인합니다.</div>
           </div>
 
           <div className="grid gap-3 p-5 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => router.push(`/departments/d/${deptId}/bulletin`)}
+              className="rounded-lg border border-teal-200 bg-teal-50 p-4 text-left"
+            >
+              <div className="text-[30px]">📰</div>
+              <div className="mt-2 text-[18px] font-extrabold text-slate-900">주보 보기</div>
+              <div className="mt-1 text-[15px] leading-6 text-slate-500">UMS 사무실 게시판의 초등1부 주보를 확인합니다.</div>
+            </button>
+
             <button
               type="button"
               onClick={() => router.push(`/departments/d/${deptId}/monthly-plan`)}

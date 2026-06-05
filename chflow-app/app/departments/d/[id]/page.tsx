@@ -48,13 +48,14 @@ interface MenuCategory {
 const MENU_CATEGORIES: MenuCategory[] = [
   {
     id: "notices",
-    label: "공지사항",
+    label: "공통",
     icon: "📢",
     maxGrade: 4,
-    desc: "부서 공지 / 알림 / 댓글",
+    desc: "부서 공통 자료 / 공지 / 주보",
     items: [
       { id: "notices", label: "공지 게시판", icon: "📢", desc: "부서 공지·알림", color: "#0ea5e9", implemented: true },
       { id: "monthly-plan", label: "월간 교육계획서", icon: "🗓️", desc: "월간 교육계획 파일 조회", color: "#2563eb", implemented: true },
+      { id: "bulletin", label: "주보 보기", icon: "📰", desc: "초등1부 주보 열람", color: "#14b8a6", implemented: true, onlyForDept: "초등1부" },
     ],
   },
   {
