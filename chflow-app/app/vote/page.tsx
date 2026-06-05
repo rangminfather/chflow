@@ -37,12 +37,16 @@ export default function VoteListPage() {
   const [authOk, setAuthOk] = useState(false);
   const [votes, setVotes] = useState<ActiveVote[]>([]);
   const [loading, setLoading] = useState(true);
+  const [canManageVotes, setCanManageVotes] = useState(false);
 
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/login"); return; }
       setAuthOk(true);
+      const { data: profileData } = await supabase.rpc("get_my_status");
+      const profile = profileData?.[0];
+      setCanManageVotes(Boolean(profile && ["admin", "office", "pastor"].includes(profile.role)));
       const { data } = await supabase.rpc("get_active_votes");
       setVotes(data || []);
       setLoading(false);
@@ -69,10 +73,15 @@ export default function VoteListPage() {
       }}>
         <button onClick={() => router.push("/home")} style={iconBtnStyle}>←</button>
         <HeaderLogo />
-        <div>
+        <div style={{ flex: 1 }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>🗳️ 투표</div>
           <div style={{ fontSize: 11, color: "#94a3b8" }}>진행 중인 투표에 참여하세요</div>
         </div>
+        {canManageVotes && (
+          <button onClick={() => router.push("/admin/votes")} style={manageBtnStyle}>
+            투표 관리
+          </button>
+        )}
       </div>
 
       <div style={{ maxWidth: 600, margin: "24px auto", padding: "0 16px" }}>
@@ -159,4 +168,17 @@ const iconBtnStyle: React.CSSProperties = {
   background: "#f1f5f9", border: "none",
   cursor: "pointer", fontSize: 16, color: "#475569",
   display: "flex", alignItems: "center", justifyContent: "center",
+};
+
+const manageBtnStyle: React.CSSProperties = {
+  border: "none",
+  borderRadius: 10,
+  background: "#4f46e5",
+  color: "#fff",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  fontSize: 13,
+  fontWeight: 800,
+  padding: "10px 14px",
+  whiteSpace: "nowrap",
 };

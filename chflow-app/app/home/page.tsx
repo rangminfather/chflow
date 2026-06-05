@@ -283,7 +283,7 @@ function AppBar({ isAdmin, user, router, onMenu, onLogout }: {
     <div style={{
       background: T.bgCard,
       borderBottom: `1px solid ${T.border}`,
-      padding: "10px clamp(12px, 4vw, 20px)",
+      padding: "calc(10px + var(--safe-top)) clamp(12px, 4vw, 20px) 10px",
       width: "100%",
       maxWidth: "100%",
       boxSizing: "border-box",
@@ -320,7 +320,6 @@ function AppBar({ isAdmin, user, router, onMenu, onLogout }: {
             <AdminPill icon={<Building2 size={14} strokeWidth={1.75} />} label="사역·부서" onClick={() => router.push("/admin/dept-pending")} />
             <AdminPill icon={<Users size={14} strokeWidth={1.75} />} label="회원관리" onClick={() => router.push("/admin/members")} />
             <AdminPill icon={<KeyRound size={14} strokeWidth={1.75} />} label="비번초기화" onClick={() => router.push("/admin/password-reset")} />
-            <AdminPill icon={<Vote size={14} strokeWidth={1.75} />} label="투표관리" onClick={() => router.push("/admin/votes")} />
             <AdminPill icon={<Shuffle size={14} strokeWidth={1.75} />} label="재편성" onClick={() => router.push("/admin/rearrange")} />
           </>
         )}

@@ -19,6 +19,8 @@
   /* 타이포 — 제목은 명조 세리프, 본문은 Pretendard */
   --app-serif: 'Noto Serif KR', serif;
   --app-sans: 'Pretendard Variable', Pretendard, 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 
   /* 하위호환: 기존 코드가 참조하는 background/foreground 를 새 토큰에 매핑 */
   --background: var(--bg);
@@ -247,7 +249,7 @@ input::placeholder {
   }
   .notif-dropdown {
     position: fixed !important;
-    top: 60px !important;
+    top: calc(60px + var(--safe-top)) !important;
     right: 12px !important;
     left: 12px !important;
     width: auto !important;

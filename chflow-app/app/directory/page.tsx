@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
-import { supabase } from "@/lib/supabase";
+import { formatPhone, supabase } from "@/lib/supabase";
 
 type UserInfo = {
   role: string;
@@ -71,7 +71,120 @@ type ProfileData = {
   descendants: RelatedMember[];
 };
 
+type QuickEditDraft = {
+  name: string;
+  phone: string;
+  clearPhone: boolean;
+  home_phone: string;
+  clearHomePhone: boolean;
+  family_church: string;
+  clearFamilyChurch: boolean;
+  sub_role: string;
+  clearSubRole: boolean;
+  spouse_name: string;
+  clearSpouseName: boolean;
+  gender: "" | "M" | "F";
+  is_child: "" | "true" | "false";
+};
+
+type QuickEditChange = {
+  key: keyof Pick<ProfileMember, "name" | "phone" | "home_phone" | "family_church" | "sub_role" | "spouse_name" | "gender" | "is_child">;
+  label: string;
+  before: string;
+  after: string;
+  nextValue: string | boolean;
+};
+
 const PAGE_SIZE = 30;
+
+const emptyQuickEditDraft: QuickEditDraft = {
+  name: "",
+  phone: "",
+  clearPhone: false,
+  home_phone: "",
+  clearHomePhone: false,
+  family_church: "",
+  clearFamilyChurch: false,
+  sub_role: "",
+  clearSubRole: false,
+  spouse_name: "",
+  clearSpouseName: false,
+  gender: "",
+  is_child: "",
+};
+
+function displayText(value: string | null | boolean | undefined, fallback = "없음") {
+  if (typeof value === "boolean") return value ? "예" : "아니오";
+  const text = String(value ?? "").trim();
+  return text || fallback;
+}
+
+function genderText(value: string | null | undefined) {
+  if (value === "M") return "남";
+  if (value === "F") return "여";
+  return "미정";
+}
+
+function childText(value: boolean | null | undefined) {
+  return value ? "자녀" : "성인";
+}
+
+function addTextChange(
+  changes: QuickEditChange[],
+  member: ProfileMember,
+  key: QuickEditChange["key"],
+  label: string,
+  input: string,
+  clear: boolean,
+) {
+  const beforeValue = String(member[key] ?? "");
+  const nextValue = clear ? "" : input.trim();
+  if (!clear && !nextValue) return;
+  if (nextValue === beforeValue) return;
+  changes.push({
+    key,
+    label,
+    before: displayText(beforeValue),
+    after: displayText(nextValue),
+    nextValue,
+  });
+}
+
+function buildQuickEditChanges(member: ProfileMember, draft: QuickEditDraft) {
+  const changes: QuickEditChange[] = [];
+
+  addTextChange(changes, member, "name", "이름", draft.name, false);
+  addTextChange(changes, member, "phone", "휴대폰", draft.phone, draft.clearPhone);
+  addTextChange(changes, member, "home_phone", "집전화", draft.home_phone, draft.clearHomePhone);
+  addTextChange(changes, member, "family_church", "가정교회", draft.family_church, draft.clearFamilyChurch);
+  addTextChange(changes, member, "sub_role", "직분", draft.sub_role, draft.clearSubRole);
+  addTextChange(changes, member, "spouse_name", "배우자", draft.spouse_name, draft.clearSpouseName);
+
+  if (draft.gender && draft.gender !== (member.gender || "")) {
+    changes.push({
+      key: "gender",
+      label: "성별",
+      before: genderText(member.gender),
+      after: genderText(draft.gender),
+      nextValue: draft.gender,
+    });
+  }
+
+  if (draft.is_child) {
+    const nextValue = draft.is_child === "true";
+    if (nextValue !== !!member.is_child) {
+      changes.push({
+        key: "is_child",
+        label: "자녀 여부",
+        before: childText(member.is_child),
+        after: childText(nextValue),
+        nextValue,
+      });
+    }
+  }
+
+  return changes;
+}
 
 export default function DirectoryPage() {
   const router = useRouter();
@@ -355,6 +468,9 @@ export default function DirectoryPage() {
           isAdmin={isAdmin}
           onClose={() => setSelectedId(null)}
           onNavigate={setSelectedId}
+          onChanged={() => {
+            if (hasSearched) searchMembers(page, query, plain, grassland, pasture);
+          }}
         />
       )}
     </div>
@@ -366,15 +482,21 @@ function DirectoryProfileModal({
   isAdmin,
   onClose,
   onNavigate,
+  onChanged,
 }: {
   memberId: string;
   isAdmin: boolean;
   onClose: () => void;
   onNavigate: (id: string) => void;
+  onChanged: () => void;
 }) {
   const router = useRouter();
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [quickEditOpen, setQuickEditOpen] = useState(false);
+  const [quickEditDraft, setQuickEditDraft] = useState<QuickEditDraft>(emptyQuickEditDraft);
+  const [pendingChanges, setPendingChanges] = useState<QuickEditChange[] | null>(null);
+  const [savingQuickEdit, setSavingQuickEdit] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -390,6 +512,18 @@ function DirectoryProfileModal({
     })();
   }, [memberId, onClose]);
 
+  const reloadProfile = useCallback(async () => {
+    setLoading(true);
+    const { data: profile, error } = await supabase.rpc("directory_member_profile", { p_member_id: memberId });
+    if (error) {
+      alert(`성도 상세 조회 실패: ${error.message}`);
+      onClose();
+    } else {
+      setData(profile as ProfileData);
+    }
+    setLoading(false);
+  }, [memberId, onClose]);
+
   if (loading || !data) {
     return (
       <ModalBackdrop onClose={onClose} style={modalBgStyle}>
@@ -400,6 +534,56 @@ function DirectoryProfileModal({
 
   const member = data.member;
   const relations = [...(data.relations || []), ...(data.descendants || [])];
+
+  function openQuickEdit() {
+    setQuickEditDraft(emptyQuickEditDraft);
+    setPendingChanges(null);
+    setQuickEditOpen(true);
+  }
+
+  function handlePreviewQuickEdit() {
+    const changes = buildQuickEditChanges(member, quickEditDraft);
+    if (changes.length === 0) {
+      alert("변경할 값이 없습니다. 비워둔 항목은 기존 값을 유지합니다.");
+      return;
+    }
+    setPendingChanges(changes);
+  }
+
+  async function applyQuickEdit() {
+    if (!pendingChanges || pendingChanges.length === 0) return;
+    const next = new Map(pendingChanges.map((change) => [change.key, change.nextValue]));
+
+    setSavingQuickEdit(true);
+    const { error } = await supabase.rpc("admin_update_member", {
+      p_member_id: member.id,
+      p_name: next.has("name") ? next.get("name") : null,
+      p_phone: next.has("phone") ? next.get("phone") : null,
+      p_family_church: next.has("family_church") ? next.get("family_church") : null,
+      p_sub_role: next.has("sub_role") ? next.get("sub_role") : null,
+      p_spouse_name: next.has("spouse_name") ? next.get("spouse_name") : null,
+      p_gender: next.has("gender") ? next.get("gender") : null,
+      p_is_child: next.has("is_child") ? next.get("is_child") : null,
+      p_household_id: null,
+      p_split_pasture_id: null,
+      p_clear_household: false,
+      p_address: null,
+      p_move_member_ids: null,
+      p_home_phone: next.has("home_phone") ? next.get("home_phone") : null,
+    });
+    setSavingQuickEdit(false);
+
+    if (error) {
+      alert(`수정 실패: ${error.message}`);
+      return;
+    }
+
+    setPendingChanges(null);
+    setQuickEditOpen(false);
+    setQuickEditDraft(emptyQuickEditDraft);
+    await reloadProfile();
+    onChanged();
+  }
 
   return (
     <ModalBackdrop onClose={onClose} style={modalBgStyle}>
@@ -425,8 +609,109 @@ function DirectoryProfileModal({
         </div>
 
         {isAdmin && (
+          <div style={adminQuickEditWrapStyle}>
+            <div style={adminQuickEditHeadStyle}>
+              <div>
+                <strong>관리자 빠른 수정</strong>
+                <div style={adminQuickEditHintStyle}>공란은 기존 값을 유지합니다. 값을 지우려면 해당 항목의 `값 지우기`를 선택하세요.</div>
+              </div>
+              <button style={ghostButtonStyle} onClick={openQuickEdit}>
+                {quickEditOpen ? "다시 입력" : "빠른 수정"}
+              </button>
+            </div>
+
+            {quickEditOpen && (
+              <div style={quickEditFormStyle}>
+                <QuickEditTextField
+                  label="이름"
+                  placeholder={member.name}
+                  value={quickEditDraft.name}
+                  onChange={(value) => setQuickEditDraft((draft) => ({ ...draft, name: value }))}
+                />
+                <QuickEditTextField
+                  label="휴대폰"
+                  placeholder={member.phone || "010-0000-0000"}
+                  value={quickEditDraft.phone}
+                  onChange={(value) => setQuickEditDraft((draft) => ({ ...draft, phone: formatPhone(value), clearPhone: false }))}
+                  clearable
+                  clearChecked={quickEditDraft.clearPhone}
+                  onClearChange={(checked) => setQuickEditDraft((draft) => ({ ...draft, clearPhone: checked, phone: checked ? "" : draft.phone }))}
+                />
+                <QuickEditTextField
+                  label="집전화"
+                  placeholder={member.home_phone || member.household_home_phone || "02-0000-0000"}
+                  value={quickEditDraft.home_phone}
+                  onChange={(value) => setQuickEditDraft((draft) => ({ ...draft, home_phone: formatPhone(value), clearHomePhone: false }))}
+                  clearable
+                  clearChecked={quickEditDraft.clearHomePhone}
+                  onClearChange={(checked) => setQuickEditDraft((draft) => ({ ...draft, clearHomePhone: checked, home_phone: checked ? "" : draft.home_phone }))}
+                />
+                <QuickEditTextField
+                  label="가정교회"
+                  placeholder={member.family_church || "목자/목녀/목원"}
+                  value={quickEditDraft.family_church}
+                  onChange={(value) => setQuickEditDraft((draft) => ({ ...draft, family_church: value, clearFamilyChurch: false }))}
+                  clearable
+                  clearChecked={quickEditDraft.clearFamilyChurch}
+                  onClearChange={(checked) => setQuickEditDraft((draft) => ({ ...draft, clearFamilyChurch: checked, family_church: checked ? "" : draft.family_church }))}
+                />
+                <QuickEditTextField
+                  label="직분"
+                  placeholder={member.sub_role || "직분"}
+                  value={quickEditDraft.sub_role}
+                  onChange={(value) => setQuickEditDraft((draft) => ({ ...draft, sub_role: value, clearSubRole: false }))}
+                  clearable
+                  clearChecked={quickEditDraft.clearSubRole}
+                  onClearChange={(checked) => setQuickEditDraft((draft) => ({ ...draft, clearSubRole: checked, sub_role: checked ? "" : draft.sub_role }))}
+                />
+                <QuickEditTextField
+                  label="배우자"
+                  placeholder={member.spouse_name || "배우자 이름"}
+                  value={quickEditDraft.spouse_name}
+                  onChange={(value) => setQuickEditDraft((draft) => ({ ...draft, spouse_name: value, clearSpouseName: false }))}
+                  clearable
+                  clearChecked={quickEditDraft.clearSpouseName}
+                  onClearChange={(checked) => setQuickEditDraft((draft) => ({ ...draft, clearSpouseName: checked, spouse_name: checked ? "" : draft.spouse_name }))}
+                />
+                <label style={quickEditFieldStyle}>
+                  <span style={quickEditLabelStyle}>성별</span>
+                  <select
+                    value={quickEditDraft.gender}
+                    onChange={(event) => setQuickEditDraft((draft) => ({ ...draft, gender: event.target.value as QuickEditDraft["gender"] }))}
+                    style={quickEditInputStyle}
+                  >
+                    <option value="">동일</option>
+                    <option value="M">남</option>
+                    <option value="F">여</option>
+                  </select>
+                </label>
+                <label style={quickEditFieldStyle}>
+                  <span style={quickEditLabelStyle}>자녀 여부</span>
+                  <select
+                    value={quickEditDraft.is_child}
+                    onChange={(event) => setQuickEditDraft((draft) => ({ ...draft, is_child: event.target.value as QuickEditDraft["is_child"] }))}
+                    style={quickEditInputStyle}
+                  >
+                    <option value="">동일</option>
+                    <option value="true">자녀</option>
+                    <option value="false">성인</option>
+                  </select>
+                </label>
+                <div style={quickEditReadOnlyStyle}>
+                  주소는 현재 빠른 수정에서 읽기 전용입니다: {member.address || "없음"}
+                </div>
+                <div style={quickEditActionsStyle}>
+                  <button style={ghostButtonStyle} onClick={() => { setQuickEditOpen(false); setPendingChanges(null); setQuickEditDraft(emptyQuickEditDraft); }}>
+                    취소
+                  </button>
+                  <button style={buttonStyle} onClick={handlePreviewQuickEdit}>
+                    변경하기
+                  </button>
+                </div>
+              </div>
+            )}
           <button
-            style={{ ...buttonStyle, width: "100%", marginBottom: 14 }}
+            style={{ ...ghostButtonStyle, width: "100%" }}
             onClick={() => {
               const params = new URLSearchParams({ q: member.name });
               if (member.plain_name) params.set("plain", member.plain_name);
@@ -438,6 +723,7 @@ function DirectoryProfileModal({
           >
             관리자 수정 화면으로 이동
           </button>
+          </div>
         )}
 
         <ProfileSection title={`같은 가족 ${data.household_members?.length || 0}`}>
@@ -467,6 +753,39 @@ function DirectoryProfileModal({
             <div style={sectionEmptyStyle}>등록된 부모·자녀 관계가 없습니다</div>
           )}
         </ProfileSection>
+
+        {pendingChanges && (
+          <div style={quickEditConfirmOverlayStyle} onClick={() => !savingQuickEdit && setPendingChanges(null)}>
+            <div style={quickEditConfirmCardStyle} onClick={(event) => event.stopPropagation()}>
+              <div style={modalHeaderStyle}>
+                <strong>변경 내용 확인</strong>
+                <button style={closeButtonStyle} onClick={() => !savingQuickEdit && setPendingChanges(null)}>×</button>
+              </div>
+              <div style={quickEditCompareGridStyle}>
+                <MiniProfileCard title="기존 카드" member={member} />
+                <MiniProfileCard title="변경될 카드" member={previewMember(member, pendingChanges)} changedKeys={pendingChanges.map((change) => change.key)} />
+              </div>
+              <div style={quickEditChangeListStyle}>
+                {pendingChanges.map((change) => (
+                  <div key={change.key} style={quickEditChangeRowStyle}>
+                    <strong>{change.label}</strong>
+                    <span>{change.before}</span>
+                    <span>→</span>
+                    <span>{change.after}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={quickEditActionsStyle}>
+                <button style={ghostButtonStyle} onClick={() => setPendingChanges(null)} disabled={savingQuickEdit}>
+                  취소하고 다시 수정
+                </button>
+                <button style={buttonStyle} onClick={applyQuickEdit} disabled={savingQuickEdit}>
+                  {savingQuickEdit ? "적용 중..." : "이대로 적용"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </ModalBackdrop>
   );
@@ -511,6 +830,85 @@ function ProfileSection({ title, children }: { title: string; children: React.Re
       <div style={sectionTitleStyle}>{title}</div>
       {children}
     </section>
+  );
+}
+
+function QuickEditTextField({
+  label,
+  placeholder,
+  value,
+  onChange,
+  clearable = false,
+  clearChecked = false,
+  onClearChange,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  clearable?: boolean;
+  clearChecked?: boolean;
+  onClearChange?: (checked: boolean) => void;
+}) {
+  return (
+    <label style={quickEditFieldStyle}>
+      <span style={quickEditLabelStyle}>{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        disabled={clearChecked}
+        style={quickEditInputStyle}
+      />
+      {clearable && (
+        <span style={quickEditClearStyle}>
+          <input
+            type="checkbox"
+            checked={clearChecked}
+            onChange={(event) => onClearChange?.(event.target.checked)}
+          />
+          값 지우기
+        </span>
+      )}
+    </label>
+  );
+}
+
+function previewMember(member: ProfileMember, changes: QuickEditChange[]): ProfileMember {
+  const next = { ...member };
+  for (const change of changes) {
+    (next as Record<string, unknown>)[change.key] = change.nextValue;
+  }
+  return next;
+}
+
+function MiniProfileCard({
+  title,
+  member,
+  changedKeys = [],
+}: {
+  title: string;
+  member: ProfileMember;
+  changedKeys?: QuickEditChange["key"][];
+}) {
+  const changed = new Set(changedKeys);
+  const valueStyle = (key: QuickEditChange["key"]): CSSProperties => ({
+    ...miniProfileValueStyle,
+    ...(changed.has(key) ? miniProfileChangedValueStyle : null),
+  });
+
+  return (
+    <div style={miniProfileCardStyle}>
+      <div style={miniProfileTitleStyle}>{title}</div>
+      <div style={miniProfileNameStyle}>{member.name}</div>
+      <div style={valueStyle("phone")}>휴대폰: {displayText(member.phone)}</div>
+      <div style={valueStyle("home_phone")}>집전화: {displayText(member.home_phone || member.household_home_phone)}</div>
+      <div style={valueStyle("family_church")}>가정교회: {displayText(member.family_church)}</div>
+      <div style={valueStyle("sub_role")}>직분: {displayText(member.sub_role)}</div>
+      <div style={valueStyle("spouse_name")}>배우자: {displayText(member.spouse_name)}</div>
+      <div style={valueStyle("gender")}>성별: {genderText(member.gender)}</div>
+      <div style={valueStyle("is_child")}>구분: {childText(member.is_child)}</div>
+    </div>
   );
 }
 
@@ -781,6 +1179,168 @@ const profileSectionStyle: CSSProperties = {
 
 const sectionTitleStyle: CSSProperties = { marginBottom: 10, fontSize: 13, fontWeight: 900, color: "#334155" };
 const sectionEmptyStyle: CSSProperties = { padding: "10px 0", color: "#94a3b8", fontSize: 12 };
+
+const adminQuickEditWrapStyle: CSSProperties = {
+  border: "1px solid #dbeafe",
+  borderRadius: 8,
+  background: "#f8fbff",
+  padding: 12,
+  marginBottom: 14,
+};
+
+const adminQuickEditHeadStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+  marginBottom: 10,
+};
+
+const adminQuickEditHintStyle: CSSProperties = {
+  marginTop: 3,
+  fontSize: 11,
+  lineHeight: 1.4,
+  color: "#64748b",
+};
+
+const quickEditFormStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 10,
+  padding: "10px 0 12px",
+};
+
+const quickEditFieldStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 5,
+  minWidth: 0,
+};
+
+const quickEditLabelStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 900,
+  color: "#475569",
+};
+
+const quickEditInputStyle: CSSProperties = {
+  height: 38,
+  border: "1px solid #cbd5e1",
+  borderRadius: 8,
+  padding: "0 10px",
+  fontSize: 13,
+  fontFamily: "inherit",
+  color: "#0f172a",
+  background: "#fff",
+  minWidth: 0,
+};
+
+const quickEditClearStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+  fontSize: 11,
+  color: "#64748b",
+};
+
+const quickEditReadOnlyStyle: CSSProperties = {
+  gridColumn: "1 / -1",
+  border: "1px dashed #cbd5e1",
+  borderRadius: 8,
+  padding: 10,
+  fontSize: 12,
+  color: "#64748b",
+  background: "#fff",
+};
+
+const quickEditActionsStyle: CSSProperties = {
+  gridColumn: "1 / -1",
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: 8,
+  flexWrap: "wrap",
+};
+
+const quickEditConfirmOverlayStyle: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 120,
+  background: "rgba(15, 23, 42, 0.62)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 16,
+};
+
+const quickEditConfirmCardStyle: CSSProperties = {
+  width: "100%",
+  maxWidth: 760,
+  maxHeight: "90vh",
+  overflowY: "auto",
+  borderRadius: 8,
+  background: "#fff",
+  padding: 16,
+  boxShadow: "0 20px 60px rgba(15,23,42,0.28)",
+};
+
+const quickEditCompareGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+  gap: 12,
+  marginBottom: 12,
+};
+
+const miniProfileCardStyle: CSSProperties = {
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  padding: 12,
+  background: "#f8fafc",
+};
+
+const miniProfileTitleStyle: CSSProperties = {
+  marginBottom: 8,
+  fontSize: 12,
+  fontWeight: 900,
+  color: "#2563eb",
+};
+
+const miniProfileNameStyle: CSSProperties = {
+  marginBottom: 8,
+  fontSize: 18,
+  fontWeight: 900,
+  color: "#0f172a",
+};
+
+const miniProfileValueStyle: CSSProperties = {
+  marginTop: 4,
+  fontSize: 12,
+  color: "#475569",
+};
+
+const miniProfileChangedValueStyle: CSSProperties = {
+  color: "#1d4ed8",
+  fontWeight: 900,
+  background: "#dbeafe",
+  borderRadius: 6,
+  padding: "3px 6px",
+};
+
+const quickEditChangeListStyle: CSSProperties = {
+  border: "1px solid #e2e8f0",
+  borderRadius: 8,
+  overflow: "hidden",
+  marginBottom: 12,
+};
+
+const quickEditChangeRowStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "90px minmax(0, 1fr) 24px minmax(0, 1fr)",
+  gap: 8,
+  padding: "9px 10px",
+  borderBottom: "1px solid #e2e8f0",
+  fontSize: 12,
+  alignItems: "center",
+};
 
 const chipGridStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap" };
 const chipStyle: CSSProperties = {
