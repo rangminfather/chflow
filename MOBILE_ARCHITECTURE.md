@@ -14,8 +14,9 @@ Smart Myungsung has two delivery runtimes:
    - Current shell: React Native `WebView` loading the deployed web app
    - Distribution: Android APK/AAB and Play Store release flow
 
-`chflow-twa` is not the current mobile release path. Treat it as legacy/reference
-unless the mobile architecture decision is changed explicitly.
+Legacy TWA and old Play Store artifacts are archived under
+`archive/mobile-legacy/`. They are not the current mobile release path unless the
+mobile architecture decision is changed explicitly.
 
 ## Product Direction
 
@@ -86,9 +87,10 @@ workflow requires it.
   device verification.
 - Keep web routing compatible with the mobile WebView shell, especially entry
   history and notification target routes.
-- Do not build or install `chflow-twa` as the normal Android test artifact.
-  `chflow-twa` and `chflow-expo` currently share the Android package id, so a
-  TWA APK can replace the Expo shell on a device and remove Expo-native behavior.
+- Do not build or install `archive/mobile-legacy/chflow-twa` as the normal
+  Android test artifact. Archived TWA builds and `chflow-expo` share the Android
+  package id, so a TWA APK can replace the Expo shell on a device and remove
+  Expo-native behavior.
 
 ## Verification Cadence
 
@@ -107,4 +109,3 @@ Before mobile release:
 - verify notification permission, delivery, status-bar display, tap routing, and
   unread/read state
 - verify launcher icon, splash, uploads, and required permissions
-

@@ -116,6 +116,10 @@ archive/mobile-legacy/**/*.apk
 archive/mobile-legacy/**/*.aab
 archive/mobile-legacy/**/local.properties
 archive/mobile-legacy/**/gradle-wrapper.jar
+archive/mobile-legacy/**/.gradle/
+archive/mobile-legacy/**/twa-manifest.json
+archive/mobile-legacy/play-store-assets/*.js
+archive/mobile-legacy/play-store-assets/package*.json
 
 # Play Store local helpers and binary release outputs.
 play-store-assets/node_modules/

@@ -6,7 +6,7 @@
 
 - Web delivery: `chflow-app` is the PWA/web app and is deployed to Vercel.
 - Mobile delivery: `chflow-expo` is the React Native Expo WebView shell for Android app builds.
-- `chflow-twa` is not the current mobile release path. Keep it only as a legacy/reference project unless the mobile architecture decision is changed explicitly.
+- Legacy mobile artifacts are archived under `archive/mobile-legacy/`; do not use them for normal builds unless the mobile architecture decision is changed explicitly.
 - When a change affects mobile-only behavior such as Android back handling, launcher assets, or native permissions, verify it in `chflow-expo`; a Vercel deploy alone does not verify the mobile shell.
 - Detailed mobile direction, native responsibilities, and notification strategy: `MOBILE_ARCHITECTURE.md`.
 
@@ -45,8 +45,8 @@ chflow/
 ├── chflow-expo/                   # React Native Expo mobile shell
 │   ├── App.tsx                     # WebView + Android back handling
 │   └── eas.json                    # Android verification/release build profiles
-├── chflow-twa/                    # Legacy/reference Android TWA project
-│   └── android/                    # Legacy Gradle build
+├── archive/
+│   └── mobile-legacy/              # Legacy TWA and old Play Store artifacts
 │
 └── MS_AX/                         # 데이터 처리 / 마이그레이션
     ├── chflow-project/
@@ -84,6 +84,7 @@ chflow/
 ### 5. Web PWA + React Native mobile shell
 - Web/PWA can be added to a home screen.
 - Google Play mobile release uses the Expo shell in `chflow-expo`.
+- Old TWA APKs and old Play Store upload assets are kept only in `archive/mobile-legacy/`.
 
 ## 🚀 개발 환경 설정
 
