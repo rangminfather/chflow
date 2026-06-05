@@ -6,7 +6,11 @@
     },
     {
       "path": "/api/bulletin/sync",
-      "schedule": "0 14 * * 6"
+      "schedule": "0 2 * * 6"
+    },
+    {
+      "path": "/api/bulletin/sync",
+      "schedule": "0 10 * * 6"
     },
     {
       "path": "/api/bulletin/sync",
