@@ -18,6 +18,15 @@ type DeptBulletinItem = {
   stored: boolean;
 };
 
+type StoredBulletin = {
+  id: string;
+  title: string;
+  content: string | null;
+  sunday_date: string;
+  pdf_url: string | null;
+  created_at: string | null;
+};
+
 type CacheValue = {
   items: Omit<DeptBulletinItem, "pdf_url">[];
   expiresAt: number;
@@ -32,7 +41,9 @@ type FetchAttempt = {
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SIGNING_SECRET = process.env.SUPABASE_SERVICE_ROLE_KEY || ANON_KEY;
+const BUCKET = "bulletins";
 const PROXY_LIST_URL = `${SUPABASE_URL}/functions/v1/ums-fetch?action=list&board=samusil`;
 const PROXY_POST_URL = (no: number) => `${SUPABASE_URL}/functions/v1/ums-fetch?action=post&board=samusil&no=${no}`;
 const DIRECT_LIST_URL = "http://www.ums.or.kr/bbs/zboard.php?id=samusil&page=1";
@@ -41,6 +52,8 @@ const VIEW_BASE = "http://www.ums.or.kr/bbs/zboard.php";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const PDF_URL_TTL_SECONDS = 10 * 60;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const DEPT_MARKER_PREFIX = "Dept bulletin:";
+const UMS_SAMUSIL_MARKER = "UMS samusil no:";
 
 const DEPT_PATTERNS: Record<string, { author: string; titleIncludes: string[] }> = {
   "초등1부": { author: "심주석", titleIncludes: [] },
@@ -283,6 +296,52 @@ async function loadPublicItems(deptKey: string) {
   return items;
 }
 
+async function loadStoredItems(deptKey: string): Promise<DeptBulletinItem[]> {
+  if (!SERVICE_KEY) return [];
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const marker = `${DEPT_MARKER_PREFIX} ${deptKey}`;
+  const { data, error } = await admin
+    .from("bulletins")
+    .select("id,title,content,sunday_date,pdf_url,created_at")
+    .not("pdf_url", "is", null)
+    .ilike("content", `%${marker}%`)
+    .ilike("content", `%${UMS_SAMUSIL_MARKER}%`)
+    .order("sunday_date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(12);
+
+  if (error) throw new Error(error.message);
+
+  const rows = (data || []) as StoredBulletin[];
+  const items = await Promise.all(rows.map(async (row) => {
+    const path = row.pdf_url || "";
+    const sourceNo = Number(row.content?.match(/UMS samusil no:\s*(\d+)/)?.[1] || 0);
+    let signedUrl = "";
+    if (path && !/^https?:\/\//i.test(path)) {
+      const signed = await admin.storage.from(BUCKET).createSignedUrl(path, PDF_URL_TTL_SECONDS);
+      signedUrl = signed.data?.signedUrl || "";
+    } else {
+      signedUrl = path;
+    }
+
+    return {
+      no: sourceNo,
+      title: row.title,
+      issue_date: row.sunday_date,
+      posted_at: row.created_at,
+      author: "심주석",
+      url: sourceNo ? `${VIEW_BASE}?id=samusil&no=${sourceNo}` : `${VIEW_BASE}?id=samusil`,
+      pdf_url: signedUrl,
+      stored: true,
+    } satisfies DeptBulletinItem;
+  }));
+
+  return items.filter((item) => !!item.pdf_url);
+}
+
 export async function GET(req: NextRequest) {
   try {
     const authed = await requireUser(req);
@@ -292,6 +351,18 @@ export async function GET(req: NextRequest) {
 
     const url = new URL(req.url);
     const deptKey = url.searchParams.get("dept") || "초등1부";
+    const stored = await loadStoredItems(deptKey);
+    if (stored.length > 0) {
+      return NextResponse.json({
+        ok: true,
+        latest: pickPreferredBulletin(stored),
+        items: stored,
+        source: "storage",
+        cached: false,
+        preferred_dates: getPreferredSundayTargets(),
+      });
+    }
+
     const items = withSignedPdfUrls(await loadPublicItems(deptKey), url.origin);
 
     return NextResponse.json({

@@ -201,6 +201,7 @@ async function loadStoredItems(): Promise<BulletinItem[]> {
     .from("bulletins")
     .select("id,title,content,sunday_date,pdf_url,created_at")
     .not("pdf_url", "is", null)
+    .ilike("content", "%UMS jubo no:%")
     .order("sunday_date", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(10);
