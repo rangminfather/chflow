@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -42,14 +43,27 @@ async function fetchBuffer(url: string, headers?: HeadersInit) {
 }
 
 async function findRawPdfPathFromPost(no: number) {
-  const attempts = [
-    { url: `${PROXY_BASE}?action=post&board=samusil&no=${no}` },
-    { url: `${UMS_BBS_BASE}/zboard.php?id=samusil&no=${no}`, headers: BROWSER_HEADERS },
+  const attempts: (
+    | { type: "worker"; path: string }
+    | { type: "fetch"; url: string; headers?: HeadersInit }
+  )[] = [
+    { type: "worker", path: `/bbs/zboard.php?id=samusil&no=${no}` },
+    { type: "fetch", url: `${PROXY_BASE}?action=post&board=samusil&no=${no}` },
+    { type: "fetch", url: `${UMS_BBS_BASE}/zboard.php?id=samusil&no=${no}`, headers: BROWSER_HEADERS },
   ];
 
   for (const attempt of attempts) {
-    const res = await fetch(attempt.url, { cache: "no-store", headers: attempt.headers });
-    const html = new TextDecoder("euc-kr").decode(await res.arrayBuffer());
+    let html = "";
+    if (attempt.type === "worker") {
+      const res = await umsViaCf(attempt.path, {
+        referer: "http://www.ums.or.kr/",
+      });
+      if (res.status < 200 || res.status >= 300) continue;
+      html = new TextDecoder("euc-kr").decode(res.body);
+    } else {
+      const res = await fetch(attempt.url, { cache: "no-store", headers: attempt.headers });
+      html = new TextDecoder("euc-kr").decode(await res.arrayBuffer());
+    }
     const match = html.match(/data\/samusil\/\d+\/[a-f0-9]+__pdf\.jpg/i);
     if (match) return match[0].replace(/__pdf\.jpg$/i, ".pdf");
   }
@@ -60,6 +74,11 @@ async function findRawPdfPathFromPost(no: number) {
 async function downloadPdf(no: number) {
   const rawPath = await findRawPdfPathFromPost(no);
   if (rawPath) {
+    const workerRaw = await umsViaCf(`/bbs/${rawPath}`, {
+      referer: `${UMS_BBS_BASE}/zboard.php?id=samusil&no=${no}`,
+    });
+    if (workerRaw.status >= 200 && workerRaw.status < 300 && isPdf(workerRaw.body)) return workerRaw.body;
+
     const raw = await fetchBuffer(`${PROXY_BASE}?action=raw_pdf&board=samusil&path=${encodeURIComponent(rawPath)}`);
     if (raw.ok && isPdf(raw.buf)) return raw.buf;
 
@@ -103,7 +122,7 @@ export async function GET(req: NextRequest) {
     }
 
     const pdf = await downloadPdf(no);
-    return new NextResponse(pdf, {
+    return new NextResponse(new Uint8Array(pdf), {
       headers: {
         "Content-Type": "application/pdf",
         "Cache-Control": "private, no-store",

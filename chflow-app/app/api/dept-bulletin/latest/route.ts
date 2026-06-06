@@ -1,6 +1,7 @@
 import { createHmac } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -23,8 +24,10 @@ type CacheValue = {
 };
 
 type FetchAttempt = {
+  name: string;
   url: string;
   headers?: HeadersInit;
+  viaWorker?: string;
 };
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -69,7 +72,15 @@ async function requireUser(req: NextRequest) {
   return !error && !!data.user;
 }
 
-async function fetchEucKr({ url, headers }: FetchAttempt): Promise<string> {
+async function fetchEucKr({ url, headers, viaWorker }: FetchAttempt): Promise<string> {
+  if (viaWorker) {
+    const res = await umsViaCf(viaWorker, {
+      referer: "http://www.ums.or.kr/",
+    });
+    if (res.status < 200 || res.status >= 300) throw new Error(`UMS worker response ${res.status}`);
+    return new TextDecoder("euc-kr").decode(res.body);
+  }
+
   let lastText = "";
   for (let i = 0; i < 2; i++) {
     if (i > 0) await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -89,9 +100,9 @@ async function fetchFirstEucKr(attempts: FetchAttempt[]) {
     try {
       const text = await fetchEucKr(attempt);
       if (text.length > 1000 && !/Access denied/i.test(text)) return text;
-      lastError = `${attempt.url}: short response (${text.length})`;
+      lastError = `${attempt.name}: short response (${text.length})`;
     } catch (e) {
-      lastError = `${attempt.url}: ${e instanceof Error ? e.message : "failed"}`;
+      lastError = `${attempt.name}: ${e instanceof Error ? e.message : "failed"}`;
     }
   }
   throw new Error(lastError || "UMS 응답을 읽지 못했습니다");
@@ -187,8 +198,9 @@ function metaContent(html: string, property: string) {
 async function enrichFromPost(item: Omit<DeptBulletinItem, "pdf_url">): Promise<Omit<DeptBulletinItem, "pdf_url">> {
   try {
     const html = await fetchFirstEucKr([
-      { url: PROXY_POST_URL(item.no) },
-      { url: DIRECT_POST_URL(item.no), headers: BROWSER_HEADERS },
+      { name: "worker-post", url: DIRECT_POST_URL(item.no), viaWorker: `/bbs/zboard.php?id=samusil&no=${item.no}` },
+      { name: "ums-fetch-post", url: PROXY_POST_URL(item.no) },
+      { name: "direct-post", url: DIRECT_POST_URL(item.no), headers: BROWSER_HEADERS },
     ]);
     const ogTitle = metaContent(html, "og:title");
     if (!ogTitle) return item;
@@ -250,8 +262,9 @@ async function loadPublicItems(deptKey: string) {
   }
 
   const html = await fetchFirstEucKr([
-    { url: PROXY_LIST_URL },
-    { url: DIRECT_LIST_URL, headers: BROWSER_HEADERS },
+    { name: "worker-list", url: DIRECT_LIST_URL, viaWorker: "/bbs/zboard.php?id=samusil&page=1" },
+    { name: "ums-fetch-list", url: PROXY_LIST_URL },
+    { name: "direct-list", url: DIRECT_LIST_URL, headers: BROWSER_HEADERS },
   ]);
   const baseItems = parseBoardList(html)
     .filter((item) => {
