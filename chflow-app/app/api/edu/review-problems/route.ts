@@ -95,6 +95,16 @@ function cleanText(value: unknown) {
     .trim();
 }
 
+// PPTX XML 텍스트 노드 분리로 생기는 공백 오염 후처리
+// 규칙1: 문장부호 앞 공백 제거 ("했나요 ?" → "했나요?")
+// 규칙2: 숫자+한국어 단위 사이 공백 제거 ("7 장 10 절" → "7장 10절")
+function postprocessText(text: string): string {
+  return text
+    .replace(/ ([?!.,])/g, "$1")
+    .replace(/(\d+)\s+(장|절|과|편|권|호|번)/g, "$1$2")
+    .trim();
+}
+
 function decodeXmlText(value: string) {
   return value
     .replace(/&lt;/g, "<")
@@ -170,8 +180,12 @@ async function parseReviewPptx(buffer: Buffer, id: string, path: string, name: s
     slides.push(shapes);
   }
 
-  const title = cleanText((slides[0] || []).join(" ")) || name;
-  const quizzes = slides.slice(1).map(parseQuizSlide).filter((quiz): quiz is ParsedQuiz => Boolean(quiz));
+  const title = postprocessText(cleanText((slides[0] || []).join(" ")) || name);
+  const quizzes = slides.slice(1).map(parseQuizSlide).filter((quiz): quiz is ParsedQuiz => Boolean(quiz)).map((quiz) => ({
+    ...quiz,
+    question: postprocessText(quiz.question),
+    choices: quiz.choices.map(postprocessText),
+  }));
   const lessonNum = lessonFromTitle(`${title} ${name}`);
   const specialTitle = specialFromText(`${title} ${name}`);
 
