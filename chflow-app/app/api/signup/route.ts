@@ -18,6 +18,9 @@ interface SignupBody {
   birthDate?: string | null;
   gender?: string | null;
   address?: string | null;
+  addressBase?: string | null;
+  addressDetail?: string | null;
+  addressZonecode?: string | null;
   pastureId?: string | null;
   parentMemberId?: string | null;
   householdId?: string | null;
@@ -61,6 +64,9 @@ export async function POST(req: NextRequest) {
       birthDate,
       gender,
       address,
+      addressBase,
+      addressDetail,
+      addressZonecode,
       pastureId,
       parentMemberId,
       householdId,
@@ -90,7 +96,11 @@ export async function POST(req: NextRequest) {
     if (!["M", "F"].includes(gender)) {
       return NextResponse.json({ error: "성별 값이 올바르지 않습니다" }, { status: 400 });
     }
-    if (!address?.trim()) {
+    const cleanAddressBase = addressBase?.trim() || address?.trim() || "";
+    const cleanAddressDetail = addressDetail?.trim() || "";
+    const cleanAddress = address?.trim() || [cleanAddressBase, cleanAddressDetail].filter(Boolean).join(" ");
+
+    if (!cleanAddressBase && !cleanAddress) {
       return NextResponse.json({ error: "주소를 입력하세요" }, { status: 400 });
     }
     if (isChild && (!guardianName?.trim() || !guardianPhone?.trim())) {
@@ -141,7 +151,10 @@ export async function POST(req: NextRequest) {
       member_id: matchedMemberId || null,
       signup_birth_date: birthDate,
       signup_gender: gender,
-      signup_address: address.trim(),
+      signup_address: cleanAddress,
+      signup_address_base: cleanAddressBase || cleanAddress,
+      signup_address_detail: cleanAddressDetail || null,
+      signup_address_zonecode: addressZonecode?.trim() || null,
       signup_pasture_id: pastureId || null,
       signup_parent_member_id: parentMemberId || null,
       signup_household_id: householdId || null,

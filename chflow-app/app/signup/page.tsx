@@ -54,6 +54,7 @@ interface DaumPostcodeData {
 
 interface DaumPostcode {
   open: () => void;
+  embed: (element: HTMLElement) => void;
 }
 
 declare global {
@@ -179,12 +180,15 @@ export default function SignupPage() {
   const [gender, setGender] = useState("");
   const [address, setAddress] = useState("");
   const [addressDetail, setAddressDetail] = useState("");
+  const [addressZonecode, setAddressZonecode] = useState("");
+  const [addressSearchOpen, setAddressSearchOpen] = useState(false);
   const [pastureId, setPastureId] = useState("");
   const [pastureSearch, setPastureSearch] = useState("");
   const [showPastureSuggestions, setShowPastureSuggestions] = useState(false);
   const [parentMatch, setParentMatch] = useState<ParentMatch | null>(null);
   const [pastureOptions, setPastureOptions] = useState<PastureOption[]>([]);
   const addressDetailRef = useRef<HTMLInputElement | null>(null);
+  const addressSearchRef = useRef<HTMLDivElement | null>(null);
 
   // 약관 동의
   const [agreePrivacy, setAgreePrivacy] = useState(false);
@@ -216,6 +220,39 @@ export default function SignupPage() {
     () => [address.trim(), addressDetail.trim()].filter(Boolean).join(" "),
     [address, addressDetail],
   );
+
+  useEffect(() => {
+    if (!addressSearchOpen) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await loadDaumPostcodeScript();
+        if (cancelled || !addressSearchRef.current) return;
+        if (!window.daum?.Postcode) throw new Error("주소 검색을 시작하지 못했습니다");
+
+        addressSearchRef.current.innerHTML = "";
+        new window.daum.Postcode({
+          oncomplete: (data) => {
+            const baseAddress = data.roadAddress || data.jibunAddress || data.address || "";
+            const building = data.buildingName && data.apartment === "Y" ? ` (${data.buildingName})` : "";
+            setAddress(`${baseAddress}${building}`.trim());
+            setAddressZonecode(data.zonecode || "");
+            setAddressDetail("");
+            setAddressSearchOpen(false);
+            window.setTimeout(() => addressDetailRef.current?.focus(), 80);
+          },
+        }).embed(addressSearchRef.current);
+      } catch (e: unknown) {
+        setError(getErrorMessage(e));
+        setAddressSearchOpen(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [addressSearchOpen]);
 
   const filteredPastureOptions = useMemo(() => {
     const query = normalizeSearchText(pastureSearch);
@@ -249,6 +286,7 @@ export default function SignupPage() {
     setGender(normalizeGenderValue(member.gender));
     setAddress(member.address || "");
     setAddressDetail("");
+    setAddressZonecode("");
     setPastureId(member.pasture_id || "");
     if (!member.pasture_id) setPastureSearch("");
   };
@@ -257,6 +295,7 @@ export default function SignupPage() {
     setParentMatch(parent);
     setAddress(parent.address || "");
     setAddressDetail("");
+    setAddressZonecode("");
     setPastureId(parent.pasture_id || "");
     if (!parent.pasture_id) setPastureSearch("");
   };
@@ -275,21 +314,7 @@ export default function SignupPage() {
 
   const openAddressSearch = async () => {
     setError("");
-    try {
-      await loadDaumPostcodeScript();
-      if (!window.daum?.Postcode) throw new Error("주소 검색을 시작하지 못했습니다");
-      new window.daum.Postcode({
-        oncomplete: (data) => {
-          const baseAddress = data.roadAddress || data.jibunAddress || data.address || "";
-          const building = data.buildingName && data.apartment === "Y" ? ` (${data.buildingName})` : "";
-          setAddress(`${baseAddress}${building}`.trim());
-          setAddressDetail("");
-          window.setTimeout(() => addressDetailRef.current?.focus(), 80);
-        },
-      }).open();
-    } catch (e: unknown) {
-      setError(getErrorMessage(e));
-    }
+    setAddressSearchOpen(true);
   };
 
   // 안드로이드/브라우저 뒤로가기 버튼 → 앱종료 대신 이전 step/모달 닫기
@@ -433,6 +458,7 @@ export default function SignupPage() {
         setGender("");
         setAddress("");
         setAddressDetail("");
+        setAddressZonecode("");
         setPastureId("");
         setPastureSearch("");
         setStep("role");
@@ -564,6 +590,9 @@ export default function SignupPage() {
           birthDate,
           gender,
           address: fullAddress,
+          addressBase: address.trim(),
+          addressDetail: addressDetail.trim(),
+          addressZonecode: addressZonecode || null,
           pastureId: pastureId || null,
           parentMemberId: matched?.parent_id || parentMatch?.parent_id || null,
           householdId: matched?.household_id || parentMatch?.household_id || null,
@@ -1062,6 +1091,11 @@ export default function SignupPage() {
               placeholder="상세주소 직접 입력/수정"
               style={{ ...inputStyle, marginTop: 8 }}
             />
+            {addressZonecode && (
+              <div style={{ marginTop: 5, fontSize: 11, color: "var(--ink-soft)" }}>
+                우편번호 {addressZonecode}
+              </div>
+            )}
           </div>
 
           <div style={{ marginBottom: 18 }}>
@@ -1234,6 +1268,24 @@ export default function SignupPage() {
             가입 신청 후 관리자 승인이 필요합니다
           </div>
       </div>
+
+      {addressSearchOpen && (
+        <ModalBackdrop onClose={() => setAddressSearchOpen(false)} style={addressSearchBackdropStyle}>
+          <div onClick={(e) => e.stopPropagation()} style={addressSearchPanelStyle}>
+            <div style={addressSearchHeaderStyle}>
+              <strong>주소 검색</strong>
+              <button
+                type="button"
+                onClick={() => setAddressSearchOpen(false)}
+                style={addressSearchCloseStyle}
+              >
+                닫기
+              </button>
+            </div>
+            <div ref={addressSearchRef} style={addressSearchFrameStyle} />
+          </div>
+        </ModalBackdrop>
+      )}
     </div>
   );
 }
@@ -1456,6 +1508,53 @@ const pastureSelectedStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: 2,
+};
+
+const addressSearchBackdropStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 120,
+  background: "rgba(15, 23, 42, 0.48)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 14,
+};
+
+const addressSearchPanelStyle: React.CSSProperties = {
+  width: "min(520px, 100%)",
+  background: "#fff",
+  borderRadius: 8,
+  overflow: "hidden",
+  boxShadow: "0 22px 70px rgba(15, 23, 42, 0.3)",
+};
+
+const addressSearchHeaderStyle: React.CSSProperties = {
+  height: 48,
+  padding: "0 14px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  borderBottom: "1px solid #e2e8f0",
+  color: "var(--ink)",
+  fontSize: 14,
+};
+
+const addressSearchCloseStyle: React.CSSProperties = {
+  border: "none",
+  background: "var(--accent-soft)",
+  color: "var(--accent)",
+  borderRadius: 8,
+  padding: "7px 10px",
+  fontSize: 12,
+  fontWeight: 800,
+  fontFamily: "inherit",
+  cursor: "pointer",
+};
+
+const addressSearchFrameStyle: React.CSSProperties = {
+  width: "100%",
+  height: "min(520px, 72vh)",
 };
 
 const primaryBtnStyle: React.CSSProperties = {
