@@ -51,8 +51,8 @@
   --radius-card: var(--radius);
 }
 
-/* standalone PWA에서 카메라 홀/노치 보호 — env()가 0이어도 min 44px 보장 */
-@media (display-mode: standalone) {
+/* 모바일에서 카메라 홀/노치 보호 — env()가 0이어도 min 44px 보장 (브라우저/PWA 공통) */
+@media (max-width: 768px) {
   :root {
     --body-safe-top: max(env(safe-area-inset-top, 0px), 44px);
   }
