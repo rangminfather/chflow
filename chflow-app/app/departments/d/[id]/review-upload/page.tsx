@@ -6,13 +6,12 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 
 interface ReviewFile {
-  id: string;
   path: string;
   name: string;
   title: string;
   lessonNum: string;
   specialTitle: string;
-  quizzes: { type: string; question: string; choices: string[] }[];
+  quizCount: number;
   created_at: string | null;
   size: number | null;
 }
@@ -231,7 +230,7 @@ export default function ReviewUploadPage() {
                       <span className="text-[14px] font-bold text-slate-800 truncate">{file.title}</span>
                     </div>
                     <div className="mt-0.5 text-[12px] text-slate-400">
-                      {file.quizzes.length}문제
+                      {file.quizCount}문제
                       {file.created_at && ` · ${new Date(file.created_at).toLocaleDateString("ko-KR")}`}
                       {file.size && ` · ${(file.size / 1024).toFixed(0)}KB`}
                     </div>

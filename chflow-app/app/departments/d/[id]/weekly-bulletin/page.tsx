@@ -1089,16 +1089,16 @@ export default function WeeklyBulletinPage() {
   const applyReviewProblem = async (entry: ReviewProblem | ReviewIndex | null) => {
     if (!entry) { showToast("선택된 복습문제가 없습니다"); return; }
 
-    let problem: ReviewProblem;
-    // quizzes가 없는 IndexEntry면 개별 fetch
-    if (!("quizzes" in entry) || !entry.quizzes) {
-      const idx = entry as ReviewIndex;
+    let problem: ReviewProblem | null = null;
+    if ("quizzes" in entry) {
+      problem = entry as ReviewProblem;
+    } else {
       setReviewLoading(true);
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) { router.replace("/login"); return; }
         const res = await fetch(
-          `/api/edu/review-problems?dept_id=${deptId}&file=${encodeURIComponent(idx.jsonPath)}`,
+          `/api/edu/review-problems?dept_id=${deptId}&file=${encodeURIComponent(entry.jsonPath)}`,
           { headers: { Authorization: `Bearer ${session.access_token}` } }
         );
         const json = await res.json();
@@ -1106,16 +1106,16 @@ export default function WeeklyBulletinPage() {
         problem = json.problem as ReviewProblem;
       } catch { showToast("복습문제 로드 실패"); return; }
       finally { setReviewLoading(false); }
-    } else {
-      problem = entry as ReviewProblem;
     }
 
-    if (problem.lessonNum) setForm((f) => ({ ...f, lessonNum: problem.lessonNum }));
-    const nextQuizzes = (problem.quizzes || []).length > 0
-      ? problem.quizzes.map((quiz) => ({ ...quiz, id: Math.random().toString(36).slice(2), choices: quiz.choices || [] }))
+    if (!problem) return;
+    const p = problem;
+    if (p.lessonNum) setForm((f) => ({ ...f, lessonNum: p.lessonNum }));
+    const nextQuizzes = (p.quizzes || []).length > 0
+      ? p.quizzes.map((quiz) => ({ ...quiz, id: Math.random().toString(36).slice(2), choices: quiz.choices || [] }))
       : [newQuizItem("mc4")];
     setQuizzes(nextQuizzes);
-    showToast(`${problem.title} 적용 완료`);
+    showToast(`${p.title} 적용 완료`);
   };
 
   const handleSaveDraft = async () => {
