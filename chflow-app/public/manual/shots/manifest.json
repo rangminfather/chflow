@@ -1,0 +1,186 @@
+[
+  {
+    "chapterId": "ch01",
+    "chapterTitle": "1장. 회원가입",
+    "stepId": "signup-01",
+    "title": "로그인 화면 진입",
+    "desc": "앱(chflow-app.vercel.app)에 접속하면 로그인 화면이 나타납니다. 처음 사용하시는 분은 하단 '회원가입' 버튼을 누릅니다.",
+    "shot": "signup-01.png"
+  },
+  {
+    "chapterId": "ch01",
+    "chapterTitle": "1장. 회원가입",
+    "stepId": "signup-02",
+    "title": "이름·전화번호 조회",
+    "desc": "가입된 성도 명단에서 본인을 찾습니다. 이름과 휴대폰 번호를 입력하고 '조회' 버튼을 누릅니다.",
+    "shot": "signup-02.png"
+  },
+  {
+    "chapterId": "ch01",
+    "chapterTitle": "1장. 회원가입",
+    "stepId": "signup-03",
+    "title": "정보 확인 단계",
+    "desc": "조회된 본인 정보를 확인합니다. 이름, 연락처, 소속 등이 맞으면 '이 분이 맞습니다' 버튼을 누릅니다.",
+    "shot": "signup-03.png"
+  },
+  {
+    "chapterId": "ch01",
+    "chapterTitle": "1장. 회원가입",
+    "stepId": "signup-04",
+    "title": "아이디·비밀번호 설정",
+    "desc": "사용할 아이디(영문 소문자·숫자·_./, 4~20자)와 비밀번호(8자 이상)를 입력합니다. 아이디 중복 확인 후 '가입 완료' 버튼을 누릅니다.",
+    "shot": "signup-04.png"
+  },
+  {
+    "chapterId": "ch01",
+    "chapterTitle": "1장. 회원가입",
+    "stepId": "signup-05",
+    "title": "가입 완료 — 승인 대기",
+    "desc": "가입이 완료되면 관리자 승인을 기다립니다. 승인 후 로그인이 가능합니다. 초등1부 부서는 담당 교역자가 승인합니다.",
+    "shot": "signup-05.png"
+  },
+  {
+    "chapterId": "ch02",
+    "chapterTitle": "2장. 로그인 및 홈 화면",
+    "stepId": "login-01",
+    "title": "로그인",
+    "desc": "아이디와 비밀번호를 입력하고 '로그인' 버튼을 누릅니다. '로그인 유지'를 체크하면 다음에 자동 로그인됩니다.",
+    "shot": "login-01.png"
+  },
+  {
+    "chapterId": "ch02",
+    "chapterTitle": "2장. 로그인 및 홈 화면",
+    "stepId": "login-02",
+    "title": "홈 화면",
+    "desc": "로그인 후 홈 화면이 나타납니다. 상단에 내 이름과 소속이 표시되고, 아래에 자주 사용하는 메뉴가 나열됩니다.",
+    "shot": "login-02.png"
+  },
+  {
+    "chapterId": "ch02",
+    "chapterTitle": "2장. 로그인 및 홈 화면",
+    "stepId": "login-03",
+    "title": "내 정보 확인",
+    "desc": "홈 화면에서 '내 정보'를 누르면 등록된 정보를 확인하고 수정할 수 있습니다.",
+    "shot": "login-03.png"
+  },
+  {
+    "chapterId": "ch03",
+    "chapterTitle": "3장. 초등1부 부서원 메뉴",
+    "stepId": "dept-member-01",
+    "title": "교육사역국 진입",
+    "desc": "홈 화면 또는 사이드바에서 '교육사역국'을 선택합니다.",
+    "shot": "dept-member-01.png"
+  },
+  {
+    "chapterId": "ch03",
+    "chapterTitle": "3장. 초등1부 부서원 메뉴",
+    "stepId": "dept-member-02",
+    "title": "초등1부 부서 메인",
+    "desc": "초등1부 부서 페이지입니다. 가입된 역할에 따라 볼 수 있는 메뉴가 다릅니다.",
+    "shot": "dept-member-02.png"
+  },
+  {
+    "chapterId": "ch03",
+    "chapterTitle": "3장. 초등1부 부서원 메뉴",
+    "stepId": "dept-member-03",
+    "title": "내 반 확인",
+    "desc": "부서원은 자신이 소속된 반의 학생 명단을 확인할 수 있습니다.",
+    "shot": "dept-member-03.png"
+  },
+  {
+    "chapterId": "ch03",
+    "chapterTitle": "3장. 초등1부 부서원 메뉴",
+    "stepId": "dept-member-04",
+    "title": "출석 체크",
+    "desc": "주일마다 학생 출석을 기록합니다. 이름 옆 체크박스를 눌러 출석/결석을 표시합니다.",
+    "shot": "dept-member-04.png"
+  },
+  {
+    "chapterId": "ch03",
+    "chapterTitle": "3장. 초등1부 부서원 메뉴",
+    "stepId": "dept-member-05",
+    "title": "새 친구 등록",
+    "desc": "새로 나온 친구의 정보를 등록합니다.",
+    "shot": "dept-member-05.png"
+  },
+  {
+    "chapterId": "ch04",
+    "chapterTitle": "4장. 초등1부 담임 메뉴",
+    "stepId": "teacher-01",
+    "title": "담임 홈",
+    "desc": "담임 교사는 부서원보다 더 많은 메뉴를 사용할 수 있습니다.",
+    "shot": "teacher-01.png"
+  },
+  {
+    "chapterId": "ch04",
+    "chapterTitle": "4장. 초등1부 담임 메뉴",
+    "stepId": "teacher-02",
+    "title": "전체 출석 현황",
+    "desc": "반 전체 출석 현황을 한눈에 볼 수 있습니다.",
+    "shot": "teacher-02.png"
+  },
+  {
+    "chapterId": "ch04",
+    "chapterTitle": "4장. 초등1부 담임 메뉴",
+    "stepId": "teacher-03",
+    "title": "교사 출석",
+    "desc": "교사 출석을 기록하고 조회합니다.",
+    "shot": "teacher-03.png"
+  },
+  {
+    "chapterId": "ch04",
+    "chapterTitle": "4장. 초등1부 담임 메뉴",
+    "stepId": "teacher-04",
+    "title": "주간 주보",
+    "desc": "주간 주보를 열람합니다.",
+    "shot": "teacher-04.png"
+  },
+  {
+    "chapterId": "ch04",
+    "chapterTitle": "4장. 초등1부 담임 메뉴",
+    "stepId": "teacher-05",
+    "title": "공지사항",
+    "desc": "부서 공지사항을 확인합니다.",
+    "shot": "teacher-05.png"
+  },
+  {
+    "chapterId": "ch04",
+    "chapterTitle": "4장. 초등1부 담임 메뉴",
+    "stepId": "teacher-06",
+    "title": "월간계획",
+    "desc": "이달의 교육 계획을 열람합니다.",
+    "shot": "teacher-06.png"
+  },
+  {
+    "chapterId": "ch04",
+    "chapterTitle": "4장. 초등1부 담임 메뉴",
+    "stepId": "teacher-07",
+    "title": "교육일지 작성",
+    "desc": "매주 수업 후 교육일지를 작성합니다.",
+    "shot": "teacher-07.png"
+  },
+  {
+    "chapterId": "ch05",
+    "chapterTitle": "5장. 공통 기능",
+    "stepId": "common-01",
+    "title": "성도 요람 검색",
+    "desc": "이름, 전화번호, 배우자 이름으로 성도를 검색할 수 있습니다.",
+    "shot": "common-01.png"
+  },
+  {
+    "chapterId": "ch05",
+    "chapterTitle": "5장. 공통 기능",
+    "stepId": "common-02",
+    "title": "주보 보기",
+    "desc": "이번 주 교회 주보를 PDF로 열람합니다.",
+    "shot": "common-02.png"
+  },
+  {
+    "chapterId": "ch05",
+    "chapterTitle": "5장. 공통 기능",
+    "stepId": "common-03",
+    "title": "불편신고/건의",
+    "desc": "앱 사용 중 불편한 점이나 건의사항을 제출합니다.",
+    "shot": "common-03.png"
+  }
+]
