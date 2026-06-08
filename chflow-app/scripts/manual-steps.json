@@ -6,55 +6,9 @@
       "id": "ch01",
       "title": "1장. 회원가입",
       "account": null,
-      "steps": [
-        {
-          "id": "signup-01",
-          "title": "로그인 화면 진입",
-          "desc": "앱(chflow-app.vercel.app)에 접속하면 로그인 화면이 나타납니다. 처음 사용하시는 분은 하단 '회원가입' 버튼을 누릅니다.",
-          "url": "/login",
-          "highlight": ".login-link-primary",
-          "waitFor": ".login-screen"
-        },
-        {
-          "id": "signup-02",
-          "title": "이름·전화번호 조회",
-          "desc": "가입된 성도 명단에서 본인을 찾습니다. 이름과 휴대폰 번호를 입력하고 '조회' 버튼을 누릅니다.",
-          "url": "/signup",
-          "highlight": null,
-          "waitFor": "form",
-          "fillForm": {
-            "selector": "input[placeholder*='이름']",
-            "value": "홍길동"
-          }
-        },
-        {
-          "id": "signup-03",
-          "title": "정보 확인 단계",
-          "desc": "조회된 본인 정보를 확인합니다. 이름, 연락처, 소속 등이 맞으면 '이 분이 맞습니다' 버튼을 누릅니다.",
-          "url": "/signup",
-          "highlight": null,
-          "waitFor": null,
-          "note": "confirm step — screenshot taken after mock state"
-        },
-        {
-          "id": "signup-04",
-          "title": "아이디·비밀번호 설정",
-          "desc": "사용할 아이디(영문 소문자·숫자·_./, 4~20자)와 비밀번호(8자 이상)를 입력합니다. 아이디 중복 확인 후 '가입 완료' 버튼을 누릅니다.",
-          "url": "/signup",
-          "highlight": null,
-          "waitFor": null,
-          "note": "info step"
-        },
-        {
-          "id": "signup-05",
-          "title": "가입 완료 — 승인 대기",
-          "desc": "가입이 완료되면 관리자 승인을 기다립니다. 승인 후 로그인이 가능합니다. 초등1부 부서는 담당 교역자가 승인합니다.",
-          "url": "/signup",
-          "highlight": null,
-          "waitFor": null,
-          "note": "done step"
-        }
-      ]
+      "type": "signup",
+      "_note": "이 챕터는 generate-manual.js의 captureSignupChapter()가 자동 처리합니다",
+      "steps": []
     },
     {
       "id": "ch02",
