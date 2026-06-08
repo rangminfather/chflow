@@ -30,6 +30,12 @@ function usernameToEmail(username: string): string {
   return `${username.toLowerCase()}@smartms.app`;
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "서버 오류";
+}
+
 function validateUsername(username: string): { valid: boolean; error?: string } {
   const lower = username.toLowerCase();
   if (lower.length < 4) return { valid: false, error: "아이디는 최소 4자 이상이어야 합니다" };
@@ -161,7 +167,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true, userId });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message || "서버 오류" }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 });
   }
 }

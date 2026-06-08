@@ -27,6 +27,14 @@ const normalizeGenderValue = (value?: string | null) => {
   return value || "";
 };
 
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "알 수 없는 오류";
+};
+
+const cssUrl = (url: string) => `url(${JSON.stringify(url)})`;
+
 const ROLE_GROUPS: { id: RoleGroupId; label: string; roleIds: string[] }[] = [
   { id: "clergy", label: "\uAD50\uC5ED\uC790", roleIds: ["pastor", "missionary", "evangelist", "pastor_wife"] },
   { id: "coworkers", label: "\uB3D9\uC5ED\uC790", roleIds: ["educator", "coordinator"] },
@@ -291,8 +299,8 @@ export default function SignupPage() {
         setPastureId("");
         setStep("role");
       }
-    } catch (e: any) {
-      setError(`오류: ${e.message}`);
+    } catch (e: unknown) {
+      setError(`오류: ${getErrorMessage(e)}`);
     }
     setLoading(false);
   };
@@ -433,8 +441,8 @@ export default function SignupPage() {
         return;
       }
       setStep("done");
-    } catch (e: any) {
-      setError(`오류: ${e.message}`);
+    } catch (e: unknown) {
+      setError(`오류: ${getErrorMessage(e)}`);
     }
     setLoading(false);
   };
@@ -595,12 +603,11 @@ export default function SignupPage() {
                   background: "#dbeafe", overflow: "hidden",
                   border: "1px solid rgba(62, 90, 74, 0.16)",
                   flexShrink: 0,
+                  backgroundImage: cssUrl(matched.photo_url),
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
                 }}>
-                  <img
-                    src={matched.photo_url}
-                    alt={matched.name}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  />
+                  <span style={visuallyHiddenStyle}>{matched.name}</span>
                 </div>
               )}
               <div style={{
@@ -664,8 +671,8 @@ export default function SignupPage() {
           </div>
 
           <div style={{ marginTop: 16, fontSize: 11, color: "var(--ink-soft)", textAlign: "center", lineHeight: 1.6 }}>
-            "네"를 선택하시면 정보가 자동으로 채워지며 직분 등은 본인이 수정 가능합니다.<br />
-            "아니오"를 선택하시면 신규 가입으로 진행됩니다.
+            네 선택 시 정보가 자동으로 채워지며 직분 등은 본인이 수정 가능합니다.<br />
+            아니오 선택 시 신규 가입으로 진행됩니다.
           </div>
         </div>
       </div>
@@ -765,12 +772,21 @@ export default function SignupPage() {
 
         {selectedRole ? (
           <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", background: "var(--accent-soft)", borderRadius: 8, marginBottom: 16 }}>
-            <img
-              src={selectedSubRole && selectedRole.subRoles
-                ? selectedRole.subRoles.find(s => s.label === selectedSubRole)?.image || selectedRole.image
-                : selectedRole.image}
-              alt={selectedSubRole || selectedRole.label}
-              style={{ width: 56, height: "auto", borderRadius: 8 }}
+            <div
+              role="img"
+              aria-label={selectedSubRole || selectedRole.label}
+              style={{
+                width: 56,
+                height: 72,
+                borderRadius: 8,
+                backgroundImage: cssUrl(selectedSubRole && selectedRole.subRoles
+                  ? selectedRole.subRoles.find(s => s.label === selectedSubRole)?.image || selectedRole.image
+                  : selectedRole.image),
+                backgroundSize: "contain",
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "center",
+                flexShrink: 0,
+              }}
             />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 700 }}>선택한 직분</div>
@@ -1008,8 +1024,18 @@ function RoleCard({ role, onClick }: { role: Role; onClick: () => void }) {
     }}
     onMouseOver={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.transform = "translateY(-4px)"; }}
     onMouseOut={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.transform = "translateY(0)"; }}>
-      <img src={role.image} alt={role.label}
-        style={{ maxWidth: "100%", maxHeight: "100%", width: "auto", height: "auto", objectFit: "contain", display: "block" }} />
+      <div
+        role="img"
+        aria-label={role.label}
+        style={{
+          width: "100%",
+          height: "100%",
+          backgroundImage: cssUrl(role.image),
+          backgroundSize: "contain",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "center",
+        }}
+      />
       {role.subRoles && role.subRoles.length > 0 && (
         <div style={{ position: "absolute", top: 6, right: 6, padding: "2px 8px",
         background: "var(--accent)", color: "#fff", borderRadius: 8,
@@ -1032,7 +1058,20 @@ function SubRoleModal({ role, onSelect, onClose }: { role: Role; onSelect: (labe
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
-          <img src={role.image} alt={role.label} style={{ width: 56, height: "auto", borderRadius: 8 }} />
+          <div
+            role="img"
+            aria-label={role.label}
+            style={{
+              width: 56,
+              height: 72,
+              borderRadius: 8,
+              backgroundImage: cssUrl(role.image),
+              backgroundSize: "contain",
+              backgroundRepeat: "no-repeat",
+              backgroundPosition: "center",
+              flexShrink: 0,
+            }}
+          />
           <div>
             <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>선택한 직분</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: "#1e293b" }}>{role.label}</div>
@@ -1052,8 +1091,18 @@ function SubRoleModal({ role, onSelect, onClose }: { role: Role; onSelect: (labe
               aspectRatio: "0.62", display: "flex",
               alignItems: "center", justifyContent: "center", padding: 4,
             }}>
-              <img src={sub.image} alt={sub.label}
-                style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+              <div
+                role="img"
+                aria-label={sub.label}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  backgroundImage: cssUrl(sub.image),
+                  backgroundSize: "contain",
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "center",
+                }}
+              />
             </div>
           ))}
         </div>
@@ -1175,4 +1224,16 @@ const infoValue: React.CSSProperties = {
   fontSize: 12,
   color: "var(--ink)",
   fontWeight: 500,
+};
+
+const visuallyHiddenStyle: React.CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0,
 };
