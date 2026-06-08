@@ -15,6 +15,15 @@ interface SignupBody {
   subRole: string;
   matchedMemberId?: string | null;
   noPhone?: boolean;
+  birthDate?: string | null;
+  gender?: string | null;
+  address?: string | null;
+  pastureId?: string | null;
+  parentMemberId?: string | null;
+  householdId?: string | null;
+  guardianName?: string | null;
+  guardianPhone?: string | null;
+  isChild?: boolean;
 }
 
 function usernameToEmail(username: string): string {
@@ -34,7 +43,25 @@ function validateUsername(username: string): { valid: boolean; error?: string } 
 export async function POST(req: NextRequest) {
   try {
     const body: SignupBody = await req.json();
-    const { username, password, name, phone, systemRole, subRole, matchedMemberId, noPhone } = body;
+    const {
+      username,
+      password,
+      name,
+      phone,
+      systemRole,
+      subRole,
+      matchedMemberId,
+      noPhone,
+      birthDate,
+      gender,
+      address,
+      pastureId,
+      parentMemberId,
+      householdId,
+      guardianName,
+      guardianPhone,
+      isChild,
+    } = body;
 
     // Validation (phone은 noPhone 체크 시 선택)
     if (!username || !password || !name) {
@@ -47,6 +74,21 @@ export async function POST(req: NextRequest) {
     if (!v.valid) return NextResponse.json({ error: v.error }, { status: 400 });
     if (password.length < 8) {
       return NextResponse.json({ error: "비밀번호는 최소 8자 이상이어야 합니다" }, { status: 400 });
+    }
+    if (!birthDate) {
+      return NextResponse.json({ error: "생년월일을 입력하세요" }, { status: 400 });
+    }
+    if (!gender) {
+      return NextResponse.json({ error: "성별을 선택하세요" }, { status: 400 });
+    }
+    if (!["M", "F"].includes(gender)) {
+      return NextResponse.json({ error: "성별 값이 올바르지 않습니다" }, { status: 400 });
+    }
+    if (!address?.trim()) {
+      return NextResponse.json({ error: "주소를 입력하세요" }, { status: 400 });
+    }
+    if (isChild && (!guardianName?.trim() || !guardianPhone?.trim())) {
+      return NextResponse.json({ error: "자녀 가입은 보호자 정보를 입력해야 합니다" }, { status: 400 });
     }
 
     const lower = username.toLowerCase().trim();
@@ -90,6 +132,16 @@ export async function POST(req: NextRequest) {
       role: systemRole,
       sub_role: subRole,
       status: "pending",
+      member_id: matchedMemberId || null,
+      signup_birth_date: birthDate,
+      signup_gender: gender,
+      signup_address: address.trim(),
+      signup_pasture_id: pastureId || null,
+      signup_parent_member_id: parentMemberId || null,
+      signup_household_id: householdId || null,
+      signup_guardian_name: guardianName?.trim() || null,
+      signup_guardian_phone: guardianPhone ? guardianPhone.replace(/[^0-9]/g, "") : null,
+      signup_is_child: !!isChild,
     });
     if (profileError) {
       // Rollback: delete user
@@ -104,7 +156,7 @@ export async function POST(req: NextRequest) {
     if (matchedMemberId) {
       await admin.from("members").update({
         app_user_id: userId,
-        guard_status: "회원",
+        guard_status: "가입대기",
       }).eq("id", matchedMemberId);
     }
 

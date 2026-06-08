@@ -18,7 +18,22 @@ interface PendingUser {
   matched_member_name: string | null;
   matched_pasture: string | null;
   matched_plain: string | null;
+  signup_birth_date: string | null;
+  signup_gender: string | null;
+  signup_address: string | null;
+  signup_pasture: string | null;
+  signup_plain: string | null;
+  signup_is_child: boolean | null;
+  signup_guardian_name: string | null;
+  signup_guardian_phone: string | null;
+  signup_parent_name: string | null;
 }
+
+const displayGender = (value?: string | null) => {
+  if (value === "M") return "남";
+  if (value === "F") return "여";
+  return value || "";
+};
 
 export default function AdminPendingPage() {
   const router = useRouter();
@@ -181,6 +196,8 @@ export default function AdminPendingPage() {
                 </div>
                 <div style={{ fontSize: 12, color: "#475569", display: "flex", gap: 12, flexWrap: "wrap" }}>
                   <span>📞 {user.phone || "-"}</span>
+                  {user.signup_birth_date && <span>🎂 {user.signup_birth_date}</span>}
+                  {user.signup_gender && <span>{displayGender(user.signup_gender)}</span>}
                   <span style={{
                     padding: "1px 8px", background: "#eef2ff",
                     color: "#6366f1", borderRadius: 4, fontSize: 11, fontWeight: 600,
@@ -190,7 +207,18 @@ export default function AdminPendingPage() {
                       📍 {user.matched_plain}평원 · {user.matched_pasture}목장
                     </span>
                   )}
+                  {user.signup_is_child && (
+                    <span style={{ color: "#64748b" }}>
+                      보호자: {user.signup_parent_name || user.signup_guardian_name || "-"} / {user.signup_guardian_phone || "-"}
+                    </span>
+                  )}
                 </div>
+                {(user.signup_address || user.signup_pasture) && (
+                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 5, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    {user.signup_address && <span>주소: {user.signup_address}</span>}
+                    {user.signup_pasture && <span>신청 목장: {user.signup_plain ? `${user.signup_plain} · ` : ""}{user.signup_pasture}</span>}
+                  </div>
+                )}
                 <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>
                   신청일: {new Date(user.created_at).toLocaleString("ko-KR")}
                 </div>

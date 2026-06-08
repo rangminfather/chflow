@@ -15,6 +15,18 @@ import ModalBackdrop from "@/components/ModalBackdrop";
 type Step = "lookup" | "confirm" | "role" | "info" | "done";
 type RoleGroupId = "clergy" | "coworkers" | "permanent" | "members" | "nextgen";
 
+const displayGender = (value?: string | null) => {
+  if (value === "M") return "남";
+  if (value === "F") return "여";
+  return value || "";
+};
+
+const normalizeGenderValue = (value?: string | null) => {
+  if (value === "남") return "M";
+  if (value === "여") return "F";
+  return value || "";
+};
+
 const ROLE_GROUPS: { id: RoleGroupId; label: string; roleIds: string[] }[] = [
   { id: "clergy", label: "\uAD50\uC5ED\uC790", roleIds: ["pastor", "missionary", "evangelist", "pastor_wife"] },
   { id: "coworkers", label: "\uB3D9\uC5ED\uC790", roleIds: ["educator", "coordinator"] },
@@ -27,10 +39,15 @@ interface MatchedMember {
   id: string;
   name: string;
   phone: string;
+  birth_date?: string | null;
+  gender?: string | null;
   family_church: string;
   sub_role: string;
   spouse_name: string;
   household_id: string;
+  pasture_id?: string | null;
+  grassland_id?: string | null;
+  plain_id?: string | null;
   pasture_name: string;
   grassland_name: string;
   plain_name: string;
@@ -42,6 +59,30 @@ interface MatchedMember {
   parent_name?: string;
   parent_phone?: string;
   matched_as_child?: boolean;
+}
+
+interface ParentMatch {
+  parent_id: string;
+  parent_name: string;
+  parent_phone: string;
+  household_id: string;
+  pasture_id: string | null;
+  grassland_id: string | null;
+  plain_id: string | null;
+  pasture_name: string | null;
+  grassland_name: string | null;
+  plain_name: string | null;
+  address: string | null;
+}
+
+interface PastureOption {
+  pasture_id: string;
+  pasture_name: string;
+  grassland_id: string;
+  grassland_name: string;
+  plain_id: string;
+  plain_name: string;
+  label: string;
 }
 
 export default function SignupPage() {
@@ -70,6 +111,12 @@ export default function SignupPage() {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const [birthDate, setBirthDate] = useState("");
+  const [gender, setGender] = useState("");
+  const [address, setAddress] = useState("");
+  const [pastureId, setPastureId] = useState("");
+  const [parentMatch, setParentMatch] = useState<ParentMatch | null>(null);
+  const [pastureOptions, setPastureOptions] = useState<PastureOption[]>([]);
 
   // 약관 동의
   const [agreePrivacy, setAgreePrivacy] = useState(false);
@@ -78,6 +125,28 @@ export default function SignupPage() {
   // 공통
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.rpc("list_signup_pastures");
+      setPastureOptions((data as PastureOption[]) || []);
+    })();
+  }, []);
+
+  const fillMemberFields = (member: Partial<MatchedMember>) => {
+    setName(member.name || "");
+    setPhone(member.phone || "");
+    setBirthDate(member.birth_date || "");
+    setGender(normalizeGenderValue(member.gender));
+    setAddress(member.address || "");
+    setPastureId(member.pasture_id || "");
+  };
+
+  const fillParentFields = (parent: ParentMatch) => {
+    setParentMatch(parent);
+    setAddress(parent.address || "");
+    setPastureId(parent.pasture_id || "");
+  };
 
   // 안드로이드/브라우저 뒤로가기 버튼 → 앱종료 대신 이전 step/모달 닫기
   // 마운트 시 가드 history entry 1개 추가, popstate 발생할 때마다 한 단계 되돌리고 가드 재충전
@@ -148,12 +217,35 @@ export default function SignupPage() {
             return;
           }
           setMatched(member);
+          fillMemberFields(member);
+          setParentMatch({
+            parent_id: member.parent_id || "",
+            parent_name: member.parent_name || parentName.trim(),
+            parent_phone: member.parent_phone || pFormatted,
+            household_id: member.household_id,
+            pasture_id: member.pasture_id || null,
+            grassland_id: member.grassland_id || null,
+            plain_id: member.plain_id || null,
+            pasture_name: member.pasture_name || null,
+            grassland_name: member.grassland_name || null,
+            plain_name: member.plain_name || null,
+            address: member.address || null,
+          });
           setStep("confirm");
         } else {
-          // 부모 매칭 실패 또는 해당 가족 내 자녀 이름 없음 → 신규 가입
+          const { data: parentData } = await supabase.rpc("find_parent_for_child_signup", {
+            p_parent_name: parentName.trim(),
+            p_parent_phone: pFormatted,
+          });
+          const parent = parentData?.[0] as ParentMatch | undefined;
+          if (parent) fillParentFields(parent);
+
+          // 부모 매칭 실패 또는 해당 가족 내 자녀 이름 없음 → 신규 자녀 가입
           setMatched(null);
           setName(lookupName.trim());
           setPhone(""); // 자녀는 핸드폰 없음
+          setBirthDate("");
+          setGender("");
           setStep("role");
         }
         setLoading(false);
@@ -185,12 +277,18 @@ export default function SignupPage() {
           return;
         }
         setMatched(member);
+        fillMemberFields(member);
         setStep("confirm");
       } else {
         // 매칭 실패 → 신규 가입
         setMatched(null);
+        setParentMatch(null);
         setName(lookupName.trim());
         setPhone(lookupPhone.trim());
+        setBirthDate("");
+        setGender("");
+        setAddress("");
+        setPastureId("");
         setStep("role");
       }
     } catch (e: any) {
@@ -203,8 +301,7 @@ export default function SignupPage() {
   const handleConfirmYes = () => {
     if (!matched) return;
     // 매칭된 정보로 자동 채움
-    setName(matched.name);
-    setPhone(matched.phone);
+    fillMemberFields(matched);
     // 직분 자동 매칭 시도
     let roleMatched = false;
     if (matched.sub_role) {
@@ -226,8 +323,7 @@ export default function SignupPage() {
   const handleConfirmNo = () => {
     // 신규 가입이지만 매칭된 정보는 그대로 채워줌
     if (matched) {
-      setName(matched.name);
-      setPhone(matched.phone);
+      fillMemberFields(matched);
       if (matched.sub_role) {
         const r = findRoleByLabel(matched.sub_role);
         if (r) setSelectedRole(r.role);
@@ -298,6 +394,9 @@ export default function SignupPage() {
     if (password !== passwordConfirm) return setError("비밀번호가 일치하지 않습니다");
     if (!name.trim()) return setError("이름을 입력하세요");
     if (!noPhone && !phone.trim()) return setError("전화번호를 입력하세요");
+    if (!birthDate) return setError("생년월일을 입력하세요");
+    if (!gender) return setError("성별을 선택하세요");
+    if (!address.trim()) return setError("주소를 입력하세요");
     if (!selectedRole) return setError("직분을 선택하세요");
     if (!agreePrivacy) return setError("개인정보 수집·이용에 동의해주세요");
     if (noPhone && !agreeGuardian) return setError("법정대리인(보호자) 동의가 필요합니다");
@@ -316,6 +415,15 @@ export default function SignupPage() {
           subRole: selectedSubRole || selectedRole.label,
           matchedMemberId: matched?.id || null,
           noPhone,
+          birthDate,
+          gender,
+          address: address.trim(),
+          pastureId: pastureId || null,
+          parentMemberId: matched?.parent_id || parentMatch?.parent_id || null,
+          householdId: matched?.household_id || parentMatch?.household_id || null,
+          guardianName: noPhone ? parentName.trim() : null,
+          guardianPhone: noPhone ? normalizePhone(parentPhone) : null,
+          isChild: noPhone,
         }),
       });
       const result = await res.json();
@@ -527,6 +635,18 @@ export default function SignupPage() {
                   <div style={infoValue}>{maskAddress(matched.address)}</div>
                 </>
               )}
+              {matched.birth_date && (
+                <>
+                  <div style={infoLabel}>생년월일</div>
+                  <div style={infoValue}>{matched.birth_date}</div>
+                </>
+              )}
+              {matched.gender && (
+                <>
+                  <div style={infoLabel}>성별</div>
+                  <div style={infoValue}>{displayGender(matched.gender)}</div>
+                </>
+              )}
               <div style={infoLabel}>휴대폰</div>
               <div style={infoValue}>{maskPhone(matched.phone)}</div>
             </div>
@@ -706,7 +826,78 @@ export default function SignupPage() {
           </div>
         )}
 
+        {noPhone && (matched?.parent_name || parentMatch?.parent_name || parentName) && (
+          <div style={{ padding: "10px 14px", background: "#f3f7f1", border: "1px solid rgba(62, 90, 74, 0.16)", borderRadius: 8, fontSize: 11, color: "var(--ink-soft)", marginBottom: 14, lineHeight: 1.5 }}>
+            <strong style={{ color: "var(--accent)" }}>보호자 연결</strong><br />
+            {(matched?.parent_name || parentMatch?.parent_name || parentName)} / {formatPhone(matched?.parent_phone || parentMatch?.parent_phone || parentPhone)}
+          </div>
+        )}
+
         <form onSubmit={handleSignup}>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>이름 *</label>
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)}
+              placeholder="실명" style={{ ...inputStyle, marginTop: 6 }} />
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>전화번호 {noPhone ? "(선택)" : "*"}</label>
+            <input type="tel" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))}
+              placeholder={noPhone ? "휴대폰 없으시면 비워두셔도 됩니다" : "010-0000-0000"}
+              style={{ ...inputStyle, marginTop: 6 }} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 10, marginBottom: 14 }}>
+            <div>
+              <label style={labelStyle}>생년월일 *</label>
+              <input
+                type="date"
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+                style={{ ...inputStyle, marginTop: 6 }}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>성별 *</label>
+              <select
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                style={{ ...inputStyle, marginTop: 6 }}
+              >
+                <option value="">선택</option>
+                <option value="M">남</option>
+                <option value="F">여</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>주소 *</label>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="현재 주소를 입력하세요"
+              style={{ ...inputStyle, marginTop: 6 }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 18 }}>
+            <label style={labelStyle}>목장</label>
+            <select
+              value={pastureId}
+              onChange={(e) => setPastureId(e.target.value)}
+              style={{ ...inputStyle, marginTop: 6 }}
+            >
+              <option value="">모름 / 미정</option>
+              {pastureOptions.map((option) => (
+                <option key={option.pasture_id} value={option.pasture_id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>아이디 *</label>
             <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
@@ -745,19 +936,6 @@ export default function SignupPage() {
             <input type={showPassword ? "text" : "password"} value={passwordConfirm}
               onChange={(e) => setPasswordConfirm(e.target.value)}
               placeholder="비밀번호 다시 입력" style={{ ...inputStyle, marginTop: 6 }} />
-          </div>
-
-          <div style={{ marginBottom: 14 }}>
-            <label style={labelStyle}>이름 *</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)}
-              placeholder="실명" style={{ ...inputStyle, marginTop: 6 }} />
-          </div>
-
-          <div style={{ marginBottom: 18 }}>
-            <label style={labelStyle}>전화번호 {noPhone ? "(선택)" : "*"}</label>
-            <input type="tel" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))}
-              placeholder={noPhone ? "휴대폰 없으시면 비워두셔도 됩니다" : "010-0000-0000"}
-              style={{ ...inputStyle, marginTop: 6 }} />
           </div>
 
           <div style={{ padding: "12px 14px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, marginBottom: 14 }}>
