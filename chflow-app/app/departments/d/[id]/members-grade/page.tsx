@@ -240,65 +240,90 @@ export default function MembersGradePage() {
             <div style={{ ...sectionLabel, marginBottom: 0 }}>부서원 ({members.length}명)</div>
             <button onClick={openAppointModal} style={appointBtnStyle}>+ 임명</button>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {members.map((m) => {
-              const key = memberKey(m);
-              const isSaving = savingId === key;
-              return (
-                <div
-                  key={key}
-                  style={{
-                    display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
-                    padding: "10px 12px",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 10,
-                    background: m.has_app ? (GRADE_BG[m.grade] || "#fff") : "#f8fafc",
-                    opacity: m.has_app ? 1 : 0.72,
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{m.name}</span>
-                      {m.role_label && (
-                        <span style={roleBadgeStyle}>{m.role_label}</span>
-                      )}
-                      {!m.has_app && (
-                        <span style={noAppBadgeStyle}>앱 미가입</span>
-                      )}
-                      {m.has_app && !m.has_dm && (
-                        <span style={noDmBadgeStyle}>미승인</span>
-                      )}
-                    </div>
-                  </div>
-                  {m.has_app ? (
-                    <select
-                      value={m.grade}
-                      onChange={(e) => handleGradeChange(m, parseInt(e.target.value, 10))}
-                      disabled={isSaving}
+
+          {/* 앱 가입 부서원 섹션 */}
+          {members.some((m) => m.has_app) && (
+            <>
+              <div style={groupLabelStyle}>앱 가입 부서원 ({members.filter(m => m.has_app).length}명)</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                {members.filter((m) => m.has_app).map((m) => {
+                  const key = memberKey(m);
+                  return (
+                    <div
+                      key={key}
                       style={{
-                        padding: "6px 10px",
-                        fontSize: 12,
-                        fontFamily: "inherit",
-                        border: "1.5px solid #cbd5e1",
-                        borderRadius: 8,
-                        background: "#fff",
-                        cursor: isSaving ? "not-allowed" : "pointer",
-                        minWidth: 180,
+                        display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+                        padding: "10px 12px",
+                        border: "1px solid #c7d2fe",
+                        borderRadius: 10,
+                        background: GRADE_BG[m.grade] || "#fff",
                       }}
                     >
-                      {GRADE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div style={{ fontSize: 11, color: "#94a3b8", minWidth: 120, textAlign: "right" }}>
-                      앱 가입 후 조정 가능
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{m.name}</span>
+                          {m.role_label && <span style={roleBadgeStyle}>{m.role_label}</span>}
+                          {!m.has_dm && <span style={noDmBadgeStyle}>미승인</span>}
+                        </div>
+                      </div>
+                      <select
+                        value={m.grade}
+                        onChange={(e) => handleGradeChange(m, parseInt(e.target.value, 10))}
+                        disabled={savingId === key}
+                        style={{
+                          padding: "6px 10px", fontSize: 12, fontFamily: "inherit",
+                          border: "1.5px solid #a5b4fc", borderRadius: 8, background: "#fff",
+                          cursor: savingId === key ? "not-allowed" : "pointer", minWidth: 180,
+                        }}
+                      >
+                        {GRADE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-            {members.length === 0 && (
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* 앱 미가입 교사 명단 */}
+          {members.some((m) => !m.has_app) && (
+            <>
+              <div style={groupLabelStyle}>교사 명단 — 앱 미가입 ({members.filter(m => !m.has_app).length}명)</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {members.filter((m) => !m.has_app).map((m) => {
+                  const key = memberKey(m);
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+                        padding: "10px 12px",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 10,
+                        background: "#f8fafc",
+                        opacity: 0.72,
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{m.name}</span>
+                          {m.role_label && <span style={roleBadgeStyle}>{m.role_label}</span>}
+                          <span style={noAppBadgeStyle}>앱 미가입</span>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#94a3b8", minWidth: 120, textAlign: "right" }}>
+                        앱 가입 후 조정 가능
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {members.length === 0 && (
               <div style={{ textAlign: "center", padding: 30, color: "#94a3b8", fontSize: 12 }}>
                 부서원이 없습니다
               </div>
@@ -485,6 +510,10 @@ const modalBox: React.CSSProperties = {
   background: "#fff", borderRadius: 14, padding: 20,
   width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto",
   fontFamily: "inherit",
+};
+const groupLabelStyle: React.CSSProperties = {
+  fontSize: 11, fontWeight: 700, color: "#6366f1", letterSpacing: 0.4,
+  marginBottom: 8, paddingBottom: 4, borderBottom: "1px solid #e0e7ff",
 };
 const roleBadgeStyle: React.CSSProperties = {
   fontSize: 10, fontWeight: 700, color: "#6366f1",
