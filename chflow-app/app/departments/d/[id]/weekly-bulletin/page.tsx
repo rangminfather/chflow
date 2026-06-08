@@ -873,14 +873,17 @@ export default function WeeklyBulletinPage() {
     setDraftList(data || []);
   }
 
-  // 발행일자 변경 시 draft 다시 로드 (단, save 직후에는 skip)
+  // 발행일자 변경 시 draft 로드 → 월간계획 자동 적용 (빈칸만)
   useEffect(() => {
     if (!authChecked) return;
     if (skipNextLoadRef.current) {
       skipNextLoadRef.current = false;
       return;
     }
-    loadDraft(form.date);
+    (async () => {
+      await loadDraft(form.date);
+      if (form.date) await autoLoadAndApplyPlan(form.date);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.date, authChecked]);
 
@@ -967,6 +970,33 @@ export default function WeeklyBulletinPage() {
     setReviewPlanStatus(null);
     setReviewError("");
     // useEffect 가 loadDraft 트리거함
+  };
+
+  // 날짜 변경 시 자동 호출 — 월간계획 불러와서 빈칸만 채움 (토스트·에러 없음)
+  const autoLoadAndApplyPlan = async (date: string) => {
+    if (!date) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const response = await fetch(
+        `/api/edu/monthly-plans/bulletin-import?dept_id=${deptId}&date=${date}`,
+        { headers: { Authorization: `Bearer ${session.access_token}` } }
+      );
+      const result = await response.json();
+      if (!response.ok || !result.ok) return;
+      const plan = result.plan as MonthlyPlanImport;
+      setMonthlyPlanImport(plan);
+      setForm((current) => {
+        let next: FormState = { ...current };
+        for (const { key } of MONTHLY_PLAN_FIELD_LABELS) {
+          const value = plan.fields[key];
+          if (!value?.trim()) continue;
+          if (String(next[key] || "").trim()) continue;
+          next = { ...next, [key]: value };
+        }
+        return next;
+      });
+    } catch { /* 월간계획 없으면 조용히 무시 */ }
   };
 
   const handleLoadMonthlyPlan = async () => {
