@@ -117,6 +117,9 @@ interface MatchedMember {
   grassland_name: string;
   plain_name: string;
   address: string;
+  address_base?: string | null;
+  address_detail?: string | null;
+  address_zonecode?: string | null;
   has_account: boolean;
   photo_url?: string | null;
   // 자녀 매칭 시 부모 정보
@@ -138,6 +141,9 @@ interface ParentMatch {
   grassland_name: string | null;
   plain_name: string | null;
   address: string | null;
+  address_base: string | null;
+  address_detail: string | null;
+  address_zonecode: string | null;
 }
 
 interface PastureOption {
@@ -284,18 +290,18 @@ export default function SignupPage() {
     setPhone(member.phone || "");
     setBirthDate(member.birth_date || "");
     setGender(normalizeGenderValue(member.gender));
-    setAddress(member.address || "");
-    setAddressDetail("");
-    setAddressZonecode("");
+    setAddress(member.address_base || member.address || "");
+    setAddressDetail(member.address_detail || "");
+    setAddressZonecode(member.address_zonecode || "");
     setPastureId(member.pasture_id || "");
     if (!member.pasture_id) setPastureSearch("");
   };
 
   const fillParentFields = (parent: ParentMatch) => {
     setParentMatch(parent);
-    setAddress(parent.address || "");
-    setAddressDetail("");
-    setAddressZonecode("");
+    setAddress(parent.address_base || parent.address || "");
+    setAddressDetail(parent.address_detail || "");
+    setAddressZonecode(parent.address_zonecode || "");
     setPastureId(parent.pasture_id || "");
     if (!parent.pasture_id) setPastureSearch("");
   };
@@ -399,6 +405,9 @@ export default function SignupPage() {
             grassland_name: member.grassland_name || null,
             plain_name: member.plain_name || null,
             address: member.address || null,
+            address_base: member.address_base || null,
+            address_detail: member.address_detail || null,
+            address_zonecode: member.address_zonecode || null,
           });
           setStep("confirm");
         } else {
@@ -1518,14 +1527,14 @@ const addressSearchBackdropStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  padding: 14,
+  padding: "var(--safe-top) 4px var(--safe-bottom)",
 };
 
 const addressSearchPanelStyle: React.CSSProperties = {
-  width: "min(520px, 100%)",
+  width: "min(640px, calc(100vw - 8px))",
   background: "#fff",
   borderRadius: 8,
-  overflow: "hidden",
+  overflow: "visible",
   boxShadow: "0 22px 70px rgba(15, 23, 42, 0.3)",
 };
 
@@ -1554,7 +1563,9 @@ const addressSearchCloseStyle: React.CSSProperties = {
 
 const addressSearchFrameStyle: React.CSSProperties = {
   width: "100%",
-  height: "min(520px, 72vh)",
+  height: "min(560px, 78vh)",
+  overflow: "hidden",
+  boxSizing: "border-box",
 };
 
 const primaryBtnStyle: React.CSSProperties = {
