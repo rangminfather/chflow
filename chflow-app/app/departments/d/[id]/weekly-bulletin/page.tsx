@@ -139,9 +139,23 @@ interface ReviewQuiz {
   choices: string[];
 }
 
+// 경량 목록 항목 (quizzes 미포함)
+interface ReviewIndex {
+  path: string;
+  jsonPath: string;
+  title: string;
+  lessonNum: string;
+  specialTitle: string;
+  quizCount: number;
+  created_at: string | null;
+  size: number | null;
+}
+
+// 전체 데이터 (적용 시 개별 fetch)
 interface ReviewProblem {
   id: string;
   path: string;
+  jsonPath?: string;
   name: string;
   title: string;
   lessonNum: string;
@@ -636,10 +650,10 @@ export default function WeeklyBulletinPage() {
   const [monthlyPlanError, setMonthlyPlanError] = useState("");
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewUploading, setReviewUploading] = useState(false);
-  const [reviewProblems, setReviewProblems] = useState<ReviewProblem[]>([]);
+  const [reviewProblems, setReviewProblems] = useState<ReviewIndex[]>([]);
   const [reviewMatch, setReviewMatch] = useState<ReviewProblem | null>(null);
   const [reviewPlanStatus, setReviewPlanStatus] = useState<ReviewPlanStatus | null>(null);
-  const [selectedReviewId, setSelectedReviewId] = useState("");
+  const [selectedReviewPath, setSelectedReviewPath] = useState("");
   const [reviewError, setReviewError] = useState("");
 
   const [yearlyTheme, setYearlyTheme] = useState<YearlyTheme | null>(null);
@@ -1023,11 +1037,11 @@ export default function WeeklyBulletinPage() {
       });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.error || "복습문제를 불러오지 못했습니다");
-      const problems = (result.problems || []) as ReviewProblem[];
+      const problems = (result.problems || []) as ReviewIndex[];
       setReviewProblems(problems);
       setReviewMatch((result.match || null) as ReviewProblem | null);
       setReviewPlanStatus((result.planStatus || null) as ReviewPlanStatus | null);
-      setSelectedReviewId(result.match?.id || problems[0]?.id || "");
+      setSelectedReviewPath(result.match?.path || problems[0]?.path || "");
       if (result.match) showToast("월별 계획과 맞는 복습문제를 찾았습니다");
       else showToast("복습문제 목록을 불러왔습니다");
     } catch (e: unknown) {
@@ -1072,20 +1086,33 @@ export default function WeeklyBulletinPage() {
     }
   };
 
-  const applyReviewProblem = (problem: ReviewProblem | null) => {
-    if (!problem) {
-      showToast("선택된 복습문제가 없습니다");
-      return;
+  const applyReviewProblem = async (entry: ReviewProblem | ReviewIndex | null) => {
+    if (!entry) { showToast("선택된 복습문제가 없습니다"); return; }
+
+    let problem: ReviewProblem;
+    // quizzes가 없는 IndexEntry면 개별 fetch
+    if (!("quizzes" in entry) || !entry.quizzes) {
+      const idx = entry as ReviewIndex;
+      setReviewLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { router.replace("/login"); return; }
+        const res = await fetch(
+          `/api/edu/review-problems?dept_id=${deptId}&file=${encodeURIComponent(idx.jsonPath)}`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } }
+        );
+        const json = await res.json();
+        if (!res.ok || !json.ok) { showToast("복습문제 데이터를 불러오지 못했습니다"); return; }
+        problem = json.problem as ReviewProblem;
+      } catch { showToast("복습문제 로드 실패"); return; }
+      finally { setReviewLoading(false); }
+    } else {
+      problem = entry as ReviewProblem;
     }
-    if (problem.lessonNum) {
-      setForm((current) => ({ ...current, lessonNum: problem.lessonNum }));
-    }
-    const nextQuizzes = problem.quizzes.length > 0
-      ? problem.quizzes.map((quiz) => ({
-          ...quiz,
-          id: Math.random().toString(36).slice(2),
-          choices: quiz.choices || [],
-        }))
+
+    if (problem.lessonNum) setForm((f) => ({ ...f, lessonNum: problem.lessonNum }));
+    const nextQuizzes = (problem.quizzes || []).length > 0
+      ? problem.quizzes.map((quiz) => ({ ...quiz, id: Math.random().toString(36).slice(2), choices: quiz.choices || [] }))
       : [newQuizItem("mc4")];
     setQuizzes(nextQuizzes);
     showToast(`${problem.title} 적용 완료`);
@@ -1968,11 +1995,11 @@ export default function WeeklyBulletinPage() {
                 {showReviewList && (
                   <div style={{ marginTop: 6, display: "grid", gap: 6 }}>
                     {reviewProblems.map((problem) => {
-                      const isSelected = selectedReviewId === problem.id;
+                      const isSelected = selectedReviewPath === problem.path;
                       return (
                         <div
-                          key={problem.id}
-                          onClick={() => setSelectedReviewId(problem.id)}
+                          key={problem.path}
+                          onClick={() => setSelectedReviewPath(problem.path)}
                           style={{
                             padding: "9px 12px",
                             borderRadius: 8,
@@ -1995,7 +2022,7 @@ export default function WeeklyBulletinPage() {
                               )}
                               <span style={{ fontSize: 13, fontWeight: 800, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{problem.title}</span>
                             </div>
-                            <div style={{ marginTop: 2, fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>{problem.quizzes.length}문제</div>
+                            <div style={{ marginTop: 2, fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>{problem.quizCount}문제</div>
                           </div>
                           {isSelected && <span style={{ fontSize: 16, color: "#2563eb" }}>✓</span>}
                         </div>
@@ -2003,9 +2030,9 @@ export default function WeeklyBulletinPage() {
                     })}
                     <button
                       type="button"
-                      onClick={() => { applyReviewProblem(reviewProblems.find((p) => p.id === selectedReviewId) || null); setShowReviewList(false); }}
-                      disabled={!selectedReviewId}
-                      style={{ minHeight: 40, borderRadius: 8, border: "1px solid #334155", background: "#334155", color: "#fff", fontSize: 13, fontWeight: 900, cursor: "pointer", fontFamily: "inherit", opacity: selectedReviewId ? 1 : 0.4 }}
+                      onClick={() => { applyReviewProblem(reviewProblems.find((p) => p.path === selectedReviewPath) || null); setShowReviewList(false); }}
+                      disabled={!selectedReviewPath}
+                      style={{ minHeight: 40, borderRadius: 8, border: "1px solid #334155", background: "#334155", color: "#fff", fontSize: 13, fontWeight: 900, cursor: "pointer", fontFamily: "inherit", opacity: selectedReviewPath ? 1 : 0.4 }}
                     >
                       선택한 문제 적용
                     </button>

@@ -317,91 +317,183 @@ function findMatchedProblem(problems: ParsedReviewProblem[], plan?: PlanLesson) 
   return null;
 }
 
+// ─── Index (경량 목록 파일) ──────────────────────────────────────────────────
+
+const INDEX_FILE = "review-index.json";
+
+interface IndexEntry {
+  path: string;        // PPTX storage path
+  jsonPath: string;    // JSON sidecar path
+  lessonNum: string;
+  specialTitle: string;
+  title: string;
+  quizCount: number;
+  created_at: string | null;
+  size: number | null;
+}
+
 function jsonPathFor(pptxPath: string) {
   return pptxPath.replace(/\.pptx$/i, ".json");
 }
 
-async function saveJsonSidecar(admin: ReturnType<typeof adminClient>, pptxPath: string, problem: ParsedReviewProblem) {
-  const jsonPath = jsonPathFor(pptxPath);
-  const content = Buffer.from(JSON.stringify(problem));
-  await admin.storage.from(REVIEW_BUCKET).upload(jsonPath, content, {
-    contentType: "application/json",
-    upsert: true,
-  });
+// 파일명 prefix(lesson-N_)에서 lessonNum 추출 (PPTX 다운로드 없이)
+function lessonFromStorageName(name: string): string {
+  const prefix = name.match(/^lesson-(\d+)_/);
+  if (prefix) return prefix[1];
+  return lessonFromTitle(name);
 }
 
-async function loadReviewProblems(admin: ReturnType<typeof adminClient>, deptId: string) {
-  await ensureBucket(admin, REVIEW_BUCKET);
-  const { data, error } = await admin.storage.from(REVIEW_BUCKET).list(deptId, {
-    limit: 200,
-    sortBy: { column: "name", order: "asc" },
+async function readIndex(admin: ReturnType<typeof adminClient>, deptId: string): Promise<IndexEntry[]> {
+  const { data } = await admin.storage.from(REVIEW_BUCKET).download(`${deptId}/${INDEX_FILE}`);
+  if (!data) return [];
+  try { return JSON.parse(await data.text()) as IndexEntry[]; } catch { return []; }
+}
+
+async function saveIndex(admin: ReturnType<typeof adminClient>, deptId: string, entries: IndexEntry[]) {
+  const sorted = [...entries].sort((a, b) => {
+    const al = Number(a.lessonNum || 9999), bl = Number(b.lessonNum || 9999);
+    return al !== bl ? al - bl : (a.title || "").localeCompare(b.title || "", "ko");
   });
+  await admin.storage.from(REVIEW_BUCKET).upload(
+    `${deptId}/${INDEX_FILE}`,
+    Buffer.from(JSON.stringify(sorted)),
+    { contentType: "application/json", upsert: true }
+  );
+}
+
+// 스토리지 목록에서 index 재구성 (JSON 사이드카 있으면 정확한 메타데이터 사용)
+async function rebuildIndex(admin: ReturnType<typeof adminClient>, deptId: string): Promise<IndexEntry[]> {
+  const { data, error } = await admin.storage.from(REVIEW_BUCKET).list(deptId, { limit: 200 });
   if (error) throw error;
+  const allNames = new Set((data || []).map((f) => f.name));
+  const pptxItems = (data || []).filter((f) => /\.pptx$/i.test(f.name));
 
-  const allNames = new Set((data || []).map((item) => item.name));
-  const pptxFiles = (data || []).filter((item) => /\.pptx$/i.test(item.name));
-
-  const problems: ParsedReviewProblem[] = [];
-  for (const item of pptxFiles) {
+  const entries: IndexEntry[] = [];
+  for (const item of pptxItems) {
     const pptxPath = `${deptId}/${item.name}`;
+    const jsonPath = jsonPathFor(pptxPath);
     const jsonName = item.name.replace(/\.pptx$/i, ".json");
-    const jsonPath = `${deptId}/${jsonName}`;
+    const lessonNum = lessonFromStorageName(item.name);
 
-    // JSON 사이드카가 있으면 바로 사용 (빠름)
+    let entry: IndexEntry = {
+      path: pptxPath,
+      jsonPath,
+      lessonNum,
+      specialTitle: "",
+      title: lessonNum ? `${lessonNum}과 복습문제` : item.name,
+      quizCount: 0,
+      created_at: item.created_at,
+      size: item.metadata?.size || null,
+    };
+
+    // JSON 사이드카 있으면 정확한 데이터로 덮어쓰기
     if (allNames.has(jsonName)) {
       const { data: blob } = await admin.storage.from(REVIEW_BUCKET).download(jsonPath);
       if (blob) {
         try {
-          const text = await blob.text();
-          problems.push(JSON.parse(text) as ParsedReviewProblem);
-          continue;
-        } catch {
-          // JSON 파손 시 PPTX에서 재파싱
-        }
+          const parsed = JSON.parse(await blob.text()) as ParsedReviewProblem;
+          entry = { ...entry, lessonNum: parsed.lessonNum, specialTitle: parsed.specialTitle, title: parsed.title, quizCount: parsed.quizzes.length };
+        } catch { /* JSON 파손 무시 */ }
       }
     }
-
-    // JSON 없으면 PPTX 파싱 후 JSON 저장 (최초 1회)
-    const { data: pptxBlob } = await admin.storage.from(REVIEW_BUCKET).download(pptxPath);
-    if (!pptxBlob) continue;
-    const buffer = Buffer.from(await pptxBlob.arrayBuffer());
-    const parsed = await parseReviewPptx(buffer, item.name, pptxPath, item.name, item.created_at, item.metadata?.size || null);
-    problems.push(parsed);
-    await saveJsonSidecar(admin, pptxPath, parsed).catch(() => {/* 저장 실패해도 계속 */});
+    entries.push(entry);
   }
 
-  return problems.sort((a, b) => {
-    const aLesson = Number(a.lessonNum || 9999);
-    const bLesson = Number(b.lessonNum || 9999);
-    if (aLesson !== bLesson) return aLesson - bLesson;
-    return a.title.localeCompare(b.title, "ko");
-  });
+  await saveIndex(admin, deptId, entries);
+  return entries;
 }
+
+async function addToIndex(admin: ReturnType<typeof adminClient>, deptId: string, parsed: ParsedReviewProblem, pptxPath: string) {
+  const existing = await readIndex(admin, deptId);
+  const entry: IndexEntry = {
+    path: pptxPath,
+    jsonPath: jsonPathFor(pptxPath),
+    lessonNum: parsed.lessonNum,
+    specialTitle: parsed.specialTitle,
+    title: parsed.title,
+    quizCount: parsed.quizzes.length,
+    created_at: new Date().toISOString(),
+    size: parsed.size,
+  };
+  const next = existing.filter((e) => e.path !== pptxPath).concat(entry);
+  await saveIndex(admin, deptId, next);
+}
+
+async function removeFromIndex(admin: ReturnType<typeof adminClient>, deptId: string, pptxPath: string) {
+  const existing = await readIndex(admin, deptId);
+  await saveIndex(admin, deptId, existing.filter((e) => e.path !== pptxPath));
+}
+
+// JSON 사이드카 저장 (quizzes 포함 전체 데이터)
+async function saveJsonSidecar(admin: ReturnType<typeof adminClient>, pptxPath: string, problem: ParsedReviewProblem) {
+  await admin.storage.from(REVIEW_BUCKET).upload(
+    jsonPathFor(pptxPath),
+    Buffer.from(JSON.stringify(problem)),
+    { contentType: "application/json", upsert: true }
+  );
+}
+
+// 특정 파일의 quizzes 포함 전체 데이터 가져오기
+async function fetchFullProblem(admin: ReturnType<typeof adminClient>, jsonPath: string): Promise<ParsedReviewProblem | null> {
+  const { data } = await admin.storage.from(REVIEW_BUCKET).download(jsonPath);
+  if (!data) return null;
+  try { return JSON.parse(await data.text()) as ParsedReviewProblem; } catch { return null; }
+}
+
+// ─── findMatchedProblem (index 기반) ────────────────────────────────────────
+
+function findMatchedEntry(entries: IndexEntry[], plan?: PlanLesson): IndexEntry | null {
+  if (!plan) return null;
+  if (plan.lessonNum) return entries.find((e) => e.lessonNum === plan.lessonNum) || null;
+  if (plan.specialTitle) return entries.find((e) => e.specialTitle === plan.specialTitle || e.title.includes(plan.specialTitle)) || null;
+  return null;
+}
+
+// ─── Handlers ────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
   const deptId = req.nextUrl.searchParams.get("dept_id");
   const date = req.nextUrl.searchParams.get("date");
+  const filePath = req.nextUrl.searchParams.get("file"); // 단일 파일 quizzes fetch
   if (!deptId) return NextResponse.json({ ok: false, error: "dept_id가 필요합니다" }, { status: 400 });
 
   const verified = await verifyGrade(req, deptId);
   if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
 
   const admin = adminClient();
+
+  // ① 단일 파일 quizzes 요청 (적용 버튼 클릭 시)
+  if (filePath) {
+    if (!filePath.startsWith(`${deptId}/`)) return NextResponse.json({ ok: false, error: "접근 불가" }, { status: 403 });
+    const problem = await fetchFullProblem(admin, filePath);
+    if (!problem) return NextResponse.json({ ok: false, error: "파일을 찾을 수 없습니다" }, { status: 404 });
+    return NextResponse.json({ ok: true, problem });
+  }
+
+  // ② 목록 요청 — index만 읽음 (경량)
   try {
-    const problems = await loadReviewProblems(admin, deptId);
+    await ensureBucket(admin, REVIEW_BUCKET);
+    let index = await readIndex(admin, deptId);
+    // index가 비어 있으면 스토리지에서 재구성 (최초 1회)
+    if (index.length === 0) index = await rebuildIndex(admin, deptId);
+
     let planStatus = null;
-    let match = null;
+    let match: ParsedReviewProblem | null = null;
     if (date) {
       planStatus = await loadPlanLesson(admin, deptId, date);
       if (planStatus.status === "ready") {
-        match = findMatchedProblem(problems, planStatus.plan);
-        if (!match) {
+        const entry = findMatchedEntry(index, planStatus.plan);
+        if (entry) {
+          // 매칭된 1개 파일만 quizzes 포함해서 가져옴
+          match = await fetchFullProblem(admin, entry.jsonPath);
+          if (!match) planStatus = { ...planStatus, status: "no-review-match" as const, message: "복습문제 파일을 읽을 수 없습니다" };
+        } else {
           planStatus = { ...planStatus, status: "no-review-match" as const, message: "월별 계획과 매칭되는 복습문제가 없습니다" };
         }
       }
     }
 
-    return NextResponse.json({ ok: true, problems, planStatus, match });
+    return NextResponse.json({ ok: true, problems: index, planStatus, match });
   } catch (e: unknown) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
   }
@@ -411,10 +503,7 @@ export async function POST(req: NextRequest) {
   const form = await req.formData();
   const deptId = String(form.get("dept_id") || "");
   const files = form.getAll("files").filter((file): file is File => file instanceof File);
-
-  if (!deptId || files.length === 0) {
-    return NextResponse.json({ ok: false, error: "dept_id와 파일이 필요합니다" }, { status: 400 });
-  }
+  if (!deptId || files.length === 0) return NextResponse.json({ ok: false, error: "dept_id와 파일이 필요합니다" }, { status: 400 });
 
   const verified = await verifyGrade(req, deptId);
   if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
@@ -424,22 +513,25 @@ export async function POST(req: NextRequest) {
 
   const uploaded = [];
   for (const file of files) {
-    if (!/\.pptx$/i.test(file.name)) {
-      return NextResponse.json({ ok: false, error: "PPTX 파일만 업로드할 수 있습니다" }, { status: 400 });
-    }
+    if (!/\.pptx$/i.test(file.name)) return NextResponse.json({ ok: false, error: "PPTX 파일만 업로드할 수 있습니다" }, { status: 400 });
     const bytes = await file.arrayBuffer();
     const parsed = await parseReviewPptx(Buffer.from(bytes), file.name, "", file.name, null, file.size);
     const lessonPart = parsed.lessonNum ? `lesson-${parsed.lessonNum}` : safeSlug(parsed.specialTitle || parsed.title);
     const objectName = `${lessonPart}_${Date.now()}_${safeSlug(file.name)}${safeExtension(file.name)}`;
-    const path = `${deptId}/${objectName}`;
-    const { error } = await admin.storage.from(REVIEW_BUCKET).upload(path, bytes, {
+    const pptxPath = `${deptId}/${objectName}`;
+
+    const { error } = await admin.storage.from(REVIEW_BUCKET).upload(pptxPath, bytes, {
       contentType: file.type || "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       upsert: false,
     });
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-    // JSON 사이드카 저장 → 이후 GET에서 PPTX 재파싱 불필요
-    await saveJsonSidecar(admin, path, { ...parsed, path });
-    uploaded.push({ path, title: parsed.title, lessonNum: parsed.lessonNum, specialTitle: parsed.specialTitle });
+
+    const fullParsed = { ...parsed, path: pptxPath };
+    await Promise.all([
+      saveJsonSidecar(admin, pptxPath, fullParsed),
+      addToIndex(admin, deptId, fullParsed, pptxPath),
+    ]);
+    uploaded.push({ path: pptxPath, title: parsed.title, lessonNum: parsed.lessonNum, specialTitle: parsed.specialTitle });
   }
 
   return NextResponse.json({ ok: true, uploaded });
@@ -448,22 +540,15 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const deptId = req.nextUrl.searchParams.get("dept_id");
   const path = req.nextUrl.searchParams.get("path");
-
-  if (!deptId || !path) {
-    return NextResponse.json({ ok: false, error: "dept_id와 path가 필요합니다" }, { status: 400 });
-  }
-
-  if (!path.startsWith(`${deptId}/`)) {
-    return NextResponse.json({ ok: false, error: "다른 부서의 파일을 삭제할 수 없습니다" }, { status: 403 });
-  }
+  if (!deptId || !path) return NextResponse.json({ ok: false, error: "dept_id와 path가 필요합니다" }, { status: 400 });
+  if (!path.startsWith(`${deptId}/`)) return NextResponse.json({ ok: false, error: "다른 부서의 파일을 삭제할 수 없습니다" }, { status: 403 });
 
   const verified = await verifyGrade(req, deptId);
   if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
 
   const admin = adminClient();
-  const pathsToRemove = [path, jsonPathFor(path)];
-  const { error } = await admin.storage.from(REVIEW_BUCKET).remove(pathsToRemove);
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  await admin.storage.from(REVIEW_BUCKET).remove([path, jsonPathFor(path)]);
+  await removeFromIndex(admin, deptId, path);
 
   return NextResponse.json({ ok: true });
 }
