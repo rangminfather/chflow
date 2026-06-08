@@ -317,6 +317,19 @@ function findMatchedProblem(problems: ParsedReviewProblem[], plan?: PlanLesson) 
   return null;
 }
 
+function jsonPathFor(pptxPath: string) {
+  return pptxPath.replace(/\.pptx$/i, ".json");
+}
+
+async function saveJsonSidecar(admin: ReturnType<typeof adminClient>, pptxPath: string, problem: ParsedReviewProblem) {
+  const jsonPath = jsonPathFor(pptxPath);
+  const content = Buffer.from(JSON.stringify(problem));
+  await admin.storage.from(REVIEW_BUCKET).upload(jsonPath, content, {
+    contentType: "application/json",
+    upsert: true,
+  });
+}
+
 async function loadReviewProblems(admin: ReturnType<typeof adminClient>, deptId: string) {
   await ensureBucket(admin, REVIEW_BUCKET);
   const { data, error } = await admin.storage.from(REVIEW_BUCKET).list(deptId, {
@@ -325,21 +338,36 @@ async function loadReviewProblems(admin: ReturnType<typeof adminClient>, deptId:
   });
   if (error) throw error;
 
-  const files = (data || []).filter((item) => /\.(pptx)$/i.test(item.name));
+  const allNames = new Set((data || []).map((item) => item.name));
+  const pptxFiles = (data || []).filter((item) => /\.pptx$/i.test(item.name));
+
   const problems: ParsedReviewProblem[] = [];
-  for (const item of files) {
-    const path = `${deptId}/${item.name}`;
-    const { data: blob } = await admin.storage.from(REVIEW_BUCKET).download(path);
-    if (!blob) continue;
-    const buffer = Buffer.from(await blob.arrayBuffer());
-    problems.push(await parseReviewPptx(
-      buffer,
-      item.name,
-      path,
-      item.name,
-      item.created_at,
-      item.metadata?.size || null
-    ));
+  for (const item of pptxFiles) {
+    const pptxPath = `${deptId}/${item.name}`;
+    const jsonName = item.name.replace(/\.pptx$/i, ".json");
+    const jsonPath = `${deptId}/${jsonName}`;
+
+    // JSON 사이드카가 있으면 바로 사용 (빠름)
+    if (allNames.has(jsonName)) {
+      const { data: blob } = await admin.storage.from(REVIEW_BUCKET).download(jsonPath);
+      if (blob) {
+        try {
+          const text = await blob.text();
+          problems.push(JSON.parse(text) as ParsedReviewProblem);
+          continue;
+        } catch {
+          // JSON 파손 시 PPTX에서 재파싱
+        }
+      }
+    }
+
+    // JSON 없으면 PPTX 파싱 후 JSON 저장 (최초 1회)
+    const { data: pptxBlob } = await admin.storage.from(REVIEW_BUCKET).download(pptxPath);
+    if (!pptxBlob) continue;
+    const buffer = Buffer.from(await pptxBlob.arrayBuffer());
+    const parsed = await parseReviewPptx(buffer, item.name, pptxPath, item.name, item.created_at, item.metadata?.size || null);
+    problems.push(parsed);
+    await saveJsonSidecar(admin, pptxPath, parsed).catch(() => {/* 저장 실패해도 계속 */});
   }
 
   return problems.sort((a, b) => {
@@ -409,6 +437,8 @@ export async function POST(req: NextRequest) {
       upsert: false,
     });
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    // JSON 사이드카 저장 → 이후 GET에서 PPTX 재파싱 불필요
+    await saveJsonSidecar(admin, path, { ...parsed, path });
     uploaded.push({ path, title: parsed.title, lessonNum: parsed.lessonNum, specialTitle: parsed.specialTitle });
   }
 
@@ -431,7 +461,8 @@ export async function DELETE(req: NextRequest) {
   if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
 
   const admin = adminClient();
-  const { error } = await admin.storage.from(REVIEW_BUCKET).remove([path]);
+  const pathsToRemove = [path, jsonPathFor(path)];
+  const { error } = await admin.storage.from(REVIEW_BUCKET).remove(pathsToRemove);
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true });
