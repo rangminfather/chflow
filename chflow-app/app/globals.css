@@ -21,6 +21,7 @@
   --app-sans: 'Pretendard Variable', Pretendard, 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --body-safe-top: 0px;
 
   /* 하위호환: 기존 코드가 참조하는 background/foreground 를 새 토큰에 매핑 */
   --background: var(--bg);
@@ -50,11 +51,19 @@
   --radius-card: var(--radius);
 }
 
+/* standalone PWA에서 카메라 홀/노치 보호 — env()가 0이어도 min 44px 보장 */
+@media (display-mode: standalone) {
+  :root {
+    --body-safe-top: max(env(safe-area-inset-top, 0px), 44px);
+  }
+}
+
 body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--app-sans);
   -webkit-font-smoothing: antialiased;
+  padding-top: var(--body-safe-top);
 }
 
 /* ========================================================
@@ -83,12 +92,12 @@ img, video, canvas, svg, iframe { max-width: 100%; }
    Login
    ======================================================== */
 .login-screen {
-  margin-top: calc(-1 * env(safe-area-inset-top, 0px));
+  margin-top: calc(-1 * var(--body-safe-top));
   min-height: 100svh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: calc(24px + var(--safe-top)) 18px calc(24px + var(--safe-bottom));
+  padding: calc(24px + var(--body-safe-top)) 18px calc(24px + var(--safe-bottom));
   background:
     linear-gradient(160deg, #f7f4ec 0%, #eef5f1 48%, #e8eff7 100%);
 }
@@ -376,7 +385,7 @@ img, video, canvas, svg, iframe { max-width: 100%; }
 @media (max-width: 420px) {
   .login-screen {
     align-items: flex-start;
-    padding: calc(72px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
+    padding: calc(72px + var(--body-safe-top)) 16px calc(24px + var(--safe-bottom));
   }
 
   .login-panel {
@@ -574,7 +583,7 @@ input::placeholder {
   }
   .notif-dropdown {
     position: fixed !important;
-    top: calc(60px + var(--safe-top)) !important;
+    top: calc(60px + var(--body-safe-top)) !important;
     right: 12px !important;
     left: 12px !important;
     width: auto !important;

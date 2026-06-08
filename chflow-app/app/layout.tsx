@@ -70,7 +70,6 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col">
-        <div style={{ height: "env(safe-area-inset-top, 0px)", background: "var(--bg)", flexShrink: 0 }} />
         {children}
       </body>
     </html>
