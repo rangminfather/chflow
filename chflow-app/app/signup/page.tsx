@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROLES, mapToSystemRole, type Role } from "@/lib/roles";
 import {
@@ -34,6 +34,54 @@ const getErrorMessage = (error: unknown) => {
 };
 
 const cssUrl = (url: string) => `url(${JSON.stringify(url)})`;
+
+interface DaumPostcodeData {
+  roadAddress?: string;
+  jibunAddress?: string;
+  address?: string;
+  zonecode?: string;
+  buildingName?: string;
+  apartment?: "Y" | "N";
+}
+
+interface DaumPostcode {
+  open: () => void;
+}
+
+declare global {
+  interface Window {
+    daum?: {
+      Postcode: new (options: { oncomplete: (data: DaumPostcodeData) => void }) => DaumPostcode;
+    };
+  }
+}
+
+let daumPostcodePromise: Promise<void> | null = null;
+
+function loadDaumPostcodeScript() {
+  if (typeof window === "undefined") return Promise.reject(new Error("브라우저에서만 주소 검색을 사용할 수 있습니다"));
+  if (window.daum?.Postcode) return Promise.resolve();
+  if (daumPostcodePromise) return daumPostcodePromise;
+
+  daumPostcodePromise = new Promise((resolve, reject) => {
+    const existing = document.getElementById("daum-postcode-script") as HTMLScriptElement | null;
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("주소 검색 스크립트를 불러오지 못했습니다")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = "daum-postcode-script";
+    script.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("주소 검색 스크립트를 불러오지 못했습니다"));
+    document.head.appendChild(script);
+  });
+
+  return daumPostcodePromise;
+}
 
 const ROLE_GROUPS: { id: RoleGroupId; label: string; roleIds: string[] }[] = [
   { id: "clergy", label: "\uAD50\uC5ED\uC790", roleIds: ["pastor", "missionary", "evangelist", "pastor_wife"] },
@@ -123,6 +171,8 @@ export default function SignupPage() {
   const [gender, setGender] = useState("");
   const [address, setAddress] = useState("");
   const [pastureId, setPastureId] = useState("");
+  const [pastureSearch, setPastureSearch] = useState("");
+  const [showPastureSuggestions, setShowPastureSuggestions] = useState(false);
   const [parentMatch, setParentMatch] = useState<ParentMatch | null>(null);
   const [pastureOptions, setPastureOptions] = useState<PastureOption[]>([]);
 
@@ -141,6 +191,28 @@ export default function SignupPage() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!pastureId) return;
+    const selected = pastureOptions.find((option) => option.pasture_id === pastureId);
+    if (selected) setPastureSearch(selected.label);
+  }, [pastureId, pastureOptions]);
+
+  const filteredPastureOptions = useMemo(() => {
+    const query = pastureSearch.trim().toLowerCase().replace(/\s+/g, "");
+    const options = query
+      ? pastureOptions.filter((option) => {
+        const haystack = [
+          option.label,
+          option.pasture_name,
+          option.grassland_name,
+          option.plain_name,
+        ].join(" ").toLowerCase().replace(/\s+/g, "");
+        return haystack.includes(query);
+      })
+      : pastureOptions;
+    return options.slice(0, 12);
+  }, [pastureOptions, pastureSearch]);
+
   const fillMemberFields = (member: Partial<MatchedMember>) => {
     setName(member.name || "");
     setPhone(member.phone || "");
@@ -148,12 +220,43 @@ export default function SignupPage() {
     setGender(normalizeGenderValue(member.gender));
     setAddress(member.address || "");
     setPastureId(member.pasture_id || "");
+    if (!member.pasture_id) setPastureSearch("");
   };
 
   const fillParentFields = (parent: ParentMatch) => {
     setParentMatch(parent);
     setAddress(parent.address || "");
     setPastureId(parent.pasture_id || "");
+    if (!parent.pasture_id) setPastureSearch("");
+  };
+
+  const clearPasture = () => {
+    setPastureId("");
+    setPastureSearch("");
+    setShowPastureSuggestions(false);
+  };
+
+  const selectPasture = (option: PastureOption) => {
+    setPastureId(option.pasture_id);
+    setPastureSearch(option.label);
+    setShowPastureSuggestions(false);
+  };
+
+  const openAddressSearch = async () => {
+    setError("");
+    try {
+      await loadDaumPostcodeScript();
+      if (!window.daum?.Postcode) throw new Error("주소 검색을 시작하지 못했습니다");
+      new window.daum.Postcode({
+        oncomplete: (data) => {
+          const baseAddress = data.roadAddress || data.jibunAddress || data.address || "";
+          const building = data.buildingName && data.apartment === "Y" ? ` (${data.buildingName})` : "";
+          setAddress(`${baseAddress}${building}`.trim());
+        },
+      }).open();
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
+    }
   };
 
   // 안드로이드/브라우저 뒤로가기 버튼 → 앱종료 대신 이전 step/모달 닫기
@@ -297,6 +400,7 @@ export default function SignupPage() {
         setGender("");
         setAddress("");
         setPastureId("");
+        setPastureSearch("");
         setStep("role");
       }
     } catch (e: unknown) {
@@ -889,29 +993,112 @@ export default function SignupPage() {
 
           <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>주소 *</label>
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="현재 주소를 입력하세요"
-              style={{ ...inputStyle, marginTop: 6 }}
-            />
+            <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="주소 검색 후 상세주소를 추가하세요"
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <button
+                type="button"
+                onClick={openAddressSearch}
+                style={{
+                  width: 76,
+                  border: "1px solid rgba(62, 90, 74, 0.22)",
+                  borderRadius: 8,
+                  background: "var(--accent-soft)",
+                  color: "var(--accent)",
+                  fontSize: 12,
+                  fontWeight: 800,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                검색
+              </button>
+            </div>
           </div>
 
           <div style={{ marginBottom: 18 }}>
             <label style={labelStyle}>목장</label>
-            <select
-              value={pastureId}
-              onChange={(e) => setPastureId(e.target.value)}
-              style={{ ...inputStyle, marginTop: 6 }}
-            >
-              <option value="">모름 / 미정</option>
-              {pastureOptions.map((option) => (
-                <option key={option.pasture_id} value={option.pasture_id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <div style={{ position: "relative", marginTop: 6 }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  value={pastureSearch}
+                  onChange={(e) => {
+                    setPastureSearch(e.target.value);
+                    setPastureId("");
+                    setShowPastureSuggestions(true);
+                  }}
+                  onFocus={() => setShowPastureSuggestions(true)}
+                  onBlur={() => window.setTimeout(() => setShowPastureSuggestions(false), 120)}
+                  placeholder="목장명, 초원, 평원으로 검색"
+                  autoComplete="off"
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                {(pastureId || pastureSearch) && (
+                  <button
+                    type="button"
+                    onClick={clearPasture}
+                    style={{
+                      width: 56,
+                      border: "1px solid rgba(43, 39, 34, 0.14)",
+                      borderRadius: 8,
+                      background: "#fff",
+                      color: "var(--ink-soft)",
+                      fontSize: 12,
+                      fontWeight: 800,
+                      fontFamily: "inherit",
+                      cursor: "pointer",
+                    }}
+                  >
+                    지움
+                  </button>
+                )}
+              </div>
+              {showPastureSuggestions && (
+                <div style={pastureSuggestStyle}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      clearPasture();
+                    }}
+                    style={pastureOptionStyle}
+                  >
+                    <span style={{ fontWeight: 800, color: "var(--ink)" }}>모름 / 미정</span>
+                  </button>
+                  {filteredPastureOptions.map((option) => (
+                    <button
+                      key={option.pasture_id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectPasture(option);
+                      }}
+                      style={{
+                        ...pastureOptionStyle,
+                        background: option.pasture_id === pastureId ? "var(--accent-soft)" : "#fff",
+                      }}
+                    >
+                      <span style={{ fontWeight: 800, color: "var(--ink)" }}>{option.pasture_name}</span>
+                      <span style={{ fontSize: 11, color: "var(--ink-soft)" }}>
+                        {option.plain_name} / {option.grassland_name}
+                      </span>
+                    </button>
+                  ))}
+                  {filteredPastureOptions.length === 0 && (
+                    <div style={{ padding: "12px 14px", fontSize: 12, color: "var(--ink-soft)" }}>
+                      일치하는 목장이 없습니다
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div style={{ marginBottom: 14 }}>
@@ -939,7 +1126,7 @@ export default function SignupPage() {
             <div style={{ position: "relative", marginTop: 6 }}>
               <input type={showPassword ? "text" : "password"} value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="8자 이상" style={{ ...inputStyle, paddingRight: 44 }} />
+                placeholder="8자 이상 (문자, 숫자, 기호 조합 권장)" style={{ ...inputStyle, paddingRight: 44 }} />
               <button type="button" onClick={() => setShowPassword(!showPassword)}
                 style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 14, padding: 6 }}>
                 {showPassword ? "🙈" : "👁️"}
@@ -1178,6 +1365,37 @@ const inputStyle: React.CSSProperties = {
   fontWeight: 650,
   WebkitTextFillColor: "var(--ink)",
   caretColor: "var(--accent)",
+};
+
+const pastureSuggestStyle: React.CSSProperties = {
+  position: "absolute",
+  zIndex: 20,
+  top: "calc(100% + 6px)",
+  left: 0,
+  right: 0,
+  maxHeight: 280,
+  overflowY: "auto",
+  background: "#fff",
+  border: "1px solid rgba(43, 39, 34, 0.14)",
+  borderRadius: 8,
+  boxShadow: "0 14px 34px rgba(43, 39, 34, 0.14)",
+  padding: 6,
+};
+
+const pastureOptionStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 44,
+  padding: "9px 10px",
+  border: "none",
+  borderRadius: 7,
+  background: "#fff",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-start",
+  gap: 2,
+  fontFamily: "inherit",
+  cursor: "pointer",
+  textAlign: "left",
 };
 
 const primaryBtnStyle: React.CSSProperties = {

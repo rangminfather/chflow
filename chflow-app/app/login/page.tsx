@@ -143,7 +143,6 @@ function LoginContent() {
               value={username}
               onChange={(e) => setUsername(e.target.value.toLowerCase())}
               autoComplete="username"
-              placeholder="영문 소문자, 숫자, . _ (4~20자)"
             />
           </div>
 
@@ -156,7 +155,6 @@ function LoginContent() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
-                placeholder="8자 이상 (문자, 숫자, 기호 조합 권장)"
               />
               <button
                 type="button"
