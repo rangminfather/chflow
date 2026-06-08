@@ -55,7 +55,6 @@ body {
   color: var(--ink);
   font-family: var(--app-sans);
   -webkit-font-smoothing: antialiased;
-  padding-top: env(safe-area-inset-top, 0px);
 }
 
 /* ========================================================
