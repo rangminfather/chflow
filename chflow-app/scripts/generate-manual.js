@@ -9,6 +9,7 @@
  */
 
 const { chromium } = require('playwright');
+const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -143,8 +144,20 @@ async function main() {
   // manifest.json 저장 (앱 내 /manual 페이지에서 읽음)
   const manifestPath = path.join(OUTPUT_DIR, 'manifest.json');
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-  console.log(`\n✅ 완료! ${manifest.filter(m=>m.shot).length}/${manifest.length}개 스크린샷 생성`);
-  console.log(`   출력: ${OUTPUT_DIR}`);
+  const ok = manifest.filter(m=>m.shot).length;
+  console.log(`\n✅ 완료! ${ok}/${manifest.length}개 스크린샷 생성`);
+
+  // 자동 git commit + push → Vercel 자동 배포 트리거
+  const repoRoot = path.join(__dirname, '..', '..');
+  const date = new Date().toISOString().slice(0, 10);
+  try {
+    execSync(`git -C "${repoRoot}" add chflow-app/public/manual/shots/`, { stdio: 'inherit' });
+    execSync(`git -C "${repoRoot}" commit -m "Update manual screenshots (${date}, ${ok}장)"`, { stdio: 'inherit' });
+    execSync(`git -C "${repoRoot}" push`, { stdio: 'inherit' });
+    console.log('🚀 배포 완료 — Vercel 자동 배포 시작됨');
+  } catch (e) {
+    console.log('ℹ git: 변경 없음 또는 오류 (스킵)');
+  }
 }
 
 main().catch(err => {
