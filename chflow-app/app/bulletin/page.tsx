@@ -238,7 +238,7 @@ const pageStyle: React.CSSProperties = {
   paddingLeft: "clamp(12px, 4vw, 24px)",
   paddingRight: "clamp(12px, 4vw, 24px)",
   paddingBottom: "clamp(12px, 4vw, 24px)",
-  paddingTop: "calc(env(safe-area-inset-top, 0px) + clamp(16px, 4vw, 28px))",
+  paddingTop: "clamp(16px, 4vw, 28px)",
 };
 
 const shellStyle: React.CSSProperties = {

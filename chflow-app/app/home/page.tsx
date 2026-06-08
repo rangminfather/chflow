@@ -281,7 +281,7 @@ function AppBar({ isAdmin, user, router, onMenu, onLogout }: {
     <div style={{
       background: T.bgCard,
       borderBottom: `1px solid ${T.border}`,
-      padding: "calc(10px + var(--safe-top)) clamp(12px, 4vw, 20px) 10px",
+      padding: "10px clamp(12px, 4vw, 20px) 10px",
       width: "100%",
       maxWidth: "100%",
       boxSizing: "border-box",
