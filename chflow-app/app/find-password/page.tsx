@@ -6,56 +6,26 @@ export default function FindPasswordPage() {
   const router = useRouter();
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #f0f9ff 0%, #fef3c7 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "20px 16px",
-        fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
-      }}
-    >
+    <main className="login-screen">
 
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 420,
-          background: "rgba(255,255,255,0.9)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          borderRadius: 24,
-          padding: "32px 28px",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.1)",
-          border: "1px solid rgba(255,255,255,0.6)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+      <section className="login-panel">
+        <div className="auth-topbar">
           <button
             onClick={() => router.push("/login")}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              background: "#f1f5f9",
-              border: "none",
-              fontSize: 16,
-              cursor: "pointer",
-              color: "#475569",
-            }}
+            className="auth-back-button"
+            aria-label="로그인으로 돌아가기"
           >
             ←
           </button>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>비밀번호 찾기</div>
+          <div className="auth-page-title">비밀번호 찾기</div>
         </div>
 
         <div style={{ textAlign: "center", padding: "20px 0" }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", marginBottom: 12 }}>
+          <div style={{ fontSize: 40, marginBottom: 16 }}>🔒</div>
+          <div style={{ fontSize: 17, fontWeight: 850, color: "var(--ink)", marginBottom: 12 }}>
             담당자 문의 안내
           </div>
-          <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.7, marginBottom: 24 }}>
+          <div className="auth-copy" style={{ marginBottom: 24 }}>
             보안 정책에 따라 비밀번호 찾기는<br />
             <strong>관리자를 통해 처리</strong>됩니다.<br /><br />
             아래 연락처로 문의해 주세요.
@@ -64,9 +34,9 @@ export default function FindPasswordPage() {
 
         <div
           style={{
-            background: "linear-gradient(135deg, #eef2ff, #ede9fe)",
-            border: "1px solid #c7d2fe",
-            borderRadius: 16,
+            background: "#f3f7f1",
+            border: "1px solid rgba(62, 90, 74, 0.16)",
+            borderRadius: 8,
             padding: 20,
             marginBottom: 16,
           }}
@@ -74,15 +44,15 @@ export default function FindPasswordPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
             <div style={{ fontSize: 24 }}>📞</div>
             <div>
-              <div style={{ fontSize: 11, color: "#6366f1", fontWeight: 700 }}>관리자 연락처</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>010-2527-2064</div>
+              <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 800 }}>관리자 연락처</div>
+              <div style={{ fontSize: 16, fontWeight: 850, color: "var(--ink)" }}>010-2527-2064</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ fontSize: 24 }}>✉️</div>
             <div>
-              <div style={{ fontSize: 11, color: "#6366f1", fontWeight: 700 }}>이메일</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>sunsetrome@naver.com</div>
+              <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 800 }}>이메일</div>
+              <div style={{ fontSize: 14, fontWeight: 750, color: "var(--ink)" }}>sunsetrome@naver.com</div>
             </div>
           </div>
         </div>
@@ -90,10 +60,10 @@ export default function FindPasswordPage() {
         <div
           style={{
             fontSize: 11,
-            color: "#94a3b8",
-            background: "#fef3c7",
-            border: "1px solid #fde68a",
-            borderRadius: 10,
+            color: "var(--ink-soft)",
+            background: "rgba(234, 239, 232, 0.72)",
+            border: "1px solid rgba(62, 90, 74, 0.14)",
+            borderRadius: 8,
             padding: "10px 14px",
             lineHeight: 1.6,
           }}
@@ -106,13 +76,14 @@ export default function FindPasswordPage() {
           onClick={() => router.push("/login")}
           style={{
             width: "100%",
-            padding: "14px 16px",
-            fontSize: 14,
-            fontWeight: 700,
-            color: "#475569",
-            background: "#f1f5f9",
+            height: 54,
+            padding: "0 16px",
+            fontSize: 15,
+            fontWeight: 800,
+            color: "var(--accent)",
+            background: "var(--accent-soft)",
             border: "none",
-            borderRadius: 12,
+            borderRadius: 8,
             cursor: "pointer",
             marginTop: 16,
             fontFamily: "inherit",
@@ -120,7 +91,7 @@ export default function FindPasswordPage() {
         >
           로그인 화면으로 돌아가기
         </button>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }

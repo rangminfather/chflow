@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { ROLES, mapToSystemRole, type Role } from "@/lib/roles";
 import {
   supabase,
-  usernameToEmail,
   validateUsername,
   validatePassword,
   normalizePhone,
@@ -364,9 +363,9 @@ export default function SignupPage() {
 
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <div style={{ fontSize: 22, fontWeight: 900, color: "#1e293b", letterSpacing: -0.5 }}>
-              스마트명성 <span style={{ color: "#94a3b8", fontSize: 14, fontWeight: 500 }}>회원가입</span>
+              스마트명성 <span style={{ color: "var(--ink-soft)", fontSize: 14, fontWeight: 600 }}>회원가입</span>
             </div>
-            <div style={{ fontSize: 13, color: "#64748b", marginTop: 14, lineHeight: 1.6 }}>
+            <div className="auth-copy" style={{ marginTop: 14 }}>
               먼저 본인 확인을 위해<br />
               <strong>이름</strong>과 <strong>휴대폰 번호</strong>를 입력해주세요
             </div>
@@ -405,7 +404,7 @@ export default function SignupPage() {
                   type="checkbox"
                   checked={noPhone}
                   onChange={(e) => { setNoPhone(e.target.checked); if (e.target.checked) setLookupPhone(""); }}
-                  style={{ width: 16, height: 16, accentColor: "#6366f1" }}
+                  style={{ width: 16, height: 16, accentColor: "var(--accent)" }}
                 />
                 휴대폰 없음 (청소년/어린이)
               </label>
@@ -451,7 +450,7 @@ export default function SignupPage() {
             </button>
           </form>
 
-          <div style={{ marginTop: 20, padding: "12px 14px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, fontSize: 11, color: "#1e40af", lineHeight: 1.6 }}>
+          <div className="auth-muted-panel" style={{ marginTop: 20 }}>
             💡 명성교회 성도이신 경우 등록된 정보를 자동으로 불러옵니다.<br />
             등록되어 있지 않으시면 신규 가입으로 진행됩니다.
           </div>
@@ -468,16 +467,16 @@ export default function SignupPage() {
           <BackBar onBack={() => setStep("lookup")} title="본인 확인" />
 
           <div style={{ textAlign: "center", marginBottom: 20 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#6366f1" }}>회원 정보 발견!</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginTop: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--accent)" }}>회원 정보 발견!</div>
+            <div style={{ fontSize: 18, fontWeight: 850, color: "var(--ink)", marginTop: 8 }}>
               아래 분이 맞으십니까?
             </div>
           </div>
 
           <div style={{
-            background: "linear-gradient(135deg, #f0f9ff, #eff6ff)",
-            border: "2px solid #3b82f6",
-            borderRadius: 16,
+            background: "#f3f7f1",
+            border: "1px solid rgba(62, 90, 74, 0.16)",
+            borderRadius: 8,
             padding: "20px 18px",
             marginBottom: 20,
           }}>
@@ -486,7 +485,7 @@ export default function SignupPage() {
                 <div style={{
                   width: 64, height: 64, borderRadius: "50%",
                   background: "#dbeafe", overflow: "hidden",
-                  border: "2px solid rgba(59, 130, 246, 0.25)",
+                  border: "1px solid rgba(62, 90, 74, 0.16)",
                   flexShrink: 0,
                 }}>
                   <img
@@ -502,11 +501,11 @@ export default function SignupPage() {
                 justifyContent: "center", fontSize: 28,
               }}>👤</div>
               <div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: "#1e293b" }}>
-                  {matched.name} <span style={{ fontSize: 14, color: "#6366f1", marginLeft: 6 }}>{matched.sub_role || matched.family_church}</span>
+                <div style={{ fontSize: 22, fontWeight: 850, color: "var(--ink)" }}>
+                  {matched.name} <span style={{ fontSize: 14, color: "var(--accent)", marginLeft: 6 }}>{matched.sub_role || matched.family_church}</span>
                 </div>
                 {matched.spouse_name && (
-                  <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+                  <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
                     배우자: {matched.spouse_name}
                   </div>
                 )}
@@ -544,7 +543,7 @@ export default function SignupPage() {
             </button>
           </div>
 
-          <div style={{ marginTop: 16, fontSize: 11, color: "#94a3b8", textAlign: "center", lineHeight: 1.6 }}>
+          <div style={{ marginTop: 16, fontSize: 11, color: "var(--ink-soft)", textAlign: "center", lineHeight: 1.6 }}>
             "네"를 선택하시면 정보가 자동으로 채워지며 직분 등은 본인이 수정 가능합니다.<br />
             "아니오"를 선택하시면 신규 가입으로 진행됩니다.
           </div>
@@ -561,7 +560,7 @@ export default function SignupPage() {
           <BackBar onBack={() => setStep(matched ? "confirm" : "lookup")} title="직분 선택" />
 
           <div style={{ textAlign: "center", marginBottom: 20 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#6366f1", marginTop: 4, letterSpacing: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--accent)", marginTop: 4, letterSpacing: 0 }}>
               † 직분을 선택하세요 †
             </div>
           </div>
@@ -578,10 +577,10 @@ export default function SignupPage() {
                   onClick={() => setRoleGroup(group.id)}
                   style={{
                     height: 38,
-                    border: active ? "1px solid #6366f1" : "1px solid #e2e8f0",
-                    background: active ? "#eef2ff" : "#fff",
-                    color: active ? "#4338ca" : "#475569",
-                    borderRadius: 10,
+                    border: active ? "1px solid var(--accent)" : "1px solid rgba(43, 39, 34, 0.12)",
+                    background: active ? "var(--accent-soft)" : "rgba(255,255,255,0.86)",
+                    color: active ? "var(--accent)" : "var(--ink-soft)",
+                    borderRadius: 8,
                     fontSize: 12,
                     fontWeight: 800,
                     cursor: "pointer",
@@ -645,7 +644,7 @@ export default function SignupPage() {
         <BackBar onBack={() => setStep("role")} title="가입 정보 입력" />
 
         {selectedRole ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", background: "#f8fafc", borderRadius: 12, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", background: "var(--accent-soft)", borderRadius: 8, marginBottom: 16 }}>
             <img
               src={selectedSubRole && selectedRole.subRoles
                 ? selectedRole.subRoles.find(s => s.label === selectedSubRole)?.image || selectedRole.image
@@ -654,8 +653,8 @@ export default function SignupPage() {
               style={{ width: 56, height: "auto", borderRadius: 8 }}
             />
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>선택한 직분</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b" }}>
+              <div style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 700 }}>선택한 직분</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>
                 {selectedSubRole || selectedRole.label}
               </div>
             </div>
@@ -665,11 +664,11 @@ export default function SignupPage() {
               style={{
                 padding: "6px 12px",
                 background: "#fff",
-                border: "1.5px solid #6366f1",
+                border: "1px solid var(--accent)",
                 borderRadius: 8,
                 fontSize: 11,
                 fontWeight: 700,
-                color: "#6366f1",
+                color: "var(--accent)",
                 cursor: "pointer",
                 fontFamily: "inherit",
                 whiteSpace: "nowrap",
@@ -702,7 +701,7 @@ export default function SignupPage() {
         )}
 
         {matched && (
-          <div style={{ padding: "10px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, fontSize: 11, color: "#166534", marginBottom: 14 }}>
+          <div style={{ padding: "10px 14px", background: "#f3f7f1", border: "1px solid rgba(62, 90, 74, 0.16)", borderRadius: 8, fontSize: 11, color: "var(--accent)", marginBottom: 14, fontWeight: 700 }}>
             ✓ 명성교회 등록 회원으로 확인되어 정보가 자동 입력되었습니다
           </div>
         )}
@@ -719,7 +718,7 @@ export default function SignupPage() {
               />
               <button type="button" onClick={checkUsername}
                 disabled={!username || usernameStatus === "checking"}
-                style={{ padding: "0 14px", background: usernameStatus === "available" ? "#10b981" : "#6366f1", color: "#fff", border: "none", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+                style={{ padding: "0 14px", background: usernameStatus === "available" ? "#3E5A4A" : "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
               >
                 {usernameStatus === "checking" ? "확인중" : usernameStatus === "available" ? "✓ 가능" : "중복확인"}
               </button>
@@ -767,14 +766,14 @@ export default function SignupPage() {
                 type="checkbox"
                 checked={agreePrivacy}
                 onChange={(e) => setAgreePrivacy(e.target.checked)}
-                style={{ width: 16, height: 16, accentColor: "#6366f1", marginTop: 2, flexShrink: 0 }}
+                style={{ width: 16, height: 16, accentColor: "var(--accent)", marginTop: 2, flexShrink: 0 }}
               />
               <span>
                 <span style={{ color: "#dc2626" }}>[필수]</span> 개인정보 수집·이용에 동의합니다{" "}
                 <a
                   href="/privacy"
                   onClick={(e) => e.stopPropagation()}
-                  style={{ color: "#6366f1", textDecoration: "underline", fontWeight: 700 }}
+                  style={{ color: "var(--accent)", textDecoration: "underline", fontWeight: 700 }}
                 >
                   전문보기
                 </a>
@@ -786,7 +785,7 @@ export default function SignupPage() {
                   type="checkbox"
                   checked={agreeGuardian}
                   onChange={(e) => setAgreeGuardian(e.target.checked)}
-                  style={{ width: 16, height: 16, accentColor: "#6366f1", marginTop: 2, flexShrink: 0 }}
+                  style={{ width: 16, height: 16, accentColor: "var(--accent)", marginTop: 2, flexShrink: 0 }}
                 />
                 <span>
                   <span style={{ color: "#dc2626" }}>[필수]</span> 만 14세 미만 가입에 대해 법정대리인(보호자)이 동의합니다
@@ -802,9 +801,9 @@ export default function SignupPage() {
           </button>
         </form>
 
-        <div style={{ fontSize: 10, color: "#94a3b8", textAlign: "center", marginTop: 14, lineHeight: 1.5 }}>
-          가입 신청 후 관리자 승인이 필요합니다
-        </div>
+          <div style={{ fontSize: 10, color: "var(--ink-soft)", textAlign: "center", marginTop: 14, lineHeight: 1.5 }}>
+            가입 신청 후 관리자 승인이 필요합니다
+          </div>
       </div>
     </div>
   );
@@ -813,12 +812,9 @@ export default function SignupPage() {
 // ============ Components ============
 function BackBar({ onBack, title }: { onBack: () => void; title: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-      <button onClick={onBack} style={{
-        width: 36, height: 36, borderRadius: 10, background: "#f1f5f9",
-        border: "none", fontSize: 16, cursor: "pointer", color: "#475569",
-      }}>←</button>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#475569" }}>{title}</div>
+    <div className="auth-topbar" style={{ marginBottom: 20 }}>
+      <button onClick={onBack} className="auth-back-button" aria-label="뒤로가기">←</button>
+      <div className="auth-page-title">{title}</div>
     </div>
   );
 }
@@ -832,13 +828,13 @@ function RoleCard({ role, onClick }: { role: Role; onClick: () => void }) {
       position: "relative", aspectRatio: "0.62",
       display: "flex", alignItems: "center", justifyContent: "center", padding: 4,
     }}
-    onMouseOver={(e) => { e.currentTarget.style.borderColor = "#6366f1"; e.currentTarget.style.transform = "translateY(-4px)"; }}
+    onMouseOver={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.transform = "translateY(-4px)"; }}
     onMouseOut={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.transform = "translateY(0)"; }}>
       <img src={role.image} alt={role.label}
         style={{ maxWidth: "100%", maxHeight: "100%", width: "auto", height: "auto", objectFit: "contain", display: "block" }} />
       {role.subRoles && role.subRoles.length > 0 && (
         <div style={{ position: "absolute", top: 6, right: 6, padding: "2px 8px",
-          background: "rgba(99, 102, 241, 0.95)", color: "#fff", borderRadius: 10,
+        background: "var(--accent)", color: "#fff", borderRadius: 8,
           fontSize: 9, fontWeight: 700 }}>▼</div>
       )}
     </div>
@@ -853,7 +849,7 @@ function SubRoleModal({ role, onSelect, onClose }: { role: Role; onSelect: (labe
       justifyContent: "center", zIndex: 100, padding: 16,
     }}>
       <div onClick={(e) => e.stopPropagation()} style={{
-        background: "#fff", borderRadius: 24, padding: "24px 20px",
+        background: "rgba(255, 253, 248, 0.96)", borderRadius: 8, padding: "24px 20px",
         width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto",
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
       }}>
@@ -912,89 +908,93 @@ function maskAddress(addr: string): string {
 
 // ============ Styles ============
 const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "linear-gradient(135deg, #f0f9ff 0%, #fef3c7 100%)",
+  minHeight: "100svh",
+  background: "linear-gradient(160deg, #f7f4ec 0%, #eef5f1 48%, #e8eff7 100%)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  padding: "20px 16px",
-  fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
+  padding: "calc(24px + var(--safe-top)) 18px calc(24px + var(--safe-bottom))",
+  fontFamily: "var(--app-sans)",
 };
 
 const cardStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: 420,
-  background: "rgba(255,255,255,0.9)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  borderRadius: 24,
-  padding: "32px 28px",
-  boxShadow: "0 20px 60px rgba(0,0,0,0.1)",
-  border: "1px solid rgba(255,255,255,0.6)",
+  background: "rgba(255, 253, 248, 0.92)",
+  backdropFilter: "blur(16px)",
+  WebkitBackdropFilter: "blur(16px)",
+  borderRadius: 8,
+  padding: "30px",
+  boxShadow: "0 24px 70px rgba(43, 39, 34, 0.12)",
+  border: "1px solid rgba(43, 39, 34, 0.08)",
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  color: "#475569",
-  letterSpacing: 0.5,
+  fontSize: 13,
+  fontWeight: 750,
+  color: "var(--ink)",
+  letterSpacing: 0,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "12px 14px",
-  fontSize: 14,
-  background: "#fff",
-  border: "1.5px solid #e2e8f0",
-  borderRadius: 10,
+  height: 54,
+  padding: "0 16px",
+  fontSize: 15,
+  background: "rgba(255, 255, 255, 0.86)",
+  border: "1px solid rgba(43, 39, 34, 0.14)",
+  borderRadius: 8,
   outline: "none",
   fontFamily: "inherit",
   boxSizing: "border-box",
-  color: "#0f172a",
-  fontWeight: 600,
-  WebkitTextFillColor: "#0f172a",
-  caretColor: "#6366f1",
+  color: "var(--ink)",
+  fontWeight: 650,
+  WebkitTextFillColor: "var(--ink)",
+  caretColor: "var(--accent)",
 };
 
 const primaryBtnStyle: React.CSSProperties = {
   width: "100%",
-  padding: "14px 16px",
-  fontSize: 15,
-  fontWeight: 700,
+  height: 56,
+  padding: "0 16px",
+  fontSize: 16,
+  fontWeight: 800,
   color: "#fff",
-  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  background: "var(--accent)",
   border: "none",
-  borderRadius: 12,
+  borderRadius: 8,
   cursor: "pointer",
-  boxShadow: "0 8px 20px rgba(99, 102, 241, 0.3)",
+  boxShadow: "0 16px 34px rgba(62, 90, 74, 0.24)",
   fontFamily: "inherit",
+  letterSpacing: 0,
 };
 
 const secondaryBtnStyle: React.CSSProperties = {
   ...primaryBtnStyle,
-  background: "#f1f5f9",
-  color: "#64748b",
+  background: "var(--accent-soft)",
+  color: "var(--accent)",
   boxShadow: "none",
 };
 
 const errorStyle: React.CSSProperties = {
-  padding: "10px 14px",
-  background: "#fef2f2",
-  border: "1px solid #fecaca",
-  borderRadius: 10,
-  fontSize: 12,
-  color: "#b91c1c",
+  padding: "11px 12px",
+  background: "#fff1ed",
+  border: "1px solid #f2c9c1",
+  borderRadius: 8,
+  fontSize: 13,
+  fontWeight: 650,
+  color: "#8f2d2d",
   marginBottom: 12,
 };
 
 const infoLabel: React.CSSProperties = {
   fontSize: 11,
-  color: "#64748b",
+  color: "var(--ink-soft)",
   fontWeight: 600,
 };
 
 const infoValue: React.CSSProperties = {
   fontSize: 12,
-  color: "#1e293b",
+  color: "var(--ink)",
   fontWeight: 500,
 };

@@ -37,51 +37,21 @@ export default function FindIdPage() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #f0f9ff 0%, #fef3c7 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "20px 16px",
-        fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
-      }}
-    >
+    <main className="login-screen">
 
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 420,
-          background: "rgba(255,255,255,0.9)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          borderRadius: 24,
-          padding: "32px 28px",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.1)",
-          border: "1px solid rgba(255,255,255,0.6)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+      <section className="login-panel">
+        <div className="auth-topbar">
           <button
             onClick={() => router.push("/login")}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              background: "#f1f5f9",
-              border: "none",
-              fontSize: 16,
-              cursor: "pointer",
-              color: "#475569",
-            }}
+            className="auth-back-button"
+            aria-label="로그인으로 돌아가기"
           >
             ←
           </button>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>아이디 찾기</div>
+          <div className="auth-page-title">아이디 찾기</div>
         </div>
 
-        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 20, lineHeight: 1.6 }}>
+        <div className="auth-copy" style={{ marginBottom: 20 }}>
           가입 시 등록한 <strong>이름</strong>과 <strong>전화번호</strong>를 입력해주세요.
         </div>
 
@@ -133,16 +103,16 @@ export default function FindIdPage() {
                     key={i}
                     style={{
                       padding: "14px 16px",
-                      background: "#f0fdf4",
-                      border: "1px solid #bbf7d0",
-                      borderRadius: 12,
+                      background: "#f3f7f1",
+                      border: "1px solid rgba(62, 90, 74, 0.16)",
+                      borderRadius: 8,
                       marginBottom: 8,
                     }}
                   >
-                    <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", letterSpacing: 0.5 }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", letterSpacing: 0 }}>
                       {r.username}
                     </div>
-                    <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>
+                    <div style={{ fontSize: 10, color: "var(--ink-soft)", marginTop: 4 }}>
                       가입일: {new Date(r.created_at).toLocaleDateString("ko-KR")}
                       {r.status === "pending" && " · 승인 대기 중"}
                       {r.status === "rejected" && " · 가입 거절됨"}
@@ -160,47 +130,50 @@ export default function FindIdPage() {
             )}
           </div>
         )}
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }
 
-const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "#475569", letterSpacing: 0.5 };
+const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 750, color: "var(--ink)", letterSpacing: 0 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "12px 14px",
-  fontSize: 14,
-  background: "#fff",
-  border: "1.5px solid #e2e8f0",
-  borderRadius: 10,
+  height: 54,
+  padding: "0 16px",
+  fontSize: 15,
+  background: "rgba(255, 255, 255, 0.86)",
+  border: "1px solid rgba(43, 39, 34, 0.14)",
+  borderRadius: 8,
   outline: "none",
   fontFamily: "inherit",
   boxSizing: "border-box",
-  color: "#0f172a",
-  fontWeight: 500,
+  color: "var(--ink)",
+  fontWeight: 650,
 };
 
 const primaryBtnStyle: React.CSSProperties = {
   width: "100%",
-  padding: "14px 16px",
-  fontSize: 15,
-  fontWeight: 700,
+  height: 56,
+  padding: "0 16px",
+  fontSize: 16,
+  fontWeight: 800,
   color: "#fff",
-  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  background: "var(--accent)",
   border: "none",
-  borderRadius: 12,
+  borderRadius: 8,
   cursor: "pointer",
-  boxShadow: "0 8px 20px rgba(99, 102, 241, 0.3)",
+  boxShadow: "0 16px 34px rgba(62, 90, 74, 0.24)",
   fontFamily: "inherit",
 };
 
 const errorStyle: React.CSSProperties = {
-  padding: "10px 14px",
-  background: "#fef2f2",
-  border: "1px solid #fecaca",
-  borderRadius: 10,
-  fontSize: 12,
-  color: "#b91c1c",
+  padding: "11px 12px",
+  background: "#fff1ed",
+  border: "1px solid #f2c9c1",
+  borderRadius: 8,
+  fontSize: 13,
+  fontWeight: 650,
+  color: "#8f2d2d",
   marginBottom: 12,
 };
