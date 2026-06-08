@@ -434,10 +434,24 @@ async function saveJsonSidecar(admin: ReturnType<typeof adminClient>, pptxPath: 
 }
 
 // 특정 파일의 quizzes 포함 전체 데이터 가져오기
+// JSON 사이드카 없으면 PPTX 파싱 후 사이드카 저장 (기존 파일 폴백)
 async function fetchFullProblem(admin: ReturnType<typeof adminClient>, jsonPath: string): Promise<ParsedReviewProblem | null> {
-  const { data } = await admin.storage.from(REVIEW_BUCKET).download(jsonPath);
-  if (!data) return null;
-  try { return JSON.parse(await data.text()) as ParsedReviewProblem; } catch { return null; }
+  const { data: jsonData } = await admin.storage.from(REVIEW_BUCKET).download(jsonPath);
+  if (jsonData) {
+    try { return JSON.parse(await jsonData.text()) as ParsedReviewProblem; } catch { /* fall through */ }
+  }
+
+  // 폴백: PPTX 파싱 후 사이드카 자동 생성
+  const pptxPath = jsonPath.replace(/\.json$/i, ".pptx");
+  const { data: pptxData } = await admin.storage.from(REVIEW_BUCKET).download(pptxPath);
+  if (!pptxData) return null;
+  try {
+    const buffer = Buffer.from(await pptxData.arrayBuffer());
+    const fileName = pptxPath.split("/").pop() || pptxPath;
+    const parsed = await parseReviewPptx(buffer, fileName, pptxPath, fileName, null, null);
+    await saveJsonSidecar(admin, pptxPath, parsed);
+    return parsed;
+  } catch { return null; }
 }
 
 // ─── findMatchedProblem (index 기반) ────────────────────────────────────────
