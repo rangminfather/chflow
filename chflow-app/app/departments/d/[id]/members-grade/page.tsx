@@ -330,7 +330,6 @@ export default function MembersGradePage() {
             )}
           </div>
         </div>
-      </div>
 
       {toast && <div style={toastStyle}>{toast}</div>}
 
