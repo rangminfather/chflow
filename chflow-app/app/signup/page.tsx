@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ROLES, mapToSystemRole, type Role } from "@/lib/roles";
 import {
@@ -34,6 +34,14 @@ const getErrorMessage = (error: unknown) => {
 };
 
 const cssUrl = (url: string) => `url(${JSON.stringify(url)})`;
+
+const normalizeSearchText = (value: string) => (
+  value
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[·/.,_-]/g, "")
+    .replace(/목장/g, "")
+);
 
 interface DaumPostcodeData {
   roadAddress?: string;
@@ -170,11 +178,13 @@ export default function SignupPage() {
   const [birthDate, setBirthDate] = useState("");
   const [gender, setGender] = useState("");
   const [address, setAddress] = useState("");
+  const [addressDetail, setAddressDetail] = useState("");
   const [pastureId, setPastureId] = useState("");
   const [pastureSearch, setPastureSearch] = useState("");
   const [showPastureSuggestions, setShowPastureSuggestions] = useState(false);
   const [parentMatch, setParentMatch] = useState<ParentMatch | null>(null);
   const [pastureOptions, setPastureOptions] = useState<PastureOption[]>([]);
+  const addressDetailRef = useRef<HTMLInputElement | null>(null);
 
   // 약관 동의
   const [agreePrivacy, setAgreePrivacy] = useState(false);
@@ -194,21 +204,40 @@ export default function SignupPage() {
   useEffect(() => {
     if (!pastureId) return;
     const selected = pastureOptions.find((option) => option.pasture_id === pastureId);
-    if (selected) setPastureSearch(selected.label);
+    if (selected) setPastureSearch(selected.pasture_name);
   }, [pastureId, pastureOptions]);
 
+  const selectedPasture = useMemo(
+    () => pastureOptions.find((option) => option.pasture_id === pastureId) || null,
+    [pastureId, pastureOptions],
+  );
+
+  const fullAddress = useMemo(
+    () => [address.trim(), addressDetail.trim()].filter(Boolean).join(" "),
+    [address, addressDetail],
+  );
+
   const filteredPastureOptions = useMemo(() => {
-    const query = pastureSearch.trim().toLowerCase().replace(/\s+/g, "");
+    const query = normalizeSearchText(pastureSearch);
     const options = query
-      ? pastureOptions.filter((option) => {
-        const haystack = [
-          option.label,
-          option.pasture_name,
-          option.grassland_name,
-          option.plain_name,
-        ].join(" ").toLowerCase().replace(/\s+/g, "");
-        return haystack.includes(query);
-      })
+      ? pastureOptions
+        .filter((option) => {
+          const pastureName = normalizeSearchText(option.pasture_name);
+          const fullLabel = normalizeSearchText([
+            option.label,
+            option.grassland_name,
+            option.plain_name,
+          ].join(" "));
+          return pastureName.includes(query) || fullLabel.includes(query);
+        })
+        .sort((a, b) => {
+          const aName = normalizeSearchText(a.pasture_name);
+          const bName = normalizeSearchText(b.pasture_name);
+          const aStarts = aName.startsWith(query) ? 0 : 1;
+          const bStarts = bName.startsWith(query) ? 0 : 1;
+          if (aStarts !== bStarts) return aStarts - bStarts;
+          return a.pasture_name.localeCompare(b.pasture_name, "ko");
+        })
       : pastureOptions;
     return options.slice(0, 12);
   }, [pastureOptions, pastureSearch]);
@@ -219,6 +248,7 @@ export default function SignupPage() {
     setBirthDate(member.birth_date || "");
     setGender(normalizeGenderValue(member.gender));
     setAddress(member.address || "");
+    setAddressDetail("");
     setPastureId(member.pasture_id || "");
     if (!member.pasture_id) setPastureSearch("");
   };
@@ -226,6 +256,7 @@ export default function SignupPage() {
   const fillParentFields = (parent: ParentMatch) => {
     setParentMatch(parent);
     setAddress(parent.address || "");
+    setAddressDetail("");
     setPastureId(parent.pasture_id || "");
     if (!parent.pasture_id) setPastureSearch("");
   };
@@ -238,7 +269,7 @@ export default function SignupPage() {
 
   const selectPasture = (option: PastureOption) => {
     setPastureId(option.pasture_id);
-    setPastureSearch(option.label);
+    setPastureSearch(option.pasture_name);
     setShowPastureSuggestions(false);
   };
 
@@ -252,6 +283,8 @@ export default function SignupPage() {
           const baseAddress = data.roadAddress || data.jibunAddress || data.address || "";
           const building = data.buildingName && data.apartment === "Y" ? ` (${data.buildingName})` : "";
           setAddress(`${baseAddress}${building}`.trim());
+          setAddressDetail("");
+          window.setTimeout(() => addressDetailRef.current?.focus(), 80);
         },
       }).open();
     } catch (e: unknown) {
@@ -399,6 +432,7 @@ export default function SignupPage() {
         setBirthDate("");
         setGender("");
         setAddress("");
+        setAddressDetail("");
         setPastureId("");
         setPastureSearch("");
         setStep("role");
@@ -508,7 +542,7 @@ export default function SignupPage() {
     if (!noPhone && !phone.trim()) return setError("전화번호를 입력하세요");
     if (!birthDate) return setError("생년월일을 입력하세요");
     if (!gender) return setError("성별을 선택하세요");
-    if (!address.trim()) return setError("주소를 입력하세요");
+    if (!fullAddress) return setError("주소를 입력하세요");
     if (!selectedRole) return setError("직분을 선택하세요");
     if (!agreePrivacy) return setError("개인정보 수집·이용에 동의해주세요");
     if (noPhone && !agreeGuardian) return setError("법정대리인(보호자) 동의가 필요합니다");
@@ -529,7 +563,7 @@ export default function SignupPage() {
           noPhone,
           birthDate,
           gender,
-          address: address.trim(),
+          address: fullAddress,
           pastureId: pastureId || null,
           parentMemberId: matched?.parent_id || parentMatch?.parent_id || null,
           householdId: matched?.household_id || parentMatch?.household_id || null,
@@ -998,7 +1032,7 @@ export default function SignupPage() {
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder="주소 검색 후 상세주소를 추가하세요"
+                placeholder="도로명 또는 지번 검색 주소"
                 style={{ ...inputStyle, flex: 1 }}
               />
               <button
@@ -1020,6 +1054,14 @@ export default function SignupPage() {
                 검색
               </button>
             </div>
+            <input
+              ref={addressDetailRef}
+              type="text"
+              value={addressDetail}
+              onChange={(e) => setAddressDetail(e.target.value)}
+              placeholder="상세주소 직접 입력/수정"
+              style={{ ...inputStyle, marginTop: 8 }}
+            />
           </div>
 
           <div style={{ marginBottom: 18 }}>
@@ -1036,7 +1078,7 @@ export default function SignupPage() {
                   }}
                   onFocus={() => setShowPastureSuggestions(true)}
                   onBlur={() => window.setTimeout(() => setShowPastureSuggestions(false), 120)}
-                  placeholder="목장명, 초원, 평원으로 검색"
+                  placeholder="목장 이름만 입력하세요"
                   autoComplete="off"
                   style={{ ...inputStyle, flex: 1 }}
                 />
@@ -1087,7 +1129,7 @@ export default function SignupPage() {
                     >
                       <span style={{ fontWeight: 800, color: "var(--ink)" }}>{option.pasture_name}</span>
                       <span style={{ fontSize: 11, color: "var(--ink-soft)" }}>
-                        {option.plain_name} / {option.grassland_name}
+                        자동 연결: {option.plain_name} / {option.grassland_name}
                       </span>
                     </button>
                   ))}
@@ -1099,6 +1141,12 @@ export default function SignupPage() {
                 </div>
               )}
             </div>
+            {selectedPasture && (
+              <div style={pastureSelectedStyle}>
+                <span style={{ fontWeight: 850 }}>{selectedPasture.pasture_name}</span>
+                <span>{selectedPasture.plain_name} / {selectedPasture.grassland_name} 자동 연결</span>
+              </div>
+            )}
           </div>
 
           <div style={{ marginBottom: 14 }}>
@@ -1396,6 +1444,18 @@ const pastureOptionStyle: React.CSSProperties = {
   fontFamily: "inherit",
   cursor: "pointer",
   textAlign: "left",
+};
+
+const pastureSelectedStyle: React.CSSProperties = {
+  marginTop: 8,
+  padding: "9px 11px",
+  borderRadius: 8,
+  background: "var(--accent-soft)",
+  color: "var(--accent)",
+  fontSize: 12,
+  display: "flex",
+  flexDirection: "column",
+  gap: 2,
 };
 
 const primaryBtnStyle: React.CSSProperties = {
