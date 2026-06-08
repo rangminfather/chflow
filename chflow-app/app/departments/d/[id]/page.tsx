@@ -82,6 +82,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
       { id: "weekly-bulletin", label: "주보 만들기", icon: "📰", desc: "주보 자동 생성·UMS 등록", color: "#14b8a6", implemented: true },
       { id: "journal", label: "교육일지작성", icon: "📓", desc: "일지 · 통계 · 헌금", color: "#6366f1", implemented: true },
       { id: "monthly-plan-upload", label: "월간교육등록", icon: "🗓️", desc: "월간 교육계획서 등록", color: "#2563eb", implemented: true },
+      { id: "review-upload", label: "복습문제 관리", icon: "📚", desc: "공과 복습문제 PPTX 업로드·삭제", color: "#7c3aed", implemented: true },
       { id: "students-info", label: "학생정보관리", icon: "📇", desc: "학생 명부 · 인적사항", color: "#f97316", implemented: false },
       { id: "attendance-stats", label: "출결통계", icon: "📊", desc: "선생님·학생 출석 통계", color: "#84cc16", implemented: false },
       { id: "talent-stats", label: "달란트통계", icon: "📈", desc: "달란트 누적·랭킹", color: "#a855f7", implemented: false },

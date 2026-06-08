@@ -400,3 +400,25 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true, uploaded });
 }
+
+export async function DELETE(req: NextRequest) {
+  const deptId = req.nextUrl.searchParams.get("dept_id");
+  const path = req.nextUrl.searchParams.get("path");
+
+  if (!deptId || !path) {
+    return NextResponse.json({ ok: false, error: "dept_id와 path가 필요합니다" }, { status: 400 });
+  }
+
+  if (!path.startsWith(`${deptId}/`)) {
+    return NextResponse.json({ ok: false, error: "다른 부서의 파일을 삭제할 수 없습니다" }, { status: 403 });
+  }
+
+  const verified = await verifyGrade(req, deptId);
+  if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
+
+  const admin = adminClient();
+  const { error } = await admin.storage.from(REVIEW_BUCKET).remove([path]);
+  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true });
+}

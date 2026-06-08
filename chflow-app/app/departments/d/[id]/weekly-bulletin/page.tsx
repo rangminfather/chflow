@@ -670,6 +670,7 @@ export default function WeeklyBulletinPage() {
 
   // 3페이지 — 공과 퀴즈 (동적 N문제, 기본 1문제 4지선다)
   const [quizzes, setQuizzes] = useState<QuizItem[]>([newQuizItem("mc4")]);
+  const [showReviewList, setShowReviewList] = useState(false);
   const updateQuiz = (idx: number, next: QuizItem) => {
     setQuizzes((arr) => arr.map((q, i) => i === idx ? next : q));
   };
@@ -868,6 +869,13 @@ export default function WeeklyBulletinPage() {
     loadDraft(form.date);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.date, authChecked]);
+
+  // 3페이지 진입 or 날짜 변경 시 복습문제 자동 로드
+  useEffect(() => {
+    if (!authChecked || !form.date || currentPage !== 3) return;
+    loadReviewProblems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, form.date, authChecked]);
 
   async function loadYearlyTheme() {
     const year = new Date().getFullYear();
@@ -1862,155 +1870,146 @@ export default function WeeklyBulletinPage() {
 
         )}
 
-        {/* 복습문제 자동 입력 (page 3) */}
+        {/* 복습문제 (page 3) */}
         {currentPage === 3 && (
           <div style={{ ...cardStyle, border: "1px solid #bfdbfe", background: "#f8fbff" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 10 }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 900, color: "#1e40af" }}>복습문제 자동 입력</div>
-                <div style={{ marginTop: 3, fontSize: 12, color: "#475569", fontWeight: 700, lineHeight: 1.5 }}>
-                  월별 계획표의 공과 정보와 업로드된 PPTX 복습문제를 매칭합니다.
-                </div>
+            {/* 헤더 */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 900, color: "#1e40af" }}>📚 복습문제</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={loadReviewProblems}
+                  disabled={reviewLoading || !form.date}
+                  style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #93c5fd", background: "#fff", color: "#1d4ed8", fontSize: 12, fontWeight: 800, cursor: reviewLoading ? "default" : "pointer", fontFamily: "inherit", opacity: reviewLoading ? 0.6 : 1 }}
+                >
+                  {reviewLoading ? "확인 중…" : "새로고침"}
+                </button>
+                <label style={{ padding: "5px 10px", borderRadius: 7, border: "1px dashed #93c5fd", background: "#fff", color: "#1d4ed8", fontSize: 12, fontWeight: 800, cursor: reviewUploading ? "default" : "pointer", opacity: reviewUploading ? 0.6 : 1 }}>
+                  {reviewUploading ? "업로드 중…" : "+ PPTX 업로드"}
+                  <input type="file" accept=".pptx" multiple disabled={reviewUploading} onChange={(e) => { handleReviewUpload(e.target.files); e.currentTarget.value = ""; }} style={{ display: "none" }} />
+                </label>
               </div>
-              <button
-                type="button"
-                onClick={loadReviewProblems}
-                disabled={reviewLoading || !form.date}
-                style={{
-                  minHeight: 38,
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  border: "1px solid #2563eb",
-                  background: reviewLoading ? "#bfdbfe" : "#2563eb",
-                  color: "#fff",
-                  fontSize: 13,
-                  fontWeight: 900,
-                  cursor: reviewLoading ? "default" : "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                {reviewLoading ? "확인 중..." : "복습문제 찾기"}
-              </button>
             </div>
 
-            <label style={{
-              display: "block",
-              padding: "10px 12px",
-              borderRadius: 8,
-              border: "1px dashed #93c5fd",
-              background: "#fff",
-              color: "#1d4ed8",
-              fontSize: 13,
-              fontWeight: 900,
-              textAlign: "center",
-              cursor: reviewUploading ? "default" : "pointer",
-            }}>
-              {reviewUploading ? "업로드 중..." : "복습문제 PPTX 업로드"}
-              <input
-                type="file"
-                accept=".pptx"
-                multiple
-                disabled={reviewUploading}
-                onChange={(event) => {
-                  handleReviewUpload(event.target.files);
-                  event.currentTarget.value = "";
-                }}
-                style={{ display: "none" }}
-              />
-            </label>
-
             {reviewError && (
-              <div style={{ marginTop: 10, padding: 10, borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontSize: 12, fontWeight: 800 }}>
+              <div style={{ marginBottom: 8, padding: "8px 10px", borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontSize: 12, fontWeight: 800 }}>
                 {reviewError}
               </div>
             )}
 
+            {reviewLoading && !reviewPlanStatus && (
+              <div style={{ padding: "14px 0", textAlign: "center", fontSize: 13, color: "#64748b", fontWeight: 700 }}>매칭 중…</div>
+            )}
+
+            {/* 자동 매칭 상태 카드 */}
             {reviewPlanStatus && (
               <div style={{
-                marginTop: 10,
-                padding: 10,
+                padding: "10px 12px",
                 borderRadius: 8,
-                border: reviewMatch ? "1px solid #86efac" : "1px solid #fde68a",
+                border: reviewMatch ? "1.5px solid #86efac" : "1.5px solid #fde68a",
                 background: reviewMatch ? "#f0fdf4" : "#fffbeb",
-                color: reviewMatch ? "#166534" : "#92400e",
-                fontSize: 12,
-                fontWeight: 800,
-                lineHeight: 1.55,
               }}>
-                <div>{reviewPlanStatus.message}</div>
-                {reviewPlanStatus.plan && (
-                  <div style={{ marginTop: 3 }}>
-                    계획표: {reviewPlanStatus.plan.sheetName} · {reviewPlanStatus.plan.activity || reviewPlanStatus.plan.sermon}
-                  </div>
+                {/* 매칭 상태 배지 + 플랜 정보 */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{
+                    display: "inline-block",
+                    padding: "2px 8px",
+                    borderRadius: 99,
+                    fontSize: 11,
+                    fontWeight: 900,
+                    background: reviewMatch ? "#dcfce7" : "#fef9c3",
+                    color: reviewMatch ? "#166534" : "#854d0e",
+                  }}>
+                    {reviewMatch ? "✅ 자동 매칭" : "⚠️ 미매칭"}
+                  </span>
+                  {reviewPlanStatus.plan && (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>
+                      {reviewPlanStatus.plan.sheetName}
+                      {(reviewPlanStatus.plan.activity || reviewPlanStatus.plan.sermon) && ` · ${reviewPlanStatus.plan.activity || reviewPlanStatus.plan.sermon}`}
+                    </span>
+                  )}
+                </div>
+
+                {reviewMatch && (
+                  <>
+                    <div style={{ marginTop: 8, fontSize: 14, fontWeight: 900, color: "#1e293b" }}>{reviewMatch.title}</div>
+                    <div style={{ marginTop: 2, fontSize: 12, fontWeight: 700, color: "#64748b" }}>
+                      {reviewMatch.lessonNum ? `${reviewMatch.lessonNum}과` : reviewMatch.specialTitle || ""} · {reviewMatch.quizzes.length}문제
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => applyReviewProblem(reviewMatch)}
+                      style={{ marginTop: 10, width: "100%", minHeight: 38, borderRadius: 8, border: "1px solid #16a34a", background: "#16a34a", color: "#fff", fontSize: 13, fontWeight: 900, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      이 문제 적용
+                    </button>
+                  </>
+                )}
+
+                {!reviewMatch && reviewPlanStatus.message && (
+                  <div style={{ marginTop: 6, fontSize: 12, fontWeight: 700, color: "#92400e" }}>{reviewPlanStatus.message}</div>
                 )}
               </div>
             )}
 
-            {reviewMatch && (
-              <div style={{ marginTop: 10, padding: 12, borderRadius: 8, border: "1px solid #bbf7d0", background: "#fff" }}>
-                <div style={{ fontSize: 12, fontWeight: 900, color: "#15803d" }}>자동 매칭됨</div>
-                <div style={{ marginTop: 3, fontSize: 15, fontWeight: 900, color: "#1e293b" }}>
-                  {reviewMatch.title}
-                </div>
-                <div style={{ marginTop: 3, fontSize: 12, fontWeight: 700, color: "#64748b" }}>
-                  {reviewMatch.quizzes.length}문제 · {reviewMatch.lessonNum ? `${reviewMatch.lessonNum}과` : reviewMatch.specialTitle}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => applyReviewProblem(reviewMatch)}
-                  style={{
-                    marginTop: 10,
-                    width: "100%",
-                    minHeight: 40,
-                    borderRadius: 8,
-                    border: "1px solid #16a34a",
-                    background: "#16a34a",
-                    color: "#fff",
-                    fontSize: 14,
-                    fontWeight: 900,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  매칭된 복습문제 적용
-                </button>
-              </div>
-            )}
-
+            {/* 목록 펼치기 / 수동 선택 */}
             {reviewProblems.length > 0 && (
-              <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 900, color: "#475569" }}>
-                  수동 선택 목록 ({reviewProblems.length}개)
-                </div>
-                <select
-                  value={selectedReviewId}
-                  onChange={(event) => setSelectedReviewId(event.target.value)}
-                  style={inputStyle}
-                >
-                  {reviewProblems.map((problem) => (
-                    <option key={problem.id} value={problem.id}>
-                      {problem.lessonNum ? `${problem.lessonNum}과 - ` : problem.specialTitle ? `${problem.specialTitle} - ` : ""}
-                      {problem.title} ({problem.quizzes.length}문제)
-                    </option>
-                  ))}
-                </select>
+              <div style={{ marginTop: 10 }}>
                 <button
                   type="button"
-                  onClick={() => applyReviewProblem(reviewProblems.find((problem) => problem.id === selectedReviewId) || null)}
-                  style={{
-                    minHeight: 40,
-                    borderRadius: 8,
-                    border: "1px solid #475569",
-                    background: "#334155",
-                    color: "#fff",
-                    fontSize: 14,
-                    fontWeight: 900,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
+                  onClick={() => setShowReviewList((v) => !v)}
+                  style={{ width: "100%", padding: "7px 12px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", color: "#334155", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
                 >
-                  선택한 복습문제 적용
+                  {showReviewList ? "▲ 목록 접기" : `▼ 다른 문제 선택 (${reviewProblems.length}개)`}
                 </button>
+
+                {showReviewList && (
+                  <div style={{ marginTop: 6, display: "grid", gap: 6 }}>
+                    {reviewProblems.map((problem) => {
+                      const isSelected = selectedReviewId === problem.id;
+                      return (
+                        <div
+                          key={problem.id}
+                          onClick={() => setSelectedReviewId(problem.id)}
+                          style={{
+                            padding: "9px 12px",
+                            borderRadius: 8,
+                            border: isSelected ? "1.5px solid #2563eb" : "1px solid #e2e8f0",
+                            background: isSelected ? "#eff6ff" : "#fff",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 8,
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              {problem.lessonNum && (
+                                <span style={{ display: "inline-block", padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 900, background: "#dbeafe", color: "#1e40af" }}>{problem.lessonNum}과</span>
+                              )}
+                              {problem.specialTitle && !problem.lessonNum && (
+                                <span style={{ display: "inline-block", padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 900, background: "#ede9fe", color: "#5b21b6" }}>절기</span>
+                              )}
+                              <span style={{ fontSize: 13, fontWeight: 800, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{problem.title}</span>
+                            </div>
+                            <div style={{ marginTop: 2, fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>{problem.quizzes.length}문제</div>
+                          </div>
+                          {isSelected && <span style={{ fontSize: 16, color: "#2563eb" }}>✓</span>}
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => { applyReviewProblem(reviewProblems.find((p) => p.id === selectedReviewId) || null); setShowReviewList(false); }}
+                      disabled={!selectedReviewId}
+                      style={{ minHeight: 40, borderRadius: 8, border: "1px solid #334155", background: "#334155", color: "#fff", fontSize: 13, fontWeight: 900, cursor: "pointer", fontFamily: "inherit", opacity: selectedReviewId ? 1 : 0.4 }}
+                    >
+                      선택한 문제 적용
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
