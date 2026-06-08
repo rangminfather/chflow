@@ -9,7 +9,7 @@ import PhotoAvatar from "@/components/PhotoAvatar";
 import HeaderLogo from "@/components/HeaderLogo";
 import {
   type LucideIcon,
-  BookOpen, Users, User, Lightbulb, Vote, Megaphone, CalendarDays,
+  BookOpen, BookText, Users, User, Lightbulb, Vote, Megaphone, CalendarDays,
   Landmark, Bus, CalendarClock, Menu, LogOut, X, Folder, Home,
   Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid,
 } from "lucide-react";
@@ -71,6 +71,7 @@ const COMMON_MENUS: CommonMenu[] = [
   { id: "directory", label: "성도 요람",      icon: Users,     color: "#336F8F", bg: "#E9F2F7", desc: "성도 검색",     href: "/directory" },
   { id: "myinfo",    label: "내 정보",        icon: User,      color: "#725A3A", bg: "#F4EDE0", desc: "프로필 관리",   href: "/myinfo" },
   { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "#B45D3B", bg: "#F8ECE6", desc: "건의사항 접수", href: "/feedback" },
+  { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "#4B5563", bg: "#F3F4F6", desc: "앱 사용 안내",   href: "/manual" },
 ];
 
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [
