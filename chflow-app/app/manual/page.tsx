@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 interface ManifestItem {
@@ -18,44 +18,44 @@ export default function ManualPage() {
   const [manifest, setManifest] = useState<ManifestItem[] | null>(null);
   const [activeChapter, setActiveChapter] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const tabBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch("/manual/shots/manifest.json")
       .then(r => r.json())
-      .then(data => {
+      .then((data: ManifestItem[]) => {
         setManifest(data);
         if (data.length > 0) setActiveChapter(data[0].chapterId);
       })
       .catch(() => setManifest([]));
   }, []);
 
+  // 탭 선택 시 탭바 스크롤 중앙 정렬
+  function selectChapter(id: string) {
+    setActiveChapter(id);
+    if (tabBarRef.current) {
+      const btn = tabBarRef.current.querySelector(`[data-ch="${id}"]`) as HTMLElement;
+      if (btn) btn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }
+  }
+
   if (manifest === null) {
-    return (
-      <div style={pageWrap}>
-        <div style={{ textAlign: "center", padding: 60, color: "#64748b" }}>매뉴얼 로딩 중...</div>
-      </div>
-    );
+    return <div style={loadWrap}><div style={loadText}>매뉴얼 로딩 중…</div></div>;
   }
 
   if (manifest.length === 0) {
     return (
-      <div style={pageWrap}>
-        <div style={{ textAlign: "center", padding: 60 }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#1e293b", marginBottom: 12 }}>
-            매뉴얼 스크린샷이 없습니다
-          </div>
-          <div style={{ fontSize: 13, color: "#64748b", marginBottom: 24 }}>
-            아래 명령어로 스크린샷을 생성하세요:
-          </div>
-          <code style={{ background: "#f1f5f9", padding: "10px 16px", borderRadius: 8, fontSize: 13 }}>
-            node scripts/generate-manual.js
+      <div style={loadWrap}>
+        <div style={{ textAlign: "center" }}>
+          <p style={{ fontSize: 16, fontWeight: 700, color: "#1e293b", marginBottom: 8 }}>스크린샷이 없습니다</p>
+          <code style={{ background: "#f1f5f9", padding: "8px 14px", borderRadius: 8, fontSize: 13 }}>
+            npm run manual
           </code>
         </div>
       </div>
     );
   }
 
-  // 챕터 목록 추출 (중복 제거)
   const chapters = Array.from(
     new Map(manifest.map(m => [m.chapterId, m.chapterTitle])).entries()
   ).map(([id, title]) => ({ id, title }));
@@ -64,30 +64,48 @@ export default function ManualPage() {
 
   return (
     <div style={pageWrap}>
-      {/* 헤더 */}
+      {/* ── 헤더 ── */}
       <header style={headerStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => router.push("/home")} style={backBtn}>← 홈</button>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>스마트명성 사용 매뉴얼</div>
-            <div style={{ fontSize: 12, color: "#64748b" }}>초등1부 교육사역국</div>
-          </div>
+        <button onClick={() => router.push("/home")} style={backBtn} aria-label="홈으로">
+          ← 홈
+        </button>
+        <div style={{ flex: 1, minWidth: 0, paddingLeft: 10 }}>
+          <div style={headerTitle}>스마트명성 사용 매뉴얼</div>
+          <div style={headerSub}>초등1부 교육사역국</div>
         </div>
-        <button onClick={() => window.print()} style={printBtn}>🖨 PDF 저장</button>
+        <button onClick={() => window.print()} style={printBtn} aria-label="PDF 저장">
+          🖨
+        </button>
       </header>
 
+      {/* ── 챕터 탭 바 (모바일: 가로 스크롤) ── */}
+      <div style={tabBarWrap} ref={tabBarRef}>
+        {chapters.map(ch => (
+          <button
+            key={ch.id}
+            data-ch={ch.id}
+            onClick={() => selectChapter(ch.id)}
+            style={{
+              ...tabBtn,
+              ...(activeChapter === ch.id ? tabBtnActive : {}),
+            }}
+          >
+            {ch.title}
+          </button>
+        ))}
+      </div>
+
+      {/* ── 메인 레이아웃 ── */}
       <div style={layoutStyle}>
-        {/* 사이드 챕터 네비게이션 */}
-        <nav style={navStyle}>
+        {/* 데스크톱 사이드 네비 (768px 이상에서만 표시) */}
+        <nav style={sideNav} className="manual-sidenav">
           {chapters.map(ch => (
             <button
               key={ch.id}
-              onClick={() => setActiveChapter(ch.id)}
+              onClick={() => selectChapter(ch.id)}
               style={{
-                ...navItem,
-                background: activeChapter === ch.id ? "#e8eff7" : "transparent",
-                color: activeChapter === ch.id ? "#1e4e8c" : "#475569",
-                fontWeight: activeChapter === ch.id ? 700 : 500,
+                ...sideItem,
+                ...(activeChapter === ch.id ? sideItemActive : {}),
               }}
             >
               {ch.title}
@@ -98,135 +116,216 @@ export default function ManualPage() {
         {/* 스텝 목록 */}
         <main style={mainStyle}>
           {currentItems.map((item, idx) => (
-            <div key={item.stepId} style={stepCard}>
-              <div style={stepNumBadge}>{idx + 1}</div>
-              <div style={{ flex: 1 }}>
-                <div style={stepTitle}>{item.title}</div>
-                <div style={stepDesc}>{item.desc}</div>
-                {item.shot ? (
-                  <div
-                    style={shotWrap}
-                    onClick={() => setLightbox(`/manual/shots/${item.shot}`)}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`/manual/shots/${item.shot}`}
-                      alt={item.title}
-                      style={shotImg}
-                    />
-                    <div style={shotHint}>클릭하여 크게 보기</div>
-                  </div>
-                ) : (
-                  <div style={noShot}>
-                    {item.error ? `⚠ 스크린샷 오류: ${item.error}` : "스크린샷 없음"}
-                  </div>
-                )}
+            <div key={item.stepId} style={stepCard} className="step-card">
+              <div style={badgeRow}>
+                <span style={numBadge}>{idx + 1}</span>
+                <span style={stepTitle}>{item.title}</span>
               </div>
+              <p style={stepDesc}>{item.desc}</p>
+              {item.shot ? (
+                <div
+                  style={shotWrap}
+                  onClick={() => setLightbox(`/manual/shots/${item.shot}`)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => e.key === "Enter" && setLightbox(`/manual/shots/${item.shot}`)}
+                  aria-label={`${item.title} 화면 크게 보기`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/manual/shots/${item.shot}`} alt={item.title} style={shotImg} />
+                  <div style={shotOverlay}>🔍 탭하여 크게 보기</div>
+                </div>
+              ) : (
+                <div style={noShot}>{item.error ? `⚠ ${item.error}` : "스크린샷 준비 중"}</div>
+              )}
             </div>
           ))}
         </main>
       </div>
 
-      {/* 라이트박스 */}
+      {/* ── 라이트박스 ── */}
       {lightbox && (
-        <div style={lightboxOverlay} onClick={() => setLightbox(null)}>
+        <div style={lbOverlay} onClick={() => setLightbox(null)} role="dialog" aria-modal>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lightbox} alt="확대 보기" style={lightboxImg} onClick={e => e.stopPropagation()} />
-          <button style={lightboxClose} onClick={() => setLightbox(null)}>✕</button>
+          <img
+            src={lightbox}
+            alt="확대 보기"
+            style={lbImg}
+            onClick={e => e.stopPropagation()}
+          />
+          <button style={lbClose} onClick={() => setLightbox(null)}>✕</button>
         </div>
       )}
 
-      {/* 인쇄용 스타일 */}
+      {/* ── 반응형 + 인쇄 CSS ── */}
       <style>{`
+        .manual-sidenav { display: none; }
+        .manual-tabbar  { display: flex; }
+
+        @media (min-width: 768px) {
+          .manual-sidenav { display: flex !important; }
+          .manual-tabbar  { display: none !important; }
+        }
+
         @media print {
-          nav, header button, .no-print { display: none !important; }
-          .step-card { break-inside: avoid; }
+          header, .manual-sidenav, .manual-tabbar { display: none !important; }
+          .step-card { break-inside: avoid; margin-bottom: 24px; }
         }
       `}</style>
     </div>
   );
 }
 
-// ── 스타일 ────────────────────────────────────────────────
+// ── 스타일 토큰 ────────────────────────────────────────────
 const pageWrap: React.CSSProperties = {
   minHeight: "100vh",
-  background: "#f8fafc",
+  background: "#f1f5f9",
   fontFamily: "'Noto Sans KR', sans-serif",
 };
-const headerStyle: React.CSSProperties = {
-  background: "#fff",
-  borderBottom: "1px solid #e2e8f0",
-  padding: "14px 20px",
+
+const loadWrap: React.CSSProperties = {
+  minHeight: "100vh",
   display: "flex",
-  justifyContent: "space-between",
   alignItems: "center",
+  justifyContent: "center",
+};
+const loadText: React.CSSProperties = { fontSize: 15, color: "#64748b" };
+
+const headerStyle: React.CSSProperties = {
   position: "sticky",
   top: 0,
-  zIndex: 10,
+  zIndex: 20,
+  display: "flex",
+  alignItems: "center",
+  gap: 4,
+  padding: "10px 16px",
+  background: "#fff",
+  borderBottom: "1px solid #e2e8f0",
 };
+const headerTitle: React.CSSProperties = {
+  fontSize: 15,
+  fontWeight: 800,
+  color: "#1e293b",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+const headerSub: React.CSSProperties = { fontSize: 11, color: "#94a3b8" };
 const backBtn: React.CSSProperties = {
+  flexShrink: 0,
   background: "transparent",
   border: "1px solid #e2e8f0",
   borderRadius: 8,
-  padding: "6px 14px",
+  padding: "6px 12px",
   fontSize: 13,
-  cursor: "pointer",
   color: "#475569",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
 };
 const printBtn: React.CSSProperties = {
+  flexShrink: 0,
   background: "#1e293b",
   color: "#fff",
   border: "none",
   borderRadius: 8,
-  padding: "8px 16px",
-  fontSize: 13,
-  fontWeight: 600,
+  padding: "7px 12px",
+  fontSize: 16,
   cursor: "pointer",
 };
+
+/* 모바일 탭 바 */
+const tabBarWrap: React.CSSProperties = {
+  display: "flex",
+  overflowX: "auto",
+  gap: 6,
+  padding: "10px 14px",
+  background: "#fff",
+  borderBottom: "1px solid #e2e8f0",
+  scrollbarWidth: "none",
+  WebkitOverflowScrolling: "touch",
+};
+const tabBtn: React.CSSProperties = {
+  flexShrink: 0,
+  padding: "7px 14px",
+  borderRadius: 20,
+  border: "1px solid #e2e8f0",
+  background: "#f8fafc",
+  fontSize: 13,
+  fontWeight: 500,
+  color: "#475569",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+  transition: "all 0.15s",
+};
+const tabBtnActive: React.CSSProperties = {
+  background: "#1e4e8c",
+  borderColor: "#1e4e8c",
+  color: "#fff",
+  fontWeight: 700,
+};
+
+/* 레이아웃 */
 const layoutStyle: React.CSSProperties = {
   display: "flex",
   maxWidth: 1100,
   margin: "0 auto",
-  padding: "24px 16px",
+  padding: "16px 12px 40px",
   gap: 24,
+  alignItems: "flex-start",
 };
-const navStyle: React.CSSProperties = {
-  width: 220,
+
+/* 데스크톱 사이드 네비 */
+const sideNav: React.CSSProperties = {
+  width: 210,
   flexShrink: 0,
-  display: "flex",
   flexDirection: "column",
   gap: 4,
   position: "sticky",
-  top: 80,
+  top: 100,
   alignSelf: "flex-start",
 };
-const navItem: React.CSSProperties = {
+const sideItem: React.CSSProperties = {
   textAlign: "left",
   border: "none",
   borderRadius: 8,
   padding: "10px 14px",
   fontSize: 13,
+  fontWeight: 500,
+  color: "#475569",
+  background: "transparent",
   cursor: "pointer",
   lineHeight: 1.4,
-  transition: "all 0.15s",
+  width: "100%",
 };
+const sideItemActive: React.CSSProperties = {
+  background: "#e8eff7",
+  color: "#1e4e8c",
+  fontWeight: 700,
+};
+
+/* 스텝 카드 */
 const mainStyle: React.CSSProperties = {
   flex: 1,
+  minWidth: 0,
   display: "flex",
   flexDirection: "column",
-  gap: 28,
+  gap: 16,
 };
 const stepCard: React.CSSProperties = {
   background: "#fff",
   border: "1px solid #e2e8f0",
-  borderRadius: 12,
-  padding: 20,
-  display: "flex",
-  gap: 16,
+  borderRadius: 14,
+  padding: "18px 16px",
 };
-const stepNumBadge: React.CSSProperties = {
-  width: 28,
-  height: 28,
+const badgeRow: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  marginBottom: 8,
+};
+const numBadge: React.CSSProperties = {
+  width: 26,
+  height: 26,
   borderRadius: "50%",
   background: "#1e4e8c",
   color: "#fff",
@@ -236,77 +335,82 @@ const stepNumBadge: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   flexShrink: 0,
-  marginTop: 2,
 };
 const stepTitle: React.CSSProperties = {
-  fontSize: 16,
+  fontSize: 15,
   fontWeight: 700,
   color: "#1e293b",
-  marginBottom: 6,
 };
 const stepDesc: React.CSSProperties = {
   fontSize: 14,
   color: "#475569",
-  lineHeight: 1.6,
-  marginBottom: 14,
+  lineHeight: 1.65,
+  margin: "0 0 14px",
 };
+
+/* 스크린샷 */
 const shotWrap: React.CSSProperties = {
   position: "relative",
-  display: "inline-block",
+  display: "block",
   cursor: "zoom-in",
-  borderRadius: 10,
+  borderRadius: 12,
   overflow: "hidden",
   border: "1px solid #e2e8f0",
-  maxWidth: 240,
+  maxWidth: 320,          /* 모바일에서도 넉넉한 폭 */
 };
 const shotImg: React.CSSProperties = {
   display: "block",
   width: "100%",
 };
-const shotHint: React.CSSProperties = {
+const shotOverlay: React.CSSProperties = {
   position: "absolute",
   bottom: 0,
   left: 0,
   right: 0,
-  background: "rgba(0,0,0,0.45)",
+  background: "rgba(0,0,0,0.42)",
   color: "#fff",
-  fontSize: 11,
-  padding: "4px 0",
+  fontSize: 12,
+  padding: "5px 0",
   textAlign: "center",
 };
 const noShot: React.CSSProperties = {
   fontSize: 12,
   color: "#94a3b8",
-  padding: "12px 16px",
+  padding: "12px 14px",
   background: "#f8fafc",
   borderRadius: 8,
   border: "1px dashed #cbd5e1",
 };
-const lightboxOverlay: React.CSSProperties = {
+
+/* 라이트박스 */
+const lbOverlay: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(0,0,0,0.85)",
+  background: "rgba(0,0,0,0.88)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   zIndex: 1000,
 };
-const lightboxImg: React.CSSProperties = {
+const lbImg: React.CSSProperties = {
   maxHeight: "90vh",
-  maxWidth: "90vw",
-  borderRadius: 12,
-  boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+  maxWidth: "92vw",
+  borderRadius: 10,
+  boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
 };
-const lightboxClose: React.CSSProperties = {
+const lbClose: React.CSSProperties = {
   position: "fixed",
-  top: 20,
-  right: 24,
-  background: "rgba(255,255,255,0.15)",
+  top: 18,
+  right: 20,
+  background: "rgba(255,255,255,0.18)",
   border: "none",
   color: "#fff",
-  fontSize: 22,
-  width: 40,
-  height: 40,
+  fontSize: 20,
+  width: 38,
+  height: 38,
   borderRadius: "50%",
   cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
