@@ -71,17 +71,22 @@ export default function ReviewUploadPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      const form = new FormData();
-      form.append("dept_id", deptId);
-      selected.forEach((f) => form.append("files", f));
-      const res = await fetch("/api/edu/review-problems", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: form,
-      });
-      const json = await res.json();
-      if (!res.ok || !json.ok) throw new Error(json.error || "업로드 실패");
-      showMsg(`${selected.length}개 업로드 완료`);
+      let done = 0;
+      for (const f of selected) {
+        const form = new FormData();
+        form.append("dept_id", deptId);
+        form.append("files", f);
+        const res = await fetch("/api/edu/review-problems", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          body: form,
+        });
+        const json = await res.json();
+        if (!res.ok || !json.ok) throw new Error(`${f.name}: ${json.error || "업로드 실패"}`);
+        done++;
+        showMsg(`${done}/${selected.length} 업로드 중…`);
+      }
+      showMsg(`${done}개 업로드 완료`);
       await loadFiles();
     } catch (e: unknown) {
       showMsg((e as Error).message, false);

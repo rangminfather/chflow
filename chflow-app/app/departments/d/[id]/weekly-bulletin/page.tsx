@@ -1040,27 +1040,28 @@ export default function WeeklyBulletinPage() {
   };
 
   const handleReviewUpload = async (files: FileList | null) => {
-    const selected = Array.from(files || []);
+    const selected = Array.from(files || []).filter((f) => /\.pptx$/i.test(f.name));
     if (selected.length === 0) return;
     setReviewUploading(true);
     setReviewError("");
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.replace("/login");
-        return;
+      if (!session) { router.replace("/login"); return; }
+      let done = 0;
+      for (const file of selected) {
+        const payload = new FormData();
+        payload.append("dept_id", deptId);
+        payload.append("files", file);
+        const response = await fetch("/api/edu/review-problems", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          body: payload,
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(`${file.name}: ${result.error || "업로드 실패"}`);
+        done++;
       }
-      const payload = new FormData();
-      payload.append("dept_id", deptId);
-      selected.forEach((file) => payload.append("files", file));
-      const response = await fetch("/api/edu/review-problems", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: payload,
-      });
-      const result = await response.json();
-      if (!response.ok || !result.ok) throw new Error(result.error || "복습문제 업로드 실패");
-      showToast(`${selected.length}개 복습문제 업로드 완료`);
+      showToast(`${done}개 복습문제 업로드 완료`);
       await loadReviewProblems();
     } catch (e: unknown) {
       const message = (e as Error).message;
