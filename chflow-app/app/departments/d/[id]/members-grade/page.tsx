@@ -5,12 +5,14 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 
-interface Member {
-  user_id: string;
+interface DeptMember {
+  teacher_id: string | null;
+  user_id: string | null;
   name: string;
+  role_label: string;
   grade: number;
-  status: string;
-  joined_at: string;
+  has_dm: boolean;
+  has_app: boolean;
 }
 
 interface SearchResult {
@@ -54,13 +56,17 @@ const GRADE_BG: Record<number, string> = {
   4: "#fef2f2",
 };
 
+function memberKey(m: DeptMember) {
+  return m.teacher_id ?? m.user_id ?? m.name;
+}
+
 export default function MembersGradePage() {
   const router = useRouter();
   const params = useParams();
   const deptId = params.id as string;
 
   const [authChecked, setAuthChecked] = useState(false);
-  const [members, setMembers] = useState<Member[]>([]);
+  const [members, setMembers] = useState<DeptMember[]>([]);
   const [myGrade, setMyGrade] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -73,7 +79,7 @@ export default function MembersGradePage() {
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [picked, setPicked] = useState<SearchResult | null>(null);
-  const [pickedRoleIdx, setPickedRoleIdx] = useState(5); // 기본: 교사
+  const [pickedRoleIdx, setPickedRoleIdx] = useState(5);
   const [appointing, setAppointing] = useState(false);
   const searchSkipRef = useRef(false);
 
@@ -86,7 +92,7 @@ export default function MembersGradePage() {
     setLoading(true);
     const [gradeR, listR] = await Promise.all([
       supabase.rpc("get_user_grade", { p_dept_id: deptId }),
-      supabase.rpc("list_dept_members_with_grade", { p_dept_id: deptId }),
+      supabase.rpc("list_dept_grade_members", { p_dept_id: deptId }),
     ]);
     if (gradeR.data !== null && gradeR.data !== undefined) {
       setMyGrade(typeof gradeR.data === "number" ? gradeR.data : Number(gradeR.data));
@@ -94,7 +100,7 @@ export default function MembersGradePage() {
     if (listR.error) {
       showToast("조회 실패: " + listR.error.message);
     } else {
-      setMembers(listR.data || []);
+      setMembers((listR.data as DeptMember[]) || []);
     }
     setLoading(false);
   }, [deptId, showToast]);
@@ -108,13 +114,17 @@ export default function MembersGradePage() {
     })();
   }, [load, router]);
 
-  async function handleGradeChange(member: Member, newGrade: number) {
+  async function handleGradeChange(member: DeptMember, newGrade: number) {
     if (member.grade === newGrade) return;
+    if (!member.has_app || !member.user_id) {
+      showToast("앱 미가입 상태입니다. 앱 가입 후 등급 조정이 가능합니다.");
+      return;
+    }
     if (!confirm(`${member.name} 님의 등급을 ${member.grade} → ${newGrade} 로 변경하시겠습니까?`)) return;
-    setSavingId(member.user_id);
-    const { error } = await supabase.rpc("set_member_grade", {
+    setSavingId(memberKey(member));
+    const { error } = await supabase.rpc("upsert_member_grade", {
       p_dept_id: deptId,
-      p_member_user_id: member.user_id,
+      p_user_id: member.user_id,
       p_grade: newGrade,
     });
     setSavingId(null);
@@ -129,17 +139,9 @@ export default function MembersGradePage() {
   // 임명 모달 — 검색 (debounce 250ms)
   useEffect(() => {
     if (!appointOpen) return;
-    if (searchSkipRef.current) {
-      searchSkipRef.current = false;
-      return;
-    }
+    if (searchSkipRef.current) { searchSkipRef.current = false; return; }
     const q = searchQuery.trim();
-    if (!q) {
-      setSearchResults([]);
-      setSearched(false);
-      setSearching(false);
-      return;
-    }
+    if (!q) { setSearchResults([]); setSearched(false); setSearching(false); return; }
     setSearching(true);
     const handle = setTimeout(async () => {
       const { data, error } = await supabase.rpc("dept_search_members_for_appoint", {
@@ -148,15 +150,11 @@ export default function MembersGradePage() {
       });
       setSearching(false);
       setSearched(true);
-      if (error) {
-        showToast("검색 실패: " + error.message);
-        setSearchResults([]);
-        return;
-      }
+      if (error) { showToast("검색 실패: " + error.message); setSearchResults([]); return; }
       setSearchResults((data as SearchResult[]) || []);
     }, 250);
     return () => clearTimeout(handle);
-  }, [searchQuery, appointOpen, deptId]);
+  }, [searchQuery, appointOpen, deptId, showToast]);
 
   function openAppointModal() {
     setAppointOpen(true);
@@ -168,10 +166,7 @@ export default function MembersGradePage() {
   }
 
   function pickResult(r: SearchResult) {
-    if (r.already_member) {
-      showToast(`${r.name} 님은 이미 부서원입니다`);
-      return;
-    }
+    if (r.already_member) { showToast(`${r.name} 님은 이미 부서원입니다`); return; }
     searchSkipRef.current = true;
     setPicked(r);
   }
@@ -188,10 +183,7 @@ export default function MembersGradePage() {
       p_teacher_role: role.role,
     });
     setAppointing(false);
-    if (error) {
-      showToast("임명 실패: " + error.message);
-      return;
-    }
+    if (error) { showToast("임명 실패: " + error.message); return; }
     showToast(`${picked.name} 님 ${role.label} 임명 완료`);
     setAppointOpen(false);
     await load();
@@ -222,7 +214,6 @@ export default function MembersGradePage() {
 
   return (
     <div style={pageStyle}>
-
       <div style={headerStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
@@ -250,44 +241,63 @@ export default function MembersGradePage() {
             <button onClick={openAppointModal} style={appointBtnStyle}>+ 임명</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {members.map((m) => (
-              <div
-                key={m.user_id}
-                style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
-                  padding: "10px 12px",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: 10,
-                  background: GRADE_BG[m.grade] || "#fff",
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{m.name}</div>
-                  <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
-                    상태: {m.status} · 가입: {new Date(m.joined_at).toLocaleDateString("ko-KR")}
-                  </div>
-                </div>
-                <select
-                  value={m.grade}
-                  onChange={(e) => handleGradeChange(m, parseInt(e.target.value, 10))}
-                  disabled={savingId === m.user_id}
+            {members.map((m) => {
+              const key = memberKey(m);
+              const isSaving = savingId === key;
+              return (
+                <div
+                  key={key}
                   style={{
-                    padding: "6px 10px",
-                    fontSize: 12,
-                    fontFamily: "inherit",
-                    border: "1.5px solid #cbd5e1",
-                    borderRadius: 8,
-                    background: "#fff",
-                    cursor: savingId === m.user_id ? "not-allowed" : "pointer",
-                    minWidth: 180,
+                    display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+                    padding: "10px 12px",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 10,
+                    background: m.has_app ? (GRADE_BG[m.grade] || "#fff") : "#f8fafc",
+                    opacity: m.has_app ? 1 : 0.72,
                   }}
                 >
-                  {GRADE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-            ))}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{m.name}</span>
+                      {m.role_label && (
+                        <span style={roleBadgeStyle}>{m.role_label}</span>
+                      )}
+                      {!m.has_app && (
+                        <span style={noAppBadgeStyle}>앱 미가입</span>
+                      )}
+                      {m.has_app && !m.has_dm && (
+                        <span style={noDmBadgeStyle}>미승인</span>
+                      )}
+                    </div>
+                  </div>
+                  {m.has_app ? (
+                    <select
+                      value={m.grade}
+                      onChange={(e) => handleGradeChange(m, parseInt(e.target.value, 10))}
+                      disabled={isSaving}
+                      style={{
+                        padding: "6px 10px",
+                        fontSize: 12,
+                        fontFamily: "inherit",
+                        border: "1.5px solid #cbd5e1",
+                        borderRadius: 8,
+                        background: "#fff",
+                        cursor: isSaving ? "not-allowed" : "pointer",
+                        minWidth: 180,
+                      }}
+                    >
+                      {GRADE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div style={{ fontSize: 11, color: "#94a3b8", minWidth: 120, textAlign: "right" }}>
+                      앱 가입 후 조정 가능
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             {members.length === 0 && (
               <div style={{ textAlign: "center", padding: 30, color: "#94a3b8", fontSize: 12 }}>
                 부서원이 없습니다
@@ -475,4 +485,16 @@ const modalBox: React.CSSProperties = {
   background: "#fff", borderRadius: 14, padding: 20,
   width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto",
   fontFamily: "inherit",
+};
+const roleBadgeStyle: React.CSSProperties = {
+  fontSize: 10, fontWeight: 700, color: "#6366f1",
+  background: "#eef2ff", borderRadius: 6, padding: "1px 6px",
+};
+const noAppBadgeStyle: React.CSSProperties = {
+  fontSize: 10, fontWeight: 700, color: "#b45309",
+  background: "#fef3c7", borderRadius: 6, padding: "1px 6px",
+};
+const noDmBadgeStyle: React.CSSProperties = {
+  fontSize: 10, fontWeight: 700, color: "#64748b",
+  background: "#f1f5f9", borderRadius: 6, padding: "1px 6px",
 };
