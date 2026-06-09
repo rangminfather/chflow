@@ -69,7 +69,6 @@ type CommonMenu = {
 const COMMON_MENUS: CommonMenu[] = [
   { id: "bulletin",  label: "주보 보기",      icon: BookOpen,  color: "#2F6B4F", bg: "#EAF3ED", desc: "이번 주 주보",  href: "/bulletin" },
   { id: "directory", label: "성도 요람",      icon: Users,     color: "#336F8F", bg: "#E9F2F7", desc: "성도 검색",     href: "/directory" },
-  { id: "myinfo",    label: "내 정보",        icon: User,      color: "#725A3A", bg: "#F4EDE0", desc: "프로필 관리",   href: "/myinfo" },
   { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "#B45D3B", bg: "#F8ECE6", desc: "건의사항 접수", href: "/feedback" },
   { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "#4B5563", bg: "#F3F4F6", desc: "앱 사용 안내",   href: "/manual" },
 ];
@@ -236,6 +235,7 @@ export default function HomePage() {
               memberPhotoUrl={memberPhotoUrl}
               userImage={userImage}
               onAvatarChange={(url) => setAvatarUrl(url)}
+              router={router}
             />
 
             <div className="home-summary-grid" style={{
@@ -249,8 +249,6 @@ export default function HomePage() {
             </div>
 
             <CommonMenuSection isAdmin={isAdmin} router={router} />
-
-            <NoticeBox />
           </PageContent>
         </div>
       </div>
@@ -492,12 +490,13 @@ function CommandStat({ label, value }: { label: string; value: string }) {
 // =============================================================
 // 사용자 요약
 // =============================================================
-function UserSummary({ user, photoUrl, memberPhotoUrl, userImage, onAvatarChange }: {
+function UserSummary({ user, photoUrl, memberPhotoUrl, userImage, onAvatarChange, router }: {
   user: UserInfo;
   photoUrl: string | null;
   memberPhotoUrl: string | null;
   userImage: string;
   onAvatarChange: (url: string | null) => void;
+  router: RouterType;
 }) {
   const subParts = [
     user.sub_role,
@@ -505,7 +504,7 @@ function UserSummary({ user, photoUrl, memberPhotoUrl, userImage, onAvatarChange
   ].filter(Boolean) as string[];
 
   return (
-    <SafeCard padding={14} style={{ marginBottom: 18, borderRadius: 14, background: "rgba(251,248,241,0.9)" }}>
+    <SafeCard onClick={() => router.push("/myinfo")} padding={14} style={{ marginBottom: 18, borderRadius: 14, background: "rgba(251,248,241,0.9)", cursor: "pointer" }}>
       <SafeRow gap={14}>
         <div style={{ position: "relative", flexShrink: 0 }}>
           <PhotoAvatar
