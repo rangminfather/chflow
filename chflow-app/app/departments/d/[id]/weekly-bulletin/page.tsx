@@ -659,6 +659,8 @@ export default function WeeklyBulletinPage() {
   const [themeSaving, setThemeSaving] = useState(false);
 
   const [draftMeta, setDraftMeta] = useState<DraftMeta | null>(null);
+  // 월간계획 자동적용 상태: applied=적용됨, none=계획없음, null=미시도
+  const [planApplyState, setPlanApplyState] = useState<"applied" | "none" | null>(null);
   const [draftList, setDraftList] = useState<Array<{
     issue_date: string;
     issue_number: string | null;
@@ -878,8 +880,9 @@ export default function WeeklyBulletinPage() {
       return;
     }
     (async () => {
-      await loadDraft(form.date);
-      if (form.date) await autoLoadAndApplyPlan(form.date);
+      setPlanApplyState(null);
+      const hadDraft = await loadDraft(form.date);
+      if (form.date) await autoLoadAndApplyPlan(form.date, !hadDraft);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.date, authChecked]);
@@ -912,8 +915,8 @@ export default function WeeklyBulletinPage() {
     }
   }
 
-  async function loadDraft(date: string) {
-    if (!date) return;
+  async function loadDraft(date: string): Promise<boolean> {
+    if (!date) return false;
     console.log("[bulletin] loadDraft called for", date);
     const { data, error } = await supabase.rpc("bulletin_get_draft", {
       p_dept_id: deptId, p_issue_date: date,
@@ -921,7 +924,7 @@ export default function WeeklyBulletinPage() {
     if (error) {
       console.error("[bulletin] loadDraft error:", error);
       showToast("Draft 조회 실패: " + error.message);
-      return;
+      return false;
     }
     console.log("[bulletin] loadDraft response:", data);
     const row = data && data[0];
@@ -939,6 +942,7 @@ export default function WeeklyBulletinPage() {
       if (yearlyTheme && !draft.theme) {
         setForm((f) => ({ ...f, theme: yearlyTheme.theme }));
       }
+      return true;
     } else {
       console.log("[bulletin] no draft for", date);
       setForm((f) => ({
@@ -948,6 +952,7 @@ export default function WeeklyBulletinPage() {
         theme: yearlyTheme?.theme || "",
       }));
       setDraftMeta(null);
+      return false;
     }
   }
 
@@ -967,8 +972,10 @@ export default function WeeklyBulletinPage() {
     // useEffect 가 loadDraft 트리거함
   };
 
-  // 날짜 변경 시 자동 호출 — 월간계획 불러와서 빈칸만 채움 (토스트·에러 없음)
-  const autoLoadAndApplyPlan = async (date: string) => {
+  // 날짜 변경 시 자동 호출 — 월간계획 불러와 적용 (토스트·에러 없음)
+  // overwrite=true(신규 작성): 계획서 값이 기본값(예: 예배인도 기본 최성헌)을 덮어씀
+  // overwrite=false(임시저장본 존재): 사용자가 저장한 값 보존, 빈칸만 채움
+  const autoLoadAndApplyPlan = async (date: string, overwrite: boolean) => {
     if (!date) return;
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -978,19 +985,20 @@ export default function WeeklyBulletinPage() {
         { headers: { Authorization: `Bearer ${session.access_token}` } }
       );
       const result = await response.json();
-      if (!response.ok || !result.ok) return;
+      if (!response.ok || !result.ok) { setPlanApplyState("none"); return; }
       const plan = result.plan as MonthlyPlanImport;
       setForm((current) => {
         let next: FormState = { ...current };
         for (const { key } of MONTHLY_PLAN_FIELD_LABELS) {
           const value = plan.fields[key];
           if (!value?.trim()) continue;
-          if (String(next[key] || "").trim()) continue;
+          if (!overwrite && String(next[key] || "").trim()) continue;
           next = { ...next, [key]: value };
         }
         return next;
       });
-    } catch { /* 월간계획 없으면 조용히 무시 */ }
+      setPlanApplyState("applied");
+    } catch { setPlanApplyState("none"); }
   };
 
   const loadReviewProblems = async () => {
@@ -1514,6 +1522,18 @@ export default function WeeklyBulletinPage() {
             <div style={{ fontSize: 11, color: "#9333ea", marginTop: 2 }}>
               {form.date ? formatKoreanDate(form.date) : "발행일 미선택"} · {currentPage}페이지 입력 중
             </div>
+            {form.date && (
+              <div style={{
+                fontSize: 11, fontWeight: 800, marginTop: 4,
+                color: planApplyState === "applied" ? "#16a34a" : "#94a3b8",
+              }}>
+                {planApplyState === "applied"
+                  ? "📋 월간교육계획서 적용됨"
+                  : planApplyState === "none"
+                    ? "📋 월간교육계획서 없음 (미적용)"
+                    : "📋 월간교육계획서 확인 중…"}
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             {form.issueNumber && (
@@ -1539,20 +1559,6 @@ export default function WeeklyBulletinPage() {
               🔄 {currentPage}페이지 리셋
             </button>
           </div>
-        </div>
-
-        {/* ─── 월간 교육계획서 자동 입력 ─── */}
-        <div style={{
-          ...cardStyle,
-          padding: 14,
-          border: "1px solid #fed7aa",
-          background: "#fffaf5",
-        }}>
-          <div style={{ fontSize: 14, fontWeight: 900, color: "#9a3412" }}>월간 교육계획서 자동 입력</div>
-          <div style={{ marginTop: 3, fontSize: 12, fontWeight: 700, color: "#c2410c", lineHeight: 1.5 }}>
-            날짜 선택 시 자동으로 불러와 빈 항목을 채웁니다.
-          </div>
-
         </div>
 
         {/* ─── 페이지 선택 탭 (hwpx 1/2/3/4 페이지 구조) ─── */}
