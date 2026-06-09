@@ -17,21 +17,20 @@ interface Department {
   my_status: string | null;
 }
 
-const ROLE_SLOTS = [
-  { role: "leader",  label: "전도사" },
-  { role: "부장",    label: "부장"   },
-  { role: "총무",    label: "총무"   },
-  { role: "teacher", label: "담임"   },
-] as const;
-
-type SlotLabel = typeof ROLE_SLOTS[number]["label"];
+// 첫 슬롯: 전도사(leader) 없으면 교육사로 fallback
+const ROLE_SLOTS: { roles: string[]; key: string }[] = [
+  { roles: ["leader", "교육사"], key: "대표" },
+  { roles: ["부장"],              key: "부장" },
+  { roles: ["총무"],              key: "총무" },
+  { roles: ["teacher"],           key: "담임" },
+];
 
 interface SlotPhoto {
   photoUrl: string | null;
   name: string | null;
 }
 
-type DeptKeyMembers = Record<string, Record<SlotLabel, SlotPhoto | null>>;
+type DeptKeyMembers = Record<string, Record<string, SlotPhoto | null>>;
 
 export default function CategoryPage() {
   const router = useRouter();
@@ -48,12 +47,14 @@ export default function CategoryPage() {
   const loadKeyMembers = useCallback(async (deptIds: string[]) => {
     if (!deptIds.length) return;
 
+    const allRoles = ROLE_SLOTS.flatMap(s => s.roles);
+
     const { data: members } = await supabase
       .from("department_members")
       .select("department_id, member_role, grade, user_id")
       .in("department_id", deptIds)
       .eq("status", "approved")
-      .in("member_role", ROLE_SLOTS.map(r => r.role))
+      .in("member_role", allRoles)
       .order("grade", { ascending: true });
 
     if (!members?.length) return;
@@ -70,12 +71,12 @@ export default function CategoryPage() {
 
     const result: DeptKeyMembers = {};
     for (const m of members) {
-      const slotDef = ROLE_SLOTS.find(r => r.role === m.member_role);
+      const slotDef = ROLE_SLOTS.find(s => s.roles.includes(m.member_role));
       if (!slotDef) continue;
-      if (!result[m.department_id]) result[m.department_id] = { 전도사: null, 부장: null, 총무: null, 담임: null };
-      if (result[m.department_id][slotDef.label]) continue; // 슬롯 이미 채워짐
+      if (!result[m.department_id]) result[m.department_id] = { 대표: null, 부장: null, 총무: null, 담임: null };
+      if (result[m.department_id][slotDef.key]) continue; // 슬롯 이미 채워짐
       const p = profileMap[m.user_id];
-      result[m.department_id][slotDef.label] = {
+      result[m.department_id][slotDef.key] = {
         photoUrl: p?.avatar_url || p?.photo_url || null,
         name: p?.name ?? null,
       };
@@ -219,11 +220,11 @@ export default function CategoryPage() {
                     </div>
                     {/* 대표 멤버 얼굴 (직책 없이) */}
                     <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                      {ROLE_SLOTS.map(({ label }) => {
-                        const person = slots?.[label] ?? null;
+                      {ROLE_SLOTS.map(({ key }) => {
+                        const person = slots?.[key] ?? null;
                         return person?.photoUrl ? (
                           <img
-                            key={label}
+                            key={key}
                             src={person.photoUrl}
                             alt={person.name || ""}
                             style={{
@@ -233,7 +234,7 @@ export default function CategoryPage() {
                             }}
                           />
                         ) : (
-                          <div key={label} style={{
+                          <div key={key} style={{
                             width: 28, height: 28, borderRadius: "50%",
                             background: "#e2e8f0",
                             display: "flex", alignItems: "center", justifyContent: "center",
