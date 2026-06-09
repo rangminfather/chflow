@@ -129,6 +129,8 @@ npm run build
 
 ### 4. Server Push Dispatch
 
+Implemented on 2026-06-09.
+
 Goal:
 
 - whenever a notification row is created, send an Expo push to active tokens
@@ -141,6 +143,41 @@ Recommended path:
 - add `notification_push_deliveries` table for success/failure audit
 - initially dispatch from explicit server endpoints/RPC callers
 - later consider DB trigger only after delivery/error handling is stable
+
+Current implementation:
+
+- Added migration `20260609110000_notification_push_deliveries.sql`
+- Applied the migration to the linked remote Supabase DB with:
+
+```powershell
+cd C:\csh\project\chflow\MS_AX\chflow-project
+npx supabase db query --linked --file supabase\migrations\20260609110000_notification_push_deliveries.sql
+```
+
+- Added `notification_push_deliveries` queue/log table
+- Added trigger `trg_enqueue_notification_push_deliveries` on `public.notifications`
+- Any new notification row now creates queued push delivery rows for the user's active push tokens
+- Added `GET/POST /api/mobile/push-dispatch`
+- Dispatch endpoint:
+  - picks queued/failed deliveries with fewer than 3 attempts
+  - sends them to Expo Push API
+  - records `sent`, `failed`, `expo_ticket_id`, attempts, and error messages
+  - requires `Authorization: Bearer <PUSH_DISPATCH_SECRET|CRON_SECRET|SUPABASE_SERVICE_ROLE_KEY>`
+
+Important:
+
+- Vercel cron frequency depends on the Vercel plan. The endpoint is implemented, but minute-level automatic dispatch should be wired only after confirming the deployment plan or using an external scheduler.
+- Manual dispatch for verification can call `/api/mobile/push-dispatch` with the service role key or dispatch secret.
+
+Verification:
+
+```powershell
+cd C:\csh\project\chflow\chflow-app
+npm run build
+
+cd C:\csh\project\chflow\chflow-expo
+npx tsc --noEmit
+```
 
 ### 5. Mobile Badge, Tap Routing, Real Device Verification
 
