@@ -409,17 +409,12 @@ function RolePicker({ value, parentRole, onSelect }: {
             <div key={role.id} onClick={() => handleRoleClick(role)} style={{
               cursor: "pointer", borderRadius: 10, overflow: "hidden",
               background: "#fff", border: `2px solid ${isSelected ? "#3E5A4A" : "#e2e8f0"}`,
-              aspectRatio: "0.65", display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "flex-end", padding: "0 4px 6px",
-              position: "relative",
+              aspectRatio: "0.65", position: "relative",
             }}>
               <img src={role.image} alt={role.label} style={{
-                position: "absolute", top: 0, left: 0, width: "100%", height: "85%",
+                width: "100%", height: "100%",
                 objectFit: "contain", objectPosition: "top center",
               }} />
-              <span style={{ fontSize: 9, fontWeight: 700, color: isSelected ? "#3E5A4A" : "#64748b", textAlign: "center", position: "relative" }}>
-                {role.label}
-              </span>
               {role.subRoles && <span style={{ position: "absolute", top: 4, right: 4, fontSize: 8, background: "#3E5A4A", color: "#fff", borderRadius: 4, padding: "1px 4px" }}>▼</span>}
             </div>
           );
@@ -446,17 +441,12 @@ function RolePicker({ value, parentRole, onSelect }: {
                 return (
                   <div key={sub.label} onClick={() => { onSelect(sub.label, showSubPicker); setShowSubPicker(null); }} style={{
                     cursor: "pointer", borderRadius: 10, border: `2px solid ${isSelected ? "#3E5A4A" : "#e2e8f0"}`,
-                    background: "#fafafa", aspectRatio: "0.65", display: "flex",
-                    flexDirection: "column", alignItems: "center", justifyContent: "flex-end",
-                    padding: "0 4px 6px", position: "relative", overflow: "hidden",
+                    background: "#fafafa", aspectRatio: "0.65", overflow: "hidden", position: "relative",
                   }}>
                     <img src={sub.image} alt={sub.label} style={{
-                      position: "absolute", top: 0, left: 0, width: "100%", height: "85%",
+                      width: "100%", height: "100%",
                       objectFit: "contain", objectPosition: "top center",
                     }} />
-                    <span style={{ fontSize: 9, fontWeight: 700, color: isSelected ? "#3E5A4A" : "#64748b", textAlign: "center", position: "relative" }}>
-                      {sub.label}
-                    </span>
                   </div>
                 );
               })}
