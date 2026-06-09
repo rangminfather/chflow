@@ -500,23 +500,23 @@ function UserSummary({ user, photoUrl, userImage, router }: {
   return (
     <SafeCard onClick={() => router.push("/myinfo")} padding={14} style={{ marginBottom: 18, borderRadius: 14, background: "rgba(251,248,241,0.9)", cursor: "pointer" }}>
       <SafeRow gap={14}>
-        {/* 겹친 사진 + 직분 아바타 */}
-        <div style={{ position: "relative", width: SIZE, height: SIZE + (SIZE - OVERLAP), flexShrink: 0 }}>
-          {/* 직분 아바타 (아래, 뒤) */}
+        {/* 겹친 사진 + 직분 아바타 (좌우 겹침) */}
+        <div style={{ position: "relative", width: SIZE + (SIZE - OVERLAP), height: SIZE, flexShrink: 0 }}>
+          {/* 직분 아바타 (오른쪽, 뒤) */}
           <img
             src={userImage}
             alt={user.sub_role || "직분"}
             style={{
-              position: "absolute", bottom: 0, left: 0,
+              position: "absolute", top: 0, right: 0,
               width: SIZE, height: SIZE, borderRadius: "50%",
-              objectFit: "contain", objectPosition: "top center",
+              objectFit: "cover", objectPosition: "top center",
               background: "#f1f5f9",
               border: `2px solid ${T.bgCard}`,
               boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
               zIndex: 1,
             }}
           />
-          {/* 프로필 사진 (위, 앞) */}
+          {/* 프로필 사진 (왼쪽, 앞) */}
           {photoUrl ? (
             <img
               src={photoUrl}
