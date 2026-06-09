@@ -53,6 +53,11 @@ export default function MyInfoPage() {
   const [subRoleParent, setSubRoleParent] = useState<Role | null>(null);
   const [savingSubRole, setSavingSubRole] = useState(false);
 
+  // 이메일 등록
+  const [editEmail, setEditEmail] = useState(false);
+  const [emailDraft, setEmailDraft] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+
   // 비밀번호 변경
   const [pwOpen, setPwOpen] = useState(false);
   const [curPw, setCurPw] = useState("");
@@ -117,6 +122,20 @@ export default function MyInfoPage() {
     if (kind === "address") setEditAddress(false);
     await load();
     showToast(kind === "phone" ? "핸드폰 번호가 저장되었습니다" : "주소가 저장되었습니다");
+  };
+
+  const saveEmail = async () => {
+    const trimmed = emailDraft.trim();
+    if (!trimmed.includes("@") || trimmed.split("@")[1]?.indexOf(".") === -1) {
+      alert("올바른 이메일 주소를 입력해주세요"); return;
+    }
+    setSavingEmail(true);
+    const { error } = await supabase.auth.updateUser({ email: trimmed });
+    setSavingEmail(false);
+    if (error) { alert(`등록 실패: ${error.message}`); return; }
+    setEditEmail(false);
+    setEmailDraft("");
+    showToast("확인 이메일을 발송했습니다. 이메일을 확인해 주세요.");
   };
 
   const changePassword = async () => {
@@ -249,7 +268,36 @@ export default function MyInfoPage() {
           <div style={infoGrid}>
             <InfoItem label="이름" value={profile.name} />
             <InfoItem label="아이디" value={profile.username} />
-            <InfoItem label="이메일" value={email} />
+            {/* 이메일 */}
+            {email.endsWith("@smartms.app") ? (
+              <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={infoLabel}>이메일</span>
+                {editEmail ? (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      type="email"
+                      value={emailDraft}
+                      onChange={(e) => setEmailDraft(e.target.value)}
+                      placeholder="실제 이메일 주소 입력"
+                      style={inputStyle}
+                      autoFocus
+                    />
+                    <button onClick={saveEmail} disabled={savingEmail} style={btnPrimary}>
+                      {savingEmail ? "저장 중..." : "저장"}
+                    </button>
+                    <button onClick={() => { setEditEmail(false); setEmailDraft(""); }} style={btnGhost}>취소</button>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ ...infoValue, color: "#94a3b8", fontWeight: 500 }}>(미등록)</span>
+                    <button onClick={() => setEditEmail(true)} style={btnSm}>이메일 등록하기</button>
+                  </div>
+                )}
+                <span style={{ fontSize: 11, color: "#94a3b8" }}>등록하면 비밀번호 초기화 안내 발송에 활용됩니다</span>
+              </div>
+            ) : (
+              <InfoItem label="이메일" value={email} />
+            )}
             <InfoItem label="생년월일" value={profile.birth_date} />
             <InfoItem label="성별" value={profile.gender === "M" ? "남" : profile.gender === "F" ? "여" : null} />
             <InfoItem label="가정교회" value={profile.family_church} />

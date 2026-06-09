@@ -348,12 +348,12 @@ export default function PhotoAvatar({
         <div
           style={{
             position: "absolute",
-            top: -2,
-            right: -2,
+            bottom: 0,
+            right: 0,
             width: 22,
             height: 22,
             borderRadius: "50%",
-            background: "#6366f1",
+            background: "rgba(0,0,0,0.45)",
             color: "#fff",
             display: "flex",
             alignItems: "center",
