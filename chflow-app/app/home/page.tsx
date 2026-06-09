@@ -494,26 +494,53 @@ function UserSummary({ user, photoUrl, userImage, router }: {
     user.family_church && user.family_church !== "목원" ? user.family_church : null,
   ].filter(Boolean) as string[];
 
-  const circleStyle: React.CSSProperties = {
-    width: 56, height: 56, borderRadius: "50%", flexShrink: 0,
-    objectFit: "cover", objectPosition: "top center",
-    border: `2px solid ${T.border}`,
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-    background: "#e2e8f0", cursor: "pointer",
-    display: "block",
-  };
+  const SIZE = 56;
+  const OVERLAP = Math.round(SIZE / 3); // 1/3 가려짐 → 2/3 노출
 
   return (
     <SafeCard onClick={() => router.push("/myinfo")} padding={14} style={{ marginBottom: 18, borderRadius: 14, background: "rgba(251,248,241,0.9)", cursor: "pointer" }}>
       <SafeRow gap={14}>
-        {/* 프로필 사진 */}
-        {photoUrl ? (
-          <img src={photoUrl} alt="프로필" style={circleStyle} />
-        ) : (
-          <div style={{ ...circleStyle, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>👤</div>
-        )}
-        {/* 직분 아바타 */}
-        <img src={userImage} alt={user.sub_role || "직분"} style={{ ...circleStyle, objectFit: "contain", background: "#f1f5f9" }} />
+        {/* 겹친 사진 + 직분 아바타 */}
+        <div style={{ position: "relative", width: SIZE, height: SIZE + (SIZE - OVERLAP), flexShrink: 0 }}>
+          {/* 직분 아바타 (아래, 뒤) */}
+          <img
+            src={userImage}
+            alt={user.sub_role || "직분"}
+            style={{
+              position: "absolute", bottom: 0, left: 0,
+              width: SIZE, height: SIZE, borderRadius: "50%",
+              objectFit: "contain", objectPosition: "top center",
+              background: "#f1f5f9",
+              border: `2px solid ${T.bgCard}`,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+              zIndex: 1,
+            }}
+          />
+          {/* 프로필 사진 (위, 앞) */}
+          {photoUrl ? (
+            <img
+              src={photoUrl}
+              alt="프로필"
+              style={{
+                position: "absolute", top: 0, left: 0,
+                width: SIZE, height: SIZE, borderRadius: "50%",
+                objectFit: "cover", objectPosition: "top center",
+                border: `2px solid ${T.bgCard}`,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                zIndex: 2,
+              }}
+            />
+          ) : (
+            <div style={{
+              position: "absolute", top: 0, left: 0,
+              width: SIZE, height: SIZE, borderRadius: "50%",
+              background: "#cbd5e1",
+              border: `2px solid ${T.bgCard}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 24, zIndex: 2,
+            }}>👤</div>
+          )}
+        </div>
 
         <SafeGrow>
           <div className="line-clamp-1 kr-keep" style={{ fontSize: 18, fontWeight: 800, color: T.text }}>

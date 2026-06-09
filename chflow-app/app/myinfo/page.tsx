@@ -336,7 +336,7 @@ export default function MyInfoPage() {
               <button onClick={async () => { await supabase.auth.signOut(); router.replace("/login?notice=logout"); }}
                 style={btnGhost}>로그아웃</button>
               <button onClick={() => router.push("/delete-account")}
-                style={{ ...btnGhost, background: "#fef2f2", color: "#b91c1c", borderColor: "#fecaca" }}>탈퇴 신청</button>
+                style={{ ...btnGhost, background: "transparent", color: "#b91c1c", borderColor: "#e2e8f0" }}>탈퇴 신청</button>
             </div>
           </div>
         </div>
