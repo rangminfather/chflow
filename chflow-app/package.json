@@ -8,34 +8,36 @@
     "start": "next start",
     "lint": "eslint",
     "manual": "node scripts/generate-manual.js",
-    "manual:install": "npx playwright install chromium"
+    "manual:install": "npx playwright install chromium",
+    "prepare": "husky"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
     "@supabase/ssr": "^0.10.2",
-    "@supabase/supabase-js": "^2.103.0",
+    "@supabase/supabase-js": "^2.108.0",
     "iconv-lite": "^0.7.2",
     "jszip": "^3.10.1",
     "lucide-react": "^1.17.0",
-    "next": "16.2.3",
+    "next": "^16.2.7",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.0.227",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "react-easy-crop": "^5.5.7",
-    "unpdf": "^1.6.0",
+    "unpdf": "^1.6.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/postcss": "^4.3.0",
     "@types/node": "^20",
-    "@types/react": "^19",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.3",
+    "eslint-config-next": "^16.2.7",
+    "husky": "^9.1.7",
     "playwright": "^1.60.0",
-    "tailwindcss": "^4",
+    "tailwindcss": "^4.3.0",
     "typescript": "^5"
   }
 }
