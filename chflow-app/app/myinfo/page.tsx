@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, formatPhone, usernameToEmail } from "@/lib/supabase";
-import { getRoleImageByLabel, ROLES } from "@/lib/roles";
+import { getRoleImageByLabel, ROLES, type Role } from "@/lib/roles";
 import HeaderLogo from "@/components/HeaderLogo";
 import PhotoAvatar from "@/components/PhotoAvatar";
 
@@ -50,6 +50,7 @@ export default function MyInfoPage() {
   // 직분 수정
   const [editSubRole, setEditSubRole] = useState(false);
   const [subRoleDraft, setSubRoleDraft] = useState("");
+  const [subRoleParent, setSubRoleParent] = useState<Role | null>(null);
   const [savingSubRole, setSavingSubRole] = useState(false);
 
   // 비밀번호 변경
@@ -202,52 +203,39 @@ export default function MyInfoPage() {
                 <div style={{
                   width: 80, height: 80, borderRadius: "50%",
                   background: "#f1f5f9", border: "2px solid #e2e8f0",
-                  overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center",
+                  overflow: "hidden",
                 }}>
                   <img
-                    src={getRoleImageByLabel(profile.sub_role)}
-                    alt={profile.sub_role || "직분"}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    src={getRoleImageByLabel(editSubRole ? subRoleDraft : profile.sub_role)}
+                    alt={subRoleDraft || profile.sub_role || "직분"}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center" }}
                   />
                 </div>
                 <button
-                  onClick={() => { setSubRoleDraft(profile.sub_role || ""); setEditSubRole(true); }}
+                  onClick={() => { setSubRoleDraft(profile.sub_role || ""); setSubRoleParent(null); setEditSubRole(true); }}
                   style={{
                     position: "absolute", bottom: 0, right: 0,
                     width: 26, height: 26, borderRadius: "50%",
-                    background: "#6366f1", border: "2px solid #fff",
+                    background: "#475569", border: "2px solid #fff",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    cursor: "pointer", fontSize: 12, lineHeight: 1,
+                    cursor: "pointer", color: "#fff", fontSize: 13, lineHeight: 1,
                   }}
                   title="직분 변경"
-                >✏️</button>
+                >↺</button>
               </div>
-              <span style={avatarLabel}>{profile.sub_role || "(직분 없음)"}</span>
+              <span style={avatarLabel}>{(editSubRole ? subRoleDraft : profile.sub_role) || "(직분 없음)"}</span>
             </div>
           </div>
 
-          {/* 직분 편집 드롭다운 */}
+          {/* 직분 편집 패널 */}
           {editSubRole && (
-            <div style={{ marginTop: 16, padding: "14px 16px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>직분 선택</div>
-              <select
+            <div style={{ marginTop: 16 }}>
+              <RolePicker
                 value={subRoleDraft}
-                onChange={(e) => setSubRoleDraft(e.target.value)}
-                style={inputStyle}
-              >
-                {ROLES.map((r) =>
-                  r.subRoles ? (
-                    <optgroup key={r.id} label={r.label}>
-                      {r.subRoles.map((s) => (
-                        <option key={s.label} value={s.label}>{s.label}</option>
-                      ))}
-                    </optgroup>
-                  ) : (
-                    <option key={r.id} value={r.label}>{r.label}</option>
-                  )
-                )}
-              </select>
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                parentRole={subRoleParent}
+                onSelect={(label, parent) => { setSubRoleDraft(label); setSubRoleParent(parent); }}
+              />
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
                 <button onClick={() => setEditSubRole(false)} style={btnGhost}>취소</button>
                 <button onClick={saveSubRole} disabled={savingSubRole} style={btnPrimary}>{savingSubRole ? "저장 중..." : "저장"}</button>
               </div>
@@ -336,7 +324,7 @@ export default function MyInfoPage() {
               </div>
             </div>
           ) : (
-            <button onClick={() => setPwOpen(true)} style={{ ...btnPrimary, width: "100%", justifyContent: "center" }}>🔑 비밀번호 변경</button>
+            <button onClick={() => setPwOpen(true)} style={{ ...btnOutline, width: "100%", justifyContent: "center" }}>비밀번호 변경</button>
           )}
         </div>
 
@@ -361,6 +349,121 @@ export default function MyInfoPage() {
           fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
           whiteSpace: "nowrap",
         }}>{toast}</div>
+      )}
+    </div>
+  );
+}
+
+// ===== RolePicker =====
+const ROLE_GROUPS = [
+  { label: "교역자", roleIds: ["pastor", "missionary", "evangelist", "pastor_wife"] },
+  { label: "동역자", roleIds: ["educator", "coordinator"] },
+  { label: "항존직", roleIds: ["elder", "serving_deacon", "deaconess"] },
+  { label: "성도",   roleIds: ["acting_deacon_male", "acting_deacon_female", "member_male", "member_female"] },
+  { label: "다음세대", roleIds: ["youth_male", "youth_female", "teen_male", "teen_female", "child_male", "child_female", "toddler_male", "toddler_female"] },
+];
+
+function RolePicker({ value, parentRole, onSelect }: {
+  value: string;
+  parentRole: Role | null;
+  onSelect: (label: string, parent: Role | null) => void;
+}) {
+  const [activeGroup, setActiveGroup] = useState(
+    ROLE_GROUPS.find(g => g.roleIds.some(id => {
+      const r = ROLES.find(r => r.id === id);
+      return r && (r.label === value || r.subRoles?.some(s => s.label === value));
+    }))?.label || "성도"
+  );
+  const [showSubPicker, setShowSubPicker] = useState<Role | null>(null);
+
+  const visibleRoles = ROLES.filter(r =>
+    ROLE_GROUPS.find(g => g.label === activeGroup)?.roleIds.includes(r.id)
+  );
+
+  const handleRoleClick = (role: Role) => {
+    if (role.subRoles && role.subRoles.length > 0) {
+      setShowSubPicker(role);
+    } else {
+      onSelect(role.label, null);
+    }
+  };
+
+  return (
+    <div style={{ background: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0", overflow: "hidden" }}>
+      {/* 그룹 탭 */}
+      <div style={{ display: "flex", borderBottom: "1px solid #e2e8f0", background: "#fff" }}>
+        {ROLE_GROUPS.map(g => (
+          <button key={g.label} onClick={() => setActiveGroup(g.label)} style={{
+            flex: 1, padding: "9px 4px", border: "none", background: "none", cursor: "pointer",
+            fontSize: 11, fontWeight: 700, fontFamily: "inherit",
+            color: activeGroup === g.label ? "#3E5A4A" : "#94a3b8",
+            borderBottom: activeGroup === g.label ? "2px solid #3E5A4A" : "2px solid transparent",
+          }}>{g.label}</button>
+        ))}
+      </div>
+      {/* 이미지 그리드 */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, padding: 12 }}>
+        {visibleRoles.map(role => {
+          const isSelected = role.label === value || role.subRoles?.some(s => s.label === value);
+          return (
+            <div key={role.id} onClick={() => handleRoleClick(role)} style={{
+              cursor: "pointer", borderRadius: 10, overflow: "hidden",
+              background: "#fff", border: `2px solid ${isSelected ? "#3E5A4A" : "#e2e8f0"}`,
+              aspectRatio: "0.65", display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "flex-end", padding: "0 4px 6px",
+              position: "relative",
+            }}>
+              <img src={role.image} alt={role.label} style={{
+                position: "absolute", top: 0, left: 0, width: "100%", height: "85%",
+                objectFit: "contain", objectPosition: "top center",
+              }} />
+              <span style={{ fontSize: 9, fontWeight: 700, color: isSelected ? "#3E5A4A" : "#64748b", textAlign: "center", position: "relative" }}>
+                {role.label}
+              </span>
+              {role.subRoles && <span style={{ position: "absolute", top: 4, right: 4, fontSize: 8, background: "#3E5A4A", color: "#fff", borderRadius: 4, padding: "1px 4px" }}>▼</span>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 서브직분 모달 */}
+      {showSubPicker && (
+        <div onClick={() => setShowSubPicker(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 200, padding: 20,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: "#fff", borderRadius: 16, padding: "20px 16px",
+            width: "100%", maxWidth: 360,
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", marginBottom: 14, textAlign: "center" }}>
+              {showSubPicker.label} 세부 직분
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+              {showSubPicker.subRoles!.map(sub => {
+                const isSelected = sub.label === value;
+                return (
+                  <div key={sub.label} onClick={() => { onSelect(sub.label, showSubPicker); setShowSubPicker(null); }} style={{
+                    cursor: "pointer", borderRadius: 10, border: `2px solid ${isSelected ? "#3E5A4A" : "#e2e8f0"}`,
+                    background: "#fafafa", aspectRatio: "0.65", display: "flex",
+                    flexDirection: "column", alignItems: "center", justifyContent: "flex-end",
+                    padding: "0 4px 6px", position: "relative", overflow: "hidden",
+                  }}>
+                    <img src={sub.image} alt={sub.label} style={{
+                      position: "absolute", top: 0, left: 0, width: "100%", height: "85%",
+                      objectFit: "contain", objectPosition: "top center",
+                    }} />
+                    <span style={{ fontSize: 9, fontWeight: 700, color: isSelected ? "#3E5A4A" : "#64748b", textAlign: "center", position: "relative" }}>
+                      {sub.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={() => setShowSubPicker(null)} style={{ ...btnGhost, width: "100%", marginTop: 14, justifyContent: "center" }}>닫기</button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -417,4 +520,8 @@ const btnGhost: React.CSSProperties = {
 const btnSm: React.CSSProperties = {
   padding: "5px 12px", border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc",
   color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" as const,
+};
+const btnOutline: React.CSSProperties = {
+  padding: "9px 16px", border: "1px solid #cbd5e1", borderRadius: 8, background: "#fff",
+  color: "#1e293b", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const,
 };
