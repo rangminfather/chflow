@@ -645,7 +645,6 @@ export default function WeeklyBulletinPage() {
   const [toast, setToast] = useState("");
   const [generating, setGenerating] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
-  const [monthlyPlanImport, setMonthlyPlanImport] = useState<MonthlyPlanImport | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewUploading, setReviewUploading] = useState(false);
   const [reviewProblems, setReviewProblems] = useState<ReviewIndex[]>([]);
@@ -962,7 +961,6 @@ export default function WeeklyBulletinPage() {
 
   const handleDateChange = (newDate: string) => {
     setForm((f) => ({ ...f, date: newDate, issueNumber: calcIssueNumber(newDate) }));
-    setMonthlyPlanImport(null);
     setReviewMatch(null);
     setReviewPlanStatus(null);
     setReviewError("");
@@ -982,7 +980,6 @@ export default function WeeklyBulletinPage() {
       const result = await response.json();
       if (!response.ok || !result.ok) return;
       const plan = result.plan as MonthlyPlanImport;
-      setMonthlyPlanImport(plan);
       setForm((current) => {
         let next: FormState = { ...current };
         for (const { key } of MONTHLY_PLAN_FIELD_LABELS) {
@@ -994,21 +991,6 @@ export default function WeeklyBulletinPage() {
         return next;
       });
     } catch { /* 월간계획 없으면 조용히 무시 */ }
-  };
-
-  const applyMonthlyPlanImport = (mode: "fill-empty" | "overwrite") => {
-    if (!monthlyPlanImport) return;
-    setForm((current) => {
-      let next: FormState = { ...current };
-      for (const { key } of MONTHLY_PLAN_FIELD_LABELS) {
-        const value = monthlyPlanImport.fields[key];
-        if (!value?.trim()) continue;
-        if (mode === "fill-empty" && String(next[key] || "").trim()) continue;
-        next = { ...next, [key]: value };
-      }
-      return next;
-    });
-    showToast(mode === "fill-empty" ? "빈 항목만 자동 입력했습니다" : "월간계획서 내용으로 적용했습니다");
   };
 
   const loadReviewProblems = async () => {
@@ -1571,79 +1553,6 @@ export default function WeeklyBulletinPage() {
             날짜 선택 시 자동으로 불러와 빈 항목을 채웁니다.
           </div>
 
-          {monthlyPlanImport && (
-            <div style={{ marginTop: 12, borderTop: "1px solid #fed7aa", paddingTop: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: "#7c2d12" }}>
-                  {monthlyPlanImport.sheetName} 시트 · {monthlyPlanImport.raw.sunday}
-                </div>
-                <div style={{ fontSize: 11, color: "#9a3412", fontWeight: 700 }}>
-                  헌금, 새 친구, 사진, 목장 현황은 건드리지 않음
-                </div>
-              </div>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: isDesktop ? "repeat(2, minmax(0, 1fr))" : "1fr",
-                gap: 8,
-              }}>
-                {MONTHLY_PLAN_FIELD_LABELS
-                  .filter(({ key }) => monthlyPlanImport.fields[key]?.trim())
-                  .map(({ key, label }) => (
-                    <div
-                      key={key}
-                      style={{
-                        padding: "8px 10px",
-                        borderRadius: 8,
-                        border: "1px solid #ffedd5",
-                        background: "#fff",
-                        minWidth: 0,
-                      }}
-                    >
-                      <div style={{ fontSize: 11, fontWeight: 900, color: "#c2410c" }}>{label}</div>
-                      <div style={{ marginTop: 3, fontSize: 13, fontWeight: 800, color: "#1e293b", lineHeight: 1.45, wordBreak: "keep-all" }}>
-                        {monthlyPlanImport.fields[key]}
-                      </div>
-                    </div>
-                  ))}
-              </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={() => applyMonthlyPlanImport("fill-empty")}
-                  style={{
-                    padding: "9px 12px",
-                    borderRadius: 8,
-                    border: "1px solid #fb923c",
-                    background: "#fff",
-                    color: "#c2410c",
-                    fontSize: 13,
-                    fontWeight: 900,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  빈칸만 채우기
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyMonthlyPlanImport("overwrite")}
-                  style={{
-                    padding: "9px 12px",
-                    borderRadius: 8,
-                    border: "1px solid #ea580c",
-                    background: "#ea580c",
-                    color: "#fff",
-                    fontSize: 13,
-                    fontWeight: 900,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  주보에 적용
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* ─── 페이지 선택 탭 (hwpx 1/2/3/4 페이지 구조) ─── */}
