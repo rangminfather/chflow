@@ -166,144 +166,156 @@ export default function MyInfoPage() {
 
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif", paddingBottom: 40 }}>
+    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif", paddingBottom: 48 }}>
 
       {/* Header */}
-      <div style={{ background: "#fff", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e2e8f0" }}>
+      <div style={{ background: "#fff", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e2e8f0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <HeaderLogo />
-          <div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: "#1e293b" }}>내 정보</div>
-            <div style={{ fontSize: 11, color: "#94a3b8" }}>등록된 가입 정보 / 비밀번호 변경</div>
-          </div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: "#1e293b" }}>내 정보</div>
         </div>
         <button onClick={() => router.push("/home")} style={btnGhost}>← 홈</button>
       </div>
 
-      <div style={{ maxWidth: 720, margin: "20px auto", padding: "0 16px", display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ maxWidth: 600, margin: "24px auto", padding: "0 16px", display: "flex", flexDirection: "column", gap: 14 }}>
 
         {/* 1. 프로필 헤드 카드 */}
         <div style={card}>
-          <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-            {/* 왼쪽: 사진 */}
-            <PhotoAvatar
-              userId={profile.user_id}
-              photoUrl={profile.avatar_url || profile.photo_url}
-              fallbackUrl={profile.photo_url}
-              size={80}
-              label="내 사진"
-              onUpdate={(url) =>
-                setProfile({ ...profile, avatar_url: url === profile.photo_url ? null : url })
-              }
-            />
-            {/* 오른쪽: 직분 아바타 + 직분명 수정 */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-              <img
-                src={getRoleImageByLabel(profile.sub_role)}
-                alt={profile.sub_role || "직분"}
-                style={{ width: 64, height: 64, objectFit: "contain" }}
+          <div style={{ display: "flex", justifyContent: "center", gap: 40, padding: "8px 0 4px" }}>
+
+            {/* 사진 */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+              <PhotoAvatar
+                userId={profile.user_id}
+                photoUrl={profile.avatar_url || profile.photo_url}
+                fallbackUrl={profile.photo_url}
+                size={80}
+                label="내 사진"
+                onUpdate={(url) => setProfile({ ...profile, avatar_url: url === profile.photo_url ? null : url })}
               />
-              {editSubRole ? (
-                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
-                  <select
-                    value={subRoleDraft}
-                    onChange={(e) => setSubRoleDraft(e.target.value)}
-                    style={{ ...inputStyle, width: "auto", fontSize: 13 }}
-                  >
-                    {ROLES.map((r) =>
-                      r.subRoles ? (
-                        <optgroup key={r.id} label={r.label}>
-                          {r.subRoles.map((s) => (
-                            <option key={s.label} value={s.label}>{s.label}</option>
-                          ))}
-                        </optgroup>
-                      ) : (
-                        <option key={r.id} value={r.label}>{r.label}</option>
-                      )
-                    )}
-                  </select>
-                  <button onClick={saveSubRole} disabled={savingSubRole} style={btnPrimary}>저장</button>
-                  <button onClick={() => setEditSubRole(false)} style={btnGhost}>취소</button>
-                </div>
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: "#1e293b" }}>{profile.sub_role || "(직분 없음)"}</span>
-                  <button onClick={() => { setSubRoleDraft(profile.sub_role || ""); setEditSubRole(true); }} style={btnSm}>변경</button>
-                </div>
-              )}
+              <span style={avatarLabel}>프로필 사진</span>
             </div>
+
+            {/* 직분 아바타 */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+              <div style={{ position: "relative" }}>
+                <div style={{
+                  width: 80, height: 80, borderRadius: "50%",
+                  background: "#f1f5f9", border: "2px solid #e2e8f0",
+                  overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <img
+                    src={getRoleImageByLabel(profile.sub_role)}
+                    alt={profile.sub_role || "직분"}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                </div>
+                <button
+                  onClick={() => { setSubRoleDraft(profile.sub_role || ""); setEditSubRole(true); }}
+                  style={{
+                    position: "absolute", bottom: 0, right: 0,
+                    width: 26, height: 26, borderRadius: "50%",
+                    background: "#6366f1", border: "2px solid #fff",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: "pointer", fontSize: 12, lineHeight: 1,
+                  }}
+                  title="직분 변경"
+                >✏️</button>
+              </div>
+              <span style={avatarLabel}>{profile.sub_role || "(직분 없음)"}</span>
+            </div>
+          </div>
+
+          {/* 직분 편집 드롭다운 */}
+          {editSubRole && (
+            <div style={{ marginTop: 16, padding: "14px 16px", background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>직분 선택</div>
+              <select
+                value={subRoleDraft}
+                onChange={(e) => setSubRoleDraft(e.target.value)}
+                style={inputStyle}
+              >
+                {ROLES.map((r) =>
+                  r.subRoles ? (
+                    <optgroup key={r.id} label={r.label}>
+                      {r.subRoles.map((s) => (
+                        <option key={s.label} value={s.label}>{s.label}</option>
+                      ))}
+                    </optgroup>
+                  ) : (
+                    <option key={r.id} value={r.label}>{r.label}</option>
+                  )
+                )}
+              </select>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button onClick={() => setEditSubRole(false)} style={btnGhost}>취소</button>
+                <button onClick={saveSubRole} disabled={savingSubRole} style={btnPrimary}>{savingSubRole ? "저장 중..." : "저장"}</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 2. 등록 정보 */}
+        <div style={card}>
+          <CardHeader title="등록 정보" sub="변경은 관리자 또는 사무실에 문의" />
+          <div style={infoGrid}>
+            <InfoItem label="이름" value={profile.name} />
+            <InfoItem label="아이디" value={profile.username} />
+            <InfoItem label="이메일" value={email} />
+            <InfoItem label="생년월일" value={profile.birth_date} />
+            <InfoItem label="성별" value={profile.gender === "M" ? "남" : profile.gender === "F" ? "여" : null} />
+            <InfoItem label="가정교회" value={profile.family_church} />
+            <InfoItem label="배우자" value={profile.spouse_name} />
+            <InfoItem label="평원" value={profile.plain_name} />
+            <InfoItem label="초원" value={profile.grassland_name} />
+            <InfoItem label="목장" value={profile.pasture_name} />
           </div>
         </div>
 
-        {/* 2. 가입정보 (잠금) */}
+        {/* 3. 연락처 */}
         <div style={card}>
-          <SectionHeader title="등록 정보" hint="아래 항목 변경은 관리자 또는 사무실에 문의해주세요" />
-          <FieldRow label="이름" value={profile.name} locked />
-          <FieldRow label="아이디" value={profile.username} locked />
-          <FieldRow label="이메일" value={email} locked hint="이메일 변경은 추후 지원 예정" />
-          <FieldRow label="생년월일" value={profile.birth_date || "(미등록)"} locked />
-          <FieldRow label="성별" value={profile.gender === "M" ? "남" : profile.gender === "F" ? "여" : "(미등록)"} locked />
-          <FieldRow label="가정교회" value={profile.family_church || "-"} locked />
-          <FieldRow label="직분" value={profile.sub_role || "-"} locked />
-          <FieldRow label="배우자" value={profile.spouse_name || "-"} locked />
-          <FieldRow label="평원" value={profile.plain_name || "-"} locked />
-          <FieldRow label="초원" value={profile.grassland_name || "-"} locked />
-          <FieldRow label="목장" value={profile.pasture_name || "-"} locked />
-        </div>
+          <CardHeader title="연락처" sub="직접 변경 가능" />
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-        {/* 3. 연락처 (수정 가능) */}
-        <div style={card}>
-          <SectionHeader title="연락처" hint="본인이 직접 변경할 수 있습니다" />
-
-          {/* 핸드폰 */}
-          <div style={fieldWrap}>
-            <div style={fieldLabel}>핸드폰</div>
-            <div style={fieldValue}>
+            <div>
+              <div style={infoLabel}>핸드폰</div>
               {editPhone ? (
-                <div style={{ display: "flex", gap: 6, flex: 1 }}>
-                  <input
-                    type="tel" inputMode="numeric"
-                    value={phoneDraft}
+                <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                  <input type="tel" inputMode="numeric" value={phoneDraft}
                     onChange={(e) => setPhoneDraft(e.target.value.replace(/[^0-9-]/g, ""))}
-                    placeholder="010-1234-5678"
-                    style={inputStyle}
-                  />
+                    placeholder="010-1234-5678" style={inputStyle} />
                   <button onClick={() => saveContact("phone")} disabled={savingContact} style={btnPrimary}>저장</button>
                   <button onClick={() => setEditPhone(false)} style={btnGhost}>취소</button>
                 </div>
               ) : (
-                <>
-                  <span>{profile.phone ? formatPhone(profile.phone) : "(미등록)"}</span>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                  <span style={infoValue}>{profile.phone ? formatPhone(profile.phone) : "(미등록)"}</span>
                   <button onClick={startEditPhone} style={btnSm}>변경</button>
-                </>
+                </div>
               )}
             </div>
-          </div>
 
-          {/* 주소 */}
-          <div style={fieldWrap}>
-            <div style={fieldLabel}>주소</div>
-            <div style={fieldValue}>
+            <div>
+              <div style={infoLabel}>주소</div>
               {editAddress ? (
-                <div style={{ display: "flex", gap: 6, flex: 1, flexDirection: "column" }}>
-                  <textarea
-                    value={addressDraft}
-                    onChange={(e) => setAddressDraft(e.target.value)}
-                    placeholder="도로명 주소"
-                    rows={2}
-                    style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
-                  />
-                  <div style={{ display: "flex", gap: 6, fontSize: 11, color: "#94a3b8" }}>
-                    <span style={{ flex: 1 }}>※ 가구(같은 주소) 전체에 적용됩니다</span>
-                    <button onClick={() => saveContact("address")} disabled={savingContact} style={btnPrimary}>저장</button>
-                    <button onClick={() => setEditAddress(false)} style={btnGhost}>취소</button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+                  <textarea value={addressDraft} onChange={(e) => setAddressDraft(e.target.value)}
+                    placeholder="도로명 주소" rows={2}
+                    style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} />
+                  <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 11, color: "#94a3b8" }}>가구(같은 주소) 전체에 적용됩니다</span>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => setEditAddress(false)} style={btnGhost}>취소</button>
+                      <button onClick={() => saveContact("address")} disabled={savingContact} style={btnPrimary}>저장</button>
+                    </div>
                   </div>
                 </div>
               ) : (
-                <>
-                  <span style={{ color: profile.address ? "#475569" : "#94a3b8" }}>{profile.address || "(미등록)"}</span>
-                  <button onClick={startEditAddress} disabled={!profile.household_id} title={!profile.household_id ? "가구 미배정 — 관리자에게 문의" : ""} style={btnSm}>변경</button>
-                </>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                  <span style={{ ...infoValue, color: profile.address ? "#1e293b" : "#94a3b8" }}>{profile.address || "(미등록)"}</span>
+                  <button onClick={startEditAddress} disabled={!profile.household_id}
+                    title={!profile.household_id ? "가구 미배정 — 관리자 문의" : ""} style={btnSm}>변경</button>
+                </div>
               )}
             </div>
           </div>
@@ -311,35 +323,30 @@ export default function MyInfoPage() {
 
         {/* 4. 비밀번호 변경 */}
         <div style={card}>
-          <SectionHeader title="비밀번호 변경" hint="현재 비밀번호 확인 후 새 비밀번호로 변경합니다" />
+          <CardHeader title="비밀번호" sub="" />
           {pwOpen ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <input type="password" value={curPw} onChange={(e) => setCurPw(e.target.value)} placeholder="현재 비밀번호" style={inputStyle} autoFocus />
               <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="새 비밀번호 (6자 이상)" style={inputStyle} />
               <input type="password" value={newPw2} onChange={(e) => setNewPw2(e.target.value)} placeholder="새 비밀번호 확인" style={inputStyle} />
               {pwMsg && <div style={{ fontSize: 12, color: "#dc2626" }}>{pwMsg}</div>}
-              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 <button onClick={() => { setPwOpen(false); setCurPw(""); setNewPw(""); setNewPw2(""); setPwMsg(""); }} style={btnGhost}>취소</button>
-                <button onClick={changePassword} disabled={pwSubmitting} style={btnPrimary}>
-                  {pwSubmitting ? "변경 중..." : "변경"}
-                </button>
+                <button onClick={changePassword} disabled={pwSubmitting} style={btnPrimary}>{pwSubmitting ? "변경 중..." : "변경"}</button>
               </div>
             </div>
           ) : (
-            <button onClick={() => setPwOpen(true)} style={{ ...btnPrimary, width: "100%" }}>🔑 비밀번호 변경</button>
+            <button onClick={() => setPwOpen(true)} style={{ ...btnPrimary, width: "100%", justifyContent: "center" }}>🔑 비밀번호 변경</button>
           )}
         </div>
 
-        {/* 5. 위험 영역 */}
+        {/* 5. 계정 */}
         <div style={{ ...card, borderColor: "#fecaca" }}>
-          <SectionHeader title="계정 정리" hint="" />
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <div style={{ fontSize: 12, color: "#475569" }}>
-              로그아웃 또는 회원 탈퇴 신청을 할 수 있습니다.
-            </div>
-            <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>계정</span>
+            <div style={{ display: "flex", gap: 8 }}>
               <button onClick={async () => { await supabase.auth.signOut(); router.replace("/login?notice=logout"); }}
-                style={{ ...btnGhost, color: "#475569" }}>🚪 로그아웃</button>
+                style={btnGhost}>로그아웃</button>
               <button onClick={() => router.push("/delete-account")}
                 style={{ ...btnGhost, background: "#fef2f2", color: "#b91c1c", borderColor: "#fecaca" }}>탈퇴 신청</button>
             </div>
@@ -347,12 +354,12 @@ export default function MyInfoPage() {
         </div>
       </div>
 
-      {/* Toast */}
       {toast && (
         <div style={{
           position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
-          background: "#1e293b", color: "#fff", padding: "10px 18px", borderRadius: 8,
-          fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+          background: "#1e293b", color: "#fff", padding: "10px 20px", borderRadius: 999,
+          fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+          whiteSpace: "nowrap",
         }}>{toast}</div>
       )}
     </div>
@@ -360,66 +367,54 @@ export default function MyInfoPage() {
 }
 
 // ===== Subcomponents =====
-function SectionHeader({ title, hint }: { title: string; hint: string }) {
+function CardHeader({ title, sub }: { title: string; sub: string }) {
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>{title}</div>
-      {hint && <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{hint}</div>}
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: "#1e293b", letterSpacing: 0.2 }}>{title}</div>
+      {sub && <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{sub}</div>}
     </div>
   );
 }
 
-function FieldRow({ label, value, locked, hint }: { label: string; value: string | null; locked?: boolean; hint?: string }) {
+function InfoItem({ label, value }: { label: string; value: string | null | undefined }) {
   return (
-    <div style={fieldWrap}>
-      <div style={fieldLabel}>
-        {label} {locked && <span style={{ fontSize: 10, color: "#94a3b8" }}>🔒</span>}
-      </div>
-      <div style={{ ...fieldValue, color: value ? "#1e293b" : "#94a3b8" }}>
-        <span>{value || "-"}</span>
-        {hint && <span style={{ fontSize: 10, color: "#94a3b8", marginLeft: 8 }}>{hint}</span>}
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <span style={infoLabel}>{label}</span>
+      <span style={{ ...infoValue, color: value ? "#1e293b" : "#cbd5e1" }}>{value || "—"}</span>
     </div>
   );
 }
-
-// ===== Constants =====
-const ROLE_LABEL: Record<string, string> = {
-  admin: "관리자", office: "사무실", pastor: "목회자",
-  member: "성도", child: "자녀", guest: "게스트",
-};
 
 // ===== Styles =====
 const card: React.CSSProperties = {
-  background: "#fff", borderRadius: 12, padding: 16,
-  border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+  background: "#fff", borderRadius: 16, padding: "20px 20px",
+  border: "1px solid #e2e8f0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
 };
-const fieldWrap: React.CSSProperties = {
-  display: "flex", borderBottom: "1px solid #f1f5f9", padding: "10px 0",
-  alignItems: "flex-start", gap: 12,
+const infoGrid: React.CSSProperties = {
+  display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 20px",
 };
-const fieldLabel: React.CSSProperties = {
-  width: 80, flexShrink: 0, fontSize: 12, color: "#64748b", fontWeight: 600, paddingTop: 4,
+const infoLabel: React.CSSProperties = {
+  fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: 0.3,
 };
-const fieldValue: React.CSSProperties = {
-  flex: 1, fontSize: 13, color: "#1e293b", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, minWidth: 0,
+const infoValue: React.CSSProperties = {
+  fontSize: 14, fontWeight: 600, color: "#1e293b",
 };
-const badge: React.CSSProperties = {
-  padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
+const avatarLabel: React.CSSProperties = {
+  fontSize: 12, fontWeight: 700, color: "#64748b",
 };
 const inputStyle: React.CSSProperties = {
-  flex: 1, padding: "8px 10px", border: "1px solid #cbd5e1", borderRadius: 6,
-  fontSize: 13, fontFamily: "inherit", background: "#fff", outline: "none",
+  width: "100%", padding: "9px 12px", border: "1px solid #cbd5e1", borderRadius: 8,
+  fontSize: 13, fontFamily: "inherit", background: "#fff", outline: "none", boxSizing: "border-box" as const,
 };
 const btnPrimary: React.CSSProperties = {
-  padding: "8px 14px", border: 0, borderRadius: 6, background: "#6366f1", color: "#fff",
-  fontSize: 12, fontWeight: 700, cursor: "pointer",
+  padding: "9px 16px", border: 0, borderRadius: 8, background: "#6366f1", color: "#fff",
+  fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const,
 };
 const btnGhost: React.CSSProperties = {
-  padding: "8px 12px", border: "1px solid #cbd5e1", borderRadius: 6, background: "#fff",
-  color: "#475569", fontSize: 12, fontWeight: 600, cursor: "pointer",
+  padding: "9px 14px", border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff",
+  color: "#475569", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" as const,
 };
 const btnSm: React.CSSProperties = {
-  padding: "4px 10px", border: "1px solid #cbd5e1", borderRadius: 4, background: "#f8fafc",
-  color: "#475569", fontSize: 11, fontWeight: 600, cursor: "pointer",
+  padding: "5px 12px", border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc",
+  color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" as const,
 };
