@@ -645,9 +645,7 @@ export default function WeeklyBulletinPage() {
   const [toast, setToast] = useState("");
   const [generating, setGenerating] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
-  const [planImporting, setPlanImporting] = useState(false);
   const [monthlyPlanImport, setMonthlyPlanImport] = useState<MonthlyPlanImport | null>(null);
-  const [monthlyPlanError, setMonthlyPlanError] = useState("");
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewUploading, setReviewUploading] = useState(false);
   const [reviewProblems, setReviewProblems] = useState<ReviewIndex[]>([]);
@@ -997,39 +995,6 @@ export default function WeeklyBulletinPage() {
         return next;
       });
     } catch { /* 월간계획 없으면 조용히 무시 */ }
-  };
-
-  const handleLoadMonthlyPlan = async () => {
-    if (!form.date) {
-      showToast("날짜를 먼저 선택하세요");
-      return;
-    }
-    setPlanImporting(true);
-    setMonthlyPlanError("");
-    setMonthlyPlanImport(null);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.replace("/login");
-        return;
-      }
-      const response = await fetch(
-        `/api/edu/monthly-plans/bulletin-import?dept_id=${deptId}&date=${form.date}`,
-        { headers: { Authorization: `Bearer ${session.access_token}` } }
-      );
-      const result = await response.json();
-      if (!response.ok || !result.ok) {
-        throw new Error(result.error || "월간 교육계획서를 불러오지 못했습니다");
-      }
-      setMonthlyPlanImport(result.plan as MonthlyPlanImport);
-      showToast("월간 교육계획서 항목을 찾았습니다");
-    } catch (e: unknown) {
-      const message = (e as Error).message;
-      setMonthlyPlanError(message);
-      showToast(message);
-    } finally {
-      setPlanImporting(false);
-    }
   };
 
   const applyMonthlyPlanImport = (mode: "fill-empty" | "overwrite") => {
@@ -1602,49 +1567,10 @@ export default function WeeklyBulletinPage() {
           border: "1px solid #fed7aa",
           background: "#fffaf5",
         }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 900, color: "#9a3412" }}>월간 교육계획서 자동 입력</div>
-              <div style={{ marginTop: 3, fontSize: 12, fontWeight: 700, color: "#c2410c", lineHeight: 1.5 }}>
-                선택한 발행일자와 같은 주일 행을 찾아 예배 순서, 공과, 2부 행사를 채웁니다.
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleLoadMonthlyPlan}
-              disabled={planImporting || !form.date}
-              style={{
-                minHeight: 38,
-                padding: "8px 12px",
-                borderRadius: 8,
-                border: "1px solid #fb923c",
-                background: planImporting ? "#fed7aa" : "#ea580c",
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 900,
-                cursor: planImporting ? "default" : "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              {planImporting ? "불러오는 중..." : "월간계획 불러오기"}
-            </button>
+          <div style={{ fontSize: 14, fontWeight: 900, color: "#9a3412" }}>월간 교육계획서 자동 입력</div>
+          <div style={{ marginTop: 3, fontSize: 12, fontWeight: 700, color: "#c2410c", lineHeight: 1.5 }}>
+            날짜 선택 시 자동으로 불러와 빈 항목을 채웁니다.
           </div>
-
-          {monthlyPlanError && (
-            <div style={{
-              marginTop: 10,
-              padding: "9px 10px",
-              borderRadius: 8,
-              border: "1px solid #fecaca",
-              background: "#fef2f2",
-              color: "#b91c1c",
-              fontSize: 12,
-              fontWeight: 800,
-              lineHeight: 1.5,
-            }}>
-              {monthlyPlanError}
-            </div>
-          )}
 
           {monthlyPlanImport && (
             <div style={{ marginTop: 12, borderTop: "1px solid #fed7aa", paddingTop: 12 }}>
