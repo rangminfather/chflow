@@ -201,7 +201,7 @@ export default function CategoryPage() {
                     }}>{badge.label}</div>
                   )}
 
-                  {/* 아이콘 + 이름 */}
+                  {/* 아이콘 + 이름 + 대표 얼굴 */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div style={{
                       width: 40, height: 40, borderRadius: 10,
@@ -211,46 +211,38 @@ export default function CategoryPage() {
                     }}>
                       {d.icon || "📁"}
                     </div>
-                    <div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{d.name}</div>
                       {d.description && (
                         <div style={{ fontSize: 11, color: T.textMuted }}>{d.description}</div>
                       )}
                     </div>
-                  </div>
-
-                  {/* 대표 멤버 얼굴 */}
-                  <div style={{
-                    display: "flex", gap: 6, paddingTop: 6,
-                    borderTop: `1px solid ${T.border}`,
-                  }}>
-                    {ROLE_SLOTS.map(({ label }) => {
-                      const person = slots?.[label] ?? null;
-                      return (
-                        <div key={label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, flex: 1 }}>
-                          {person?.photoUrl ? (
-                            <img
-                              src={person.photoUrl}
-                              alt={person.name || label}
-                              style={{
-                                width: 36, height: 36, borderRadius: "50%",
-                                objectFit: "cover", objectPosition: "top center",
-                                border: `1.5px solid ${T.border}`,
-                              }}
-                            />
-                          ) : (
-                            <div style={{
-                              width: 36, height: 36, borderRadius: "50%",
-                              background: "#e2e8f0",
-                              display: "flex", alignItems: "center", justifyContent: "center",
-                              fontSize: 16, color: "#94a3b8",
+                    {/* 대표 멤버 얼굴 (직책 없이) */}
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      {ROLE_SLOTS.map(({ label }) => {
+                        const person = slots?.[label] ?? null;
+                        return person?.photoUrl ? (
+                          <img
+                            key={label}
+                            src={person.photoUrl}
+                            alt={person.name || ""}
+                            style={{
+                              width: 28, height: 28, borderRadius: "50%",
+                              objectFit: "cover", objectPosition: "top center",
                               border: `1.5px solid ${T.border}`,
-                            }}>👤</div>
-                          )}
-                          <span style={{ fontSize: 9, color: T.textMuted, fontWeight: 600, whiteSpace: "nowrap" }}>{label}</span>
-                        </div>
-                      );
-                    })}
+                            }}
+                          />
+                        ) : (
+                          <div key={label} style={{
+                            width: 28, height: 28, borderRadius: "50%",
+                            background: "#e2e8f0",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 13, color: "#94a3b8",
+                            border: `1.5px solid ${T.border}`,
+                          }}>👤</div>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div style={{ fontSize: 11, color: T.ministryPoint, fontWeight: 600 }}>
