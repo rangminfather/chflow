@@ -196,7 +196,7 @@ export default function HomePage() {
           .command-actions { justify-content: stretch !important; }
         }
         @media (min-width: 769px) {
-          .sidebar-mobile-trigger { display: none !important; }
+          /* hamburger always visible */
         }
         @media (min-width: 1024px) {
           .home-menu-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
@@ -209,17 +209,17 @@ export default function HomePage() {
         user={user}
         router={router}
         onMenu={() => setSidebarOpen((s) => !s)}
-        onLogout={handleLogout}
       />
 
       <div style={{ display: "flex", minHeight: "calc(100vh - 64px)", width: "100%", maxWidth: "100%", minWidth: 0 }}>
-        <DesktopSidebar user={user} myDepartments={myDepartments} router={router} />
+        <DesktopSidebar user={user} myDepartments={myDepartments} router={router} onLogout={handleLogout} />
         <MobileSidebar
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           user={user}
           myDepartments={myDepartments}
           router={router}
+          onLogout={handleLogout}
         />
 
         <div style={{ flex: 1, minWidth: 0, width: "100%", maxWidth: "100%" }}>
@@ -255,12 +255,11 @@ export default function HomePage() {
 // =============================================================
 // 상단 앱바
 // =============================================================
-function AppBar({ isAdmin, user, router, onMenu, onLogout }: {
+function AppBar({ isAdmin, user, router, onMenu }: {
   isAdmin: boolean;
   user: UserInfo;
   router: RouterType;
   onMenu: () => void;
-  onLogout: () => void;
 }) {
   return (
     <div style={{
@@ -281,14 +280,14 @@ function AppBar({ isAdmin, user, router, onMenu, onLogout }: {
           onClick={onMenu}
           aria-label="메뉴"
           style={{
-            display: "none", alignItems: "center", justifyContent: "center",
+            display: "flex", alignItems: "center", justifyContent: "center",
             width: 40, height: 40, borderRadius: 10,
             background: T.bgPage, border: `1px solid ${T.border}`,
             cursor: "pointer", color: T.text,
             flexShrink: 0,
           }}
         ><Menu size={20} strokeWidth={1.75} /></button>
-        <HeaderLogo />
+        <HeaderLogo size={40} />
         <div style={{ minWidth: 0 }}>
           <div className="line-clamp-1" style={{ fontSize: 16, fontWeight: 800, color: T.text }}>스마트명성</div>
           <div className="line-clamp-1" style={{ fontSize: 10, color: T.textMuted, letterSpacing: 0.5 }}>Smart Myungsung</div>
@@ -306,22 +305,6 @@ function AppBar({ isAdmin, user, router, onMenu, onLogout }: {
             <AdminPill icon={<Shuffle size={14} strokeWidth={1.75} />} label="재편성" onClick={() => router.push("/admin/rearrange")} />
           </>
         )}
-        <button
-          onClick={onLogout}
-          aria-label="로그아웃"
-          style={{
-            display: "flex", alignItems: "center", gap: 4,
-            padding: "8px 12px", borderRadius: 10,
-            background: T.bgPage, border: `1px solid ${T.border}`,
-            color: T.textMuted, cursor: "pointer",
-            fontSize: 12, fontWeight: 600, fontFamily: "inherit",
-            whiteSpace: "nowrap",
-            flexShrink: 0,
-          }}
-        >
-          <LogOut size={15} strokeWidth={1.75} />
-          <span>로그아웃</span>
-        </button>
       </div>
     </div>
   );
@@ -843,10 +826,11 @@ function NoticeBox() {
 // =============================================================
 // 사이드바
 // =============================================================
-function DesktopSidebar({ user, myDepartments, router }: {
+function DesktopSidebar({ user, myDepartments, router, onLogout }: {
   user: UserInfo;
   myDepartments: MyDepartment[];
   router: RouterType;
+  onLogout: () => void;
 }) {
   return (
     <aside className="sidebar-desktop" style={{
@@ -857,17 +841,18 @@ function DesktopSidebar({ user, myDepartments, router }: {
       flexShrink: 0,
       minWidth: 0,
     }}>
-      <SidebarContent user={user} myDepartments={myDepartments} router={router} />
+      <SidebarContent user={user} myDepartments={myDepartments} router={router} onLogout={onLogout} />
     </aside>
   );
 }
 
-function MobileSidebar({ open, onClose, user, myDepartments, router }: {
+function MobileSidebar({ open, onClose, user, myDepartments, router, onLogout }: {
   open: boolean;
   onClose: () => void;
   user: UserInfo;
   myDepartments: MyDepartment[];
   router: RouterType;
+  onLogout: () => void;
 }) {
   if (!open) return null;
   return (
@@ -888,17 +873,18 @@ function MobileSidebar({ open, onClose, user, myDepartments, router }: {
             display: "inline-flex", alignItems: "center", justifyContent: "center",
           }}><X size={16} strokeWidth={1.75} /></button>
         </div>
-        <SidebarContent user={user} myDepartments={myDepartments} router={router} onNavigate={onClose} />
+        <SidebarContent user={user} myDepartments={myDepartments} router={router} onNavigate={onClose} onLogout={onLogout} />
       </div>
     </div>
   );
 }
 
-function SidebarContent({ user, myDepartments, router, onNavigate }: {
+function SidebarContent({ user, myDepartments, router, onNavigate, onLogout }: {
   user: UserInfo;
   myDepartments: MyDepartment[];
   router: RouterType;
   onNavigate?: () => void;
+  onLogout: () => void;
 }) {
   const isAdmin = ["admin", "office", "pastor"].includes(user.role);
   const sideMenus = isAdmin ? [...COMMON_MENUS, ...ADMIN_EXTRA_MENUS] : COMMON_MENUS;
@@ -967,6 +953,21 @@ function SidebarContent({ user, myDepartments, router, onNavigate }: {
           <span className="kr-keep">{m.label}</span>
         </SidebarItem>
       ))}
+
+      <SideDivider />
+      <button
+        onClick={onLogout}
+        style={{
+          display: "flex", alignItems: "center", gap: 6,
+          width: "100%", padding: "10px 12px", boxSizing: "border-box",
+          background: "transparent", border: "none", borderRadius: 8,
+          fontSize: 13, fontWeight: 500, color: T.textMuted,
+          cursor: "pointer", fontFamily: "inherit",
+        }}
+      >
+        <LogOut size={15} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+        <span>로그아웃</span>
+      </button>
     </div>
   );
 }
