@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -21,14 +21,34 @@ interface ToastNotification {
   type: string;
 }
 
-export default function NotificationBell({ userId }: { userId: string }) {
+type PanelTab = "all" | "message" | "notice";
+
+export default function NotificationBell({
+  userId,
+  placement = "inline",
+}: {
+  userId: string;
+  placement?: "inline" | "dock";
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
+  const [activeTab, setActiveTab] = useState<PanelTab>("all");
   const seenIdsRef = useRef<Set<string>>(new Set());
   const initLoadedRef = useRef(false);
+
+  const tabCounts = useMemo(() => ({
+    all: notifications.length,
+    message: notifications.filter((n) => getNotificationGroup(n.type) === "message").length,
+    notice: notifications.filter((n) => getNotificationGroup(n.type) === "notice").length,
+  }), [notifications]);
+
+  const visibleNotifications = useMemo(() => {
+    if (activeTab === "all") return notifications;
+    return notifications.filter((n) => getNotificationGroup(n.type) === activeTab);
+  }, [activeTab, notifications]);
 
   const showToast = useCallback((toast: ToastNotification) => {
     if (seenIdsRef.current.has(toast.id)) return;
@@ -232,10 +252,11 @@ export default function NotificationBell({ userId }: { userId: string }) {
               className="notif-dropdown"
               style={{
                 position: "absolute",
-                top: 44,
+                top: placement === "dock" ? undefined : 44,
+                bottom: placement === "dock" ? 44 : undefined,
                 right: 0,
-                width: 360,
-                maxHeight: 480,
+                width: placement === "dock" ? 392 : 360,
+                maxHeight: placement === "dock" ? 560 : 480,
                 background: "var(--surface)",
                 borderRadius: 14,
                 boxShadow: "0 20px 60px rgba(43,39,34,0.12)",
@@ -257,14 +278,43 @@ export default function NotificationBell({ userId }: { userId: string }) {
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--app-serif)", fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>
-                  <Bell size={16} strokeWidth={1.75} color="var(--accent)" /> 알림
+                  <Bell size={16} strokeWidth={1.75} color="var(--accent)" /> {placement === "dock" ? "알림 센터" : "알림"}
                 </div>
                 <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
-                  {notifications.length}건
+                  {unreadCount > 0 ? `안읽음 ${unreadCount}` : `${notifications.length}건`}
                 </div>
               </div>
+              {placement === "dock" && (
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gap: 6,
+                  padding: "10px 12px",
+                  borderBottom: "1px solid var(--hairline)",
+                  background: "rgba(251,248,241,0.86)",
+                }}>
+                  <PanelTabButton
+                    label="알림"
+                    count={tabCounts.all}
+                    active={activeTab === "all"}
+                    onClick={() => setActiveTab("all")}
+                  />
+                  <PanelTabButton
+                    label="메시지"
+                    count={tabCounts.message}
+                    active={activeTab === "message"}
+                    onClick={() => setActiveTab("message")}
+                  />
+                  <PanelTabButton
+                    label="공지"
+                    count={tabCounts.notice}
+                    active={activeTab === "notice"}
+                    onClick={() => setActiveTab("notice")}
+                  />
+                </div>
+              )}
               <div style={{ overflowY: "auto", flex: 1 }}>
-                {notifications.length === 0 ? (
+                {visibleNotifications.length === 0 ? (
                   <div
                     style={{
                       textAlign: "center",
@@ -276,10 +326,10 @@ export default function NotificationBell({ userId }: { userId: string }) {
                     <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
                       <Bell size={28} strokeWidth={1.5} color="var(--ink-faint)" />
                     </div>
-                    알림이 없습니다
+                    {getEmptyLabel(activeTab)}
                   </div>
                 ) : (
-                  notifications.map((n) => (
+                  visibleNotifications.map((n) => (
                     <div
                       key={n.id}
                       onClick={() => handleNotifClick(n)}
@@ -297,6 +347,18 @@ export default function NotificationBell({ userId }: { userId: string }) {
                         e.currentTarget.style.background = n.is_read ? "var(--surface)" : "var(--accent-soft)";
                       }}
                     >
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                        <TypeChip type={n.type} />
+                        {!n.is_read && (
+                          <span style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: 999,
+                            background: "#ef4444",
+                            flexShrink: 0,
+                          }} />
+                        )}
+                      </div>
                       <div
                         style={{
                           fontSize: 13,
@@ -348,6 +410,56 @@ export default function NotificationBell({ userId }: { userId: string }) {
   );
 }
 
+function PanelTabButton({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        minHeight: 34,
+        border: active ? "1px solid rgba(62, 90, 74, 0.28)" : "1px solid transparent",
+        borderRadius: 9,
+        background: active ? "var(--accent-soft)" : "transparent",
+        color: active ? "var(--accent)" : "var(--ink-soft)",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        fontSize: 12,
+        fontWeight: 850,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 5,
+      }}
+    >
+      <span>{label}</span>
+      <span style={{
+        minWidth: 18,
+        height: 18,
+        padding: "0 5px",
+        borderRadius: 999,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: active ? "rgba(62, 90, 74, 0.14)" : "rgba(43, 39, 34, 0.07)",
+        fontSize: 10,
+        fontWeight: 900,
+      }}>
+        {count > 99 ? "99+" : count}
+      </span>
+    </button>
+  );
+}
+
 // ============ Toast Card ============
 function ToastCard({
   toast,
@@ -358,15 +470,12 @@ function ToastCard({
   onDismiss: () => void;
   mobile?: boolean;
 }) {
-  const isApproved = toast.type === "signup_approved";
-  const bg = isApproved
-    ? "linear-gradient(135deg, #10b981, #059669)"
-    : "linear-gradient(135deg, #6366f1, #8b5cf6)";
+  const meta = getNotificationTypeMeta(toast.type);
 
   return (
     <div
       style={{
-        background: bg,
+        background: meta.gradient,
         color: "#fff",
         borderRadius: mobile ? 0 : 14,
         padding: "14px 18px",
@@ -379,8 +488,19 @@ function ToastCard({
         borderBottom: mobile ? "1px solid rgba(255,255,255,0.2)" : "none",
       }}
     >
-      <div style={{ fontSize: 22, lineHeight: 1 }}>
-        {isApproved ? "🎉" : "🔔"}
+      <div style={{
+        minWidth: 32,
+        height: 32,
+        borderRadius: 10,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(255,255,255,0.2)",
+        fontSize: 12,
+        fontWeight: 900,
+        lineHeight: 1,
+      }}>
+        {meta.shortLabel}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 3 }}>
@@ -415,6 +535,94 @@ function ToastCard({
       </button>
     </div>
   );
+}
+
+function TypeChip({ type }: { type: string }) {
+  const meta = getNotificationTypeMeta(type);
+  return (
+    <span style={{
+      display: "inline-flex",
+      alignItems: "center",
+      height: 20,
+      padding: "0 7px",
+      borderRadius: 999,
+      background: meta.soft,
+      color: meta.color,
+      fontSize: 10,
+      fontWeight: 850,
+      lineHeight: 1,
+      whiteSpace: "nowrap",
+    }}>
+      {meta.label}
+    </span>
+  );
+}
+
+function getNotificationTypeMeta(type: string) {
+  if (type.startsWith("signup_")) {
+    return {
+      label: "회원",
+      shortLabel: "회원",
+      color: "#047857",
+      soft: "#d1fae5",
+      gradient: "linear-gradient(135deg, #10b981, #059669)",
+    };
+  }
+  if (type.startsWith("dept_")) {
+    return {
+      label: "부서",
+      shortLabel: "부서",
+      color: "#1d4ed8",
+      soft: "#dbeafe",
+      gradient: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+    };
+  }
+  if (type.startsWith("feedback_")) {
+    return {
+      label: "문의",
+      shortLabel: "문의",
+      color: "#7c3aed",
+      soft: "#ede9fe",
+      gradient: "linear-gradient(135deg, #7c3aed, #5b21b6)",
+    };
+  }
+  if (type.startsWith("notice_") || type === "notice") {
+    return {
+      label: "공지",
+      shortLabel: "공지",
+      color: "#b45309",
+      soft: "#fef3c7",
+      gradient: "linear-gradient(135deg, #f59e0b, #b45309)",
+    };
+  }
+  if (type.startsWith("message_") || type === "message") {
+    return {
+      label: "메시지",
+      shortLabel: "톡",
+      color: "#be123c",
+      soft: "#ffe4e6",
+      gradient: "linear-gradient(135deg, #e11d48, #be123c)",
+    };
+  }
+  return {
+    label: "알림",
+    shortLabel: "알림",
+    color: "#3e5a4a",
+    soft: "#eaeef0",
+    gradient: "linear-gradient(135deg, #3e5a4a, #2f4638)",
+  };
+}
+
+function getNotificationGroup(type: string): PanelTab | "alert" {
+  if (type.startsWith("message_") || type === "message") return "message";
+  if (type.startsWith("notice_") || type === "notice") return "notice";
+  return "alert";
+}
+
+function getEmptyLabel(tab: PanelTab): string {
+  if (tab === "message") return "메시지가 없습니다";
+  if (tab === "notice") return "공지가 없습니다";
+  return "알림이 없습니다";
 }
 
 // ============ Helpers ============

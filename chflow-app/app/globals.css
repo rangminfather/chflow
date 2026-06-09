@@ -639,7 +639,26 @@ input::placeholder {
 /* ========================================
    토스트 알림 컨테이너 (NotificationBell)
    ======================================== */
+.global-notification-dock {
+  position: fixed;
+  right: 18px;
+  bottom: calc(18px + var(--safe-bottom));
+  z-index: 95;
+}
+
+.global-notification-dock > div > button {
+  width: 44px !important;
+  height: 44px !important;
+  border: 1px solid rgba(43, 39, 34, 0.1) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 14px 34px rgba(43, 39, 34, 0.18);
+}
+
 @media (max-width: 768px) {
+  .global-notification-dock {
+    right: 14px;
+    bottom: calc(14px + var(--safe-bottom));
+  }
   .toast-container-pc {
     display: none !important;
   }
@@ -649,6 +668,7 @@ input::placeholder {
   .notif-dropdown {
     position: fixed !important;
     top: calc(60px + var(--body-safe-top)) !important;
+    bottom: auto !important;
     right: 12px !important;
     left: 12px !important;
     width: auto !important;

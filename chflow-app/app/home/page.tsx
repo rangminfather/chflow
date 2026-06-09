@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getRoleImageByLabel } from "@/lib/roles";
-import NotificationBell from "@/components/NotificationBell";
 import HeaderLogo from "@/components/HeaderLogo";
 import {
   type LucideIcon,
@@ -206,7 +205,6 @@ export default function HomePage() {
 
       <AppBar
         isAdmin={isAdmin}
-        user={user}
         router={router}
         onMenu={() => setSidebarOpen((s) => !s)}
       />
@@ -255,9 +253,8 @@ export default function HomePage() {
 // =============================================================
 // 상단 앱바
 // =============================================================
-function AppBar({ isAdmin, user, router, onMenu }: {
+function AppBar({ isAdmin, router, onMenu }: {
   isAdmin: boolean;
-  user: UserInfo;
   router: RouterType;
   onMenu: () => void;
 }) {
@@ -283,7 +280,6 @@ function AppBar({ isAdmin, user, router, onMenu }: {
       </div>
 
       <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto", minWidth: 0 }}>
-        <NotificationBell userId={user.id} />
         {isAdmin && (
           <>
             <AdminPill icon={<UserPlus size={14} strokeWidth={1.75} />} label="가입자" onClick={() => router.push("/admin/pending")} />

@@ -30,13 +30,15 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "INTERNET",
-        "ACCESS_NETWORK_STATE"
+        "ACCESS_NETWORK_STATE",
+        "POST_NOTIFICATIONS"
       ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-notifications",
       [
         "./plugins/with-adi-registration.js",
         { "snippet": "CFKKBMXYLJU2MAAAAAAAAAAAAA" }

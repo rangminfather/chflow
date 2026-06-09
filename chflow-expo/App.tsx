@@ -1,4 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
+import Constants from 'expo-constants';
+import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -8,9 +10,45 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { WebView, WebViewNavigation } from 'react-native-webview';
+import { WebView, WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
 
 const TARGET_URL = 'https://chflow-app.vercel.app';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
+const SESSION_BRIDGE_SCRIPT = `
+(function () {
+  if (window.__SMARTMS_NATIVE_SESSION_BRIDGE__) return true;
+  window.__SMARTMS_NATIVE_SESSION_BRIDGE__ = true;
+
+  async function sendSessionToken() {
+    try {
+      var client = window.__chflowSupabase;
+      if (!client || !client.auth || !client.auth.getSession) return;
+      var result = await client.auth.getSession();
+      var token = result && result.data && result.data.session && result.data.session.access_token;
+      if (token && window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'CHFLOW_AUTH_TOKEN',
+          accessToken: token
+        }));
+      }
+    } catch (e) {}
+  }
+
+  setTimeout(sendSessionToken, 800);
+  setTimeout(sendSessionToken, 2500);
+  setInterval(sendSessionToken, 15000);
+  return true;
+})();
+`;
 
 export default function App() {
   return (
@@ -23,7 +61,14 @@ export default function App() {
 function AppWebView() {
   const webViewRef = useRef<WebView>(null);
   const [canGoBack, setCanGoBack] = useState(false);
+  const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
+  const pendingAccessTokenRef = useRef<string | null>(null);
+  const registeredKeyRef = useRef<string | null>(null);
   const safeAreaPadding = useSafeAreaPadding();
+
+  useEffect(() => {
+    registerForPushNotifications().then(setExpoPushToken).catch(() => setExpoPushToken(null));
+  }, []);
 
   // Android 물리 뒤로가기 버튼 처리
   useEffect(() => {
@@ -60,6 +105,49 @@ function AppWebView() {
     setCanGoBack(nav.canGoBack);
   };
 
+  const registerPushToken = async (accessToken: string, token: string) => {
+    const registerKey = `${accessToken.slice(-12)}:${token}`;
+    if (registeredKeyRef.current === registerKey) return;
+
+    const response = await fetch(`${TARGET_URL}/api/mobile/push-token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        expoPushToken: token,
+        platform: Platform.OS,
+        deviceId: Constants.sessionId || null,
+        appId: 'smart-myungsung',
+      }),
+    });
+
+    if (response.ok) {
+      registeredKeyRef.current = registerKey;
+    }
+  };
+
+  useEffect(() => {
+    if (!expoPushToken || !pendingAccessTokenRef.current) return;
+    registerPushToken(pendingAccessTokenRef.current, expoPushToken).catch(() => {});
+  }, [expoPushToken]);
+
+  const handleWebViewMessage = (event: WebViewMessageEvent) => {
+    let message: { type?: string; accessToken?: string };
+    try {
+      message = JSON.parse(event.nativeEvent.data);
+    } catch {
+      return;
+    }
+
+    if (message.type !== 'CHFLOW_AUTH_TOKEN' || !message.accessToken) return;
+    pendingAccessTokenRef.current = message.accessToken;
+    if (expoPushToken) {
+      registerPushToken(message.accessToken, expoPushToken).catch(() => {});
+    }
+  };
+
   return (
     <View style={styles.safe}>
       <StatusBar style="dark" backgroundColor="#FBF8F1" translucent={false} />
@@ -68,6 +156,9 @@ function AppWebView() {
           ref={webViewRef}
           source={{ uri: TARGET_URL }}
           onNavigationStateChange={handleNavStateChange}
+          onMessage={handleWebViewMessage}
+          injectedJavaScript={SESSION_BRIDGE_SCRIPT}
+          onLoadEnd={() => webViewRef.current?.injectJavaScript(SESSION_BRIDGE_SCRIPT)}
           // 쿠키/세션 유지 (로그인 지속)
           sharedCookiesEnabled={true}
           thirdPartyCookiesEnabled={true}
@@ -93,6 +184,39 @@ function AppWebView() {
       </View>
     </View>
   );
+}
+
+async function registerForPushNotifications(): Promise<string | null> {
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') return null;
+
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: '스마트명성 알림',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#f97316',
+    });
+  }
+
+  const current = await Notifications.getPermissionsAsync();
+  let finalStatus = current.status;
+  if (current.status !== 'granted') {
+    const requested = await Notifications.requestPermissionsAsync();
+    finalStatus = requested.status;
+  }
+  if (finalStatus !== 'granted') return null;
+
+  const constants = Constants as typeof Constants & {
+    easConfig?: { projectId?: string };
+  };
+  const projectId =
+    constants.expoConfig?.extra?.eas?.projectId ||
+    constants.easConfig?.projectId;
+
+  if (!projectId) return null;
+
+  const token = await Notifications.getExpoPushTokenAsync({ projectId });
+  return token.data;
 }
 
 function useSafeAreaPadding() {
