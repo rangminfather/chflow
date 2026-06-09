@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, formatPhone, usernameToEmail } from "@/lib/supabase";
+import { getRoleImageByLabel, ROLES } from "@/lib/roles";
 import HeaderLogo from "@/components/HeaderLogo";
 import PhotoAvatar from "@/components/PhotoAvatar";
 
@@ -46,6 +47,11 @@ export default function MyInfoPage() {
   const [addressDraft, setAddressDraft] = useState("");
   const [savingContact, setSavingContact] = useState(false);
 
+  // 직분 수정
+  const [editSubRole, setEditSubRole] = useState(false);
+  const [subRoleDraft, setSubRoleDraft] = useState("");
+  const [savingSubRole, setSavingSubRole] = useState(false);
+
   // 비밀번호 변경
   const [pwOpen, setPwOpen] = useState(false);
   const [curPw, setCurPw] = useState("");
@@ -83,6 +89,17 @@ export default function MyInfoPage() {
   const startEditAddress = () => {
     setAddressDraft(profile?.address || "");
     setEditAddress(true);
+  };
+
+  const saveSubRole = async () => {
+    if (!profile) return;
+    setSavingSubRole(true);
+    const { error } = await supabase.from("profiles").update({ sub_role: subRoleDraft }).eq("user_id", profile.user_id);
+    setSavingSubRole(false);
+    if (error) { alert(`저장 실패: ${error.message}`); return; }
+    setEditSubRole(false);
+    await load();
+    showToast("직분이 저장되었습니다");
   };
 
   const saveContact = async (kind: "phone" | "address") => {
@@ -147,11 +164,6 @@ export default function MyInfoPage() {
     return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9" }}>로딩 중...</div>;
   }
 
-  const reviewBadge = profile.review_status === "verified"
-    ? { label: "✅ 검수 확인", color: "#15803d", bg: "#dcfce7" }
-    : profile.review_status === "needs_check"
-    ? { label: "⚠️ 보류", color: "#b45309", bg: "#fef3c7" }
-    : { label: "⏳ 미검수", color: "#475569", bg: "#f1f5f9" };
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif", paddingBottom: 40 }}>
@@ -172,7 +184,8 @@ export default function MyInfoPage() {
 
         {/* 1. 프로필 헤드 카드 */}
         <div style={card}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+            {/* 왼쪽: 사진 */}
             <PhotoAvatar
               userId={profile.user_id}
               photoUrl={profile.avatar_url || profile.photo_url}
@@ -180,30 +193,45 @@ export default function MyInfoPage() {
               size={80}
               label="내 사진"
               onUpdate={(url) =>
-                setProfile({
-                  ...profile,
-                  avatar_url: url === profile.photo_url ? null : url,
-                })
+                setProfile({ ...profile, avatar_url: url === profile.photo_url ? null : url })
               }
             />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "#1e293b" }}>{profile.name || "(이름 없음)"}</div>
-              <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
-                @{profile.username} · {ROLE_LABEL[profile.role] || profile.role}
-              </div>
-              <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                <span style={{ ...badge, background: reviewBadge.bg, color: reviewBadge.color }}>{reviewBadge.label}</span>
-                {profile.is_child && <span style={{ ...badge, background: "#dbeafe", color: "#1e40af" }}>👶 자녀 계정</span>}
-              </div>
-              {profile.review_note && (
-                <div style={{ fontSize: 11, color: "#92400e", background: "#fef3c7", padding: "4px 8px", borderRadius: 4, marginTop: 6 }}>
-                  📝 {profile.review_note}
+            {/* 오른쪽: 직분 아바타 + 직분명 수정 */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+              <img
+                src={getRoleImageByLabel(profile.sub_role)}
+                alt={profile.sub_role || "직분"}
+                style={{ width: 64, height: 64, objectFit: "contain" }}
+              />
+              {editSubRole ? (
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
+                  <select
+                    value={subRoleDraft}
+                    onChange={(e) => setSubRoleDraft(e.target.value)}
+                    style={{ ...inputStyle, width: "auto", fontSize: 13 }}
+                  >
+                    {ROLES.map((r) =>
+                      r.subRoles ? (
+                        <optgroup key={r.id} label={r.label}>
+                          {r.subRoles.map((s) => (
+                            <option key={s.label} value={s.label}>{s.label}</option>
+                          ))}
+                        </optgroup>
+                      ) : (
+                        <option key={r.id} value={r.label}>{r.label}</option>
+                      )
+                    )}
+                  </select>
+                  <button onClick={saveSubRole} disabled={savingSubRole} style={btnPrimary}>저장</button>
+                  <button onClick={() => setEditSubRole(false)} style={btnGhost}>취소</button>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: "#1e293b" }}>{profile.sub_role || "(직분 없음)"}</span>
+                  <button onClick={() => { setSubRoleDraft(profile.sub_role || ""); setEditSubRole(true); }} style={btnSm}>변경</button>
                 </div>
               )}
             </div>
-          </div>
-          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 10, textAlign: "right" }}>
-            사진은 위 원형 이미지를 클릭해서 변경할 수 있습니다
           </div>
         </div>
 
