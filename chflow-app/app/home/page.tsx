@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getRoleImageByLabel } from "@/lib/roles";
 import NotificationBell from "@/components/NotificationBell";
-import PhotoAvatar from "@/components/PhotoAvatar";
 import HeaderLogo from "@/components/HeaderLogo";
 import {
   type LucideIcon,
@@ -89,8 +88,7 @@ export default function HomePage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState<UserInfo | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [memberPhotoUrl, setMemberPhotoUrl] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [myDepartments, setMyDepartments] = useState<MyDepartment[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
@@ -115,13 +113,10 @@ export default function HomePage() {
 
       const { data: photos } = await supabase.rpc("get_my_photos");
       if (photos && photos[0]) {
-        setAvatarUrl(photos[0].avatar_url || null);
-        setMemberPhotoUrl(photos[0].member_photo_url || null);
+        setPhotoUrl(photos[0].avatar_url || photos[0].member_photo_url || null);
       }
     })();
   }, [router]);
-
-  const photoUrl = avatarUrl || memberPhotoUrl;
 
   // 뒤로가기 가드 (기존 로직 유지)
   const sidebarOpenRef = useRef(sidebarOpen);
@@ -232,9 +227,7 @@ export default function HomePage() {
             <UserSummary
               user={user}
               photoUrl={photoUrl}
-              memberPhotoUrl={memberPhotoUrl}
               userImage={userImage}
-              onAvatarChange={(url) => setAvatarUrl(url)}
               router={router}
             />
 
@@ -490,12 +483,10 @@ function CommandStat({ label, value }: { label: string; value: string }) {
 // =============================================================
 // 사용자 요약
 // =============================================================
-function UserSummary({ user, photoUrl, memberPhotoUrl, userImage, onAvatarChange, router }: {
+function UserSummary({ user, photoUrl, userImage, router }: {
   user: UserInfo;
   photoUrl: string | null;
-  memberPhotoUrl: string | null;
   userImage: string;
-  onAvatarChange: (url: string | null) => void;
   router: RouterType;
 }) {
   const subParts = [
@@ -503,30 +494,27 @@ function UserSummary({ user, photoUrl, memberPhotoUrl, userImage, onAvatarChange
     user.family_church && user.family_church !== "목원" ? user.family_church : null,
   ].filter(Boolean) as string[];
 
+  const circleStyle: React.CSSProperties = {
+    width: 56, height: 56, borderRadius: "50%", flexShrink: 0,
+    objectFit: "cover", objectPosition: "top center",
+    border: `2px solid ${T.border}`,
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+    background: "#e2e8f0", cursor: "pointer",
+    display: "block",
+  };
+
   return (
     <SafeCard onClick={() => router.push("/myinfo")} padding={14} style={{ marginBottom: 18, borderRadius: 14, background: "rgba(251,248,241,0.9)", cursor: "pointer" }}>
       <SafeRow gap={14}>
-        <div style={{ position: "relative", flexShrink: 0 }}>
-          <PhotoAvatar
-            userId={user.id}
-            photoUrl={photoUrl}
-            fallbackUrl={memberPhotoUrl}
-            size={56}
-            label="내 사진"
-            onUpdate={(url) => onAvatarChange(url === memberPhotoUrl ? null : url)}
-          />
-          <img
-            src={userImage}
-            alt=""
-            style={{
-              position: "absolute", bottom: -4, right: -4,
-              width: 26, height: 26, borderRadius: "50%",
-              background: "#fff", padding: 1, objectFit: "cover", objectPosition: "top",
-              border: `2px solid ${T.bgCard}`,
-              boxShadow: "0 2px 6px rgba(15, 23, 42, 0.08)",
-            }}
-          />
-        </div>
+        {/* 프로필 사진 */}
+        {photoUrl ? (
+          <img src={photoUrl} alt="프로필" style={circleStyle} />
+        ) : (
+          <div style={{ ...circleStyle, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>👤</div>
+        )}
+        {/* 직분 아바타 */}
+        <img src={userImage} alt={user.sub_role || "직분"} style={{ ...circleStyle, objectFit: "contain", background: "#f1f5f9" }} />
+
         <SafeGrow>
           <div className="line-clamp-1 kr-keep" style={{ fontSize: 18, fontWeight: 800, color: T.text }}>
             {user.name}님 <span style={{ fontSize: 16 }}>🙏</span>
