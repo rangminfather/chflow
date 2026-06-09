@@ -140,11 +140,9 @@ async function captureSignupChapter(page, chapter, manifest) {
 
   // signup-05: 아이디·비밀번호 설정 화면 (성도(남) 선택 후)
   console.log('  [signup-05] 아이디·비밀번호 설정 화면');
-  // "성도" 탭 클릭 후 "성도 (남)" 카드 선택
-  const tabBtns = await page.getByRole('button', { name: '성도' }).all();
-  if (tabBtns.length > 0) await tabBtns[0].click();
-  await page.waitForTimeout(400);
-  await page.getByText('성도 (남)', { exact: true }).first().click();
+  // roleGroup 기본값이 "members"(성도)이므로 탭 클릭 불필요
+  // RoleCard는 aria-label 로 식별 (텍스트 노드 없음)
+  await page.locator('[aria-label="성도 (남)"]').first().click();
   await page.waitForTimeout(1000);
   await takeShot('signup-05', '아이디·비밀번호 설정',
     '사용할 아이디(영문 소문자·숫자·_, 4~20자)와 비밀번호(8자 이상)를 입력합니다. 아이디 중복 확인 후 \'가입 완료\' 버튼을 누릅니다.',
