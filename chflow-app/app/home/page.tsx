@@ -230,13 +230,6 @@ export default function HomePage() {
 
         <div style={{ flex: 1, minWidth: 0, width: "100%", maxWidth: "100%" }}>
           <PageContent maxWidth={1040}>
-            <CommandCenter
-              user={user}
-              myDepartments={myDepartments}
-              isAdmin={isAdmin}
-              router={router}
-            />
-
             <UserSummary
               user={user}
               photoUrl={photoUrl}
