@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { T, PageShell, PageContent } from "@/components/Layout";
 
 interface Category {
   category: string;
@@ -17,6 +18,15 @@ const CATEGORY_ICONS: Record<string, string> = {
   봉사사역국: "🤝",
   재정부: "💰",
   사무국: "🏢",
+};
+
+const CATEGORY_COLORS: Record<string, { bg: string; point: string }> = {
+  교육사역국: { bg: "rgba(234,239,232,0.72)", point: "#3E5A4A" },
+  예배사역국: { bg: "rgba(234,241,255,0.72)", point: "#2563EB" },
+  선교사역국: { bg: "rgba(240,253,244,0.72)", point: "#16a34a" },
+  봉사사역국: { bg: "rgba(255,247,237,0.72)", point: "#c2410c" },
+  재정부:     { bg: "rgba(254,252,232,0.72)", point: "#b45309" },
+  사무국:     { bg: "rgba(241,245,249,0.72)", point: "#475569" },
 };
 
 export default function DepartmentsPage() {
@@ -48,114 +58,104 @@ export default function DepartmentsPage() {
   }, [load, router]);
 
   if (!authChecked) {
-    return <div style={loadingStyle}>로딩 중...</div>;
+    return (
+      <PageShell style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontSize: 13, color: T.textMuted }}>로딩 중...</div>
+      </PageShell>
+    );
   }
 
   return (
-    <div style={pageStyle}>
-
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
-        {/* Header */}
-        <div style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <HeaderLogo />
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>사역·부서 가입</div>
-              <div style={{ fontSize: 11, color: "#94a3b8" }}>관심 있는 사역에 가입 신청하세요</div>
-            </div>
-          </div>
-          <button onClick={() => router.push("/home")} style={backBtnStyle}>← 홈</button>
+    <PageShell>
+      {/* 헤더 */}
+      <div style={{
+        background: T.bgCard,
+        borderBottom: `1px solid ${T.border}`,
+        padding: "10px clamp(12px, 4vw, 20px)",
+        display: "flex", alignItems: "center", gap: 10,
+        position: "sticky", top: 0, zIndex: 10,
+      }}>
+        <HeaderLogo />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>사역·부서 가입</div>
+          <div style={{ fontSize: 10, color: T.textMuted }}>관심 있는 사역에 가입 신청하세요</div>
         </div>
+        <button onClick={() => router.push("/home")} style={{
+          padding: "7px 14px", background: T.bgPage, border: `1px solid ${T.border}`,
+          borderRadius: 8, fontSize: 12, color: T.textMuted, cursor: "pointer", fontFamily: "inherit",
+          whiteSpace: "nowrap",
+        }}>← 홈</button>
+      </div>
 
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 22, fontWeight: 900, color: "#1e293b" }}>사역국 / 부서</div>
-          <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+      <PageContent maxWidth={860}>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 18, fontWeight: 900, color: T.text }}>사역국 · 부서</div>
+          <div style={{ fontSize: 12, color: T.textMuted, marginTop: 3 }}>
             대분류를 선택하면 세부 부서가 표시됩니다
           </div>
         </div>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>로딩 중...</div>
+          <div style={{ textAlign: "center", padding: 40, color: T.textMuted }}>로딩 중...</div>
         ) : categories.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>
+          <div style={{ textAlign: "center", padding: 40, color: T.textMuted }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>📭</div>
             등록된 사역이 없습니다
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
-            {categories.map((cat) => (
-              <div
-                key={cat.category}
-                onClick={() => router.push(`/departments/${encodeURIComponent(cat.category)}`)}
-                style={{
-                  background: "#fff",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: 16,
-                  padding: "24px 20px",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                  transition: "all 0.2s",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.borderColor = "#6366f1";
-                  e.currentTarget.style.transform = "translateY(-3px)";
-                  e.currentTarget.style.boxShadow = "0 12px 24px rgba(99, 102, 241, 0.15)";
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.borderColor = "#e2e8f0";
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
-                }}
-              >
-                <div style={{
-                  width: 60,
-                  height: 60,
-                  borderRadius: 14,
-                  background: "linear-gradient(135deg, #eef2ff, #ede9fe)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 30,
-                }}>
-                  {CATEGORY_ICONS[cat.category] || "📁"}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 12,
+          }}>
+            {categories.map((cat) => {
+              const color = CATEGORY_COLORS[cat.category] ?? { bg: T.ministryBg, point: T.ministryPoint };
+              return (
+                <div
+                  key={cat.category}
+                  onClick={() => router.push(`/departments/${encodeURIComponent(cat.category)}`)}
+                  style={{
+                    background: T.bgCard,
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 16,
+                    padding: "20px 18px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 14,
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                    transition: "box-shadow 0.15s, transform 0.15s",
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.boxShadow = `0 6px 20px rgba(0,0,0,0.1)`;
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)";
+                    e.currentTarget.style.transform = "translateY(0)";
+                  }}
+                >
+                  <div style={{
+                    width: 52, height: 52, borderRadius: 13,
+                    background: color.bg,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 26, flexShrink: 0,
+                  }}>
+                    {CATEGORY_ICONS[cat.category] || "📁"}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{cat.category}</div>
+                    <div style={{ fontSize: 11, color: color.point, marginTop: 2, fontWeight: 600 }}>
+                      {cat.dept_count}개 부서
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 16, color: T.border }}>›</div>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>{cat.category}</div>
-                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{cat.dept_count}개 부서</div>
-                </div>
-                <div style={{ fontSize: 16, color: "#cbd5e1" }}>›</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
-      </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }
-
-const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#f1f5f9",
-  fontFamily: "'Noto Sans KR', sans-serif",
-};
-
-const loadingStyle: React.CSSProperties = {
-  ...pageStyle,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const backBtnStyle: React.CSSProperties = {
-  padding: "8px 14px",
-  background: "#f1f5f9",
-  border: "none",
-  borderRadius: 8,
-  fontSize: 12,
-  color: "#475569",
-  cursor: "pointer",
-  fontFamily: "inherit",
-};
