@@ -229,14 +229,16 @@ export default function HomePage() {
               router={router}
             />
 
+            {/* TODO: 나의 목장 — 구현 완료 후 아래 주석 해제, home-summary-grid 안으로 이동 */}
+            {/* <MyMokjangSection user={user} /> */}
+
             <div className="home-summary-grid" style={{
               display: "grid",
-              gridTemplateColumns: "minmax(0, 1.08fr) minmax(0, 0.92fr)",
+              gridTemplateColumns: "minmax(0, 1fr)",
               gap: 14,
               marginBottom: 18,
             }}>
               <MinistrySection myDepartments={myDepartments} router={router} />
-              <MyMokjangSection user={user} />
             </div>
 
             <CommonMenuSection isAdmin={isAdmin} router={router} />
