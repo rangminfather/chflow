@@ -1238,11 +1238,6 @@ export default function WeeklyBulletinPage() {
       showToast(`아직 ${formatRemaining(cooldown.remaining_seconds)} 후 등록 가능`);
       return;
     }
-    if (!form.theme && !form.scripture) {
-      showToast("주제와 본문을 채우세요");
-      return;
-    }
-
     setAutoPosting(true);
     setAutoPostResult(null);
     setPostStep("pdf");
