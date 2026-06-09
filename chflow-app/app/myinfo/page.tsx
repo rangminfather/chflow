@@ -289,11 +289,11 @@ export default function MyInfoPage() {
                   </div>
                 ) : (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ ...infoValue, color: "#94a3b8", fontWeight: 500 }}>(미등록)</span>
+                    <span style={{ ...infoValue, color: "#ef4444", fontWeight: 600 }}>(미등록)</span>
                     <button onClick={() => setEditEmail(true)} style={btnSm}>이메일 등록하기</button>
                   </div>
                 )}
-                <span style={{ fontSize: 11, color: "#94a3b8" }}>등록하면 비밀번호 초기화 안내 발송에 활용됩니다</span>
+                <span style={{ fontSize: 11, color: "#94a3b8" }}>이메일 등록 시 비밀번호 찾기에서 재설정 링크를 이메일로 받을 수 있습니다</span>
               </div>
             ) : (
               <InfoItem label="이메일" value={email} />

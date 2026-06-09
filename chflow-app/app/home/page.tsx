@@ -196,7 +196,7 @@ export default function HomePage() {
           .command-actions { justify-content: stretch !important; }
         }
         @media (min-width: 769px) {
-          /* hamburger always visible */
+          .sidebar-mobile-trigger { display: none !important; }
         }
         @media (min-width: 1024px) {
           .home-menu-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
@@ -275,18 +275,6 @@ function AppBar({ isAdmin, user, router, onMenu }: {
       minWidth: 0,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flexShrink: 1 }}>
-        <button
-          className="sidebar-mobile-trigger"
-          onClick={onMenu}
-          aria-label="메뉴"
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            width: 40, height: 40, borderRadius: 10,
-            background: T.bgPage, border: `1px solid ${T.border}`,
-            cursor: "pointer", color: T.text,
-            flexShrink: 0,
-          }}
-        ><Menu size={20} strokeWidth={1.75} /></button>
         <HeaderLogo size={40} />
         <div style={{ minWidth: 0 }}>
           <div className="line-clamp-1" style={{ fontSize: 16, fontWeight: 800, color: T.text }}>스마트명성</div>
@@ -305,6 +293,18 @@ function AppBar({ isAdmin, user, router, onMenu }: {
             <AdminPill icon={<Shuffle size={14} strokeWidth={1.75} />} label="재편성" onClick={() => router.push("/admin/rearrange")} />
           </>
         )}
+        <button
+          className="sidebar-mobile-trigger"
+          onClick={onMenu}
+          aria-label="메뉴"
+          style={{
+            display: "none", alignItems: "center", justifyContent: "center",
+            width: 40, height: 40, borderRadius: 10,
+            background: T.bgPage, border: `1px solid ${T.border}`,
+            cursor: "pointer", color: T.text,
+            flexShrink: 0,
+          }}
+        ><Menu size={20} strokeWidth={1.75} /></button>
       </div>
     </div>
   );
