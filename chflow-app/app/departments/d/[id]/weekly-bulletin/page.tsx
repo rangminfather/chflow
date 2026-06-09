@@ -963,7 +963,6 @@ export default function WeeklyBulletinPage() {
   const handleDateChange = (newDate: string) => {
     setForm((f) => ({ ...f, date: newDate, issueNumber: calcIssueNumber(newDate) }));
     setMonthlyPlanImport(null);
-    setMonthlyPlanError("");
     setReviewMatch(null);
     setReviewPlanStatus(null);
     setReviewError("");
