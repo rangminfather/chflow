@@ -30,7 +30,7 @@ interface MenuItem {
   desc: string;
   color: string;
   implemented: boolean;  // 구현 안 된 페이지는 클릭 시 "준비 중" 토스트
-  onlyForDept?: string;
+  onlyForDept?: string | null; // null = 모든 부서 (카테고리 onlyForDept 무시)
   maxGrade?: number;
 }
 
@@ -76,9 +76,10 @@ const MENU_CATEGORIES: MenuCategory[] = [
     label: "행정관리",
     icon: "📋",
     maxGrade: 2,
-    desc: "주보 / 일지 / 통계 / 등록",
+    desc: "주보 / 일지 / 통계 / 등록 / 가입승인",
     onlyForDept: "초등1부",
     items: [
+      { id: "dept-approval", label: "사역 가입 승인", icon: "📥", desc: "본 부서 가입 신청 승인 · 등급 부여", color: "#10b981", implemented: true, onlyForDept: null, maxGrade: 2 },
       { id: "weekly-bulletin", label: "주보 만들기", icon: "📰", desc: "주보 자동 생성·UMS 등록", color: "#14b8a6", implemented: true },
       { id: "journal", label: "교육일지작성", icon: "📓", desc: "일지 · 통계 · 헌금", color: "#6366f1", implemented: true },
       { id: "monthly-plan-upload", label: "월간교육등록", icon: "🗓️", desc: "월간 교육계획서 등록", color: "#2563eb", implemented: true },
@@ -101,9 +102,8 @@ const MENU_CATEGORIES: MenuCategory[] = [
     maxGrade: 1,
     desc: "부서원 등급 · 설정",
     items: [
-      { id: "dept-approval", label: "사역 가입 승인", icon: "📥", desc: "본 부서 가입 신청 승인 · 등급 부여", color: "#10b981", implemented: true },
       { id: "monthly-plan-upload", label: "월간교육등록", icon: "🗓️", desc: "월간 교육계획서 등록", color: "#2563eb", implemented: true, maxGrade: 2 },
-      { id: "members-grade", label: "부서원 등급 관리", icon: "🎖️", desc: "각 부서원 등급(0~4) 변경", color: "#6366f1", implemented: true },
+      { id: "members-grade", label: "부서원 등급 관리", icon: "🎖️", desc: "각 부서원 등급(0~4) 변경 — 전도사·부장만 가능", color: "#6366f1", implemented: true },
       { id: "promote", label: "진급 마법사", icon: "🎓", desc: "매년 학년 진급 · 반편성 · 담임배정", color: "#dc2626", implemented: true },
     ],
   },
@@ -205,10 +205,11 @@ export default function DepartmentDetailPage() {
   const grade = myGrade ?? 99;
 
   // 카테고리별 표시 여부 결정
+  // item.onlyForDept !== undefined 면 item 값 우선 (null = 모든 부서), 없으면 cat.onlyForDept 상속
   const visibleCategories = MENU_CATEGORIES.filter((cat) => {
-    if (cat.onlyForDept && cat.onlyForDept !== dept.name) return false;
     return cat.items.some((item) => {
-      if (item.onlyForDept && item.onlyForDept !== dept.name) return false;
+      const deptFilter = item.onlyForDept !== undefined ? item.onlyForDept : cat.onlyForDept;
+      if (deptFilter && deptFilter !== dept.name) return false;
       return grade <= (item.maxGrade ?? cat.maxGrade);
     });
   });
@@ -265,11 +266,11 @@ export default function DepartmentDetailPage() {
           </div>
         </div>
 
-        {/* 비교육사역국 placeholder */}
+        {/* 비교육사역국: 콘텐츠 안내 (관리 메뉴는 아래에 표시) */}
         {!isEduDept && (
           <div style={{
             background: "#fff", borderRadius: 16, padding: 28, textAlign: "center",
-            color: "#94a3b8", fontSize: 13, lineHeight: 1.7,
+            color: "#94a3b8", fontSize: 13, lineHeight: 1.7, marginBottom: 16,
           }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>🚧</div>
             <div style={{ fontWeight: 700, color: "#64748b", marginBottom: 6 }}>
@@ -279,51 +280,50 @@ export default function DepartmentDetailPage() {
           </div>
         )}
 
-        {/* 교육사역국 — 4 대분류 메뉴 */}
-        {isEduDept && (
-          <>
-            {visibleCategories.map((cat) => (
-              <div key={cat.id} style={{ marginBottom: 24 }}>
-                <div style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12,
-                }}>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 18 }}>{cat.icon}</span>
-                    {cat.label}
-                  </div>
-                  <div style={{ fontSize: 10, color: "#94a3b8" }}>
-                    {GRADE_LABEL[cat.maxGrade]}까지 접근
-                  </div>
-                </div>
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                  gap: 10,
-                }}>
-                  {cat.items
-                    .filter((item) => (!item.onlyForDept || item.onlyForDept === dept.name) && grade <= (item.maxGrade ?? cat.maxGrade))
-                    .map((item) => (
-                      <MenuCard key={item.id} item={item} onClick={() => handleItemClick(item)} />
-                    ))}
-                </div>
+        {/* 메뉴 그리드 — 행정관리(grade 0~2) · 부서관리(grade 0~1) 는 모든 부서 표시 */}
+        {visibleCategories.map((cat) => (
+          <div key={cat.id} style={{ marginBottom: 24 }}>
+            <div style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 18 }}>{cat.icon}</span>
+                {cat.label}
               </div>
-            ))}
+              <div style={{ fontSize: 10, color: "#94a3b8" }}>
+                {GRADE_LABEL[cat.maxGrade]}까지 접근
+              </div>
+            </div>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: 10,
+            }}>
+              {cat.items
+                .filter((item) => {
+                  const deptFilter = item.onlyForDept !== undefined ? item.onlyForDept : cat.onlyForDept;
+                  return (!deptFilter || deptFilter === dept.name) && grade <= (item.maxGrade ?? cat.maxGrade);
+                })
+                .map((item) => (
+                  <MenuCard key={item.id} item={item} onClick={() => handleItemClick(item)} />
+                ))}
+            </div>
+          </div>
+        ))}
 
-            {/* 등급 4(학부모) 등 모든 카테고리 안 보이는 경우 안내 */}
-            {visibleCategories.length === 0 && (
-              <div style={{
-                background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: 12, padding: 20,
-                textAlign: "center", color: "#9a3412",
-              }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>🔒</div>
-                <div style={{ fontWeight: 700, marginBottom: 4 }}>접근 가능한 메뉴가 없습니다</div>
-                <div style={{ fontSize: 12 }}>
-                  현재 등급: {GRADE_LABEL[grade] || `${grade} (불명)`}.
-                  부서 관리자에게 등급 조정 문의하세요.
-                </div>
-              </div>
-            )}
-          </>
+        {/* 접근 가능한 메뉴가 전혀 없는 경우 안내 */}
+        {visibleCategories.length === 0 && (
+          <div style={{
+            background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: 12, padding: 20,
+            textAlign: "center", color: "#9a3412",
+          }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>🔒</div>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>접근 가능한 메뉴가 없습니다</div>
+            <div style={{ fontSize: 12 }}>
+              현재 등급: {GRADE_LABEL[grade] || `${grade} (불명)`}.
+              부서 관리자에게 등급 조정 문의하세요.
+            </div>
+          </div>
         )}
       </div>
 

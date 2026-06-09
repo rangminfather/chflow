@@ -176,13 +176,16 @@ export default function CategoryPage() {
               return (
                 <div
                   key={d.id}
-                  onClick={() => { if (!disabled) { setConfirmDept(d); setSelectedRole(null); } }}
+                  onClick={() => {
+                    if (d.my_status === "approved") { router.push(`/departments/d/${d.id}`); return; }
+                    if (!disabled) { setConfirmDept(d); setSelectedRole(null); }
+                  }}
                   style={{
                     background: T.bgCard,
                     border: `1.5px solid ${borderColor}`,
                     borderRadius: 16,
                     padding: "18px 16px 14px",
-                    cursor: disabled ? "default" : "pointer",
+                    cursor: d.my_status === "approved" ? "pointer" : disabled ? "default" : "pointer",
                     position: "relative",
                     boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
                     transition: "box-shadow 0.15s, transform 0.15s",

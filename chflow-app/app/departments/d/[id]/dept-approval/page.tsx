@@ -23,12 +23,11 @@ interface PendingJoin {
   requested_at: string;
 }
 
+// 임원진(grade 0~2)이 승인 시 부여할 수 있는 등급: 교사·학부모만
+// 전도사/부장 등 상위 등급 임명은 관리자 또는 부서원 등급관리 페이지에서만 가능
 const GRADES = [
-  { g: 0, label: "전도사 · 교육사", desc: "모든 메뉴" },
-  { g: 1, label: "부장", desc: "모든 메뉴" },
-  { g: 2, label: "부부장 · 총무 · 서기", desc: "공지·학생·행정" },
-  { g: 3, label: "교사", desc: "공지·학생" },
-  { g: 4, label: "학부모", desc: "공지" },
+  { g: 3, label: "교사", desc: "공지·학생 (출결·달란트·우리반)" },
+  { g: 4, label: "학부모", desc: "공지 (읽기·댓글)" },
 ];
 
 export default function DeptApprovalPage() {
