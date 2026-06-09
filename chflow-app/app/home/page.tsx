@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getRoleImageByLabel } from "@/lib/roles";
 import NotificationBell from "@/components/NotificationBell";
-import PhotoAvatar from "@/components/PhotoAvatar";
 import HeaderLogo from "@/components/HeaderLogo";
 import {
   type LucideIcon,
@@ -89,8 +88,7 @@ export default function HomePage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState<UserInfo | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [memberPhotoUrl, setMemberPhotoUrl] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [myDepartments, setMyDepartments] = useState<MyDepartment[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
@@ -115,13 +113,10 @@ export default function HomePage() {
 
       const { data: photos } = await supabase.rpc("get_my_photos");
       if (photos && photos[0]) {
-        setAvatarUrl(photos[0].avatar_url || null);
-        setMemberPhotoUrl(photos[0].member_photo_url || null);
+        setPhotoUrl(photos[0].avatar_url || photos[0].member_photo_url || null);
       }
     })();
   }, [router]);
-
-  const photoUrl = avatarUrl || memberPhotoUrl;
 
   // 뒤로가기 가드 (기존 로직 유지)
   const sidebarOpenRef = useRef(sidebarOpen);
@@ -232,9 +227,7 @@ export default function HomePage() {
             <UserSummary
               user={user}
               photoUrl={photoUrl}
-              memberPhotoUrl={memberPhotoUrl}
               userImage={userImage}
-              onAvatarChange={(url) => setAvatarUrl(url)}
               router={router}
             />
 
@@ -490,12 +483,10 @@ function CommandStat({ label, value }: { label: string; value: string }) {
 // =============================================================
 // 사용자 요약
 // =============================================================
-function UserSummary({ user, photoUrl, memberPhotoUrl, userImage, onAvatarChange, router }: {
+function UserSummary({ user, photoUrl, userImage, router }: {
   user: UserInfo;
   photoUrl: string | null;
-  memberPhotoUrl: string | null;
   userImage: string;
-  onAvatarChange: (url: string | null) => void;
   router: RouterType;
 }) {
   const subParts = [
@@ -507,14 +498,17 @@ function UserSummary({ user, photoUrl, memberPhotoUrl, userImage, onAvatarChange
     <SafeCard onClick={() => router.push("/myinfo")} padding={14} style={{ marginBottom: 18, borderRadius: 14, background: "rgba(251,248,241,0.9)", cursor: "pointer" }}>
       <SafeRow gap={14}>
         <div style={{ position: "relative", flexShrink: 0 }}>
-          <PhotoAvatar
-            userId={user.id}
-            photoUrl={photoUrl}
-            fallbackUrl={memberPhotoUrl}
-            size={56}
-            label="내 사진"
-            onUpdate={(url) => onAvatarChange(url === memberPhotoUrl ? null : url)}
-          />
+          <div style={{
+            width: 56, height: 56, borderRadius: "50%", overflow: "hidden",
+            background: "#e2e8f0", flexShrink: 0,
+          }}>
+            <img
+              src={photoUrl || "/default-avatar.png"}
+              alt="프로필"
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            />
+          </div>
           <img
             src={userImage}
             alt=""
