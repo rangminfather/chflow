@@ -1,6 +1,6 @@
 "use client";
 
-// 사역 가입 승인 — 부서 부장(grade 1)·전도사(grade 0) 가 자기 부서 신청 승인.
+// 사역 가입 승인 — 부서 임원진(grade 0~2) 이 자기 부서 신청 승인.
 // 시스템 admin 의 admin/dept-pending 페이지와 별개. 부서 단위.
 
 import { useState, useEffect, useCallback } from "react";
@@ -16,6 +16,7 @@ interface PendingJoin {
   user_phone: string | null;
   user_role: string | null;
   user_sub_role: string | null;
+  requested_role: string | null;
   category: string;
   dept_name: string;
   dept_icon: string | null;
@@ -60,8 +61,8 @@ export default function DeptApprovalPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/login"); return; }
       const { data: g } = await supabase.rpc("get_user_grade", { p_dept_id: deptId });
-      if (g === null || g === undefined || g > 1) {
-        showToast("권한 없음 (전도사·부장만)");
+      if (g === null || g === undefined || g > 2) {
+        showToast("권한 없음 (임원진 grade 0~2만)");
         setTimeout(() => router.replace(`/departments/d/${deptId}`), 1500);
         return;
       }
@@ -72,7 +73,7 @@ export default function DeptApprovalPage() {
 
   function openApprove(j: PendingJoin) {
     setApproving(j);
-    setPickedGrade(3);
+    setPickedGrade(j.requested_role === "학부모" ? 4 : 3);
   }
 
   async function doApprove() {
@@ -143,8 +144,23 @@ export default function DeptApprovalPage() {
                   {j.dept_icon || "📁"}
                 </div>
                 <div style={{ flex: 1, minWidth: 180 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>
-                    {j.user_name} <span style={{ fontSize: 11, color: "#64748b", fontWeight: 500 }}>({j.user_sub_role || "-"})</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>
+                      {j.user_name}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#64748b", fontWeight: 500 }}>
+                      ({j.user_sub_role || "-"})
+                    </span>
+                    {j.requested_role && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: "2px 7px",
+                        borderRadius: 6,
+                        background: j.requested_role === "학부모" ? "#fef3c7" : "#dbeafe",
+                        color: j.requested_role === "학부모" ? "#92400e" : "#1d4ed8",
+                      }}>
+                        {j.requested_role === "teacher" ? "교사" : j.requested_role}
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>
                     📞 {j.user_phone || "-"} · 신청 {new Date(j.requested_at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}

@@ -41,6 +41,7 @@ export default function CategoryPage() {
   const [depts, setDepts] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmDept, setConfirmDept] = useState<Department | null>(null);
+  const [selectedRole, setSelectedRole] = useState<"teacher" | "학부모" | null>(null);
   const [requesting, setRequesting] = useState(false);
   const [keyMembers, setKeyMembers] = useState<DeptKeyMembers>({});
 
@@ -104,13 +105,17 @@ export default function CategoryPage() {
   }, [load, router]);
 
   const handleRequest = async () => {
-    if (!confirmDept) return;
+    if (!confirmDept || !selectedRole) return;
     setRequesting(true);
-    const { error } = await supabase.rpc("request_department_join", { p_dept_id: confirmDept.id });
+    const { error } = await supabase.rpc("request_department_join", {
+      p_dept_id: confirmDept.id,
+      p_role: selectedRole,
+    });
     setRequesting(false);
     if (error) { alert(`신청 실패: ${error.message}`); return; }
     setConfirmDept(null);
-    alert("✅ 가입 신청이 완료되었습니다!\n관리자 승인 후 이용하실 수 있습니다.");
+    setSelectedRole(null);
+    alert("✅ 가입 신청이 완료되었습니다!\n담당 임원진 승인 후 이용하실 수 있습니다.");
     load();
   };
 
@@ -171,7 +176,7 @@ export default function CategoryPage() {
               return (
                 <div
                   key={d.id}
-                  onClick={() => !disabled && setConfirmDept(d)}
+                  onClick={() => { if (!disabled) { setConfirmDept(d); setSelectedRole(null); } }}
                   style={{
                     background: T.bgCard,
                     border: `1.5px solid ${borderColor}`,
@@ -279,26 +284,44 @@ export default function CategoryPage() {
             {confirmDept.description && (
               <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 16, lineHeight: 1.5 }}>{confirmDept.description}</div>
             )}
-            <div style={{
-              padding: "14px 16px", background: T.ministryBg,
-              border: `1px solid ${T.border}`, borderRadius: 12,
-              fontSize: 13, color: T.ministryPoint,
-              marginBottom: 16, fontWeight: 700,
-            }}>가입 신청 하시겠습니까?</div>
+            {/* 역할 선택 */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 8, fontWeight: 600 }}>본인 역할을 선택하세요</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {(["teacher", "학부모"] as const).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setSelectedRole(r)}
+                    style={{
+                      flex: 1, padding: "12px 8px",
+                      background: selectedRole === r ? T.ministryPoint : T.bgPage,
+                      color: selectedRole === r ? "#fff" : T.textMuted,
+                      border: `1.5px solid ${selectedRole === r ? T.ministryPoint : T.border}`,
+                      borderRadius: 10, fontSize: 13, fontWeight: 700,
+                      cursor: "pointer", fontFamily: "inherit",
+                      transition: "all 0.15s",
+                    }}
+                  >{r === "teacher" ? "교사" : "학부모"}</button>
+                ))}
+              </div>
+            </div>
             <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 20, lineHeight: 1.6 }}>
-              신청 후 관리자 승인이 필요합니다.<br />승인되면 알림을 받으실 수 있습니다.
+              신청 후 부서 임원진 승인이 필요합니다.<br />승인되면 알림을 받으실 수 있습니다.
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDept(null)} disabled={requesting} style={{
+              <button onClick={() => { setConfirmDept(null); setSelectedRole(null); }} disabled={requesting} style={{
                 flex: 1, padding: "12px", background: T.bgPage, color: T.textMuted,
                 border: `1px solid ${T.border}`, borderRadius: 10,
                 fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
               }}>취소</button>
-              <button onClick={handleRequest} disabled={requesting} style={{
-                flex: 1, padding: "12px", background: T.ministryPoint, color: "#fff",
+              <button onClick={handleRequest} disabled={requesting || !selectedRole} style={{
+                flex: 1, padding: "12px",
+                background: selectedRole ? T.ministryPoint : "#cbd5e1",
+                color: "#fff",
                 border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-                boxShadow: "0 4px 12px rgba(62,90,74,0.3)",
+                cursor: selectedRole ? "pointer" : "not-allowed", fontFamily: "inherit",
+                boxShadow: selectedRole ? "0 4px 12px rgba(62,90,74,0.3)" : "none",
+                transition: "all 0.15s",
               }}>{requesting ? "신청 중..." : "신청"}</button>
             </div>
           </div>
