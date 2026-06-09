@@ -290,9 +290,6 @@ export default function DepartmentDetailPage() {
                 <span style={{ fontSize: 18 }}>{cat.icon}</span>
                 {cat.label}
               </div>
-              <div style={{ fontSize: 10, color: "#94a3b8" }}>
-                {GRADE_LABEL[cat.maxGrade]}까지 접근
-              </div>
             </div>
             <div style={{
               display: "grid",
