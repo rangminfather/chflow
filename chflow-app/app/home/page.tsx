@@ -275,7 +275,7 @@ function AppBar({ isAdmin, user, router, onMenu }: {
       minWidth: 0,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flexShrink: 1 }}>
-        <HeaderLogo size={40} />
+        <HeaderLogo />
         <div style={{ minWidth: 0 }}>
           <div className="line-clamp-1" style={{ fontSize: 16, fontWeight: 800, color: T.text }}>스마트명성</div>
           <div className="line-clamp-1" style={{ fontSize: 10, color: T.textMuted, letterSpacing: 0.5 }}>Smart Myungsung</div>
@@ -858,11 +858,11 @@ function MobileSidebar({ open, onClose, user, myDepartments, router, onLogout }:
   return (
     <div onClick={onClose} style={{
       position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.5)",
-      zIndex: 50, display: "flex",
+      zIndex: 50, display: "flex", justifyContent: "flex-end",
     }}>
       <div onClick={(e) => e.stopPropagation()} style={{
         width: "min(280px, 80vw)", background: T.bgCard, padding: "20px 12px",
-        boxShadow: "4px 0 20px rgba(0,0,0,0.12)", overflowY: "auto",
+        boxShadow: "-4px 0 20px rgba(0,0,0,0.12)", overflowY: "auto",
         boxSizing: "border-box",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, paddingLeft: 8 }}>
