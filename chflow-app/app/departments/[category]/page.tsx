@@ -161,7 +161,7 @@ export default function CategoryPage() {
         ) : (
           <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 280px))",
             gap: 12,
           }}>
             {depts.map((d) => {
@@ -210,7 +210,7 @@ export default function CategoryPage() {
                     }}>{badge.label}</div>
                   )}
 
-                  {/* 아이콘 + 이름 + 대표 얼굴 */}
+                  {/* 아이콘 + 이름 */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div style={{
                       width: 40, height: 40, borderRadius: 10,
@@ -221,37 +221,44 @@ export default function CategoryPage() {
                       {d.icon || "📁"}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{d.name}</div>
+                      <div style={{
+                        fontSize: 15, fontWeight: 800, color: T.text,
+                        overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
+                      }}>{d.name}</div>
                       {d.description && (
-                        <div style={{ fontSize: 11, color: T.textMuted }}>{d.description}</div>
+                        <div style={{
+                          fontSize: 11, color: T.textMuted,
+                          overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
+                        }}>{d.description}</div>
                       )}
                     </div>
-                    {/* 대표 멤버 얼굴 (직책 없이) */}
-                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                      {ROLE_SLOTS.map(({ key }) => {
-                        const person = slots?.[key] ?? null;
-                        return person?.photoUrl ? (
-                          <img
-                            key={key}
-                            src={person.photoUrl}
-                            alt={person.name || ""}
-                            style={{
-                              width: 28, height: 28, borderRadius: "50%",
-                              objectFit: "cover", objectPosition: "top center",
-                              border: `1.5px solid ${T.border}`,
-                            }}
-                          />
-                        ) : (
-                          <div key={key} style={{
-                            width: 28, height: 28, borderRadius: "50%",
-                            background: "#e2e8f0",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 13, color: "#94a3b8",
+                  </div>
+
+                  {/* 대표 멤버 얼굴 (직책 없이, 별도 줄) */}
+                  <div style={{ display: "flex", gap: 5 }}>
+                    {ROLE_SLOTS.map(({ key }) => {
+                      const person = slots?.[key] ?? null;
+                      return person?.photoUrl ? (
+                        <img
+                          key={key}
+                          src={person.photoUrl}
+                          alt={person.name || ""}
+                          style={{
+                            width: 32, height: 32, borderRadius: "50%",
+                            objectFit: "cover", objectPosition: "top center",
                             border: `1.5px solid ${T.border}`,
-                          }}>👤</div>
-                        );
-                      })}
-                    </div>
+                          }}
+                        />
+                      ) : (
+                        <div key={key} style={{
+                          width: 32, height: 32, borderRadius: "50%",
+                          background: "#e2e8f0",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 14, color: "#94a3b8",
+                          border: `1.5px solid ${T.border}`,
+                        }}>👤</div>
+                      );
+                    })}
                   </div>
 
                   <div style={{ fontSize: 11, color: T.ministryPoint, fontWeight: 600 }}>
