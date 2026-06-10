@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import Cropper, { Area } from "react-easy-crop";
 import { supabase } from "@/lib/supabase";
+import { User, Camera, AlertTriangle, Images, ZoomIn, Crop as CropIcon, Undo2, X } from "lucide-react";
 
 interface PhotoAvatarProps {
   userId: string;
@@ -308,7 +309,7 @@ export default function PhotoAvatar({
               color: "rgba(255,255,255,0.6)",
             }}
           >
-            👤
+            <User size={size * 0.5} strokeWidth={1.6} />
           </div>
         )}
 
@@ -331,7 +332,7 @@ export default function PhotoAvatar({
               width: size * 0.5,
               height: size * 0.5,
               borderRadius: "50%",
-              background: "#fff",
+              background: "var(--card)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -360,7 +361,7 @@ export default function PhotoAvatar({
             justifyContent: "center",
             fontSize: 13,
             fontWeight: 800,
-            border: "2px solid #fff",
+            border: "2px solid var(--card)",
             boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
             pointerEvents: "none",
           }}
@@ -376,7 +377,7 @@ export default function PhotoAvatar({
           style={modalOverlayStyle}
         >
           <div onClick={(e) => e.stopPropagation()} style={modalCardStyle}>
-            <div style={modalTitleStyle}>📷 {label}</div>
+            <div style={{ ...modalTitleStyle, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Camera size={20} strokeWidth={1.8} /> {label}</div>
 
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
               {currentUrl ? (
@@ -406,7 +407,7 @@ export default function PhotoAvatar({
                     color: "var(--ink-faint)",
                   }}
                 >
-                  <div style={{ fontSize: 56, marginBottom: 8 }}>👤</div>
+                  <div style={{ marginBottom: 8, display: "flex" }}><User size={48} strokeWidth={1.4} /></div>
                   <div style={{ fontSize: 12, fontWeight: 600 }}>등록된 사진이 없습니다</div>
                 </div>
               )}
@@ -421,7 +422,7 @@ export default function PhotoAvatar({
               </div>
             )}
 
-            {error && <div style={errorBoxStyle}>⚠️ {error}</div>}
+            {error && <div style={{ ...errorBoxStyle, display: "flex", alignItems: "center", gap: 6 }}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>}
 
             <input
               ref={fileInputRef}
@@ -442,7 +443,7 @@ export default function PhotoAvatar({
                 fontSize: 12, fontWeight: 700, color: "var(--ink-mid)",
                 marginBottom: 10, display: "flex", justifyContent: "space-between",
               }}>
-                <span>🖼️ 내가 올린 사진</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Images size={14} strokeWidth={1.8} /> 내가 올린 사진</span>
                 <span style={{ color: "var(--ink-faint)", fontWeight: 500 }}>{gallery.length} / {MAX_GALLERY}</span>
               </div>
 
@@ -507,7 +508,7 @@ export default function PhotoAvatar({
                             fontSize: 11, fontWeight: 800,
                             display: "flex", alignItems: "center", justifyContent: "center",
                           }}
-                        >✕</button>
+                        ><X size={12} strokeWidth={2.2} /></button>
                       </div>
                     );
                   })}
@@ -528,15 +529,18 @@ export default function PhotoAvatar({
                 }}
                 title={gallery.length >= MAX_GALLERY ? "사진 슬롯이 가득 찼습니다" : ""}
               >
-                {gallery.length >= MAX_GALLERY
-                  ? `📸 ${MAX_GALLERY}장 가득`
-                  : currentUrl ? "📸 새 사진" : "📸 사진 등록"}
+                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                  <Camera size={15} strokeWidth={1.8} />
+                  {gallery.length >= MAX_GALLERY
+                    ? `${MAX_GALLERY}장 가득`
+                    : currentUrl ? "새 사진" : "사진 등록"}
+                </span>
               </button>
             </div>
 
             {canRevertToFallback && (
-              <button onClick={handleClearAvatar} style={btnFallbackStyle}>
-                ↩ 요람 사진으로 되돌리기
+              <button onClick={handleClearAvatar} style={{ ...btnFallbackStyle, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <Undo2 size={14} strokeWidth={1.8} /> 요람 사진으로 되돌리기
               </button>
             )}
 
@@ -551,7 +555,7 @@ export default function PhotoAvatar({
       {showModal && cropImageSrc && (
         <div style={modalOverlayStyle}>
           <div style={{ ...modalCardStyle, maxWidth: 480, padding: "20px 16px" }}>
-            <div style={modalTitleStyle}>✂️ 영역 선택</div>
+            <div style={{ ...modalTitleStyle, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><CropIcon size={20} strokeWidth={1.8} /> 영역 선택</div>
             <div style={{ fontSize: 11, color: "var(--ink-soft)", textAlign: "center", marginBottom: 14, lineHeight: 1.5 }}>
               사진을 드래그하여 위치 조정<br />
               슬라이더로 확대/축소 (얼굴이 잘 보이도록)
@@ -581,7 +585,7 @@ export default function PhotoAvatar({
 
             <div style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 600 }}>🔍 확대/축소</span>
+                <span style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}><ZoomIn size={13} strokeWidth={1.8} /> 확대/축소</span>
                 <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>{zoom.toFixed(1)}x</span>
               </div>
               <input
@@ -598,7 +602,7 @@ export default function PhotoAvatar({
               />
             </div>
 
-            {error && <div style={errorBoxStyle}>⚠️ {error}</div>}
+            {error && <div style={{ ...errorBoxStyle, display: "flex", alignItems: "center", gap: 6 }}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>}
 
             <div style={{ display: "flex", gap: 10 }}>
               <button
@@ -652,7 +656,7 @@ const modalOverlayStyle: React.CSSProperties = {
 };
 
 const modalCardStyle: React.CSSProperties = {
-  background: "#fff",
+  background: "var(--card)",
   borderRadius: 20,
   padding: "24px 20px",
   maxWidth: 420,
@@ -711,7 +715,7 @@ const btnPrimaryStyle: React.CSSProperties = {
 const btnFallbackStyle: React.CSSProperties = {
   width: "100%",
   padding: "11px",
-  background: "#fff",
+  background: "var(--card)",
   color: "var(--ink-soft)",
   border: "1px solid var(--hairline-strong)",
   borderRadius: 10,

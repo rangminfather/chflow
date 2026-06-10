@@ -7,7 +7,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { Inbox, AlertTriangle, Folder, Phone, CheckCircle2 } from "lucide-react";
 
 interface PendingJoin {
   id: string;
@@ -116,32 +117,30 @@ export default function DeptApprovalPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={btnGhost}>←</button>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0 }}>📥 사역 가입 승인</h1>
+            <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}><Inbox size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 사역 가입 승인</h1>
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{deptName}</div>
           </div>
         </div>
 
         <div style={{ background: "var(--warning-soft)", border: "1px solid #E0C893", borderRadius: 8, padding: 12, fontSize: 12, color: "var(--warning)", marginBottom: 16, lineHeight: 1.6 }}>
-          ⚠️ 본 부서로 가입 신청한 사용자만 표시됩니다. 승인 시 등급(권한)을 선택할 수 있고, 추후 <strong>부서원 등급 관리</strong>에서 수정 가능합니다.
+          <AlertTriangle size={14} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> 본 부서로 가입 신청한 사용자만 표시됩니다. 승인 시 등급(권한)을 선택할 수 있고, 추후 <strong>부서원 등급 관리</strong>에서 수정 가능합니다.
         </div>
 
-        <div style={{ background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
           <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--hairline)", background: "var(--warning-soft)" }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: "var(--warning)" }}>
-              ⏳ 가입 신청 대기 ({pending.length}건)
+              가입 신청 대기 ({pending.length}건)
             </div>
           </div>
           {loading ? (
             <LoadingView padding={30} />
           ) : pending.length === 0 ? (
-            <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--ink-faint)", fontSize: 13 }}>
-              대기 중인 가입 신청이 없습니다
-            </div>
+            <EmptyState message="대기 중인 가입 신청이 없습니다" />
           ) : (
             pending.map((j) => (
               <div key={j.id} style={{ padding: "14px 18px", borderBottom: "1px solid var(--bg-soft)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg, var(--accent-soft), #EDE7F2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-                  {j.dept_icon || "📁"}
+                  {j.dept_icon || <Folder size={20} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />}
                 </div>
                 <div style={{ flex: 1, minWidth: 180 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -162,8 +161,8 @@ export default function DeptApprovalPage() {
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--ink-mid)", marginTop: 2 }}>
-                    📞 {j.user_phone || "-"} · 신청 {new Date(j.requested_at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
+                  <div style={{ fontSize: 11, color: "var(--ink-mid)", marginTop: 2, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <Phone size={12} strokeWidth={1.8} /> {j.user_phone || "-"} · 신청 {new Date(j.requested_at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
@@ -179,8 +178,8 @@ export default function DeptApprovalPage() {
       {/* 승인 + 등급 모달 */}
       {approving && (
         <div onClick={() => setApproving(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 20 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 440, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>✅ 부서 가입 승인</div>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--card)", borderRadius: 20, padding: 28, maxWidth: 440, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 6, display: "inline-flex", alignItems: "center", gap: 6 }}><CheckCircle2 size={20} strokeWidth={1.8} style={{ color: "var(--success)" }} /> 부서 가입 승인</div>
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 16 }}>
               <strong>{approving.user_name}</strong>님을 <strong>{deptName}</strong>에 승인합니다. 등급(권한)을 선택하세요.
             </div>

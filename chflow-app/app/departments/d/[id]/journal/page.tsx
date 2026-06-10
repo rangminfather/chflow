@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { NotebookPen, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
 
 interface JournalSummary {
   id: string;
@@ -233,7 +234,7 @@ export default function JournalPage() {
     if (prefillCancelRef.cancelled) return;
     if (filledFromDraft) {
       setPrefillStatus("done");
-      showToast("주보 작성 임시저장본에서 불러옴 - 확인 후 저장하세요 ✅");
+      showToast("주보 작성 임시저장본에서 불러옴 - 확인 후 저장하세요");
       setTimeout(() => {
         setPrefilling(false);
         setPrefillStatus("idle");
@@ -268,7 +269,7 @@ export default function JournalPage() {
           const d = json.data;
           applyPrefillData(d);
           setPrefillStatus("done");
-          showToast(`주보 #${d.source_no} 불러옴 - 확인 후 저장하세요 ✅`);
+          showToast(`주보 #${d.source_no} 불러옴 - 확인 후 저장하세요`);
           // 성공 모달 잠깐 보이고 닫기
           setTimeout(() => {
             setPrefilling(false);
@@ -314,7 +315,7 @@ export default function JournalPage() {
         p_prayer:       form.prayer_requests,
       });
       if (error) throw error;
-      showToast("저장되었습니다 ✅");
+      showToast("저장되었습니다");
       await loadList();
       setIsNew(false);
     } catch (e: unknown) {
@@ -359,7 +360,7 @@ export default function JournalPage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>📓 일지작성</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><NotebookPen size={18} strokeWidth={1.8} /> 일지작성</div>
         <button onClick={newJournal} style={addBtnStyle}>+ 새 일지</button>
       </div>
 
@@ -371,7 +372,7 @@ export default function JournalPage() {
             {loading ? (
               <LoadingView padding={12} label="불러오는 중..." />
             ) : journals.length === 0 ? (
-              <div style={{ color: "var(--ink-faint)", fontSize: 12, padding: 12 }}>작성된 일지가 없습니다</div>
+              <EmptyState message="작성된 일지가 없습니다" padding={16} />
             ) : (
               journals.map((j) => (
                 <div
@@ -405,9 +406,8 @@ export default function JournalPage() {
         {/* 폼 */}
         <div className="journal-content" style={{ flex: 1, minWidth: 0 }}>
           {!showForm ? (
-            <div style={{ ...cardStyle, textAlign: "center", padding: 60, color: "var(--ink-faint)" }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>📓</div>
-              <div style={{ fontSize: 14 }}>왼쪽에서 일지를 선택하거나<br />새 일지를 작성하세요</div>
+            <div style={{ ...cardStyle, textAlign: "center" }}>
+              <EmptyState message="왼쪽에서 일지를 선택하거나 새 일지를 작성하세요" padding={60} />
             </div>
           ) : (
             <div style={cardStyle}>
@@ -415,8 +415,8 @@ export default function JournalPage() {
                 <div style={sectionLabel}>{isNew ? "새 일지 작성" : "일지 편집"}</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {canPrefill && (
-                    <button onClick={handlePrefill} disabled={prefilling} style={prefillBtnStyle}>
-                      {prefilling ? "불러오는 중..." : "📄 주보에서 불러오기"}
+                    <button onClick={handlePrefill} disabled={prefilling} style={{ ...prefillBtnStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      {prefilling ? "불러오는 중..." : <><FileText size={14} strokeWidth={1.8} /> 주보에서 불러오기</>}
                     </button>
                   )}
                   {!isNew && (
@@ -617,8 +617,8 @@ export default function JournalPage() {
       {prefilling && (
         <div style={modalBackdropStyle}>
           <div style={modalCardStyle}>
-            <div style={{ fontSize: 28, marginBottom: 6 }}>
-              {prefillStatus === "done" ? "✅" : prefillStatus === "failed" ? "⚠️" : "📄"}
+            <div style={{ marginBottom: 6, display: "flex", justifyContent: "center" }}>
+              {prefillStatus === "done" ? <CheckCircle2 size={32} strokeWidth={1.8} color="var(--success)" /> : prefillStatus === "failed" ? <AlertTriangle size={32} strokeWidth={1.8} color="var(--warning)" /> : <FileText size={32} strokeWidth={1.8} color="var(--ink-faint)" />}
             </div>
             <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>
               {prefillStatus === "done"
@@ -718,7 +718,7 @@ function formatDate(d: string) {
 }
 
 const headerStyle: React.CSSProperties = {
-  background: "#fff",
+  background: "var(--card)",
   borderBottom: "1px solid var(--hairline)",
   padding: "12px 24px",
   display: "flex",
@@ -730,7 +730,7 @@ const headerStyle: React.CSSProperties = {
 };
 
 const cardStyle: React.CSSProperties = {
-  background: "#fff",
+  background: "var(--card)",
   borderRadius: 14,
   padding: 20,
   boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
@@ -847,7 +847,7 @@ const modalBackdropStyle: React.CSSProperties = {
 };
 
 const modalCardStyle: React.CSSProperties = {
-  background: "#fff",
+  background: "var(--card)",
   borderRadius: 16,
   padding: "22px 22px 18px",
   width: "100%",

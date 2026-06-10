@@ -10,6 +10,7 @@ import {
   BookOpen, BookText, Users, User, Lightbulb, Vote, Megaphone, CalendarDays,
   Landmark, Bus, CalendarClock, Menu, LogOut, X, Folder, Home,
   Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid,
+  Sparkles, HeartHandshake,
 } from "lucide-react";
 import { LoadingView } from "@/components/StatusViews";
 import {
@@ -430,7 +431,7 @@ function CommandButton({ label, onClick }: { label: string; onClick: () => void 
         padding: "0 14px",
         borderRadius: 9,
         border: "1px solid rgba(255,255,255,0.24)",
-        background: "rgba(255,255,255,0.92)",
+        background: "color-mix(in srgb, var(--card) 92%, transparent)",
         color: "#2F4638",
         fontSize: 13,
         fontWeight: 800,
@@ -480,7 +481,7 @@ function UserSummary({ user, photoUrl, userImage, router }: {
   const OVERLAP = Math.round(SIZE / 3); // 1/3 가려짐 → 2/3 노출
 
   return (
-    <SafeCard onClick={() => router.push("/myinfo")} padding={14} style={{ marginBottom: 18, borderRadius: 14, background: "rgba(251,248,241,0.9)", cursor: "pointer" }}>
+    <SafeCard onClick={() => router.push("/myinfo")} padding={14} style={{ marginBottom: 18, borderRadius: 14, background: "color-mix(in srgb, var(--surface) 90%, transparent)", cursor: "pointer" }}>
       <SafeRow gap={14}>
         {/* 겹친 사진 + 직분 아바타 (좌우 겹침) */}
         <div style={{ position: "relative", width: SIZE + (SIZE - OVERLAP), height: SIZE, flexShrink: 0 }}>
@@ -519,14 +520,16 @@ function UserSummary({ user, photoUrl, userImage, router }: {
               background: "var(--hairline-strong)",
               border: `2px solid ${T.bgCard}`,
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 24, zIndex: 2,
-            }}>👤</div>
+              color: "var(--ink-faint)", zIndex: 2,
+            }}><User size={24} strokeWidth={1.8} /></div>
           )}
         </div>
 
         <SafeGrow>
           <div className="line-clamp-1 kr-keep" style={{ fontSize: 18, fontWeight: 800, color: T.text }}>
-            {user.name}님 <span style={{ fontSize: 16 }}>🙏</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              {user.name}님 <HeartHandshake size={16} strokeWidth={1.8} style={{ color: "var(--accent)" }} />
+            </span>
           </div>
           {subParts.length > 0 && (
             <div className="line-clamp-1 kr-keep" style={{ marginTop: 2, fontSize: 13, color: T.textMuted }}>
@@ -534,7 +537,9 @@ function UserSummary({ user, photoUrl, userImage, router }: {
             </div>
           )}
           <div className="line-clamp-1 kr-keep" style={{ marginTop: 4, fontSize: 12, color: T.textMuted }}>
-            오늘도 평안한 하루 되세요 ✨
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              오늘도 평안한 하루 되세요 <Sparkles size={12} strokeWidth={1.8} />
+            </span>
           </div>
         </SafeGrow>
       </SafeRow>
@@ -752,7 +757,7 @@ function MenuCard({ menu, router, compact }: { menu: CommonMenu; router: RouterT
       style={{
         minHeight: compact ? 58 : 64,
         borderRadius: 10,
-        background: "rgba(251,248,241,0.94)",
+        background: "color-mix(in srgb, var(--surface) 94%, transparent)",
         transition: "border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease",
       }}
       onMouseOver={(e) => {
@@ -1024,7 +1029,7 @@ const compactOutlineButtonStyle: React.CSSProperties = {
   borderWidth: 1,
   fontSize: 13,
   fontWeight: 800,
-  background: "rgba(251,248,241,0.9)",
+  background: "color-mix(in srgb, var(--surface) 90%, transparent)",
 };
 
 // =============================================================
@@ -1038,12 +1043,12 @@ function ExitModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: (
       zIndex: 300, padding: 20,
     }}>
       <div onClick={(e) => e.stopPropagation()} style={{
-        background: "#fff", borderRadius: 20,
+        background: "var(--card)", borderRadius: 20,
         padding: "28px 24px", maxWidth: 360, width: "100%",
         boxShadow: "0 20px 60px rgba(43, 39, 34, 0.25)",
         textAlign: "center", boxSizing: "border-box",
       }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>🙏</div>
+        <div style={{ marginBottom: 12, color: "var(--ink-faint)" }}><HeartHandshake size={44} strokeWidth={1.5} /></div>
         <div className="kr-keep" style={{ fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 8 }}>
           종료하시겠습니까?
         </div>

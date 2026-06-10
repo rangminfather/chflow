@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
+import { FileDown, Save, Trash2, AlertTriangle, User, Users } from "lucide-react";
 
 interface TreeRow {
   plain_id: string;  plain_name: string;  plain_order: number;
@@ -339,8 +340,8 @@ export default function RearrangePage() {
           {dirty && <span style={{ fontSize: 11, color: "#E0C893", fontWeight: 600 }}>● 변경사항 있음</span>}
           <button onClick={() => router.push("/admin/members")} style={{ padding: "8px 14px", background: "var(--ink-mid)", color: "var(--hairline)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>← 회원 관리</button>
           <button onClick={loadTree} style={{ padding: "8px 14px", background: "var(--ink-mid)", color: "var(--hairline)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>↻ 되돌리기</button>
-          <button onClick={openExport} style={{ padding: "8px 14px", background: "#3E6A85", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>📄 내보내기</button>
-          <button onClick={handleSave} disabled={saving} style={{ padding: "8px 18px", background: "linear-gradient(135deg, var(--success), var(--success))", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>{saving ? "저장 중..." : "💾 저장"}</button>
+          <button onClick={openExport} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "#3E6A85", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}><FileDown size={14} strokeWidth={1.8} /> 내보내기</button>
+          <button onClick={handleSave} disabled={saving} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 18px", background: "linear-gradient(135deg, var(--success), var(--success))", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>{saving ? "저장 중..." : <><Save size={15} strokeWidth={1.8} /> 저장</>}</button>
         </div>
       </div>
 
@@ -356,8 +357,8 @@ export default function RearrangePage() {
           border: `2px dashed ${dragOver === "__unplaced__" ? "var(--danger)" : "var(--danger)"}`,
           borderRadius: 12, minHeight: 80,
         }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-soft)", marginBottom: 8 }}>
-          🗑️ 미배치 목장 ({unplaced.length}) — 이곳에 있는 목장은 저장되지 않습니다
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--danger-soft)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+          <Trash2 size={14} strokeWidth={1.8} /> 미배치 목장 ({unplaced.length}) — 이곳에 있는 목장은 저장되지 않습니다
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {unplaced.map(p => (
@@ -464,10 +465,10 @@ export default function RearrangePage() {
           display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20,
         }}>
           <div onClick={(e) => e.stopPropagation()} style={{
-            background: "#fff", color: "var(--ink)", borderRadius: 16, padding: 24,
+            background: "var(--card)", color: "var(--ink)", borderRadius: 16, padding: 24,
             width: "100%", maxWidth: 420,
           }}>
-            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>📄 초원 재편성 내보내기</div>
+            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}><FileDown size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 초원 재편성 내보내기</div>
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 16 }}>출력할 평원을 선택하세요</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
               {plainsSorted.map(pl => (
@@ -498,10 +499,10 @@ export default function RearrangePage() {
           display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20,
         }}>
           <div onClick={(e) => e.stopPropagation()} style={{
-            background: "#fff", color: "var(--ink)", borderRadius: 16, padding: 24,
+            background: "var(--card)", color: "var(--ink)", borderRadius: 16, padding: 24,
             width: "100%", maxWidth: 480, maxHeight: "80vh", overflowY: "auto",
           }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--danger)", marginBottom: 14 }}>⚠️ 저장할 수 없습니다</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--danger)", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 }}><AlertTriangle size={20} strokeWidth={1.8} /> 저장할 수 없습니다</div>
             <div style={{ fontSize: 13, color: "var(--ink-mid)", lineHeight: 1.7, marginBottom: 12 }}>
               <strong>반드시 초원에 배치되어야 합니다.</strong>
               <br />다음 목장이 아직 초원에 배치되지 않았습니다:
@@ -547,15 +548,15 @@ function PastureCard({ pasture, onDragStart, onDelete, compact }: {
         {pasture.leader_photo ? (
           <img src={pasture.leader_photo} alt={pasture.leader_name || ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         ) : (
-          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: "var(--ink-soft)" }}>
-            {pasture.leader_gender === "F" ? "👩" : "👨"}
+          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink-soft)" }}>
+            <User size={Math.round(size * 0.55)} strokeWidth={1.8} />
           </div>
         )}
       </div>
       <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2, flex: 1 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--hairline)" }}>{pasture.name} 목장</div>
         {pasture.leader_name && <div style={{ fontSize: 9, color: "var(--ink-faint)" }}>{pasture.leader_name}{pasture.spouse_name ? `·${pasture.spouse_name}` : ""}</div>}
-        <div style={{ fontSize: 9, color: "var(--ink-soft)" }}>👥 {pasture.member_count}명</div>
+        <div style={{ fontSize: 9, color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", gap: 3 }}><Users size={11} strokeWidth={1.8} /> {pasture.member_count}명</div>
       </div>
       {hover && (
         <button onClick={(e) => { e.stopPropagation(); onDelete(); }}

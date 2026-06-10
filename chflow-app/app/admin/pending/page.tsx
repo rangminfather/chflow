@@ -4,7 +4,8 @@ import { useCallback, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { Hourglass, CheckCircle2, CircleHelp, RefreshCw, Phone, Cake, MapPin, Info } from "lucide-react";
 
 interface PendingUser {
   id: string;
@@ -116,7 +117,7 @@ export default function AdminPendingPage() {
 
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         {/* Header */}
-        <div style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <HeaderLogo />
             <div>
@@ -138,13 +139,13 @@ export default function AdminPendingPage() {
 
         {/* Stats */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
-          <StatCard icon="⏳" label="대기 중" value={pending.length} color="var(--warning)" />
-          <StatCard icon="✅" label="성도 매칭됨" value={pending.filter(p => p.matched_member_id).length} color="var(--success)" />
-          <StatCard icon="❓" label="신규 (매칭 없음)" value={pending.filter(p => !p.matched_member_id).length} color="var(--accent)" />
+          <StatCard icon={<Hourglass size={26} strokeWidth={1.8} color="var(--warning)" />} label="대기 중" value={pending.length} color="var(--warning)" />
+          <StatCard icon={<CheckCircle2 size={26} strokeWidth={1.8} color="var(--success)" />} label="성도 매칭됨" value={pending.filter(p => p.matched_member_id).length} color="var(--success)" />
+          <StatCard icon={<CircleHelp size={26} strokeWidth={1.8} color="var(--accent)" />} label="신규 (매칭 없음)" value={pending.filter(p => !p.matched_member_id).length} color="var(--accent)" />
         </div>
 
         {/* List */}
-        <div style={{ background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
           <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--hairline)", display: "flex", justifyContent: "space-between" }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-mid)" }}>
               가입 신청 목록 ({pending.length}건)
@@ -152,15 +153,12 @@ export default function AdminPendingPage() {
             <button onClick={load} disabled={loading} style={{
               padding: "4px 12px", background: "var(--accent-soft)", color: "var(--accent)",
               border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600,
-              cursor: "pointer", fontFamily: "inherit",
-            }}>{loading ? "로딩..." : "🔄 새로고침"}</button>
+              cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6,
+            }}>{loading ? "로딩..." : <><RefreshCw size={12} strokeWidth={1.8} /> 새로고침</>}</button>
           </div>
 
           {pending.length === 0 && !loading && (
-            <div style={{ textAlign: "center", padding: 60, color: "var(--ink-faint)" }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-              <div style={{ fontSize: 14 }}>대기 중인 가입 신청이 없습니다</div>
-            </div>
+            <EmptyState message="대기 중인 가입 신청이 없습니다" />
           )}
 
           {pending.map((user) => (
@@ -194,16 +192,16 @@ export default function AdminPendingPage() {
                   <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>@{user.username}</div>
                 </div>
                 <div style={{ fontSize: 12, color: "var(--ink-mid)", display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  <span>📞 {user.phone || "-"}</span>
-                  {user.signup_birth_date && <span>🎂 {user.signup_birth_date}</span>}
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Phone size={13} strokeWidth={1.8} /> {user.phone || "-"}</span>
+                  {user.signup_birth_date && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Cake size={13} strokeWidth={1.8} /> {user.signup_birth_date}</span>}
                   {user.signup_gender && <span>{displayGender(user.signup_gender)}</span>}
                   <span style={{
                     padding: "1px 8px", background: "var(--accent-soft)",
                     color: "var(--accent)", borderRadius: 4, fontSize: 11, fontWeight: 600,
                   }}>{user.sub_role || user.role}</span>
                   {user.matched_plain && (
-                    <span style={{ color: "var(--ink-soft)" }}>
-                      📍 {user.matched_plain}평원 · {user.matched_pasture}목장
+                    <span style={{ color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <MapPin size={13} strokeWidth={1.8} /> {user.matched_plain}평원 · {user.matched_pasture}목장
                     </span>
                   )}
                   {user.signup_is_child && (
@@ -266,7 +264,7 @@ export default function AdminPendingPage() {
         </div>
 
         <div style={{ marginTop: 16, padding: "12px 16px", background: "var(--accent-soft)", borderRadius: 10, fontSize: 11, color: "var(--accent-strong)", lineHeight: 1.6 }}>
-          💡 <strong>등록 성도</strong>는 명성교회 요람에 등록된 회원과 매칭된 가입 신청입니다.<br />
+          <Info size={13} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> <strong>등록 성도</strong>는 명성교회 요람에 등록된 회원과 매칭된 가입 신청입니다.<br />
           <strong>신규</strong>는 요람에 없는 신규 가입 신청입니다. 본인 확인 후 승인해주세요.
         </div>
       </div>
@@ -274,10 +272,10 @@ export default function AdminPendingPage() {
   );
 }
 
-function StatCard({ icon, label, value, color }: { icon: string; label: string; value: number; color: string }) {
+function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) {
   return (
     <div style={{
-      background: "#fff",
+      background: "var(--card)",
       borderRadius: 12,
       padding: "16px 20px",
       borderLeft: `4px solid ${color}`,
@@ -285,7 +283,7 @@ function StatCard({ icon, label, value, color }: { icon: string; label: string; 
       alignItems: "center",
       gap: 14,
     }}>
-      <div style={{ fontSize: 28 }}>{icon}</div>
+      <div style={{ display: "flex", alignItems: "center" }}>{icon}</div>
       <div>
         <div style={{ fontSize: 24, fontWeight: 800, color: "var(--ink)" }}>{value}</div>
         <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>{label}</div>

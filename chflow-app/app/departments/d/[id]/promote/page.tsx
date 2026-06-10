@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
+import { Lock, GraduationCap, BookOpen, AlertTriangle } from "lucide-react";
 
 interface PreviewRow {
   student_id: string;
@@ -211,8 +212,8 @@ export default function PromotePage() {
     return (
       <div style={pageStyle}>
         <div style={{ maxWidth: 480, margin: "60px auto", padding: 24 }}>
-          <div style={{ background: "#fff", borderRadius: 16, padding: 28, textAlign: "center" }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+          <div style={{ background: "var(--card)", borderRadius: 16, padding: 28, textAlign: "center" }}>
+            <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><Lock size={40} strokeWidth={1.8} color="var(--ink-faint)" /></div>
             <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>접근 권한이 없습니다</div>
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>진급 마법사는 등급 0~1 (전도사·교육사·부장) 만 가능합니다</div>
             <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtn}>← 부서홈</button>
@@ -226,8 +227,8 @@ export default function PromotePage() {
     return (
       <div style={pageStyle}>
         <div style={{ maxWidth: 520, margin: "60px auto", padding: 24 }}>
-          <div style={{ background: "#fff", borderRadius: 16, padding: 32, textAlign: "center" }}>
-            <div style={{ fontSize: 56, marginBottom: 14 }}>🎓</div>
+          <div style={{ background: "var(--card)", borderRadius: 16, padding: 32, textAlign: "center" }}>
+            <div style={{ marginBottom: 14, display: "flex", justifyContent: "center" }}><GraduationCap size={44} strokeWidth={1.8} color="var(--success)" /></div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 12 }}>{year}년도 진급 완료</div>
             <div style={{ fontSize: 13, color: "var(--ink-mid)", marginBottom: 18, lineHeight: 1.8 }}>
               재학 → 진급: <b>{done.promoted}명</b><br />
@@ -248,7 +249,7 @@ export default function PromotePage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtn}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>🎓 진급 마법사</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><GraduationCap size={18} strokeWidth={1.8} /> 진급 마법사</div>
         <div style={{ width: 60 }} />
       </div>
 
@@ -314,7 +315,7 @@ export default function PromotePage() {
                     {/* 진급 화살표 헤더 */}
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
                       <div style={{
-                        background: "#fff", border: `1.5px solid ${accentBorder}`,
+                        background: "var(--card)", border: `1.5px solid ${accentBorder}`,
                         borderRadius: 10, padding: "8px 14px",
                         fontSize: 18, fontWeight: 800, color: "var(--ink)",
                         minWidth: 70, textAlign: "center",
@@ -333,7 +334,7 @@ export default function PromotePage() {
                       <div style={{ flex: 1, minWidth: 80, textAlign: "right" }}>
                         <span style={{
                           padding: "4px 10px", borderRadius: 999,
-                          background: "#fff", color: accent,
+                          background: "var(--card)", color: accent,
                           fontSize: 12, fontWeight: 700,
                           border: `1.5px solid ${accent}`,
                         }}>
@@ -344,13 +345,14 @@ export default function PromotePage() {
 
                     {/* 처리 방식 안내 */}
                     <div style={{
-                      background: "#fff", borderRadius: 8, padding: "8px 12px",
+                      background: "var(--card)", borderRadius: 8, padding: "8px 12px",
                       marginBottom: 10, fontSize: 12, fontWeight: 600,
                       color: willGrad ? "#8A5526" : "var(--accent-strong)",
+                      display: "flex", alignItems: "center", gap: 6,
                     }}>
                       {willGrad
-                        ? (dest ? `🎓 졸업 → ${dest}으로 전출` : "🎓 졸업 보관 (다음 부서 미지정)")
-                        : "📚 본 부서에서 진급(잔류)"}
+                        ? <><GraduationCap size={14} strokeWidth={1.8} /> {dest ? `졸업 → ${dest}으로 전출` : "졸업 보관 (다음 부서 미지정)"}</>
+                        : <><BookOpen size={14} strokeWidth={1.8} /> 본 부서에서 진급(잔류)</>}
                     </div>
 
                     {/* 학생 이름들 */}
@@ -358,7 +360,7 @@ export default function PromotePage() {
                       {list.map(r => (
                         <span key={r.student_id} style={{
                           display: "inline-block", padding: "4px 10px",
-                          background: "#fff", borderRadius: 999,
+                          background: "var(--card)", borderRadius: 999,
                           fontSize: 12, color: "var(--ink)", fontWeight: 600,
                           border: `1px solid ${accentBorder}`,
                         }}>
@@ -396,7 +398,7 @@ export default function PromotePage() {
                 <div key={g} style={{ marginBottom: 18, paddingBottom: 14, borderBottom: "1px dashed var(--hairline)" }}>
                   {/* 학년 헤더 */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>📚 {g}학년 ({list.length}명)</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><BookOpen size={16} strokeWidth={1.8} /> {g}학년 ({list.length}명)</div>
                     <span style={{ fontSize: 11, color: "var(--ink-soft)" }}>반 수:</span>
                     <input type="number" min={1} max={20} value={cnt}
                       onChange={(e) => changeClassCount(g, parseInt(e.target.value, 10) || 1)}
@@ -444,7 +446,7 @@ export default function PromotePage() {
                               {members.map(r => (
                                 <div key={r.student_id} style={{
                                   display: "flex", alignItems: "center", gap: 8,
-                                  background: "#fff",
+                                  background: "var(--card)",
                                   borderRadius: 8,
                                   padding: "7px 10px",
                                   boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
@@ -519,7 +521,7 @@ export default function PromotePage() {
           <div style={card}>
             <div style={sectionLabel}>4. 확정</div>
             <div style={{ background: "var(--warning-soft)", borderRadius: 8, padding: 14, fontSize: 12, color: "var(--warning)", lineHeight: 1.7, marginBottom: 14 }}>
-              <b>⚠️ 확정 시 일어나는 일</b>
+              <b style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><AlertTriangle size={14} strokeWidth={1.8} /> 확정 시 일어나는 일</b>
               <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
                 <li>모든 학생 학년 +1</li>
                 <li>{year}년도 상태가 이력 테이블에 스냅샷 저장</li>
@@ -560,12 +562,12 @@ export default function PromotePage() {
 }
 
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
-const card: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 18, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const card: React.CSSProperties = { background: "var(--card)", borderRadius: 14, padding: 18, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
 const sectionLabel: React.CSSProperties = { fontSize: 12, fontWeight: 800, color: "var(--ink-mid)", letterSpacing: 0.5, marginBottom: 12 };
 const summaryStyle: React.CSSProperties = { cursor: "pointer", padding: "8px 12px", background: "var(--bg-soft)", borderRadius: 6, fontSize: 12, fontWeight: 700, color: "var(--ink)" };
 const chip: React.CSSProperties = { display: "inline-block", padding: "2px 8px", margin: "2px", background: "var(--accent-soft)", borderRadius: 12, fontSize: 11, color: "var(--accent-strong)" };
-const selectStyle: React.CSSProperties = { padding: "5px 8px", fontSize: 12, border: "1.5px solid var(--hairline-strong)", borderRadius: 6, fontFamily: "inherit", background: "#fff" };
+const selectStyle: React.CSSProperties = { padding: "5px 8px", fontSize: 12, border: "1.5px solid var(--hairline-strong)", borderRadius: 6, fontFamily: "inherit", background: "var(--card)" };
 const smallBtn: React.CSSProperties = { padding: "4px 10px", background: "var(--bg-soft)", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
 const navBtn: React.CSSProperties = { flex: 1, padding: "12px", background: "var(--bg-soft)", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
 const backBtn: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };

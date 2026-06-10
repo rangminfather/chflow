@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { Printer, Search, AlertTriangle, X } from "lucide-react";
 
 interface ManifestItem {
   chapterId: string;
@@ -74,7 +75,7 @@ export default function ManualPage() {
           <div style={headerSub}>초등1부 교육사역국</div>
         </div>
         <button onClick={() => window.print()} style={printBtn} aria-label="PDF 저장">
-          🖨
+          <Printer size={16} strokeWidth={1.8} />
         </button>
       </header>
 
@@ -133,10 +134,10 @@ export default function ManualPage() {
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`/manual/shots/${item.shot}`} alt={item.title} style={shotImg} />
-                  <div style={shotOverlay}>🔍 탭하여 크게 보기</div>
+                  <div style={{ ...shotOverlay, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Search size={14} strokeWidth={1.8} /> 탭하여 크게 보기</div>
                 </div>
               ) : (
-                <div style={noShot}>{item.error ? `⚠ ${item.error}` : "스크린샷 준비 중"}</div>
+                <div style={noShot}>{item.error ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><AlertTriangle size={14} strokeWidth={1.8} /> {item.error}</span> : "스크린샷 준비 중"}</div>
               )}
             </div>
           ))}
@@ -153,7 +154,7 @@ export default function ManualPage() {
             style={lbImg}
             onClick={e => e.stopPropagation()}
           />
-          <button style={lbClose} onClick={() => setLightbox(null)}>✕</button>
+          <button style={lbClose} onClick={() => setLightbox(null)} aria-label="닫기"><X size={20} strokeWidth={1.8} /></button>
         </div>
       )}
 
@@ -199,7 +200,7 @@ const headerStyle: React.CSSProperties = {
   alignItems: "center",
   gap: 4,
   padding: "10px 16px",
-  background: "#fff",
+  background: "var(--card)",
   borderBottom: "1px solid var(--hairline)",
 };
 const headerTitle: React.CSSProperties = {
@@ -231,6 +232,8 @@ const printBtn: React.CSSProperties = {
   padding: "7px 12px",
   fontSize: 16,
   cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
 };
 
 /* 모바일 탭 바 */
@@ -239,7 +242,7 @@ const tabBarWrap: React.CSSProperties = {
   overflowX: "auto",
   gap: 6,
   padding: "10px 14px",
-  background: "#fff",
+  background: "var(--card)",
   borderBottom: "1px solid var(--hairline)",
   scrollbarWidth: "none",
   WebkitOverflowScrolling: "touch",
@@ -312,7 +315,7 @@ const mainStyle: React.CSSProperties = {
   gap: 16,
 };
 const stepCard: React.CSSProperties = {
-  background: "#fff",
+  background: "var(--card)",
   border: "1px solid var(--hairline)",
   borderRadius: 14,
   padding: "18px 16px",

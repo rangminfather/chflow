@@ -262,7 +262,7 @@ const wrapStyle: React.CSSProperties = {
 };
 
 const headerStyle: React.CSSProperties = {
-  background: "#fff",
+  background: "var(--card)",
   border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: "16px 18px",
@@ -317,7 +317,7 @@ const errorStyle: React.CSSProperties = {
 };
 
 const emptyStyle: React.CSSProperties = {
-  background: "#fff",
+  background: "var(--card)",
   border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: 28,
@@ -326,7 +326,7 @@ const emptyStyle: React.CSSProperties = {
 };
 
 const heroStyle: React.CSSProperties = {
-  background: "#fff",
+  background: "var(--card)",
   border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: 18,
@@ -387,7 +387,7 @@ const gridStyle: React.CSSProperties = {
 };
 
 const panelStyle: React.CSSProperties = {
-  background: "#fff",
+  background: "var(--card)",
   border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: 16,

@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { T, PageShell, PageContent } from "@/components/Layout";
 import { LoadingView } from "@/components/StatusViews";
+import { User, Users, Folder, Building2 } from "lucide-react";
 
 interface Department {
   id: string;
@@ -116,13 +117,13 @@ export default function CategoryPage() {
     if (error) { alert(`신청 실패: ${error.message}`); return; }
     setConfirmDept(null);
     setSelectedRole(null);
-    alert("✅ 가입 신청이 완료되었습니다!\n담당 임원진 승인 후 이용하실 수 있습니다.");
+    alert("가입 신청이 완료되었습니다!\n담당 임원진 승인 후 이용하실 수 있습니다.");
     load();
   };
 
   const statusBadge = (status: string | null) => {
     if (status === "approved") return { label: "✓ 가입됨",   bg: "var(--success-soft)", color: "var(--success)" };
-    if (status === "pending")  return { label: "⏳ 승인 대기", bg: "var(--warning-soft)", color: "var(--warning)" };
+    if (status === "pending")  return { label: "승인 대기", bg: "var(--warning-soft)", color: "var(--warning)" };
     if (status === "rejected") return { label: "거절됨",      bg: "var(--danger-soft)", color: "var(--danger)" };
     return null;
   };
@@ -219,7 +220,7 @@ export default function CategoryPage() {
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 22, flexShrink: 0,
                     }}>
-                      {d.icon || "📁"}
+                      {d.icon || <Folder size={20} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
@@ -257,13 +258,13 @@ export default function CategoryPage() {
                           display: "flex", alignItems: "center", justifyContent: "center",
                           fontSize: 14, color: "var(--ink-faint)",
                           border: `1.5px solid ${T.border}`,
-                        }}>👤</div>
+                        }}><User size={16} strokeWidth={1.8} /></div>
                       );
                     })}
                   </div>
 
-                  <div style={{ fontSize: 11, color: T.ministryPoint, fontWeight: 600 }}>
-                    👥 {d.member_count}명 활동 중
+                  <div style={{ fontSize: 11, color: T.ministryPoint, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <Users size={13} strokeWidth={1.8} /> {d.member_count}명 활동 중
                   </div>
                 </div>
               );
@@ -289,7 +290,7 @@ export default function CategoryPage() {
               width: 64, height: 64, borderRadius: 16, background: T.ministryBg,
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 36, margin: "0 auto 16px",
-            }}>{confirmDept.icon || "🏢"}</div>
+            }}>{confirmDept.icon || <Building2 size={32} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />}</div>
             <div style={{ fontSize: 11, color: T.ministryPoint, fontWeight: 700, marginBottom: 4 }}>{confirmDept.category}</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 6 }}>{confirmDept.name}</div>
             {confirmDept.description && (

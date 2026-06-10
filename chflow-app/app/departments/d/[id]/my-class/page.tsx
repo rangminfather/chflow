@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { Baby } from "lucide-react";
 
 interface StudentRow {
   id: string;
@@ -235,10 +236,8 @@ export default function MyClassPage() {
       <div style={pageStyle}>
         <PageHeader deptId={deptId} router={router} myClassName="" />
         <main className="mx-auto max-w-lg px-4 py-14">
-          <div className="rounded-lg border border-hairline bg-white px-6 py-10 text-center">
-            <div className="text-[48px]">🙇</div>
-            <div className="mt-4 text-[18px] font-extrabold text-ink">본인이 담임으로 등록된 반이 없습니다</div>
-            <div className="mt-2 text-[15px] leading-6 text-ink-soft">부장 또는 전도사에게 담임 등록을 요청하세요.</div>
+          <div className="rounded-lg border border-hairline bg-white text-center">
+            <EmptyState message="본인이 담임으로 등록된 반이 없습니다" hint="부장 또는 전도사에게 담임 등록을 요청하세요." />
           </div>
         </main>
       </div>
@@ -383,8 +382,8 @@ function PageHeader({ deptId, router, myClassName }: { deptId: string; router: R
         <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <HeaderLogo />
       </div>
-      <div style={titleStyle}>
-        👶 우리반 아이 정보 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
+      <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <Baby size={18} strokeWidth={1.8} /> 우리반 아이 정보 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
       </div>
       <div style={{ width: 80 }} />
     </div>
@@ -414,7 +413,7 @@ function ReadOnly({ label, value }: { label: string; value: string }) {
 const inputClass = "min-h-11 w-full rounded-md border border-hairline-strong bg-white px-3 py-2 text-[16px] font-bold text-ink outline-none focus:border-amber-400 disabled:bg-bg-soft disabled:text-ink-faint";
 
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)" };
 const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
 const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 14, fontWeight: 700, zIndex: 1100, fontFamily: "inherit", whiteSpace: "nowrap" };

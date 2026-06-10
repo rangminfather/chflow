@@ -3,7 +3,8 @@
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { Vote, CheckCircle2, Clock, Lock, AlertTriangle, PartyPopper } from "lucide-react";
 
 interface VoteRow {
   vote_id: string;
@@ -120,8 +121,7 @@ export default function VoteBallotPage({ params }: { params: Promise<{ id: strin
     return (
       <div style={centerStyle}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 32 }}>🔍</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", marginTop: 8 }}>투표를 찾을 수 없습니다</div>
+          <EmptyState message="투표를 찾을 수 없습니다" />
           <button onClick={() => router.push("/vote")} style={{ ...primaryBtnStyle, marginTop: 16 }}>목록으로</button>
         </div>
       </div>
@@ -137,11 +137,13 @@ export default function VoteBallotPage({ params }: { params: Promise<{ id: strin
 
       {/* 헤더 */}
       <div style={{
-        background: "#fff", borderBottom: "1px solid var(--hairline)",
+        background: "var(--card)", borderBottom: "1px solid var(--hairline)",
         padding: "14px 24px", display: "flex", alignItems: "center", gap: 12,
       }}>
         <button onClick={() => router.push("/vote")} style={iconBtnStyle}>←</button>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>🗳️ 투표 참여</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <Vote size={16} strokeWidth={1.8} /> 투표 참여
+        </div>
       </div>
 
       <div style={{ maxWidth: 560, margin: "24px auto", padding: "0 16px" }}>
@@ -166,7 +168,7 @@ export default function VoteBallotPage({ params }: { params: Promise<{ id: strin
             borderRadius: 14, padding: "16px 20px", marginBottom: 16,
             display: "flex", alignItems: "center", gap: 10,
           }}>
-            <span style={{ fontSize: 24 }}>✅</span>
+            <CheckCircle2 size={24} strokeWidth={1.8} style={{ color: "var(--success)", flexShrink: 0 }} />
             <div>
               <div style={{ fontSize: 14, fontWeight: 800, color: "var(--success)" }}>투표를 완료했습니다</div>
               {myCandidateId && (
@@ -185,8 +187,11 @@ export default function VoteBallotPage({ params }: { params: Promise<{ id: strin
             background: "var(--bg-soft)", border: "1px solid var(--hairline)",
             borderRadius: 14, padding: "14px 18px", marginBottom: 16,
             fontSize: 13, color: "var(--ink-soft)",
+            display: "inline-flex", alignItems: "center", gap: 6, width: "100%",
           }}>
-            {ended ? "⏰ 투표 기간이 종료되었습니다." : "🔒 현재 투표가 활성화되지 않았습니다."}
+            {ended
+              ? <><Clock size={14} strokeWidth={1.8} /> 투표 기간이 종료되었습니다.</>
+              : <><Lock size={14} strokeWidth={1.8} /> 현재 투표가 활성화되지 않았습니다.</>}
           </div>
         )}
 
@@ -222,7 +227,7 @@ export default function VoteBallotPage({ params }: { params: Promise<{ id: strin
                     background: highlighted ? "var(--accent)" : "#fff",
                     display: "flex", alignItems: "center", justifyContent: "center",
                   }}>
-                    {highlighted && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
+                    {highlighted && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--card)" }} />}
                   </div>
 
                   {/* 후보 번호 */}
@@ -263,7 +268,8 @@ export default function VoteBallotPage({ params }: { params: Promise<{ id: strin
             background: "var(--danger-soft)", border: "1px solid var(--danger-soft)",
             borderRadius: 10, padding: "12px 16px", marginBottom: 12,
             fontSize: 13, color: "var(--danger)",
-          }}>⚠️ {error}</div>
+            display: "inline-flex", alignItems: "center", gap: 6, width: "100%",
+          }}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>
         )}
 
         {/* 투표 완료 성공 메시지 */}
@@ -272,7 +278,8 @@ export default function VoteBallotPage({ params }: { params: Promise<{ id: strin
             background: "var(--success-soft)", border: "1px solid #BCD6C1",
             borderRadius: 10, padding: "12px 16px", marginBottom: 12,
             fontSize: 13, color: "var(--success)", fontWeight: 700,
-          }}>🎉 투표가 완료되었습니다!</div>
+            display: "inline-flex", alignItems: "center", gap: 6, width: "100%",
+          }}><PartyPopper size={14} strokeWidth={1.8} /> 투표가 완료되었습니다!</div>
         )}
 
         {/* 제출 버튼 */}

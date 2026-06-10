@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
+import { ClipboardList, BookOpen, Trash2 } from "lucide-react";
 
 interface Student {
   id: string;
@@ -239,7 +240,7 @@ export default function AttendancePage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>📋 출결 (학생출석부)</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><ClipboardList size={18} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 출결 (학생출석부)</div>
         <button onClick={() => setShowAddForm(!showAddForm)} style={addBtnStyle}>+ 학생 추가</button>
       </div>
 
@@ -349,7 +350,7 @@ export default function AttendancePage() {
                             borderTop: "2px solid var(--accent-line)",
                             borderBottom: "1px solid var(--accent-line)",
                           }}>
-                            📚 {className}반 <span style={{ color: "var(--ink-soft)", fontWeight: 600, fontSize: 11, marginLeft: 8 }}>· 담임 {teacherName} · {count}명</span>
+                            <BookOpen size={14} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> {className}반 <span style={{ color: "var(--ink-soft)", fontWeight: 600, fontSize: 11, marginLeft: 8 }}>· 담임 {teacherName} · {count}명</span>
                           </td>
                         </tr>
                       );
@@ -439,7 +440,7 @@ export default function AttendancePage() {
                         <button
                           onClick={() => deleteStudent(s.id, s.name)}
                           style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", fontSize: 14 }}
-                        >🗑</button>
+                        ><Trash2 size={14} strokeWidth={1.8} /></button>
                       </td>
                     </tr>
                     );
@@ -483,8 +484,8 @@ function nextMonth(year: number, month: number, setYear: (y: number) => void, se
   else setMonth(month + 1);
 }
 
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
-const cardStyle: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const cardStyle: React.CSSProperties = { background: "var(--card)", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
 const inputStyle: React.CSSProperties = { padding: "9px 12px", border: "1.5px solid var(--hairline)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
 const sectionLabel: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.5, marginBottom: 10 };
 const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };

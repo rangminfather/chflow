@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { Lock, Hourglass, FolderUp, CheckCircle2, XCircle, FileText, BookOpen } from "lucide-react";
 
 interface ReviewFile {
   path: string;
@@ -123,10 +124,8 @@ export default function ReviewUploadPage() {
       <div style={pageStyle}>
         <PageHeader deptId={deptId} router={router} />
         <main className="mx-auto max-w-lg px-4 py-14">
-          <div className="rounded-lg border border-hairline bg-white px-6 py-10 text-center">
-            <div className="text-[48px]">🔒</div>
-            <div className="mt-4 text-[18px] font-extrabold text-ink">복습문제 관리 권한이 없습니다</div>
-            <div className="mt-2 text-[15px] leading-6 text-ink-soft">교육사 / 전도사 이상 권한이 필요합니다.</div>
+          <div className="rounded-lg border border-hairline bg-white text-center">
+            <EmptyState icon={<Lock size={24} strokeWidth={1.8} />} message="복습문제 관리 권한이 없습니다" hint="교육사 / 전도사 이상 권한이 필요합니다." />
           </div>
         </main>
       </div>
@@ -157,7 +156,7 @@ export default function ReviewUploadPage() {
               ${uploading ? "border-hairline-strong bg-surface cursor-default" : "border-accent-line bg-accent-soft hover:bg-accent-soft cursor-pointer"}
               p-8 text-center transition-colors
             `}>
-              <div className="text-[32px]">{uploading ? "⏳" : "📁"}</div>
+              <div>{uploading ? <Hourglass size={30} strokeWidth={1.8} /> : <FolderUp size={30} strokeWidth={1.8} />}</div>
               <div className="text-[15px] font-extrabold text-accent-strong">
                 {uploading ? "업로드 중..." : "PPTX 파일 선택 (복수 가능)"}
               </div>
@@ -176,8 +175,8 @@ export default function ReviewUploadPage() {
 
         {/* 메시지 토스트 */}
         {message && (
-          <div className={`rounded-lg px-4 py-3 text-[14px] font-bold ${message.ok ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
-            {message.ok ? "✅ " : "❌ "}{message.text}
+          <div className={`flex items-center gap-2 rounded-lg px-4 py-3 text-[14px] font-bold ${message.ok ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+            {message.ok ? <CheckCircle2 size={16} strokeWidth={1.8} /> : <XCircle size={16} strokeWidth={1.8} />}{message.text}
           </div>
         )}
 
@@ -204,17 +203,13 @@ export default function ReviewUploadPage() {
           {loading ? (
             <div className="py-12 text-center text-[14px] text-ink-faint">불러오는 중...</div>
           ) : files.length === 0 ? (
-            <div className="py-12 text-center">
-              <div className="text-[36px]">📭</div>
-              <div className="mt-3 text-[15px] font-bold text-ink-soft">등록된 복습문제가 없습니다</div>
-              <div className="mt-1 text-[13px] text-ink-faint">위에서 PPTX 파일을 업로드하세요</div>
-            </div>
+            <EmptyState message="등록된 복습문제가 없습니다" hint="위에서 PPTX 파일을 업로드하세요" />
           ) : (
             <ul className="divide-y divide-hairline">
               {files.map((file) => (
                 <li key={file.path} className="flex items-center gap-3 px-5 py-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-accent-soft flex items-center justify-center text-[18px]">
-                    📄
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-accent-soft flex items-center justify-center text-accent-strong">
+                    <FileText size={18} strokeWidth={1.8} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -261,13 +256,13 @@ function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typ
         <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <HeaderLogo />
       </div>
-      <div style={titleStyle}>📚 복습문제 관리</div>
+      <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}><BookOpen size={18} strokeWidth={1.8} /> 복습문제 관리</div>
       <div style={{ width: 80 }} />
     </div>
   );
 }
 
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)" };
 const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };

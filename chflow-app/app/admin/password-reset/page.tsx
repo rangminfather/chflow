@@ -4,6 +4,8 @@ import { useCallback, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { EmptyState } from "@/components/StatusViews";
+import { KeyRound, AlertTriangle, CheckCircle2, ClipboardList, ScrollText } from "lucide-react";
 
 interface UserSearchResult {
   id: string;
@@ -115,11 +117,11 @@ export default function PasswordResetPage() {
       <div style={{ maxWidth: 800, margin: "0 auto", padding: "20px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button onClick={() => router.push("/home")} style={btnGhost}>←</button>
-          <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0 }}>🔐 비밀번호 초기화 (관리자)</h1>
+          <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0, display: "flex", alignItems: "center", gap: 6 }}><KeyRound size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 비밀번호 초기화 (관리자)</h1>
         </div>
 
-        <div style={{ background: "var(--warning-soft)", border: "1px solid #E0C893", borderRadius: 8, padding: 12, fontSize: 12, color: "var(--warning)", marginBottom: 16, lineHeight: 1.6 }}>
-          ⚠️ 사용자 비밀번호 초기화는 <strong>모두 audit log 에 기록</strong>됩니다 (누가/언제/누구). 임시 비밀번호 발급 후 사용자가 첫 로그인 시 새 비밀번호로 변경하도록 강제됩니다.
+        <div style={{ background: "var(--warning-soft)", border: "1px solid #E0C893", borderRadius: 8, padding: 12, fontSize: 12, color: "var(--warning)", marginBottom: 16, lineHeight: 1.6, display: "flex", alignItems: "flex-start", gap: 6 }}>
+          <AlertTriangle size={15} strokeWidth={1.8} style={{ flexShrink: 0, marginTop: 2 }} /><span>사용자 비밀번호 초기화는 <strong>모두 audit log 에 기록</strong>됩니다 (누가/언제/누구). 임시 비밀번호 발급 후 사용자가 첫 로그인 시 새 비밀번호로 변경하도록 강제됩니다.</span>
         </div>
 
         <div style={card}>
@@ -180,7 +182,7 @@ export default function PasswordResetPage() {
             <div style={{ marginTop: 12, display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button onClick={() => setSelectedUser(null)} style={btnGhost}>취소</button>
               <button onClick={doReset} disabled={resetting} style={btnDanger}>
-                {resetting ? "처리 중..." : `🔐 ${selectedUser.name} 비번 초기화`}
+                {resetting ? "처리 중..." : <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><KeyRound size={15} strokeWidth={1.8} /> {selectedUser.name} 비번 초기화</span>}
               </button>
             </div>
           </div>
@@ -188,27 +190,27 @@ export default function PasswordResetPage() {
 
         {resetResult && (
           <div style={{ ...card, background: "var(--success-soft)", border: "2px solid var(--success)" }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--success)", marginBottom: 8 }}>✅ 임시 비밀번호 발급 완료</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--success)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><CheckCircle2 size={16} strokeWidth={1.8} /> 임시 비밀번호 발급 완료</div>
             <div style={{ fontSize: 13, color: "var(--ink)", marginBottom: 4 }}>
               사용자: <strong>{resetResult.name}</strong> ({resetResult.username})
             </div>
             <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 12 }}>
               임시 비밀번호를 사용자에게 안전한 채널 (SMS/카카오톡 등) 로 전달하세요.
             </div>
-            <div style={{ background: "#fff", border: "1px solid var(--hairline-strong)", borderRadius: 8, padding: "10px 12px", fontFamily: "ui-monospace, monospace", fontSize: 18, fontWeight: 800, color: "var(--ink)", textAlign: "center", marginBottom: 8, letterSpacing: 2 }}>
+            <div style={{ background: "var(--card)", border: "1px solid var(--hairline-strong)", borderRadius: 8, padding: "10px 12px", fontFamily: "ui-monospace, monospace", fontSize: 18, fontWeight: 800, color: "var(--ink)", textAlign: "center", marginBottom: 8, letterSpacing: 2 }}>
               {resetResult.tempPw}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={copyTempPw} style={{ ...btnPrimary, flex: 1 }}>📋 복사</button>
+              <button onClick={copyTempPw} style={{ ...btnPrimary, flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}><ClipboardList size={15} strokeWidth={1.8} /> 복사</button>
               <button onClick={() => setResetResult(null)} style={btnGhost}>닫기</button>
             </div>
           </div>
         )}
 
         <div style={card}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>📋 최근 초기화 이력</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><ScrollText size={16} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 최근 초기화 이력</div>
           {logs.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: 12 }}>이력 없음</div>
+            <EmptyState padding={20} message="초기화 이력이 없습니다" />
           ) : (
             <div style={{ fontSize: 12, color: "var(--ink-mid)" }}>
               {logs.map((log) => (
@@ -229,7 +231,7 @@ export default function PasswordResetPage() {
   );
 }
 
-const card: React.CSSProperties = { background: "#fff", borderRadius: 12, padding: 16, marginBottom: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
+const card: React.CSSProperties = { background: "var(--card)", borderRadius: 12, padding: 16, marginBottom: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
 const input: React.CSSProperties = { flex: 1, padding: "10px 12px", border: "1px solid var(--hairline-strong)", borderRadius: 8, fontSize: 13, fontFamily: "inherit" };
 const btnPrimary: React.CSSProperties = { padding: "10px 16px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const btnDanger: React.CSSProperties = { padding: "10px 16px", background: "var(--danger)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };

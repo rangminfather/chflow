@@ -114,7 +114,7 @@ export default function PrivacyPage() {
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(135deg, #EFF5F7 0%, var(--warning-soft) 100%)",
+  background: "linear-gradient(135deg, var(--info-soft) 0%, var(--warning-soft) 100%)",
   display: "flex",
   alignItems: "flex-start",
   justifyContent: "center",
@@ -125,7 +125,7 @@ const pageStyle: React.CSSProperties = {
 const cardStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: 560,
-  background: "rgba(255,255,255,0.95)",
+  background: "color-mix(in srgb, var(--card) 95%, transparent)",
   backdropFilter: "blur(20px)",
   WebkitBackdropFilter: "blur(20px)",
   borderRadius: 24,

@@ -11,6 +11,7 @@ import {
   formatPhone,
 } from "@/lib/supabase";
 import ModalBackdrop from "@/components/ModalBackdrop";
+import { CheckCircle2, Users, User, AlertTriangle, Lightbulb, MousePointerClick, Eye, EyeOff } from "lucide-react";
 
 type Step = "lookup" | "confirm" | "role" | "info" | "done";
 type RoleGroupId = "clergy" | "coworkers" | "permanent" | "members" | "nextgen";
@@ -630,7 +631,7 @@ export default function SignupPage() {
     return (
       <div style={pageStyle}>
         <div style={cardStyle}>
-          <div style={{ fontSize: 64, marginBottom: 20, textAlign: "center" }}>🙏</div>
+          <div style={{ marginBottom: 20, textAlign: "center", color: "var(--success)" }}><CheckCircle2 size={44} strokeWidth={1.5} /></div>
           <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)", marginBottom: 12, textAlign: "center" }}>
             가입 신청 완료!
           </div>
@@ -704,8 +705,8 @@ export default function SignupPage() {
 
             {noPhone && (
               <div style={{ padding: "14px", background: "var(--warning-soft)", border: "1.5px dashed #E0C893", borderRadius: 12, marginBottom: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", marginBottom: 10 }}>
-                  👨‍👩‍👧 부모님 정보 (본인 확인용)
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", marginBottom: 10, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <Users size={14} strokeWidth={1.8} /> 부모님 정보 (본인 확인용)
                 </div>
                 <div style={{ marginBottom: 10 }}>
                   <label style={labelStyle}>부모님 이름 *</label>
@@ -734,7 +735,7 @@ export default function SignupPage() {
             )}
 
             {error && (
-              <div style={errorStyle}>⚠️ {error}</div>
+              <div style={{ ...errorStyle, display: "inline-flex", alignItems: "center", gap: 6, width: "100%" }}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>
             )}
 
             <button type="submit" disabled={loading} style={primaryBtnStyle}>
@@ -743,7 +744,7 @@ export default function SignupPage() {
           </form>
 
           <div className="auth-muted-panel" style={{ marginTop: 20 }}>
-            💡 명성교회 성도이신 경우 등록된 정보를 자동으로 불러옵니다.<br />
+            <Lightbulb size={13} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} />명성교회 성도이신 경우 등록된 정보를 자동으로 불러옵니다.<br />
             등록되어 있지 않으시면 신규 가입으로 진행됩니다.
           </div>
         </div>
@@ -789,8 +790,8 @@ export default function SignupPage() {
               <div style={{
                 width: 56, height: 56, borderRadius: "50%",
                 background: "var(--accent-soft)", display: matched.photo_url ? "none" : "flex", alignItems: "center",
-                justifyContent: "center", fontSize: 28,
-              }}>👤</div>
+                justifyContent: "center", color: "var(--ink-faint)",
+              }}><User size={28} strokeWidth={1.8} /></div>
               <div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)" }}>
                   {matched.name} <span style={{ fontSize: 14, color: "var(--accent)", marginLeft: 6 }}>{matched.sub_role || matched.family_church}</span>
@@ -835,7 +836,7 @@ export default function SignupPage() {
             </div>
           </div>
 
-          {error && <div style={errorStyle}>⚠️ {error}</div>}
+          {error && <div style={{ ...errorStyle, display: "inline-flex", alignItems: "center", gap: 6, width: "100%" }}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>}
 
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={handleConfirmNo} style={{ ...secondaryBtnStyle, flex: 1 }}>
@@ -975,7 +976,7 @@ export default function SignupPage() {
               onClick={() => setStep("role")}
               style={{
                 padding: "6px 12px",
-                background: "#fff",
+                background: "var(--card)",
                 border: "1px solid var(--accent)",
                 borderRadius: 8,
                 fontSize: 11,
@@ -1002,7 +1003,7 @@ export default function SignupPage() {
               cursor: "pointer",
             }}
           >
-            <div style={{ fontSize: 24, marginBottom: 6 }}>👆</div>
+            <div style={{ marginBottom: 6, color: "var(--danger)" }}><MousePointerClick size={24} strokeWidth={1.8} /></div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--danger)" }}>
               직분을 선택해주세요 (필수)
             </div>
@@ -1133,7 +1134,7 @@ export default function SignupPage() {
                       width: 56,
                       border: "1px solid rgba(43, 39, 34, 0.14)",
                       borderRadius: 8,
-                      background: "#fff",
+                      background: "var(--card)",
                       color: "var(--ink-soft)",
                       fontSize: 12,
                       fontWeight: 800,
@@ -1219,8 +1220,8 @@ export default function SignupPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="8자 이상 (문자, 숫자, 기호 조합 권장)" style={{ ...inputStyle, paddingRight: 44 }} />
               <button type="button" onClick={() => setShowPassword(!showPassword)}
-                style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 14, padding: 6 }}>
-                {showPassword ? "🙈" : "👁️"}
+                style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 6, display: "inline-flex", alignItems: "center", color: "var(--ink-soft)" }}>
+                {showPassword ? <EyeOff size={16} strokeWidth={1.8} /> : <Eye size={16} strokeWidth={1.8} />}
               </button>
             </div>
           </div>
@@ -1266,7 +1267,7 @@ export default function SignupPage() {
             )}
           </div>
 
-          {error && <div style={errorStyle}>⚠️ {error}</div>}
+          {error && <div style={{ ...errorStyle, display: "inline-flex", alignItems: "center", gap: 6, width: "100%" }}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>}
 
           <button type="submit" disabled={loading} style={primaryBtnStyle}>
             {loading ? "가입 신청 중..." : "가입 신청"}
@@ -1349,7 +1350,7 @@ function SubRoleModal({ role, onSelect, onClose }: { role: Role; onSelect: (labe
       justifyContent: "center", zIndex: 100, padding: 16,
     }}>
       <div onClick={(e) => e.stopPropagation()} style={{
-        background: "rgba(255, 253, 248, 0.96)", borderRadius: 8, padding: "24px 20px",
+        background: "color-mix(in srgb, var(--surface) 96%, transparent)", borderRadius: 8, padding: "24px 20px",
         width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto",
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
       }}>
@@ -1432,7 +1433,7 @@ function maskAddress(addr: string): string {
 // ============ Styles ============
 const pageStyle: React.CSSProperties = {
   minHeight: "100svh",
-  background: "linear-gradient(160deg, #f7f4ec 0%, #eef5f1 48%, var(--info-soft) 100%)",
+  background: "linear-gradient(160deg, var(--bg) 0%, var(--accent-soft) 48%, var(--info-soft) 100%)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -1443,7 +1444,7 @@ const pageStyle: React.CSSProperties = {
 const cardStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: 420,
-  background: "rgba(255, 253, 248, 0.92)",
+  background: "color-mix(in srgb, var(--surface) 92%, transparent)",
   backdropFilter: "blur(16px)",
   WebkitBackdropFilter: "blur(16px)",
   borderRadius: 8,
@@ -1464,7 +1465,7 @@ const inputStyle: React.CSSProperties = {
   height: 54,
   padding: "0 16px",
   fontSize: 15,
-  background: "rgba(255, 255, 255, 0.86)",
+  background: "color-mix(in srgb, var(--card) 86%, transparent)",
   border: "1px solid rgba(43, 39, 34, 0.14)",
   borderRadius: 8,
   outline: "none",
@@ -1484,7 +1485,7 @@ const pastureSuggestStyle: React.CSSProperties = {
   right: 0,
   maxHeight: 280,
   overflowY: "auto",
-  background: "#fff",
+  background: "var(--card)",
   border: "1px solid rgba(43, 39, 34, 0.14)",
   borderRadius: 8,
   boxShadow: "0 14px 34px rgba(43, 39, 34, 0.14)",
@@ -1497,7 +1498,7 @@ const pastureOptionStyle: React.CSSProperties = {
   padding: "9px 10px",
   border: "none",
   borderRadius: 7,
-  background: "#fff",
+  background: "var(--card)",
   display: "flex",
   flexDirection: "column",
   alignItems: "flex-start",
@@ -1532,7 +1533,7 @@ const addressSearchBackdropStyle: React.CSSProperties = {
 
 const addressSearchPanelStyle: React.CSSProperties = {
   width: "min(640px, calc(100vw - 8px))",
-  background: "#fff",
+  background: "var(--card)",
   borderRadius: 8,
   overflow: "visible",
   boxShadow: "0 22px 70px rgba(43, 39, 34, 0.3)",

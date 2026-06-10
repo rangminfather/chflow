@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
+import { Medal, Lock } from "lucide-react";
 
 interface Rule {
   id: string;
@@ -128,8 +129,8 @@ export default function TalentRulesPage() {
     return (
       <div style={pageStyle}>
         <div style={{ maxWidth: 480, margin: "60px auto", padding: 24 }}>
-          <div style={{ background: "#fff", borderRadius: 16, padding: 28, textAlign: "center" }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🏅</div>
+          <div style={{ background: "var(--card)", borderRadius: 16, padding: 28, textAlign: "center" }}>
+            <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><Medal size={40} strokeWidth={1.8} color="var(--ink-faint)" /></div>
             <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>달란트 규칙 미설정</div>
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>부장(grade 0~1) 만 규칙을 등록·수정할 수 있습니다</div>
             <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtn}>← 부서홈</button>
@@ -149,7 +150,7 @@ export default function TalentRulesPage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtn}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>🏅 달란트 규칙</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Medal size={18} strokeWidth={1.8} /> 달란트 규칙</div>
         <div style={{ width: 60 }} />
       </div>
 
@@ -169,7 +170,7 @@ export default function TalentRulesPage() {
         </div>
 
         {/* 안내 */}
-        <div style={{ background: "#fff", borderRadius: 10, padding: "10px 14px", marginBottom: 12, fontSize: 11, color: "var(--ink-soft)", lineHeight: 1.7 }}>
+        <div style={{ background: "var(--card)", borderRadius: 10, padding: "10px 14px", marginBottom: 12, fontSize: 11, color: "var(--ink-soft)", lineHeight: 1.7 }}>
           {KIND_TABS.find(t => t.value === tab)?.desc}
         </div>
 
@@ -227,8 +228,8 @@ export default function TalentRulesPage() {
         </div>
 
         {!canEdit && (
-          <div style={{ marginTop: 14, fontSize: 11, color: "var(--ink-faint)", textAlign: "center" }}>
-            🔒 규칙 편집은 부장(등급 0~1) 권한이 필요합니다.
+          <div style={{ marginTop: 14, fontSize: 11, color: "var(--ink-faint)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+            <Lock size={12} strokeWidth={1.8} /> 규칙 편집은 부장(등급 0~1) 권한이 필요합니다.
           </div>
         )}
       </div>
@@ -310,8 +311,8 @@ export default function TalentRulesPage() {
 }
 
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
-const card: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const card: React.CSSProperties = { background: "var(--card)", borderRadius: 14, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
 const sectionLabel: React.CSSProperties = { fontSize: 12, fontWeight: 800, color: "var(--ink-mid)", letterSpacing: 0.5 };
 const backBtn: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
 const primaryBtn: React.CSSProperties = { padding: "10px 20px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
@@ -320,5 +321,5 @@ const smallBtn: React.CSSProperties = { padding: "5px 10px", background: "var(--
 const lbl: React.CSSProperties = { display: "block", fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", marginTop: 8, marginBottom: 4 };
 const input: React.CSSProperties = { width: "100%", padding: "8px 10px", fontSize: 13, border: "1.5px solid var(--hairline-strong)", borderRadius: 8, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 8 };
 const modalBackdrop: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(43, 39, 34,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 };
-const modalBox: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 20, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto", fontFamily: "inherit" };
+const modalBox: React.CSSProperties = { background: "var(--card)", borderRadius: 14, padding: 20, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto", fontFamily: "inherit" };
 const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 1100, fontFamily: "inherit", whiteSpace: "nowrap" };

@@ -3,6 +3,7 @@ import { useState } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase";
 import ModalBackdrop from "./ModalBackdrop";
+import { Download, Upload, Paperclip, AlertTriangle } from "lucide-react";
 
 // =============================================================
 // 회원정보 백업 모달
@@ -210,7 +211,7 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
   return (
     <ModalBackdrop onClose={onClose} style={modalBg}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...modal, maxWidth: 480 }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>📥 회원정보 백업</div>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}><Download size={20} strokeWidth={1.8} /> 회원정보 백업</div>
         <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 16 }}>
           포함할 데이터를 선택하세요. 엑셀(.xlsx)로 다운로드됩니다.
         </div>
@@ -418,7 +419,7 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
   return (
     <ModalBackdrop onClose={() => { if (!busy) onClose(); }} style={modalBg}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...modal, maxWidth: 720 }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>📤 회원정보 일괄업로드</div>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}><Upload size={20} strokeWidth={1.8} /> 회원정보 일괄업로드</div>
 
         {step === "select" && (
           <>
@@ -431,22 +432,22 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
               <input type="file" accept=".xlsx,.xls"
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
                 style={{ ...input, marginTop: 4, padding: 8 }} />
-              {file && <div style={{ fontSize: 11, color: "var(--ink-mid)", marginTop: 4 }}>📎 {file.name} ({(file.size / 1024).toFixed(1)} KB)</div>}
+              {file && <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--ink-mid)", marginTop: 4 }}><Paperclip size={13} strokeWidth={1.8} /> {file.name} ({(file.size / 1024).toFixed(1)} KB)</div>}
             </div>
 
             <div style={{ marginBottom: 14 }}>
               <label style={lbl}>업로드 모드</label>
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
                 <ModeOption value={3} cur={mode} onClick={() => setMode(3)}
-                  badge="⭐⭐ 가장 추천" tone="ok"
+                  badge="가장 추천" tone="ok"
                   title="차이 미리보기 → 확인 후 적용"
                   desc="UPDATE + INSERT 만. 엑셀에 없는 행은 삭제 안 함." />
                 <ModeOption value={2} cur={mode} onClick={() => setMode(2)}
-                  badge="⭐ 추천 (가장 안전)" tone="info"
+                  badge="추천 (가장 안전)" tone="info"
                   title="id 일치 행만 UPDATE"
                   desc="신규 추가/삭제 모두 무시. 기존 데이터 수정만." />
                 <ModeOption value={1} cur={mode} onClick={() => setMode(1)}
-                  badge="⚠️ 비추천" tone="danger"
+                  badge="비추천" tone="danger"
                   title="전체 덮어쓰기"
                   desc="엑셀에 없는 모든 행을 DB에서 삭제. 사고 위험." />
               </div>
@@ -521,9 +522,10 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
               <button onClick={() => { setStep("select"); setDiffs(null); }} disabled={busy} style={{ ...btnGhost, flex: 1, padding: 12 }}>← 다시 선택</button>
               <button onClick={apply} disabled={busy} style={{
                 ...btnPrimary, flex: 1, padding: 12,
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
                 background: mode === 1 ? "linear-gradient(135deg, var(--danger), var(--danger))" : btnPrimary.background,
               }}>
-                {busy ? "적용 중..." : `${mode === 1 ? "⚠️ " : ""}적용`}
+                {busy ? "적용 중..." : <>{mode === 1 && <AlertTriangle size={14} strokeWidth={1.8} />}적용</>}
               </button>
             </div>
           </>
@@ -663,13 +665,13 @@ const modalBg: React.CSSProperties = {
   display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20,
 };
 const modal: React.CSSProperties = {
-  background: "#fff", borderRadius: 16, padding: 24,
+  background: "var(--card)", borderRadius: 16, padding: 24,
   width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto",
 };
 const input: React.CSSProperties = {
   width: "100%", padding: "10px 12px", fontSize: 13,
   border: "1.5px solid var(--hairline)", borderRadius: 8, outline: "none",
-  color: "var(--ink)", boxSizing: "border-box", fontFamily: "inherit", background: "#fff",
+  color: "var(--ink)", boxSizing: "border-box", fontFamily: "inherit", background: "var(--card)",
 };
 const lbl: React.CSSProperties = { fontSize: 11, color: "var(--ink-mid)", fontWeight: 700 };
 const btnPrimary: React.CSSProperties = {

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, normalizePhone, formatPhone } from "@/lib/supabase";
+import { AlertTriangle } from "lucide-react";
 
 export default function FindIdPage() {
   const router = useRouter();
@@ -79,7 +80,9 @@ export default function FindIdPage() {
           </div>
 
           {error && (
-            <div style={errorStyle}>⚠️ {error}</div>
+            <div style={{ ...errorStyle, display: "inline-flex", alignItems: "center", gap: 6, width: "100%" }}>
+              <AlertTriangle size={14} strokeWidth={1.8} /> {error}
+            </div>
           )}
 
           <button type="submit" disabled={loading} style={primaryBtnStyle}>
@@ -142,7 +145,7 @@ const inputStyle: React.CSSProperties = {
   height: 54,
   padding: "0 16px",
   fontSize: 15,
-  background: "rgba(255, 255, 255, 0.86)",
+  background: "color-mix(in srgb, var(--card) 86%, transparent)",
   border: "1px solid rgba(43, 39, 34, 0.14)",
   borderRadius: 8,
   outline: "none",

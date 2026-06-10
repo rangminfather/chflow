@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { Vote as VoteIcon, UserPlus, UserCog, BarChart3, Pencil, Trash2, CalendarDays, User, Info } from "lucide-react";
 
 interface Vote {
   id: string;
@@ -351,13 +352,13 @@ export default function AdminVotesPage() {
 
       {/* 헤더 */}
       <div style={{
-        background: "#fff", borderBottom: "1px solid var(--hairline)",
+        background: "var(--card)", borderBottom: "1px solid var(--hairline)",
         padding: "14px 24px", display: "flex", alignItems: "center", gap: 12,
       }}>
         <button onClick={() => router.push("/home")} style={iconBtnStyle}>←</button>
         <HeaderLogo />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>🗳️ 투표 관리</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 6 }}><VoteIcon size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 투표 관리</div>
           <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>전자투표</div>
         </div>
         <button onClick={openCreate} style={primaryBtnStyle}>
@@ -371,13 +372,15 @@ export default function AdminVotesPage() {
           <LoadingView padding={48} label="불러오는 중..." />
         ) : votes.length === 0 ? (
           <div style={{
-            textAlign: "center", padding: 48, background: "#fff",
-            borderRadius: 16, border: "1px solid var(--hairline)", color: "var(--ink-faint)",
+            background: "var(--card)",
+            borderRadius: 16, border: "1px solid var(--hairline)",
           }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>🗳️</div>
-            <div style={{ fontWeight: 700 }}>등록된 투표가 없습니다</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>상단 <b style={{ color: "var(--accent)" }}>+ 새 투표 만들기</b> 버튼으로 먼저 투표를 생성해 주세요.</div>
-            <div style={{ fontSize: 12, marginTop: 6, color: "var(--ink-soft)" }}>후보자 등록은 투표 만들기 후 등록 가능합니다.</div>
+            <EmptyState
+              padding={48}
+              icon={<VoteIcon size={24} strokeWidth={1.6} />}
+              message="등록된 투표가 없습니다"
+              hint="상단 '+ 새 투표 만들기' 버튼으로 먼저 투표를 생성해 주세요. 후보자 등록은 투표 만들기 후 가능합니다."
+            />
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -409,7 +412,7 @@ export default function AdminVotesPage() {
 
               return (
                 <div key={vote.id} style={{
-                  background: "#fff", borderRadius: 16, border: "1px solid var(--hairline)",
+                  background: "var(--card)", borderRadius: 16, border: "1px solid var(--hairline)",
                   padding: "20px 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
                 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
@@ -425,9 +428,9 @@ export default function AdminVotesPage() {
                         <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 6 }}>{vote.description}</div>
                       )}
                       <div style={{ fontSize: 11, color: "var(--ink-faint)", display: "flex", gap: 12, flexWrap: "wrap" }}>
-                        <span>📅 {fmtKST(vote.start_at)} ~ {fmtKST(vote.end_at)}</span>
-                        <span>👤 후보 {vote.candidate_count}명</span>
-                        <span>🗳️ 투표 {vote.ballot_count}표</span>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><CalendarDays size={13} strokeWidth={1.8} /> {fmtKST(vote.start_at)} ~ {fmtKST(vote.end_at)}</span>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><User size={13} strokeWidth={1.8} /> 후보 {vote.candidate_count}명</span>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><VoteIcon size={13} strokeWidth={1.8} /> 투표 {vote.ballot_count}표</span>
                       </div>
                     </div>
 
@@ -444,13 +447,13 @@ export default function AdminVotesPage() {
                         {vote.is_active ? "⏸ 비활성" : "▶ 활성화"}
                       </button>
                       <button onClick={() => openAddCandidate(vote)} style={smallBtnStyle}>
-                        ➕ 후보 등록
+                        <UserPlus size={14} strokeWidth={1.8} /> 후보 등록
                       </button>
                       <button onClick={() => openManageCandidates(vote)} style={smallBtnStyle}>
-                        👤 후보 관리
+                        <UserCog size={14} strokeWidth={1.8} /> 후보 관리
                       </button>
                       <button onClick={() => openResults(vote)} style={{ ...smallBtnStyle, background: "var(--accent-soft)", color: "var(--accent-strong)", border: "1px solid var(--accent-line)" }}>
-                        📊 결과보기
+                        <BarChart3 size={14} strokeWidth={1.8} /> 결과보기
                       </button>
                       {running && (
                         <button
@@ -458,14 +461,14 @@ export default function AdminVotesPage() {
                           style={{ ...smallBtnStyle, background: "var(--success-soft)", color: "var(--success)", border: "1px solid var(--success-soft)" }}
                           title="투표 페이지로 이동하여 직접 참여"
                         >
-                          🗳 참여
+                          <VoteIcon size={14} strokeWidth={1.8} /> 참여
                         </button>
                       )}
                       <button onClick={() => openEdit(vote)} style={smallBtnStyle}>
-                        ✏️ 투표제목수정
+                        <Pencil size={14} strokeWidth={1.8} /> 투표제목수정
                       </button>
                       <button onClick={() => handleDeleteVote(vote)} style={{ ...smallBtnStyle, background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid var(--danger-soft)" }}>
-                        🗑 삭제
+                        <Trash2 size={14} strokeWidth={1.8} /> 삭제
                       </button>
                     </div>
                   </div>
@@ -505,8 +508,9 @@ export default function AdminVotesPage() {
               background: "var(--surface)", border: "1px solid var(--hairline)",
               borderRadius: 8, padding: "10px 12px",
               marginTop: -4, marginBottom: 12,
+              display: "flex", alignItems: "center", gap: 6,
             }}>
-              💡 후보자 등록은 투표 만들기를 한 후 <b>➕ 후보 등록</b> 버튼에서 가능합니다.
+              <Info size={14} strokeWidth={1.8} style={{ flexShrink: 0, color: "var(--accent)" }} /><span>후보자 등록은 투표 만들기를 한 후 <b>후보 등록</b> 버튼에서 가능합니다.</span>
             </div>
           )}
 
@@ -535,8 +539,8 @@ export default function AdminVotesPage() {
       {/* 후보 등록 모달 */}
       {modal?.type === "add_candidate" && (
         <ModalOverlay onClose={() => setModal(null)}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
-            ➕ 후보 등록
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+            <UserPlus size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 후보 등록
           </div>
           <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 16 }}>
             {modal.vote.title} · 현재 {candidates.length}명 등록됨
@@ -553,7 +557,7 @@ export default function AdminVotesPage() {
                 <span key={c.id} style={{
                   display: "inline-flex", alignItems: "center", gap: 4,
                   fontSize: 12, fontWeight: 600, color: "var(--ink-mid)",
-                  background: "#fff", border: "1px solid var(--hairline)",
+                  background: "var(--card)", border: "1px solid var(--hairline)",
                   borderRadius: 99, padding: "3px 10px",
                 }}>
                   <span style={{ color: "var(--accent)", fontWeight: 800 }}>{i + 1}</span>
@@ -583,7 +587,7 @@ export default function AdminVotesPage() {
                 ) : memberResults.length > 0 ? (
                   <div style={{
                     border: "1px solid var(--hairline)", borderRadius: 10,
-                    maxHeight: 240, overflowY: "auto", background: "#fff",
+                    maxHeight: 240, overflowY: "auto", background: "var(--card)",
                   }}>
                     {memberResults.map(m => (
                       <button
@@ -650,8 +654,8 @@ export default function AdminVotesPage() {
       {/* 후보 관리 모달 (수정/삭제) */}
       {modal?.type === "manage_candidates" && (
         <ModalOverlay onClose={() => setModal(null)}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
-            👤 후보 관리
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+            <UserCog size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 후보 관리
           </div>
           <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 16 }}>
             {modal.vote.title} · 등록된 후보 {candidates.length}명
@@ -659,11 +663,14 @@ export default function AdminVotesPage() {
 
           {candidates.length === 0 ? (
             <div style={{
-              textAlign: "center", padding: 32, color: "var(--ink-faint)", fontSize: 13,
               background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: 12,
             }}>
-              아직 등록된 후보가 없습니다.<br />
-              <span style={{ fontSize: 11 }}>상단 <b>➕ 후보 등록</b>에서 먼저 추가해주세요.</span>
+              <EmptyState
+                padding={32}
+                icon={<UserPlus size={24} strokeWidth={1.6} />}
+                message="아직 등록된 후보가 없습니다"
+                hint="상단 '후보 등록'에서 먼저 추가해주세요."
+              />
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 420, overflowY: "auto" }}>
@@ -723,7 +730,7 @@ export default function AdminVotesPage() {
                       <button
                         onClick={() => startEditCandidate(c)}
                         style={{ ...smallBtnStyle, padding: "4px 10px" }}
-                      >✏️ 수정</button>
+                      ><Pencil size={13} strokeWidth={1.8} /> 수정</button>
                       <button
                         onClick={() => handleDeleteCandidate(c)}
                         style={{ ...smallBtnStyle, background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid var(--danger-soft)", padding: "4px 10px" }}
@@ -744,8 +751,8 @@ export default function AdminVotesPage() {
       {/* 결과 모달 */}
       {modal?.type === "results" && (
         <ModalOverlay onClose={() => setModal(null)}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
-            📊 투표 결과
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+            <BarChart3 size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 투표 결과
           </div>
           <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 16 }}>{modal.vote.title}</div>
 
@@ -834,7 +841,7 @@ function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClos
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: "#fff", borderRadius: 20,
+          background: "var(--card)", borderRadius: 20,
           padding: 28, width: "100%", maxWidth: 540,
           maxHeight: "90vh", overflowY: "auto",
           boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
@@ -870,6 +877,7 @@ const cancelBtnStyle: React.CSSProperties = {
 };
 
 const smallBtnStyle: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
   padding: "6px 12px", borderRadius: 8,
   background: "var(--surface)", color: "var(--ink-mid)",
   border: "1px solid var(--hairline)", cursor: "pointer",

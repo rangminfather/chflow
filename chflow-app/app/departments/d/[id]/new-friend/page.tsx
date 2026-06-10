@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase, formatPhone } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { Sparkles, User } from "lucide-react";
 
 interface FriendSummary {
   id: string;
@@ -123,7 +124,7 @@ export default function NewFriendPage() {
         p_memo:        form.memo,
       });
       if (error) throw error;
-      showToast("저장되었습니다 ✅");
+      showToast("저장되었습니다");
       await loadList();
       setIsNew(false);
     } catch (e: unknown) {
@@ -169,7 +170,7 @@ export default function NewFriendPage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>🌟 새친구 등록카드</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Sparkles size={18} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 새친구 등록카드</div>
         <button onClick={newFriend} style={addBtnStyle}>+ 새 등록</button>
       </div>
 
@@ -213,7 +214,7 @@ export default function NewFriendPage() {
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 18, flexShrink: 0,
                     }}>
-                      {fr.gender === "남" ? "👦" : fr.gender === "여" ? "👧" : "👤"}
+                      <User size={18} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{fr.name}</div>
@@ -234,9 +235,11 @@ export default function NewFriendPage() {
         {/* 등록카드 폼 */}
         <div style={{ flex: 1 }}>
           {!showForm ? (
-            <div style={{ ...cardStyle, textAlign: "center", padding: 60, color: "var(--ink-faint)" }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>🌟</div>
-              <div style={{ fontSize: 14 }}>왼쪽에서 새친구를 선택하거나<br />새 등록 버튼을 눌러 카드를 작성하세요</div>
+            <div style={{ ...cardStyle, padding: 24 }}>
+              <EmptyState
+                icon={<Sparkles size={24} strokeWidth={1.6} />}
+                message="왼쪽에서 새친구를 선택하거나 새 등록 버튼을 눌러 카드를 작성하세요"
+              />
             </div>
           ) : (
             <div style={cardStyle}>
@@ -375,8 +378,8 @@ function FormField({ label, children, fullWidth }: { label: string; children: Re
   );
 }
 
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
-const cardStyle: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const cardStyle: React.CSSProperties = { background: "var(--card)", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1.5px solid var(--hairline)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
 const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
 const addBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };

@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, formatPhone } from "@/lib/supabase";
 import ModalBackdrop from "./ModalBackdrop";
+import { ArrowLeft, Camera, Trash2, Baby, Phone, MapPin, Home, Pencil, Users, User, Lightbulb } from "lucide-react";
+import { EmptyState } from "@/components/StatusViews";
 
 interface Props {
   memberId: string;
@@ -203,7 +205,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   if (loading || !data) {
     return (
       <ModalBackdrop onClose={onClose} style={bgStyle}>
-        <div style={{ background: "#fff", borderRadius: 16, padding: 40 }}>로딩 중...</div>
+        <div style={{ background: "var(--card)", borderRadius: 16, padding: 40 }}>로딩 중...</div>
       </ModalBackdrop>
     );
   }
@@ -220,7 +222,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {stack.length > 1 && (
               <button onClick={goBack} title="이전 카드"
-                style={{ width: 28, height: 28, borderRadius: 8, background: "var(--bg-soft)", border: "none", fontSize: 14, cursor: "pointer", color: "var(--ink-mid)", fontFamily: "inherit" }}>←</button>
+                style={{ width: 28, height: 28, borderRadius: 8, background: "var(--bg-soft)", border: "none", fontSize: 14, cursor: "pointer", color: "var(--ink-mid)", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><ArrowLeft size={15} strokeWidth={1.8} /></button>
             )}
             <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>성도 카드</div>
             {stack.length > 1 && (
@@ -243,19 +245,21 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
               }}>
                 {photoUrl
                   ? <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  : <div style={{ fontSize: 56, color: "var(--hairline-strong)" }}>{m.gender === "F" ? "👩" : "👨"}</div>}
+                  : <div style={{ color: "var(--hairline-strong)", display: "flex", alignItems: "center", justifyContent: "center" }}><User size={56} strokeWidth={1.4} /></div>}
               </div>
               <button onClick={() => fileRef.current?.click()} disabled={uploading || deletingPhoto} style={{
                 position: "absolute", bottom: -6, right: -6, width: 38, height: 38, borderRadius: "50%",
-                background: "var(--accent)", color: "#fff", border: "3px solid #fff", fontSize: 14,
+                background: "var(--accent)", color: "#fff", border: "3px solid var(--card)", fontSize: 14,
                 cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-              }} title="사진 변경">{uploading ? "…" : "📷"}</button>
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+              }} title="사진 변경">{uploading ? "…" : <Camera size={16} strokeWidth={1.8} />}</button>
               {photoUrl && (
                 <button onClick={handlePhotoDelete} disabled={uploading || deletingPhoto} style={{
                   position: "absolute", bottom: -6, left: -6, width: 32, height: 32, borderRadius: "50%",
-                  background: "var(--danger)", color: "#fff", border: "3px solid #fff", fontSize: 12,
+                  background: "var(--danger)", color: "#fff", border: "3px solid var(--card)", fontSize: 12,
                   cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-                }} title="사진 삭제">{deletingPhoto ? "…" : "🗑️"}</button>
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                }} title="사진 삭제">{deletingPhoto ? "…" : <Trash2 size={14} strokeWidth={1.8} />}</button>
               )}
               <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); }} />
@@ -302,16 +306,16 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                   <div style={{ fontSize: 24, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
                     {m.name}
                     {m.gender && <span style={{ fontSize: 12, color: genderColor, marginLeft: 8 }}>{m.gender === "M" ? "♂ 남" : "♀ 여"}</span>}
-                    {m.is_child && <span style={{ fontSize: 12, color: "var(--warning)", marginLeft: 8 }}>👶 자녀</span>}
+                    {m.is_child && <span style={{ fontSize: 12, color: "var(--warning)", marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 4 }}><Baby size={14} strokeWidth={1.8} /> 자녀</span>}
                   </div>
                   <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 4 }}>
                     {m.sub_role || "직분 미지정"} · {m.family_church || "목원"}
                     {m.spouse_name && ` · 배우자 ${m.spouse_name}`}
                   </div>
-                  <div style={{ fontSize: 13, color: "var(--ink-mid)", marginBottom: 2 }}>📞 {m.phone || "연락처 없음"}</div>
+                  <div style={{ fontSize: 13, color: "var(--ink-mid)", marginBottom: 2, display: "inline-flex", alignItems: "center", gap: 6 }}><Phone size={15} strokeWidth={1.8} /> {m.phone || "연락처 없음"}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                    <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-                      📍 {m.plain_name ? `${m.plain_name}평원 · ${m.grassland_name}초원 · ` : ""}<strong>{m.pasture_name || "소속 없음"}</strong> 목장
+                    <div style={{ fontSize: 12, color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <MapPin size={14} strokeWidth={1.8} /> <span>{m.plain_name ? `${m.plain_name}평원 · ${m.grassland_name}초원 · ` : ""}<strong>{m.pasture_name || "소속 없음"}</strong> 목장</span>
                     </div>
                     {m.pasture_name && (
                       <button onClick={goToPasture} title="이 목장 전체 회원 보기"
@@ -320,7 +324,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                       </button>
                     )}
                   </div>
-                  {m.address && <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 4 }}>🏠 {m.address}</div>}
+                  {m.address && <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 4, display: "inline-flex", alignItems: "center", gap: 6 }}><Home size={13} strokeWidth={1.8} /> {m.address}</div>}
                 </>
               )}
             </div>
@@ -333,22 +337,22 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                 <button onClick={handleSaveEdit} style={btnPrimary}>저장</button>
               </>
             ) : (
-              <button onClick={() => setEditing(true)} style={btnPrimary}>✏️ 정보 수정</button>
+              <button onClick={() => setEditing(true)} style={{ ...btnPrimary, display: "inline-flex", alignItems: "center", gap: 6 }}><Pencil size={14} strokeWidth={1.8} /> 정보 수정</button>
             )}
             <div style={{ flex: 1 }} />
             <label style={toggleStyle}>
               <input type="checkbox" checked={showParents} onChange={(e) => setShowParents(e.target.checked)} />
-              👴 부모보기
+              <User size={13} strokeWidth={1.8} /> 부모보기
             </label>
             <label style={toggleStyle}>
               <input type="checkbox" checked={showChildren} onChange={(e) => setShowChildren(e.target.checked)} />
-              👶 자녀보기
+              <Baby size={13} strokeWidth={1.8} /> 자녀보기
             </label>
           </div>
 
           {/* 같은 가족 */}
           {data.household_members && data.household_members.length > 0 && (
-            <Section title={`👨‍👩‍👧 같은 가족 (${data.household_members.length})`}>
+            <Section title={<><Users size={15} strokeWidth={1.8} /> 같은 가족 ({data.household_members.length})</>}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {data.household_members.map((hm) => (
                   <MemberChip key={hm.id} name={hm.name} photoUrl={hm.photo_url}
@@ -357,8 +361,8 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                 ))}
               </div>
               {data.household_members.some((hm) => hm.is_child) && (
-                <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 6 }}>
-                  💡 자녀를 클릭하면 같은 이름의 성인 성도가 있을 경우 그 성도 카드로 이동합니다.
+                <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 6, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <Lightbulb size={12} strokeWidth={1.8} /> 자녀를 클릭하면 같은 이름의 성인 성도가 있을 경우 그 성도 카드로 이동합니다.
                 </div>
               )}
             </Section>
@@ -369,7 +373,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
             const ancestors = (data.relations || []).filter((r) =>
               ["parent", "grandparent", "great_grandparent"].includes(r.kind));
             return (
-              <Section title="👴 부모·조부모" action={
+              <Section title={<><User size={15} strokeWidth={1.8} /> 부모·조부모</>} action={
                 <button onClick={() => setShowRelAdd("parent")} style={btnMiniPrimary}>+ 추가</button>
               }>
                 {ancestors.length > 0 ? (
@@ -381,7 +385,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                     ))}
                   </div>
                 ) : (
-                  <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: "8px 0" }}>등록된 부모·조부모가 없습니다</div>
+                  <EmptyState message="등록된 부모·조부모가 없습니다" padding={14} />
                 )}
               </Section>
             );
@@ -392,7 +396,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
             const desc = (data.descendants || []).filter((r) =>
               ["parent", "grandparent", "great_grandparent"].includes(r.kind));
             return (
-              <Section title="👶 자녀·손주" action={
+              <Section title={<><Baby size={15} strokeWidth={1.8} /> 자녀·손주</>} action={
                 <button onClick={() => setShowRelAdd("child")} style={btnMiniPrimary}>+ 추가</button>
               }>
                 {desc.length > 0 ? (
@@ -404,7 +408,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                     ))}
                   </div>
                 ) : (
-                  <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: "8px 0" }}>등록된 자녀·손주가 없습니다</div>
+                  <EmptyState message="등록된 자녀·손주가 없습니다" padding={14} />
                 )}
               </Section>
             );
@@ -425,11 +429,11 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
 
 
 // ============ Subcomponents ============
-function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
+function Section({ title, children, action }: { title: React.ReactNode; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div style={{ background: "var(--surface)", borderRadius: 12, padding: 14, marginBottom: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-mid)" }}>{title}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-mid)", display: "inline-flex", alignItems: "center", gap: 6 }}>{title}</div>
         {action}
       </div>
       {children}
@@ -442,7 +446,7 @@ function MemberChip({ name, photoUrl, subtitle, onClick }: { name: string; photo
     <div onClick={onClick}
       style={{
         display: "flex", alignItems: "center", gap: 6, padding: "4px 10px 4px 4px",
-        background: "#fff", borderRadius: 20, border: "1px solid var(--hairline)",
+        background: "var(--card)", borderRadius: 20, border: "1px solid var(--hairline)",
         cursor: onClick ? "pointer" : "default",
         transition: "all 0.15s",
       }}
@@ -465,7 +469,7 @@ function RelationRow({ relation, reversed, onRemove, onClick }: { relation: Rela
     <div onClick={onClick}
       style={{
         display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
-        background: "#fff", borderRadius: 10, border: "1px solid var(--hairline)",
+        background: "var(--card)", borderRadius: 10, border: "1px solid var(--hairline)",
         cursor: onClick ? "pointer" : "default",
         transition: "all 0.15s",
       }}
@@ -652,7 +656,7 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{selected.name} {selected.phone && <span style={{ color: "var(--ink-soft)", fontWeight: 400, fontSize: 11 }}>({selected.phone})</span>}</div>
                   <div style={{ fontSize: 10, color: "var(--ink-soft)" }}>{selected.pasture_name} 목장</div>
                 </div>
-                <button onClick={() => setSelected(null)} style={{ fontSize: 11, padding: "4px 10px", background: "#fff", border: "1px solid var(--hairline-strong)", borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>다시</button>
+                <button onClick={() => setSelected(null)} style={{ fontSize: 11, padding: "4px 10px", background: "var(--card)", border: "1px solid var(--hairline-strong)", borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>다시</button>
               </div>
 
               <div style={{ marginBottom: 10 }}>
@@ -694,7 +698,7 @@ const bgStyle: React.CSSProperties = {
   zIndex: 100, padding: 16,
 };
 const cardStyle: React.CSSProperties = {
-  background: "#fff", borderRadius: 18, width: "100%", maxWidth: 560,
+  background: "var(--card)", borderRadius: 18, width: "100%", maxWidth: 560,
   maxHeight: "90vh", display: "flex", flexDirection: "column",
   boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
 };
@@ -702,7 +706,7 @@ const editInput: React.CSSProperties = {
   width: "100%", padding: "8px 10px", fontSize: 13,
   border: "1.5px solid var(--hairline)", borderRadius: 8, outline: "none",
   color: "var(--ink)", fontWeight: 500, boxSizing: "border-box",
-  fontFamily: "inherit", marginBottom: 6, background: "#fff",
+  fontFamily: "inherit", marginBottom: 6, background: "var(--card)",
 };
 const editInputLg: React.CSSProperties = { ...editInput, fontSize: 18, fontWeight: 700 };
 const editLbl: React.CSSProperties = {

@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { FileSearch, Search } from "lucide-react";
 
 interface Student {
   id: string;
@@ -98,7 +99,7 @@ export default function StudentRecordPage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>🔍 학생출결 이력</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><FileSearch size={18} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 학생출결 이력</div>
         <div />
       </div>
 
@@ -148,8 +149,8 @@ export default function StudentRecordPage() {
               </div>
             </div>
 
-            <button onClick={loadHistory} disabled={!selectedId} style={searchBtnStyle}>
-              🔍 조회
+            <button onClick={loadHistory} disabled={!selectedId} style={{ ...searchBtnStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Search size={14} strokeWidth={1.8} /> 조회
             </button>
           </div>
         </div>
@@ -229,16 +230,14 @@ export default function StudentRecordPage() {
         )}
 
         {selectedStudent && !loading && history.length === 0 && (
-          <div style={{ ...cardStyle, textAlign: "center", padding: 60, color: "var(--ink-faint)" }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>📭</div>
-            <div>선택한 기간에 출결 기록이 없습니다</div>
+          <div style={{ ...cardStyle, padding: 16 }}>
+            <EmptyState message="선택한 기간에 출결 기록이 없습니다" />
           </div>
         )}
 
         {!selectedId && (
-          <div style={{ ...cardStyle, textAlign: "center", padding: 60, color: "var(--ink-faint)" }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>🔍</div>
-            <div>학생을 선택하고 조회 버튼을 누르세요</div>
+          <div style={{ ...cardStyle, padding: 16 }}>
+            <EmptyState icon={<Search size={24} strokeWidth={1.6} />} message="학생을 선택하고 조회 버튼을 누르세요" />
           </div>
         )}
 
@@ -255,8 +254,8 @@ function formatDate(d: string) {
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
 }
 
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
-const cardStyle: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const cardStyle: React.CSSProperties = { background: "var(--card)", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
 const inputStyle: React.CSSProperties = { padding: "9px 12px", border: "1.5px solid var(--hairline)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
 const fieldLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 4 };
 const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };

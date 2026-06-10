@@ -279,7 +279,7 @@ const pdfFrameWrapStyle: React.CSSProperties = {
   maxHeight: 900,
   border: "1px solid var(--hairline)",
   borderRadius: 12,
-  background: "#fff",
+  background: "var(--card)",
   overflow: "hidden",
   marginBottom: 12,
 };

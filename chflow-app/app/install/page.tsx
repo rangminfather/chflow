@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Smartphone } from "lucide-react";
 
 export default function InstallPage() {
   const router = useRouter();
@@ -33,7 +34,7 @@ export default function InstallPage() {
 
       {isIOS ? (
         <div className="bg-white rounded-2xl shadow-md p-6 w-full max-w-sm">
-          <p className="text-sm font-semibold text-ink-mid mb-4">📲 홈 화면 추가 방법</p>
+          <p className="text-sm font-semibold text-ink-mid mb-4 flex items-center gap-1.5"><Smartphone size={15} strokeWidth={1.8} /> 홈 화면 추가 방법</p>
 
           <ol className="space-y-4 text-sm text-ink-mid">
             <li className="flex items-start gap-3">

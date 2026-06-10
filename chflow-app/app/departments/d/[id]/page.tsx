@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
 import {
   type LucideIcon,
   Megaphone, CalendarDays, Newspaper, GraduationCap, ClipboardCheck, ClipboardList,
   Medal, Users, Inbox, BookText, CalendarPlus, BookOpen, FileText, BarChart3,
   TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks, FileSearch,
-  Settings, Award,
+  Settings, Award, Lock, CircleHelp, Construction, Smile,
 } from "lucide-react";
 
 interface DeptInfo {
@@ -170,8 +170,7 @@ export default function DepartmentDetailPage() {
     return (
       <div style={pageStyle}>
         <div style={{ textAlign: "center", padding: 60 }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>❓</div>
-          <div style={{ fontSize: 14, color: "var(--ink-faint)" }}>부서를 찾을 수 없습니다</div>
+          <EmptyState icon={<CircleHelp size={24} strokeWidth={1.6} />} message="부서를 찾을 수 없습니다" padding={0} />
           <button onClick={() => router.push("/home")} style={{ ...backBtnStyle, marginTop: 16 }}>홈으로</button>
         </div>
       </div>
@@ -183,10 +182,10 @@ export default function DepartmentDetailPage() {
       <div style={pageStyle}>
         <div style={{ maxWidth: 480, margin: "60px auto", padding: 24 }}>
           <div style={{
-            background: "#fff", borderRadius: 20, padding: 32, textAlign: "center",
+            background: "var(--card)", borderRadius: 20, padding: 32, textAlign: "center",
             boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
           }}>
-            <div style={{ fontSize: 64, marginBottom: 16 }}>🔒</div>
+            <div style={{ marginBottom: 16 }}><Lock size={44} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} /></div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>
               아직 가입되지 않은 부서입니다
             </div>
@@ -228,7 +227,7 @@ export default function DepartmentDetailPage() {
       <div style={{ maxWidth: 960, margin: "0 auto", padding: 24 }}>
         {/* Header */}
         <div style={{
-          background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 20,
+          background: "var(--card)", borderRadius: 12, padding: "16px 20px", marginBottom: 20,
           display: "flex", justifyContent: "space-between", alignItems: "center",
           boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
         }}>
@@ -259,7 +258,7 @@ export default function DepartmentDetailPage() {
           textAlign: "center", color: "#fff", marginBottom: 24,
           boxShadow: "0 20px 60px rgba(62, 90, 74, 0.25)",
         }}>
-          <div style={{ fontSize: 48, marginBottom: 10 }}>{dept.icon || "👋"}</div>
+          <div style={{ fontSize: 48, marginBottom: 10 }}>{dept.icon || <Smile size={44} strokeWidth={1.8} />}</div>
           <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6, letterSpacing: -0.5 }}>{dept.name}</div>
           {dept.description && (
             <div style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.6, marginBottom: 14 }}>
@@ -267,20 +266,20 @@ export default function DepartmentDetailPage() {
             </div>
           )}
           <div style={{
-            display: "inline-block", padding: "5px 14px", background: "rgba(255,255,255,0.2)",
+            display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", background: "rgba(255,255,255,0.2)",
             borderRadius: 20, fontSize: 11, fontWeight: 600,
           }}>
-            👥 {dept.member_count}명
+            <Users size={13} strokeWidth={1.8} /> {dept.member_count}명
           </div>
         </div>
 
         {/* 비교육사역국: 콘텐츠 안내 (관리 메뉴는 아래에 표시) */}
         {!isEduDept && (
           <div style={{
-            background: "#fff", borderRadius: 16, padding: 28, textAlign: "center",
+            background: "var(--card)", borderRadius: 16, padding: 28, textAlign: "center",
             color: "var(--ink-faint)", fontSize: 13, lineHeight: 1.7, marginBottom: 16,
           }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>🚧</div>
+            <div style={{ marginBottom: 12 }}><Construction size={36} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} /></div>
             <div style={{ fontWeight: 700, color: "var(--ink-soft)", marginBottom: 6 }}>
               부서 게시판 / 일정 / 모임 등은 곧 추가됩니다
             </div>
@@ -322,7 +321,7 @@ export default function DepartmentDetailPage() {
             background: "#F8F0E3", border: "1.5px solid #fed7aa", borderRadius: 12, padding: 20,
             textAlign: "center", color: "#8A5526",
           }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>🔒</div>
+            <div style={{ marginBottom: 8 }}><Lock size={28} strokeWidth={1.8} /></div>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>접근 가능한 메뉴가 없습니다</div>
             <div style={{ fontSize: 12 }}>
               현재 등급: {GRADE_LABEL[grade] || `${grade} (불명)`}.

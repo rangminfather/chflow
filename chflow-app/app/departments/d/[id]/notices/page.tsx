@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
+import { Megaphone, Newspaper, CalendarDays, Pin } from "lucide-react";
 
 export default function NoticesPage() {
   const router = useRouter();
@@ -32,7 +33,7 @@ export default function NoticesPage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={titleStyle}>📢 공통</div>
+        <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}><Megaphone size={18} strokeWidth={1.8} /> 공통</div>
         <div style={{ width: 80 }} />
       </div>
 
@@ -49,7 +50,7 @@ export default function NoticesPage() {
               onClick={() => router.push(`/departments/d/${deptId}/bulletin`)}
               className="rounded-lg border border-teal-200 bg-teal-50 p-4 text-left"
             >
-              <div className="text-[30px]">📰</div>
+              <div><Newspaper size={28} strokeWidth={1.8} /></div>
               <div className="mt-2 text-[18px] font-extrabold text-ink">주보 보기</div>
               <div className="mt-1 text-[15px] leading-6 text-ink-soft">UMS 사무실 게시판의 초등1부 주보를 확인합니다.</div>
             </button>
@@ -59,13 +60,13 @@ export default function NoticesPage() {
               onClick={() => router.push(`/departments/d/${deptId}/monthly-plan`)}
               className="rounded-lg border border-accent-line bg-accent-soft p-4 text-left"
             >
-              <div className="text-[30px]">🗓️</div>
+              <div><CalendarDays size={28} strokeWidth={1.8} /></div>
               <div className="mt-2 text-[18px] font-extrabold text-ink">월간 교육계획서</div>
               <div className="mt-1 text-[15px] leading-6 text-ink-soft">등록된 월간 계획 파일을 조회합니다.</div>
             </button>
 
             <div className="rounded-lg border border-hairline bg-surface p-4">
-              <div className="text-[30px]">📌</div>
+              <div><Pin size={28} strokeWidth={1.8} /></div>
               <div className="mt-2 text-[18px] font-extrabold text-ink">일반 공지</div>
               <div className="mt-1 text-[15px] leading-6 text-ink-soft">일반 공지글 작성 기능은 다음 단계에서 게시판으로 확장됩니다.</div>
             </div>
@@ -77,6 +78,6 @@ export default function NoticesPage() {
 }
 
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)" };
 const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };

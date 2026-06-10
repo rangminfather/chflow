@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
+import { UserCheck, Trash2 } from "lucide-react";
 
 interface Teacher {
   id: string;
@@ -141,7 +142,7 @@ export default function TeacherAttendancePage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>👨‍🏫 선생임 (교사출석부)</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><UserCheck size={18} strokeWidth={1.8} /> 선생임 (교사출석부)</div>
         <button onClick={() => setShowAddForm(!showAddForm)} style={addBtnStyle}>+ 교사 추가</button>
       </div>
 
@@ -254,8 +255,8 @@ export default function TeacherAttendancePage() {
                       <td style={{ textAlign: "center", padding: "6px 4px" }}>
                         <button
                           onClick={() => deleteTeacher(t.id, t.name)}
-                          style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", fontSize: 14 }}
-                        >🗑</button>
+                          style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", display: "inline-flex", alignItems: "center" }}
+                        ><Trash2 size={15} strokeWidth={1.8} /></button>
                       </td>
                     </tr>
                   );
@@ -303,7 +304,7 @@ function nextMonth(year: number, month: number, setYear: (y: number) => void, se
 }
 
 const headerStyle: React.CSSProperties = {
-  background: "#fff",
+  background: "var(--card)",
   borderBottom: "1px solid var(--hairline)",
   padding: "12px 24px",
   display: "flex",
@@ -312,7 +313,7 @@ const headerStyle: React.CSSProperties = {
 };
 
 const cardStyle: React.CSSProperties = {
-  background: "#fff",
+  background: "var(--card)",
   borderRadius: 14,
   padding: 20,
   boxShadow: "0 1px 4px rgba(0,0,0,0.05)",

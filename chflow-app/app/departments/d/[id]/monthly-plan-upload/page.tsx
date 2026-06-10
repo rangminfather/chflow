@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { Lock, CalendarDays } from "lucide-react";
 
 export default function MonthlyPlanUploadPage() {
   const router = useRouter();
@@ -78,10 +79,8 @@ export default function MonthlyPlanUploadPage() {
       <div style={pageStyle}>
         <PageHeader deptId={deptId} router={router} />
         <main className="mx-auto max-w-lg px-4 py-14">
-          <div className="rounded-lg border border-hairline bg-white px-6 py-10 text-center">
-            <div className="text-[48px]">🔒</div>
-            <div className="mt-4 text-[18px] font-extrabold text-ink">월간교육등록 권한이 없습니다</div>
-            <div className="mt-2 text-[15px] leading-6 text-ink-soft">부서 행정 권한이 필요합니다.</div>
+          <div className="rounded-lg border border-hairline bg-white text-center">
+            <EmptyState icon={<Lock size={24} strokeWidth={1.8} />} message="월간교육등록 권한이 없습니다" hint="부서 행정 권한이 필요합니다." />
           </div>
         </main>
       </div>
@@ -172,7 +171,7 @@ function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typ
         <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <HeaderLogo />
       </div>
-      <div style={titleStyle}>🗓️ 월간교육등록</div>
+      <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}><CalendarDays size={18} strokeWidth={1.8} /> 월간교육등록</div>
       <div style={{ width: 80 }} />
     </div>
   );
@@ -180,6 +179,6 @@ function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typ
 
 const inputClass = "min-h-11 w-full rounded-md border border-hairline-strong bg-white px-3 py-2 text-[16px] font-bold text-ink outline-none focus:border-accent-muted";
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)" };
 const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };

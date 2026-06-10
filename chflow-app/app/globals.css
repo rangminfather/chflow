@@ -5,8 +5,10 @@
      chflow 디자인 토큰 — 따뜻한 아이보리 + 세이지 그린 에디토리얼
      색은 하드코딩 금지, 아래 토큰만 참조할 것.
      ============================================================ */
+  color-scheme: light;
   --bg: #F5F1E8;          /* 앱 배경 - 따뜻한 아이보리 */
   --surface: #FBF8F1;     /* 카드 */
+  --card: #FFFFFF;        /* 한 단계 떠 있는 카드/모달 표면 */
   --ink: #2B2722;         /* 본문 텍스트 - 순검정 금지 */
   --ink-soft: #76705F;    /* 보조 */
   --ink-faint: #9A9181;   /* 힌트 */
@@ -59,6 +61,7 @@
      bg-accent / text-accent / bg-accent-soft / text-brass / border-hairline */
   --color-bg: var(--bg);
   --color-surface: var(--surface);
+  --color-card: var(--card);
   --color-ink: var(--ink);
   --color-ink-soft: var(--ink-soft);
   --color-ink-faint: var(--ink-faint);
@@ -85,6 +88,89 @@
   --font-serif: var(--app-serif);
   --font-mono: var(--font-geist-mono);
   --radius-card: var(--radius);
+}
+
+/* ============================================================
+   다크모드 — OS 설정 자동 추종 (prefers-color-scheme)
+   같은 시맨틱 토큰을 웜 다크 팔레트로 교체
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #191613;
+    --surface: #201D18;
+    --card: #26221C;
+    --ink: #EDE7DB;
+    --ink-mid: #CFC7B6;
+    --ink-soft: #A89F8D;
+    --ink-faint: #7E7666;
+    --accent: #8FB39C;
+    --accent-soft: #28322A;
+    --accent-strong: #A9C6B3;
+    --accent-muted: #6F8A79;
+    --accent-line: #3C4A3F;
+    --brass: #C9AC72;
+    --hairline: #343027;
+    --hairline-strong: #443F33;
+    --bg-soft: #2A261F;
+    --success: #7DB389;
+    --success-soft: #263326;
+    --warning: #D2A859;
+    --warning-soft: #362E1D;
+    --danger: #D98A80;
+    --danger-soft: #3A2522;
+    --info: #8AB0CF;
+    --info-soft: #22303C;
+    --male: #8FA9C9;
+    --female: #D592AB;
+  }
+
+  /* 로그인/인증 화면의 라이트 하드코딩 보정 */
+  .login-screen {
+    background: linear-gradient(160deg, #1B1916 0%, #1D211C 48%, #1B1F25 100%);
+  }
+  .login-panel {
+    background: rgba(32, 29, 24, 0.92);
+    border-color: rgba(237, 231, 219, 0.08);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+  }
+  .login-brand-mark {
+    background: #26221C;
+    border-color: rgba(201, 172, 114, 0.25);
+  }
+  .login-field input {
+    background: rgba(0, 0, 0, 0.25);
+    border-color: rgba(237, 231, 219, 0.14);
+  }
+  .login-field input:focus {
+    background: rgba(0, 0, 0, 0.38);
+  }
+  .login-check {
+    background: #26221C;
+    border-color: rgba(237, 231, 219, 0.2);
+  }
+  .login-message-info {
+    color: #A9C7E2;
+    background: #22303C;
+    border-color: #2F4250;
+  }
+  .login-message-error {
+    color: #E8A9A0;
+    background: #3A2522;
+    border-color: #54322E;
+  }
+  .auth-muted-panel {
+    background: rgba(40, 50, 42, 0.5);
+    border-color: rgba(143, 179, 156, 0.2);
+  }
+  .auth-result-card {
+    background: #243026;
+    border-color: rgba(143, 179, 156, 0.25);
+  }
+  .auth-back-button:hover,
+  .auth-back-button:focus-visible {
+    background: #2C3A31;
+  }
 }
 
 /* 모바일에서 카메라 홀/노치 보호 — env()가 0이어도 min 44px 보장 (브라우저/PWA 공통) */

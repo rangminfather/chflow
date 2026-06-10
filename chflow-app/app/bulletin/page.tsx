@@ -291,7 +291,7 @@ const pdfFrameWrapStyle: React.CSSProperties = {
   maxHeight: 900,
   border: "1px solid var(--hairline)",
   borderRadius: 12,
-  background: "#fff",
+  background: "var(--card)",
   overflow: "hidden",
   marginBottom: 12,
 };
@@ -318,7 +318,7 @@ const latestCardStyle: React.CSSProperties = {
   gap: 14,
   border: "1px solid rgba(62, 90, 74, 0.22)",
   borderRadius: 14,
-  background: "linear-gradient(135deg, rgba(251,248,241,0.98), rgba(234,239,232,0.92))",
+  background: "linear-gradient(135deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--accent-soft) 92%, transparent))",
   padding: "clamp(16px, 4vw, 22px)",
   marginBottom: 14,
   flexWrap: "wrap",

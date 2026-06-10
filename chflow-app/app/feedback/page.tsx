@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { Lightbulb, Lock, MessageSquare, Paperclip } from "lucide-react";
 
 type FeedbackStatus = "submitted" | "received" | "reviewing" | "resolved" | "rejected";
 
@@ -113,7 +114,9 @@ export default function FeedbackListPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
           <HeaderLogo />
           <div style={{ minWidth: 0 }}>
-            <h1 style={titleStyle}>💡 불편신고 / 건의</h1>
+            <h1 style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Lightbulb size={18} strokeWidth={1.8} /> 불편신고 / 건의
+            </h1>
             <div style={subtitleStyle}>사용하시면서 불편한 점이나 건의사항을 남겨주세요</div>
           </div>
         </div>
@@ -140,10 +143,7 @@ export default function FeedbackListPage() {
         {loading ? (
           <LoadingView padding={40} />
         ) : items.length === 0 ? (
-          <div style={emptyStyle}>
-            <div style={{ fontSize: 36, marginBottom: 10 }}>📭</div>
-            <div style={{ fontSize: 14, color: "var(--ink-soft)" }}>아직 등록된 글이 없습니다</div>
-          </div>
+          <EmptyState message="아직 등록된 글이 없습니다" padding={60} />
         ) : (
           <>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -160,20 +160,22 @@ export default function FeedbackListPage() {
 
 function FeedbackRow({ item, onClick }: { item: FeedbackListItem; onClick: () => void }) {
   const meta = STATUS_META[item.status];
-  const titleDisplay = item.is_locked ? "🔒 비공개 글입니다" : item.title;
+  const titleDisplay = item.is_locked
+    ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Lock size={14} strokeWidth={1.8} /> 비공개 글입니다</span>
+    : item.title;
   return (
     <li>
       <button onClick={onClick} className="fb-row" style={rowStyle}>
         <span className="fb-seq" style={seqStyle}>#{item.seq}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-          {item.is_private && <span style={lockBadge} title="비공개">🔒</span>}
+          {item.is_private && <span style={lockBadge} title="비공개"><Lock size={14} strokeWidth={1.8} /></span>}
           {item.is_mine && <span style={mineBadge}>내 글</span>}
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={rowTitleStyle}>{titleDisplay}</div>
             <div style={rowMetaStyle}>
               {item.author_name || "익명"} · {formatDate(item.created_at)}
-              {item.comment_count > 0 && <> · 💬 {item.comment_count}</>}
-              {item.attachment_count > 0 && <> · 📎 {item.attachment_count}</>}
+              {item.comment_count > 0 && <> · <span style={metaIconStyle}><MessageSquare size={11} strokeWidth={1.8} /> {item.comment_count}</span></>}
+              {item.attachment_count > 0 && <> · <span style={metaIconStyle}><Paperclip size={11} strokeWidth={1.8} /> {item.attachment_count}</span></>}
             </div>
           </div>
         </div>
@@ -243,7 +245,7 @@ function formatDate(iso: string): string {
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(135deg, #EFF5F7 0%, var(--warning-soft) 100%)",
+  background: "linear-gradient(135deg, var(--info-soft) 0%, var(--warning-soft) 100%)",
   padding: "20px 16px 60px",
   fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
 };
@@ -255,14 +257,14 @@ const titleStyle: React.CSSProperties = { fontSize: 20, fontWeight: 800, color: 
 const subtitleStyle: React.CSSProperties = { fontSize: 12, color: "var(--ink-soft)", marginTop: 2 };
 const panelStyle: React.CSSProperties = {
   maxWidth: 920, margin: "0 auto",
-  background: "rgba(255,255,255,0.92)",
+  background: "color-mix(in srgb, var(--card) 92%, transparent)",
   backdropFilter: "blur(20px)",
   borderRadius: 16, padding: 16,
   boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
   border: "1px solid rgba(255,255,255,0.7)",
 };
 const ghostButtonStyle: React.CSSProperties = {
-  padding: "8px 14px", borderRadius: 10, background: "#fff",
+  padding: "8px 14px", borderRadius: 10, background: "var(--card)",
   border: "1.5px solid var(--hairline)", fontSize: 12, fontWeight: 700,
   color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit",
 };
@@ -275,7 +277,7 @@ const primaryButtonStyle: React.CSSProperties = {
 };
 const pill: React.CSSProperties = {
   padding: "6px 12px", borderRadius: 999, border: "1px solid var(--hairline)",
-  background: "#fff", color: "var(--ink-mid)", fontSize: 12, fontWeight: 700,
+  background: "var(--card)", color: "var(--ink-mid)", fontSize: 12, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
 };
 const pillActive: React.CSSProperties = {
@@ -283,12 +285,12 @@ const pillActive: React.CSSProperties = {
 };
 const selectStyle: React.CSSProperties = {
   padding: "6px 10px", borderRadius: 10, border: "1.5px solid var(--hairline)",
-  background: "#fff", fontSize: 12, fontWeight: 600, color: "var(--ink-mid)",
+  background: "var(--card)", fontSize: 12, fontWeight: 600, color: "var(--ink-mid)",
   fontFamily: "inherit", cursor: "pointer",
 };
 const rowStyle: React.CSSProperties = {
   width: "100%", display: "flex", alignItems: "center", gap: 10,
-  padding: "14px 14px", background: "#fff", border: "1px solid var(--hairline)",
+  padding: "14px 14px", background: "var(--card)", border: "1px solid var(--hairline)",
   borderRadius: 12, cursor: "pointer", textAlign: "left",
   fontFamily: "inherit",
 };
@@ -304,7 +306,10 @@ const rowMetaStyle: React.CSSProperties = {
   fontSize: 11, color: "var(--ink-faint)", marginTop: 3,
 };
 const lockBadge: React.CSSProperties = {
-  fontSize: 14, flexShrink: 0,
+  fontSize: 14, flexShrink: 0, display: "inline-flex", alignItems: "center", color: "var(--ink-faint)",
+};
+const metaIconStyle: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 3, verticalAlign: "-2px",
 };
 const mineBadge: React.CSSProperties = {
   padding: "2px 6px", borderRadius: 6, background: "var(--warning-soft)",
@@ -319,7 +324,7 @@ const pagerWrapStyle: React.CSSProperties = {
 };
 const pagerBtn: React.CSSProperties = {
   minWidth: 32, height: 32, padding: "0 8px", borderRadius: 8,
-  border: "1px solid var(--hairline)", background: "#fff", color: "var(--ink-mid)",
+  border: "1px solid var(--hairline)", background: "var(--card)", color: "var(--ink-mid)",
   fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
 };
 const pagerBtnActive: React.CSSProperties = {

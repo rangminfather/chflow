@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
+import { Lock, AlertTriangle } from "lucide-react";
 
 type Attachment = {
   localId: string;
@@ -192,10 +193,10 @@ export default function NewFeedbackPage() {
 
           <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "var(--surface)", borderRadius: 10, cursor: "pointer", fontSize: 13, color: "var(--ink-mid)", fontWeight: 600, marginBottom: 14 }}>
             <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} style={{ width: 16, height: 16, accentColor: "var(--accent)" }} />
-            🔒 비공개 글 (다른 사용자에게는 제목/내용이 보이지 않음. 관리자와 본인만 열람 가능)
+            <Lock size={14} strokeWidth={1.8} style={{ flexShrink: 0 }} /> 비공개 글 (다른 사용자에게는 제목/내용이 보이지 않음. 관리자와 본인만 열람 가능)
           </label>
 
-          {error && <div style={errorStyle}>⚠️ {error}</div>}
+          {error && <div style={{ ...errorStyle, display: "inline-flex", alignItems: "center", gap: 6, width: "100%" }}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>}
 
           <button type="submit" disabled={submitting} style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1 }}>
             {submitting ? "등록 중..." : "등록하기"}
@@ -208,13 +209,13 @@ export default function NewFeedbackPage() {
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(135deg, #EFF5F7 0%, var(--warning-soft) 100%)",
+  background: "linear-gradient(135deg, var(--info-soft) 0%, var(--warning-soft) 100%)",
   padding: "20px 16px 60px",
   fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
 };
 const cardStyle: React.CSSProperties = {
   maxWidth: 640, margin: "0 auto",
-  background: "rgba(255,255,255,0.92)",
+  background: "color-mix(in srgb, var(--card) 92%, transparent)",
   borderRadius: 16, padding: 20,
   boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
 };
@@ -227,7 +228,7 @@ const labelStyle: React.CSSProperties = {
 };
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "12px 14px", fontSize: 14,
-  background: "#fff", border: "1.5px solid var(--hairline)", borderRadius: 10,
+  background: "var(--card)", border: "1.5px solid var(--hairline)", borderRadius: 10,
   outline: "none", fontFamily: "inherit", boxSizing: "border-box",
   color: "var(--ink)", fontWeight: 500,
 };

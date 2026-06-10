@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
+import { UserCog, AlertTriangle, School, Circle, CheckCircle2, ClipboardList } from "lucide-react";
 
 interface ClassRow {
   class_no: string;
@@ -153,18 +154,18 @@ export default function TeacherAssignPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={btnGhost}>←</button>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0 }}>👩‍🏫 담임선생님 지정</h1>
+            <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}><UserCog size={20} strokeWidth={1.8} /> 담임선생님 지정</h1>
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{deptName}</div>
           </div>
         </div>
 
         <div style={{ background: "var(--warning-soft)", border: "1px solid #E0C893", borderRadius: 8, padding: 12, fontSize: 12, color: "var(--warning)", marginBottom: 16, lineHeight: 1.6 }}>
-          ⚠️ 모든 변경은 <strong>이력으로 기록</strong>됩니다. 매년 학기 초 또는 특별 사유 발생 시 변경하세요.
+          <AlertTriangle size={14} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> 모든 변경은 <strong>이력으로 기록</strong>됩니다. 매년 학기 초 또는 특별 사유 발생 시 변경하세요.
         </div>
 
         {/* 반별 담임 */}
         <div style={card}>
-          <div style={sectionTitle}>📚 반별 담임 ({classes.length}반)</div>
+          <div style={{ ...sectionTitle, display: "flex", alignItems: "center", gap: 6 }}><School size={15} strokeWidth={1.8} /> 반별 담임 ({classes.length}반)</div>
           {loading ? <div style={{ padding: 20, textAlign: "center", color: "var(--ink-faint)" }}>로딩...</div> : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
               {classes.map((c) => (
@@ -174,8 +175,8 @@ export default function TeacherAssignPage() {
                   </div>
                   <div style={{ fontSize: 12, color: "var(--ink-mid)", marginBottom: 8 }}>
                     담임: <strong>{c.teacher_name || "(없음)"}</strong>
-                    {c.is_placeholder && <span style={{ color: "var(--warning)", marginLeft: 4, fontSize: 10 }}>⚪ placeholder</span>}
-                    {!c.is_placeholder && c.teacher_id && <span style={{ color: "var(--success)", marginLeft: 4, fontSize: 10 }}>✅ 가입회원</span>}
+                    {c.is_placeholder && <span style={{ color: "var(--warning)", marginLeft: 4, fontSize: 10, display: "inline-flex", alignItems: "center", gap: 3 }}><Circle size={9} strokeWidth={1.8} /> placeholder</span>}
+                    {!c.is_placeholder && c.teacher_id && <span style={{ color: "var(--success)", marginLeft: 4, fontSize: 10, display: "inline-flex", alignItems: "center", gap: 3 }}><CheckCircle2 size={10} strokeWidth={1.8} /> 가입회원</span>}
                   </div>
                   <button onClick={() => { setEditingClass(c); setPickedTeacherId(c.teacher_id || ""); }} style={btnSm}>담임 변경</button>
                 </div>
@@ -187,14 +188,14 @@ export default function TeacherAssignPage() {
         {/* placeholder 회원 연결 */}
         {placeholders.length > 0 && (
           <div style={card}>
-            <div style={sectionTitle}>⚪ placeholder ↔ 가입 회원 연결 ({placeholders.length})</div>
+            <div style={{ ...sectionTitle, display: "flex", alignItems: "center", gap: 6 }}><Circle size={12} strokeWidth={1.8} /> placeholder ↔ 가입 회원 연결 ({placeholders.length})</div>
             <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 8 }}>
               담임 선생님이 회원가입 + 부서원이 되었으면 연결 → 학생들 자동 인계
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {placeholders.map((t) => (
-                <button key={t.id} onClick={() => openMergeModal(t)} style={chipGhost}>
-                  ⚪ {t.name}
+                <button key={t.id} onClick={() => openMergeModal(t)} style={{ ...chipGhost, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <Circle size={10} strokeWidth={1.8} /> {t.name}
                 </button>
               ))}
             </div>
@@ -203,7 +204,7 @@ export default function TeacherAssignPage() {
 
         {/* 가입회원 담임 */}
         <div style={card}>
-          <div style={sectionTitle}>✅ 가입회원 담임 ({linkedTeachers.length})</div>
+          <div style={{ ...sectionTitle, display: "flex", alignItems: "center", gap: 6 }}><CheckCircle2 size={14} strokeWidth={1.8} /> 가입회원 담임 ({linkedTeachers.length})</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {linkedTeachers.map((t) => (
               <span key={t.id} style={chipGreen}>{t.name}</span>
@@ -214,7 +215,7 @@ export default function TeacherAssignPage() {
 
         {/* 이력 */}
         <div style={card}>
-          <div style={sectionTitle}>📋 변경 이력 (최근 20)</div>
+          <div style={{ ...sectionTitle, display: "flex", alignItems: "center", gap: 6 }}><ClipboardList size={15} strokeWidth={1.8} /> 변경 이력 (최근 20)</div>
           {logs.length === 0 ? <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: 8 }}>이력 없음</div> : (
             <div>
               {logs.map((l) => (
@@ -250,7 +251,7 @@ export default function TeacherAssignPage() {
               <option value="">— 새 담임 선택 —</option>
               {teachers.filter((t) => t.is_active).map((t) => (
                 <option key={t.id} value={t.id}>
-                  {t.name}{t.is_placeholder ? " (placeholder)" : " ✅"}
+                  {t.name}{t.is_placeholder ? " (placeholder)" : " (가입회원)"}
                 </option>
               ))}
             </select>
@@ -269,8 +270,8 @@ export default function TeacherAssignPage() {
       {mergeTarget && (
         <ModalBackdrop onClose={() => setMergeTarget(null)}>
           <div style={modalCard}>
-            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>
-              ⚪ {mergeTarget.name} ↔ 가입회원 연결
+            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              <Circle size={12} strokeWidth={1.8} /> {mergeTarget.name} ↔ 가입회원 연결
             </div>
             <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 12, lineHeight: 1.5 }}>
               연결하면 placeholder 가 가입회원 정보로 갱신되고, 이 담임이 맡고 있는 학생들의 담임 정보가 자동 인계됩니다 (학생 정보 변경 X).
@@ -303,12 +304,12 @@ export default function TeacherAssignPage() {
   );
 }
 
-const card: React.CSSProperties = { background: "#fff", borderRadius: 12, padding: 16, marginBottom: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
+const card: React.CSSProperties = { background: "var(--card)", borderRadius: 12, padding: 16, marginBottom: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
 const sectionTitle: React.CSSProperties = { fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 12 };
-const inp: React.CSSProperties = { width: "100%", padding: "10px 12px", border: "1px solid var(--hairline-strong)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" };
+const inp: React.CSSProperties = { width: "100%", padding: "10px 12px", border: "1px solid var(--hairline-strong)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "var(--card)" };
 const btnPrimary: React.CSSProperties = { padding: "10px 18px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const btnGhost: React.CSSProperties = { padding: "10px 16px", background: "var(--bg-soft)", color: "var(--ink-mid)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const btnSm: React.CSSProperties = { padding: "6px 10px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
 const chipGhost: React.CSSProperties = { padding: "6px 12px", background: "var(--warning-soft)", color: "var(--warning)", border: "1px solid #E0C893", borderRadius: 999, fontSize: 11, cursor: "pointer", fontFamily: "inherit" };
 const chipGreen: React.CSSProperties = { padding: "6px 12px", background: "var(--success-soft)", color: "var(--success)", border: "1px solid var(--success-soft)", borderRadius: 999, fontSize: 11, fontFamily: "inherit" };
-const modalCard: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 20, maxWidth: 420, width: "calc(100vw - 32px)", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" };
+const modalCard: React.CSSProperties = { background: "var(--card)", borderRadius: 14, padding: 20, maxWidth: 420, width: "calc(100vw - 32px)", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" };

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { KeyRound, Phone, Mail, Send, Inbox, Info } from "lucide-react";
 
 type Step = "form" | "sent" | "no-email";
 
@@ -52,7 +53,7 @@ export default function FindPasswordPage() {
         {step === "form" && (
           <>
             <div style={{ textAlign: "center", padding: "20px 0 16px" }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>🔑</div>
+              <div style={{ marginBottom: 12, color: "var(--ink-faint)" }}><KeyRound size={40} strokeWidth={1.5} /></div>
               <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>
                 아이디를 입력하세요
               </div>
@@ -103,14 +104,14 @@ export default function FindPasswordPage() {
                 이메일 미등록이거나 링크를 못 받으셨나요?
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                <span style={{ fontSize: 20 }}>📞</span>
+                <Phone size={20} strokeWidth={1.8} style={{ color: "var(--accent)", flexShrink: 0 }} />
                 <div>
                   <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 700 }}>관리자</div>
                   <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>010-2527-2064</div>
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 20 }}>✉️</span>
+                <Mail size={20} strokeWidth={1.8} style={{ color: "var(--accent)", flexShrink: 0 }} />
                 <div>
                   <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 700 }}>이메일</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>sunsetrome@naver.com</div>
@@ -122,7 +123,7 @@ export default function FindPasswordPage() {
 
         {step === "sent" && (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📬</div>
+            <div style={{ marginBottom: 16, color: "var(--ink-faint)" }}><Send size={40} strokeWidth={1.5} /></div>
             <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)", marginBottom: 12 }}>
               재설정 링크 발송 완료
             </div>
@@ -137,7 +138,7 @@ export default function FindPasswordPage() {
               border: "1px solid rgba(62,90,74,0.14)", borderRadius: 8, padding: "10px 14px",
               lineHeight: 1.6, marginBottom: 20, textAlign: "left",
             }}>
-              ℹ️ 링크는 1시간 후 만료됩니다. 이메일이 보이지 않으면 스팸함을 확인해주세요.
+              <Info size={13} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} />링크는 1시간 후 만료됩니다. 이메일이 보이지 않으면 스팸함을 확인해주세요.
             </div>
             <button onClick={() => router.push("/login")} style={{
               width: "100%", height: 54, fontSize: 15, fontWeight: 800,
@@ -151,7 +152,7 @@ export default function FindPasswordPage() {
 
         {step === "no-email" && (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
-            <div style={{ fontSize: 40, marginBottom: 16 }}>📭</div>
+            <div style={{ marginBottom: 16, color: "var(--ink-faint)" }}><Inbox size={40} strokeWidth={1.5} /></div>
             <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)", marginBottom: 12 }}>
               등록된 이메일이 없습니다
             </div>
@@ -165,14 +166,14 @@ export default function FindPasswordPage() {
               borderRadius: 8, padding: 20, marginBottom: 16,
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                <span style={{ fontSize: 24 }}>📞</span>
+                <Phone size={24} strokeWidth={1.8} style={{ color: "var(--accent)", flexShrink: 0 }} />
                 <div>
                   <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 800 }}>관리자 연락처</div>
                   <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>010-2527-2064</div>
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontSize: 24 }}>✉️</span>
+                <Mail size={24} strokeWidth={1.8} style={{ color: "var(--accent)", flexShrink: 0 }} />
                 <div>
                   <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 800 }}>이메일</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>sunsetrome@naver.com</div>

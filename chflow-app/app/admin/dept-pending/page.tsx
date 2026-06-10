@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { Hourglass, Users, MapPin, User, MousePointerClick, CheckCircle2, Medal, Folder, Menu } from "lucide-react";
 
 interface PendingJoin {
   id: string;
@@ -174,13 +175,13 @@ export default function AdminDeptPage() {
       `}</style>
 
       {/* 헤더 */}
-      <div style={{ background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
             className="dept-sidebar-toggle"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            style={{ display: "none", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: 8, background: "var(--bg-soft)", border: "none", cursor: "pointer", fontSize: 18, color: "var(--ink-mid)" }}
-          >☰</button>
+            style={{ display: "none", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: 8, background: "var(--bg-soft)", border: "none", cursor: "pointer", color: "var(--ink-mid)" }}
+          ><Menu size={18} strokeWidth={1.8} /></button>
           <HeaderLogo />
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>사역 / 부서 관리</div>
@@ -188,8 +189,8 @@ export default function AdminDeptPage() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => router.push("/admin/pending")} style={subBtnStyle("var(--warning-soft)", "var(--warning)")}>⏳ 회원가입</button>
-          <button onClick={() => router.push("/admin/members")} style={subBtnStyle("var(--accent-soft)", "var(--accent)")}>👥 회원관리</button>
+          <button onClick={() => router.push("/admin/pending")} style={subBtnStyle("var(--warning-soft)", "var(--warning)")}><Hourglass size={14} strokeWidth={1.8} /> 회원가입</button>
+          <button onClick={() => router.push("/admin/members")} style={subBtnStyle("var(--accent-soft)", "var(--accent)")}><Users size={14} strokeWidth={1.8} /> 회원관리</button>
           <button onClick={() => router.push("/home")} style={subBtnStyle("var(--bg-soft)", "var(--ink-mid)")}>← 홈</button>
         </div>
       </div>
@@ -223,28 +224,26 @@ export default function AdminDeptPage() {
         <div className="dept-main" style={{ flex: 1, padding: 20, overflowX: "hidden" }}>
           <div style={{ maxWidth: 1100, margin: "0 auto" }}>
             {/* === 가입 신청 영역 === */}
-            <div style={{ background: "#fff", borderRadius: 12, marginBottom: 20, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+            <div style={{ background: "var(--card)", borderRadius: 12, marginBottom: 20, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
               <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--hairline)", background: "var(--warning-soft)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: "var(--warning)" }}>
-                  ⏳ 가입 신청 대기 ({pending.length}건)
+                <div style={{ fontSize: 14, fontWeight: 800, color: "var(--warning)", display: "flex", alignItems: "center", gap: 6 }}>
+                  <Hourglass size={16} strokeWidth={1.8} /> 가입 신청 대기 ({pending.length}건)
                 </div>
               </div>
               {pending.length === 0 ? (
-                <div style={{ padding: "30px 20px", textAlign: "center", color: "var(--ink-faint)", fontSize: 12 }}>
-                  대기 중인 신청이 없습니다
-                </div>
+                <EmptyState padding={30} message="대기 중인 신청이 없습니다" />
               ) : (
                 pending.map((j) => (
                   <div key={j.id} style={{ padding: "12px 20px", borderBottom: "1px solid var(--bg-soft)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                     <div style={{ width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg, var(--accent-soft), #EDE7F2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
-                      {j.dept_icon || "📁"}
+                      {j.dept_icon ? <span>{j.dept_icon}</span> : <Folder size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} />}
                     </div>
                     <div style={{ flex: 1, minWidth: 180 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>
                         {j.user_name} <span style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 500 }}>({j.user_sub_role || "-"})</span>
                       </div>
-                      <div style={{ fontSize: 11, color: "var(--ink-mid)", marginTop: 2 }}>
-                        📍 {j.category} / <strong>{j.dept_name}</strong>
+                      <div style={{ fontSize: 11, color: "var(--ink-mid)", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                        <MapPin size={13} strokeWidth={1.8} /> {j.category} / <strong>{j.dept_name}</strong>
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 6 }}>
@@ -258,7 +257,7 @@ export default function AdminDeptPage() {
 
             {/* === 선택된 부서 회원 목록 === */}
             {selectedDept ? (
-              <div style={{ background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+              <div style={{ background: "var(--card)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
                 <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--hairline)", background: "linear-gradient(135deg, var(--accent-soft), #F2EDF6)" }}>
                   <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 700 }}>{selectedDept.category}</div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>
@@ -269,9 +268,7 @@ export default function AdminDeptPage() {
                   </div>
                 </div>
                 {members.length === 0 ? (
-                  <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--ink-faint)", fontSize: 13 }}>
-                    이 부서에 가입된 회원이 없습니다
-                  </div>
+                  <EmptyState padding={40} icon={<Users size={24} strokeWidth={1.6} />} message="이 부서에 가입된 회원이 없습니다" />
                 ) : (
                   <div>
                     {members.map((m) => (
@@ -280,7 +277,7 @@ export default function AdminDeptPage() {
                         {m.user_avatar_url ? (
                           <img src={m.user_avatar_url} alt={m.user_name} style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", objectPosition: "center top", flexShrink: 0 }} />
                         ) : (
-                          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--bg-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>👤</div>
+                          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--bg-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink-faint)", flexShrink: 0 }}><User size={22} strokeWidth={1.8} /></div>
                         )}
                         {/* 이름/직책 */}
                         <div style={{ flex: 1, minWidth: 150 }}>
@@ -307,9 +304,8 @@ export default function AdminDeptPage() {
                 )}
               </div>
             ) : (
-              <div style={{ background: "#fff", borderRadius: 12, padding: 40, textAlign: "center", color: "var(--ink-faint)" }}>
-                <div style={{ fontSize: 36, marginBottom: 12 }}>👈</div>
-                <div style={{ fontSize: 13 }}>좌측 사이드바에서 사역/부서를 선택하세요</div>
+              <div style={{ background: "var(--card)", borderRadius: 12 }}>
+                <EmptyState padding={40} icon={<MousePointerClick size={24} strokeWidth={1.6} />} message="좌측 사이드바에서 사역/부서를 선택하세요" />
               </div>
             )}
           </div>
@@ -319,8 +315,8 @@ export default function AdminDeptPage() {
       {/* === 승인 + 등급 선택 모달 === */}
       {approvingJoin && (
         <div onClick={() => setApprovingJoin(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 20 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 440, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>✅ 부서 가입 승인</div>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--card)", borderRadius: 20, padding: 28, maxWidth: 440, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}><CheckCircle2 size={20} strokeWidth={1.8} style={{ color: "var(--success)" }} /> 부서 가입 승인</div>
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 16 }}>
               <strong>{approvingJoin.user_name}</strong>님을 <strong>{approvingJoin.dept_name}</strong>에 가입 승인합니다.
               <br />이 부서원의 등급(권한)을 선택하세요.
@@ -373,8 +369,8 @@ export default function AdminDeptPage() {
       {/* === 임명 모달 === */}
       {editingMember && (
         <div onClick={() => setEditingMember(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 20 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 400, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>🎖️ 직책 임명</div>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--card)", borderRadius: 20, padding: 28, maxWidth: 400, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}><Medal size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 직책 임명</div>
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>
               <strong>{editingMember.user_name}</strong>님의 직책을 선택하세요
             </div>
@@ -421,8 +417,8 @@ function Sidebar({
 }) {
   return (
     <div style={{ padding: "16px 12px" }}>
-      <div style={{ padding: "8px 12px", marginBottom: 14, background: "linear-gradient(135deg, var(--warning-soft), #E0C893)", borderRadius: 8, fontSize: 11, fontWeight: 700, color: "var(--warning)" }}>
-        ⏳ 신청 대기 {pendingTotal}건
+      <div style={{ padding: "8px 12px", marginBottom: 14, background: "linear-gradient(135deg, var(--warning-soft), #E0C893)", borderRadius: 8, fontSize: 11, fontWeight: 700, color: "var(--warning)", display: "flex", alignItems: "center", gap: 5 }}>
+        <Hourglass size={13} strokeWidth={1.8} /> 신청 대기 {pendingTotal}건
       </div>
       <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 1, marginBottom: 8, paddingLeft: 8 }}>
         사역 / 부서 목록
@@ -434,8 +430,8 @@ function Sidebar({
       )}
       {Object.entries(deptByCategory).map(([category, depts]) => (
         <div key={category} style={{ marginBottom: 12 }}>
-          <div style={{ padding: "4px 12px", fontSize: 10, fontWeight: 700, color: "var(--accent)", letterSpacing: 0.5 }}>
-            📁 {category}
+          <div style={{ padding: "4px 12px", fontSize: 10, fontWeight: 700, color: "var(--accent)", letterSpacing: 0.5, display: "flex", alignItems: "center", gap: 4 }}>
+            <Folder size={12} strokeWidth={1.8} /> {category}
           </div>
           {depts.map((d) => (
             <div
@@ -455,7 +451,7 @@ function Sidebar({
                 gap: 6,
               }}
             >
-              <span style={{ fontSize: 14 }}>{d.icon || "📁"}</span>
+              <span style={{ fontSize: 14, display: "inline-flex", alignItems: "center" }}>{d.icon ? d.icon : <Folder size={14} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />}</span>
               <span style={{ flex: 1 }}>{d.name}</span>
               {d.member_count > 0 && (
                 <span style={{ fontSize: 9, color: "var(--ink-faint)" }}>{d.member_count}</span>
@@ -483,13 +479,17 @@ const pageStyle: React.CSSProperties = {
 
 const sidebarStyle: React.CSSProperties = {
   width: 220,
-  background: "#fff",
+  background: "var(--card)",
   borderRight: "1px solid var(--hairline)",
   flexShrink: 0,
   overflowY: "auto",
 };
 
 const subBtnStyle = (bg: string, color: string): React.CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
   padding: "8px 14px",
   background: bg,
   color: color,

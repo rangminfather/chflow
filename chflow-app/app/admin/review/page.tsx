@@ -36,7 +36,7 @@ const pageStyle: React.CSSProperties = {
 const cardStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: 520,
-  background: "#fff",
+  background: "var(--card)",
   border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: 28,

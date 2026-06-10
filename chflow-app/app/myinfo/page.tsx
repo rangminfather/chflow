@@ -190,7 +190,7 @@ export default function MyInfoPage() {
     <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif", paddingBottom: 48 }}>
 
       {/* Header */}
-      <div style={{ background: "#fff", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hairline)" }}>
+      <div style={{ background: "var(--card)", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hairline)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <HeaderLogo />
           <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)" }}>내 정보</div>
@@ -236,7 +236,7 @@ export default function MyInfoPage() {
                   style={{
                     position: "absolute", bottom: 0, right: 0,
                     width: 26, height: 26, borderRadius: "50%",
-                    background: "var(--ink-mid)", border: "2px solid #fff",
+                    background: "var(--ink-mid)", border: "2px solid var(--card)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     cursor: "pointer", color: "#fff", fontSize: 13, lineHeight: 1,
                   }}
@@ -440,7 +440,7 @@ function RolePicker({ value, parentRole, onSelect }: {
   return (
     <div style={{ background: "var(--surface)", borderRadius: 12, border: "1px solid var(--hairline)", overflow: "hidden" }}>
       {/* 그룹 탭 */}
-      <div style={{ display: "flex", borderBottom: "1px solid var(--hairline)", background: "#fff" }}>
+      <div style={{ display: "flex", borderBottom: "1px solid var(--hairline)", background: "var(--card)" }}>
         {ROLE_GROUPS.map(g => (
           <button key={g.label} onClick={() => setActiveGroup(g.label)} style={{
             flex: 1, padding: "9px 4px", border: "none", background: "none", cursor: "pointer",
@@ -457,7 +457,7 @@ function RolePicker({ value, parentRole, onSelect }: {
           return (
             <div key={role.id} onClick={() => handleRoleClick(role)} style={{
               cursor: "pointer", borderRadius: 10, overflow: "hidden",
-              background: "#fff", border: `2px solid ${isSelected ? "#3E5A4A" : "var(--hairline)"}`,
+              background: "var(--card)", border: `2px solid ${isSelected ? "#3E5A4A" : "var(--hairline)"}`,
               aspectRatio: "0.65", position: "relative",
             }}>
               <img src={role.image} alt={role.label} style={{
@@ -478,7 +478,7 @@ function RolePicker({ value, parentRole, onSelect }: {
           zIndex: 200, padding: 20,
         }}>
           <div onClick={e => e.stopPropagation()} style={{
-            background: "#fff", borderRadius: 16, padding: "20px 16px",
+            background: "var(--card)", borderRadius: 16, padding: "20px 16px",
             width: "100%", maxWidth: 360,
           }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", marginBottom: 14, textAlign: "center" }}>
@@ -529,7 +529,7 @@ function InfoItem({ label, value }: { label: string; value: string | null | unde
 
 // ===== Styles =====
 const card: React.CSSProperties = {
-  background: "#fff", borderRadius: 16, padding: "20px 20px",
+  background: "var(--card)", borderRadius: 16, padding: "20px 20px",
   border: "1px solid var(--hairline)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
 };
 const infoGrid: React.CSSProperties = {
@@ -546,14 +546,14 @@ const avatarLabel: React.CSSProperties = {
 };
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "9px 12px", border: "1px solid var(--hairline-strong)", borderRadius: 8,
-  fontSize: 13, fontFamily: "inherit", background: "#fff", outline: "none", boxSizing: "border-box" as const,
+  fontSize: 13, fontFamily: "inherit", background: "var(--card)", outline: "none", boxSizing: "border-box" as const,
 };
 const btnPrimary: React.CSSProperties = {
   padding: "9px 16px", border: 0, borderRadius: 8, background: "var(--accent)", color: "#fff",
   fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const,
 };
 const btnGhost: React.CSSProperties = {
-  padding: "9px 14px", border: "1px solid var(--hairline)", borderRadius: 8, background: "#fff",
+  padding: "9px 14px", border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--card)",
   color: "var(--ink-mid)", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" as const,
 };
 const btnSm: React.CSSProperties = {
@@ -561,6 +561,6 @@ const btnSm: React.CSSProperties = {
   color: "var(--ink-soft)", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" as const,
 };
 const btnOutline: React.CSSProperties = {
-  padding: "9px 16px", border: "1px solid var(--hairline-strong)", borderRadius: 8, background: "#fff",
+  padding: "9px 16px", border: "1px solid var(--hairline-strong)", borderRadius: 8, background: "var(--card)",
   color: "var(--ink)", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const,
 };

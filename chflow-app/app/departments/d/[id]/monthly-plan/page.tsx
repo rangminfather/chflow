@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { CalendarDays } from "lucide-react";
 
 interface PlanFile {
   name: string;
@@ -63,7 +64,7 @@ export default function MonthlyPlanPage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={titleStyle}>🗓️ 월간 교육계획서</div>
+        <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}><CalendarDays size={18} strokeWidth={1.8} /> 월간 교육계획서</div>
         <div style={{ width: 80 }} />
       </div>
 
@@ -81,15 +82,7 @@ export default function MonthlyPlanPage() {
           ) : error ? (
             <div className="px-5 py-12 text-center text-[16px] font-bold text-red-500">{error}</div>
           ) : files.length === 0 ? (
-            <div className="px-5 py-12 text-center">
-              <div className="text-[48px]">📭</div>
-              <div className="mt-4 text-[18px] font-extrabold text-ink">
-                등록된 월간 교육계획서가 없습니다
-              </div>
-              <div className="mx-auto mt-2 max-w-md text-[15px] leading-6 text-ink-soft">
-                월간교육등록에서 파일을 올리면 이 화면에 표시됩니다.
-              </div>
-            </div>
+            <EmptyState message="등록된 월간 교육계획서가 없습니다" hint="월간교육등록에서 파일을 올리면 이 화면에 표시됩니다." />
           ) : (
             <div className="space-y-3 p-5">
               {files.map((file) => (
@@ -118,6 +111,6 @@ export default function MonthlyPlanPage() {
 }
 
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)" };
 const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };

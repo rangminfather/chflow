@@ -1,24 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { T, PageShell, PageContent } from "@/components/Layout";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { BookOpen, Music, Globe, Handshake, Coins, Building2, Folder } from "lucide-react";
 
 interface Category {
   category: string;
   dept_count: number;
 }
 
-const CATEGORY_ICONS: Record<string, string> = {
-  교육사역국: "📚",
-  예배사역국: "🎵",
-  선교사역국: "🌍",
-  봉사사역국: "🤝",
-  재정부: "💰",
-  사무국: "🏢",
+const CATEGORY_ICONS: Record<string, ReactNode> = {
+  교육사역국: <BookOpen size={26} strokeWidth={1.8} />,
+  예배사역국: <Music size={26} strokeWidth={1.8} />,
+  선교사역국: <Globe size={26} strokeWidth={1.8} />,
+  봉사사역국: <Handshake size={26} strokeWidth={1.8} />,
+  재정부: <Coins size={26} strokeWidth={1.8} />,
+  사무국: <Building2 size={26} strokeWidth={1.8} />,
 };
 
 const CATEGORY_COLORS: Record<string, { bg: string; point: string }> = {
@@ -99,10 +100,7 @@ export default function DepartmentsPage() {
         {loading ? (
           <LoadingView padding={40} />
         ) : categories.length === 0 ? (
-          <div style={{ textAlign: "center", padding: 40, color: T.textMuted }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>📭</div>
-            등록된 사역이 없습니다
-          </div>
+          <EmptyState message="등록된 사역이 없습니다" />
         ) : (
           <div style={{
             display: "grid",
@@ -140,9 +138,9 @@ export default function DepartmentsPage() {
                     width: 52, height: 52, borderRadius: 13,
                     background: color.bg,
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 26, flexShrink: 0,
+                    fontSize: 26, flexShrink: 0, color: color.point,
                   }}>
-                    {CATEGORY_ICONS[cat.category] || "📁"}
+                    {CATEGORY_ICONS[cat.category] || <Folder size={26} strokeWidth={1.8} />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{cat.category}</div>

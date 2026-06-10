@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { Hourglass, CheckCircle2, RefreshCw, Lock } from "lucide-react";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -56,7 +57,7 @@ export default function ResetPasswordPage() {
     return (
       <main className="login-screen">
         <section className="login-panel" style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>⏰</div>
+          <div style={{ marginBottom: 16, color: "var(--ink-faint)" }}><Hourglass size={40} strokeWidth={1.5} /></div>
           <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)", marginBottom: 12 }}>
             링크가 만료되었습니다
           </div>
@@ -80,7 +81,7 @@ export default function ResetPasswordPage() {
     return (
       <main className="login-screen">
         <section className="login-panel" style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+          <div style={{ marginBottom: 16, color: "var(--success)" }}><CheckCircle2 size={40} strokeWidth={1.5} /></div>
           <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)", marginBottom: 12 }}>
             비밀번호가 변경되었습니다
           </div>
@@ -94,7 +95,7 @@ export default function ResetPasswordPage() {
     return (
       <main className="login-screen">
         <section className="login-panel" style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🔄</div>
+          <div style={{ marginBottom: 16, color: "var(--ink-faint)" }}><RefreshCw size={40} strokeWidth={1.5} /></div>
           <div className="auth-copy">링크를 확인하는 중...</div>
         </section>
       </main>
@@ -105,7 +106,7 @@ export default function ResetPasswordPage() {
     <main className="login-screen">
       <section className="login-panel">
         <div style={{ textAlign: "center", padding: "16px 0 20px" }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+          <div style={{ marginBottom: 12, color: "var(--ink-faint)" }}><Lock size={40} strokeWidth={1.5} /></div>
           <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)" }}>
             새 비밀번호 설정
           </div>

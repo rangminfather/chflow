@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
+import { Ticket, CheckCircle2, XCircle, AlertTriangle, Hourglass, Circle, Newspaper, FolderOpen, Save, Pencil, ClipboardList, RefreshCw, BookOpen, FileText, Music, BarChart3, Settings, Send, Info, Download, Wrench, Camera, X } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────
 // 폼 정의
@@ -553,7 +554,7 @@ function AttemptList({ attempts }: { attempts?: AttemptInfo[] }) {
   return (
     <div style={{ marginTop: 14, padding: 10, background: "var(--surface)", borderRadius: 8, border: "1px solid var(--hairline)" }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
-        <span>🎲 UMS 입장권 시도 내역</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Ticket size={13} strokeWidth={1.8} /> UMS 입장권 시도 내역</span>
         <span style={{ color: "var(--ink-faint)", fontWeight: 600 }}>
           {passedCount}/{attempts.length} 통과
         </span>
@@ -569,15 +570,15 @@ function AttemptList({ attempts }: { attempts?: AttemptInfo[] }) {
             marginBottom: 3, borderRadius: 4,
           }}
         >
-          <span style={{ width: 18, textAlign: "center" }}>{a.passed ? "✅" : "❌"}</span>
+          <span style={{ width: 18, display: "inline-flex", justifyContent: "center" }}>{a.passed ? <CheckCircle2 size={13} strokeWidth={1.8} color="var(--success)" /> : <XCircle size={13} strokeWidth={1.8} color="var(--danger)" />}</span>
           <span style={{ width: 26, color: "var(--ink-faint)" }}>#{a.i}</span>
           <span style={{ flex: 1, color: "var(--ink-mid)" }}>{a.phpsessid}…</span>
           <span style={{ color: "var(--ink-faint)" }}>{(a.size / 1024).toFixed(0)}KB</span>
         </div>
       ))}
       {passedCount === 0 && (
-        <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 6, lineHeight: 1.5 }}>
-          ⚠️ UMS 가 모든 입장권을 거부. 잠시 후 다시 시도해주세요.
+        <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 6, lineHeight: 1.5, display: "flex", alignItems: "center", gap: 4 }}>
+          <AlertTriangle size={12} strokeWidth={1.8} /> UMS 가 모든 입장권을 거부. 잠시 후 다시 시도해주세요.
         </div>
       )}
     </div>
@@ -605,10 +606,10 @@ function PostStepper({ currentStep }: { currentStep: PostStepId | null }) {
                      : i < curIdx ? "done"
                      : i === curIdx ? "active"
                      : "pending";
-        const icon = status === "done" ? "✅"
-                   : status === "active" ? "⏳"
-                   : status === "error" ? "❌"
-                   : "⚪";
+        const icon = status === "done" ? <CheckCircle2 size={18} strokeWidth={1.8} color="var(--success)" />
+                   : status === "active" ? <Hourglass size={18} strokeWidth={1.8} color="var(--accent)" />
+                   : status === "error" ? <XCircle size={18} strokeWidth={1.8} color="var(--danger)" />
+                   : <Circle size={15} strokeWidth={1.8} color="var(--ink-faint)" />;
         const labelColor = status === "done" ? "var(--success)"
                          : status === "active" ? "var(--ink)"
                          : status === "error" ? "var(--danger)"
@@ -621,7 +622,7 @@ function PostStepper({ currentStep }: { currentStep: PostStepId | null }) {
             borderRadius: 8,
             border: status === "active" ? "1px solid var(--accent-line)" : "1px solid transparent",
           }}>
-            <div style={{ fontSize: 18, width: 22, textAlign: "center" }}>{icon}</div>
+            <div style={{ width: 22, display: "flex", justifyContent: "center" }}>{icon}</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: status === "active" ? 800 : 600, color: labelColor }}>
                 {s.label}
@@ -778,7 +779,7 @@ export default function WeeklyBulletinPage() {
       });
       const j = await r.json();
       if (!j.ok) throw new Error(j.error);
-      showToast("UMS 계정 저장됨 ✅");
+      showToast("UMS 계정 저장됨");
       setCredsForm({ ums_user_id: "", ums_password: "" });
       setCredsModalOpen(false);
       await loadCredsMeta();
@@ -939,7 +940,7 @@ export default function WeeklyBulletinPage() {
         ...draft,
       });
       setDraftMeta({ last_edited_by: row.last_edited_by, last_edited_at: row.last_edited_at });
-      showToast(`💾 임시저장본 불러옴 (${formatRelativeTime(row.last_edited_at)})`);
+      showToast(`임시저장본 불러옴 (${formatRelativeTime(row.last_edited_at)})`);
       if (yearlyTheme && !draft.theme) {
         setForm((f) => ({ ...f, theme: yearlyTheme.theme }));
       }
@@ -1122,7 +1123,7 @@ export default function WeeklyBulletinPage() {
         setDraftMeta({ last_edited_at: meta.last_edited_at, last_edited_by: meta.last_edited_by });
       }
       skipNextLoadRef.current = true;
-      showToast("임시저장 완료 ✅");
+      showToast("임시저장 완료");
       await loadDraftsList();
     } catch (e: unknown) {
       showToast("저장 실패: " + (e as Error).message);
@@ -1183,7 +1184,7 @@ export default function WeeklyBulletinPage() {
         p_page_one_verse: themeForm.page_one_verse.trim() || null,
       });
       if (error) throw error;
-      showToast(`${year}년 표어 저장 완료 ✅`);
+      showToast(`${year}년 표어 저장 완료`);
       await loadYearlyTheme();
       setThemeEditMode(false);
       // 폼 주제제창도 새 표어로 갱신 (단 사용자가 다른 값 입력했을 수 있어 덮어쓰진 않음)
@@ -1197,7 +1198,7 @@ export default function WeeklyBulletinPage() {
 
   const handleDeleteDraft = async (issueDate: string) => {
     const confirmed = confirm(
-      `${issueDate} 임시저장본을 삭제하시겠습니까?\n\n⚠️ 삭제하면 복구할 수 없습니다.\n작성한 모든 내용이 사라집니다.`
+      `${issueDate} 임시저장본을 삭제하시겠습니까?\n\n삭제하면 복구할 수 없습니다.\n작성한 모든 내용이 사라집니다.`
     );
     if (!confirmed) return;
     try {
@@ -1397,7 +1398,7 @@ export default function WeeklyBulletinPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      showToast("hwpx 다운로드 완료 ✅");
+      showToast("hwpx 다운로드 완료");
     } catch (e: unknown) {
       showToast("생성 실패: " + (e as Error).message);
     } finally {
@@ -1424,7 +1425,7 @@ export default function WeeklyBulletinPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      showToast("PDF 다운로드 완료 ✅");
+      showToast("PDF 다운로드 완료");
     } catch (e: unknown) {
       showToast("PDF 생성 실패: " + (e as Error).message);
     } finally {
@@ -1445,15 +1446,15 @@ export default function WeeklyBulletinPage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>📰 주보 만들기</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Newspaper size={18} strokeWidth={1.8} /> 주보 만들기</div>
         <div style={{ display: "flex", gap: 6 }}>
           {!isDesktop && (
-            <button onClick={() => setDrawerOpen(true)} style={iconBtnStyle} title="임시저장 목록">
-              📂{draftList.length > 0 && <span style={{ fontSize: 11, marginLeft: 3 }}>{draftList.length}</span>}
+            <button onClick={() => setDrawerOpen(true)} style={{ ...iconBtnStyle, display: "inline-flex", alignItems: "center" }} title="임시저장 목록">
+              <FolderOpen size={16} strokeWidth={1.8} />{draftList.length > 0 && <span style={{ fontSize: 11, marginLeft: 3 }}>{draftList.length}</span>}
             </button>
           )}
-          <button onClick={handleSaveDraft} disabled={savingDraft} style={draftBtnStyle}>
-            {savingDraft ? "저장 중..." : "💾"}
+          <button onClick={handleSaveDraft} disabled={savingDraft} style={{ ...draftBtnStyle, display: "inline-flex", alignItems: "center" }}>
+            {savingDraft ? "저장 중..." : <Save size={16} strokeWidth={1.8} />}
           </button>
         </div>
       </div>
@@ -1492,8 +1493,8 @@ export default function WeeklyBulletinPage() {
         {draftMeta && (
           <div style={{ ...cardStyle, padding: "10px 16px", background: "#E2EDF2", border: "1px solid #C9DEE8" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
-              <div style={{ fontSize: 12, color: "#3E6A85", fontWeight: 700 }}>
-                💾 이 발행일자에 임시저장본 있음 — <b>{formatRelativeTime(draftMeta.last_edited_at)}</b> 저장
+              <div style={{ fontSize: 12, color: "#3E6A85", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <Save size={14} strokeWidth={1.8} /> 이 발행일자에 임시저장본 있음 — <b>{formatRelativeTime(draftMeta.last_edited_at)}</b> 저장
               </div>
               <div style={{ fontSize: 11, color: "#3E6A85" }}>
                 {new Date(draftMeta.last_edited_at).toLocaleString("ko-KR")}
@@ -1504,7 +1505,7 @@ export default function WeeklyBulletinPage() {
 
         {/* ─── 작성 헤더 ─── */}
         <div style={{
-          background: "linear-gradient(135deg, #F2EDF6, var(--accent-soft))",
+          background: "linear-gradient(135deg, var(--accent-soft), var(--accent-soft))",
           border: "1px solid #D8CCE4",
           borderRadius: 12,
           padding: "12px 16px",
@@ -1512,8 +1513,8 @@ export default function WeeklyBulletinPage() {
           display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8,
         }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#6B4F8C" }}>
-              📝 주보 작성 중
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#6B4F8C", display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <Pencil size={14} strokeWidth={1.8} /> 주보 작성 중
             </div>
             <div style={{ fontSize: 11, color: "#7E5F9E", marginTop: 2 }}>
               {form.date ? formatKoreanDate(form.date) : "발행일 미선택"} · {currentPage}페이지 입력 중
@@ -1522,19 +1523,21 @@ export default function WeeklyBulletinPage() {
               <div style={{
                 fontSize: 11, fontWeight: 800, marginTop: 4,
                 color: planApplyState === "applied" ? "var(--success)" : "var(--ink-faint)",
+                display: "inline-flex", alignItems: "center", gap: 4,
               }}>
+                <ClipboardList size={13} strokeWidth={1.8} />
                 {planApplyState === "applied"
-                  ? "📋 월간교육계획서 적용됨"
+                  ? "월간교육계획서 적용됨"
                   : planApplyState === "none"
-                    ? "📋 월간교육계획서 없음 (미적용)"
-                    : "📋 월간교육계획서 확인 중…"}
+                    ? "월간교육계획서 없음 (미적용)"
+                    : "월간교육계획서 확인 중…"}
               </div>
             )}
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             {form.issueNumber && (
               <div style={{
-                padding: "4px 10px", background: "#fff",
+                padding: "4px 10px", background: "var(--card)",
                 borderRadius: 6, fontSize: 12, fontWeight: 700, color: "#6B4F8C",
                 border: "1px solid #D8CCE4",
               }}>
@@ -1546,13 +1549,14 @@ export default function WeeklyBulletinPage() {
               title={`${currentPage}페이지 입력 초기화 (자동 입력값은 보존)`}
               style={{
                 padding: "5px 10px",
-                background: "#fff", color: "var(--danger)",
+                background: "var(--card)", color: "var(--danger)",
                 border: "1px solid #E5B3AC", borderRadius: 6,
                 fontSize: 11, fontWeight: 700,
                 cursor: "pointer", fontFamily: "inherit",
+                display: "inline-flex", alignItems: "center", gap: 4,
               }}
             >
-              🔄 {currentPage}페이지 리셋
+              <RefreshCw size={13} strokeWidth={1.8} /> {currentPage}페이지 리셋
             </button>
           </div>
         </div>
@@ -1564,10 +1568,10 @@ export default function WeeklyBulletinPage() {
           overflowX: "auto",
         }}>
           {[
-            { n: 3 as const, label: "알립니다·공과", icon: "📚", spread: 1 },
-            { n: 1 as const, label: "표지", icon: "📄", spread: 1 },
-            { n: 2 as const, label: "예배 순서", icon: "🎵", spread: 2 },
-            { n: 4 as const, label: "목장 현황", icon: "📊", spread: 2 },
+            { n: 3 as const, label: "알립니다·공과", icon: BookOpen, spread: 1 },
+            { n: 1 as const, label: "표지", icon: FileText, spread: 1 },
+            { n: 2 as const, label: "예배 순서", icon: Music, spread: 2 },
+            { n: 4 as const, label: "목장 현황", icon: BarChart3, spread: 2 },
           ].map((p) => (
             <button
               key={p.n}
@@ -1585,7 +1589,7 @@ export default function WeeklyBulletinPage() {
                 transition: "all 0.15s",
               }}
             >
-              <div style={{ fontSize: 14, marginBottom: 1 }}>{p.icon}</div>
+              <div style={{ marginBottom: 1, display: "flex", justifyContent: "center" }}><p.icon size={14} strokeWidth={1.8} /></div>
               <div style={{ fontSize: 9, color: currentPage === p.n ? "#6B4F8C" : "var(--ink-faint)" }}>
                 {p.spread}페이지 {p.n === 3 || p.n === 2 ? "좌" : "우"}
               </div>
@@ -1629,7 +1633,7 @@ export default function WeeklyBulletinPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ ...sectionLabel, marginBottom: 0 }}>② {currentYear}년 표어 (주제제창)</div>
             {!themeEditMode && (
-              <button onClick={() => setThemeEditMode(true)} style={smallBtnStyle}>✏️ 수정</button>
+              <button onClick={() => setThemeEditMode(true)} style={{ ...smallBtnStyle, display: "inline-flex", alignItems: "center", gap: 4 }}><Pencil size={13} strokeWidth={1.8} /> 수정</button>
             )}
           </div>
           {!themeEditMode ? (
@@ -1769,17 +1773,17 @@ export default function WeeklyBulletinPage() {
           <div style={{ ...cardStyle, border: "1px solid var(--accent-line)", background: "var(--surface)" }}>
             {/* 헤더 */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "var(--accent-strong)" }}>📚 복습문제</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "var(--accent-strong)", display: "inline-flex", alignItems: "center", gap: 5 }}><BookOpen size={16} strokeWidth={1.8} /> 복습문제</div>
               <div style={{ display: "flex", gap: 6 }}>
                 <button
                   type="button"
                   onClick={loadReviewProblems}
                   disabled={reviewLoading || !form.date}
-                  style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid var(--accent-line)", background: "#fff", color: "var(--accent-strong)", fontSize: 12, fontWeight: 800, cursor: reviewLoading ? "default" : "pointer", fontFamily: "inherit", opacity: reviewLoading ? 0.6 : 1 }}
+                  style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid var(--accent-line)", background: "var(--card)", color: "var(--accent-strong)", fontSize: 12, fontWeight: 800, cursor: reviewLoading ? "default" : "pointer", fontFamily: "inherit", opacity: reviewLoading ? 0.6 : 1 }}
                 >
                   {reviewLoading ? "확인 중…" : "새로고침"}
                 </button>
-                <label style={{ padding: "5px 10px", borderRadius: 7, border: "1px dashed var(--accent-line)", background: "#fff", color: "var(--accent-strong)", fontSize: 12, fontWeight: 800, cursor: reviewUploading ? "default" : "pointer", opacity: reviewUploading ? 0.6 : 1 }}>
+                <label style={{ padding: "5px 10px", borderRadius: 7, border: "1px dashed var(--accent-line)", background: "var(--card)", color: "var(--accent-strong)", fontSize: 12, fontWeight: 800, cursor: reviewUploading ? "default" : "pointer", opacity: reviewUploading ? 0.6 : 1 }}>
                   {reviewUploading ? "업로드 중…" : "+ PPTX 업로드"}
                   <input type="file" accept=".pptx" multiple disabled={reviewUploading} onChange={(e) => { handleReviewUpload(e.target.files); e.currentTarget.value = ""; }} style={{ display: "none" }} />
                 </label>
@@ -1807,7 +1811,9 @@ export default function WeeklyBulletinPage() {
                 {/* 매칭 상태 배지 + 플랜 정보 */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <span style={{
-                    display: "inline-block",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
                     padding: "2px 8px",
                     borderRadius: 99,
                     fontSize: 11,
@@ -1815,7 +1821,7 @@ export default function WeeklyBulletinPage() {
                     background: reviewMatch ? "var(--success-soft)" : "var(--warning-soft)",
                     color: reviewMatch ? "var(--success)" : "var(--warning)",
                   }}>
-                    {reviewMatch ? "✅ 자동 매칭" : "⚠️ 미매칭"}
+                    {reviewMatch ? <><CheckCircle2 size={13} strokeWidth={1.8} /> 자동 매칭</> : <><AlertTriangle size={13} strokeWidth={1.8} /> 미매칭</>}
                   </span>
                   {reviewPlanStatus.plan && (
                     <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-mid)" }}>
@@ -1853,7 +1859,7 @@ export default function WeeklyBulletinPage() {
                 <button
                   type="button"
                   onClick={() => setShowReviewList((v) => !v)}
-                  style={{ width: "100%", padding: "7px 12px", borderRadius: 8, border: "1px solid var(--hairline-strong)", background: "#fff", color: "var(--ink-mid)", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+                  style={{ width: "100%", padding: "7px 12px", borderRadius: 8, border: "1px solid var(--hairline-strong)", background: "var(--card)", color: "var(--ink-mid)", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
                 >
                   {showReviewList ? "▲ 목록 접기" : `▼ 다른 문제 선택 (${reviewProblems.length}개)`}
                 </button>
@@ -1956,7 +1962,7 @@ export default function WeeklyBulletinPage() {
               border: "1px solid #E0C893", borderRadius: 8,
               fontSize: 11, color: "var(--warning)", lineHeight: 1.5,
             }}>
-              ⚠️ 5번째 문제부터는 hwpx 출력에 포함되지 않습니다 (양식 자리 4번까지).
+              <AlertTriangle size={12} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> 5번째 문제부터는 hwpx 출력에 포함되지 않습니다 (양식 자리 4번까지).
               필요 시 PDF 자동 생성에는 모든 문제 포함됨.
             </div>
           )}
@@ -2236,7 +2242,7 @@ export default function WeeklyBulletinPage() {
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
               }}
             >
-              <span>{autoPosting ? "등록 중..." : "🚀 1클릭 자동등록"}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{autoPosting ? "등록 중..." : <><Send size={15} strokeWidth={1.8} /> 1클릭 자동등록</>}</span>
               {!autoPosting && (
                 <span style={{ fontSize: 10, fontWeight: 500, opacity: 0.85 }}>
                   PDF 자동 생성 후 업로드
@@ -2252,8 +2258,8 @@ export default function WeeklyBulletinPage() {
         <div style={modalBackdropStyle} onClick={() => setCredsModalOpen(false)}>
           <div style={{ ...postModalCardStyle, maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>⚙️ UMS 계정 설정</div>
-              <button onClick={() => setCredsModalOpen(false)} style={iconBtnStyle}>✕</button>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Settings size={18} strokeWidth={1.8} /> UMS 계정 설정</div>
+              <button onClick={() => setCredsModalOpen(false)} style={{ ...iconBtnStyle, display: "inline-flex", alignItems: "center" }}><X size={16} strokeWidth={1.8} /></button>
             </div>
 
             <div style={{ fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.6, marginBottom: 14, background: "var(--surface)", padding: 10, borderRadius: 8 }}>
@@ -2301,7 +2307,7 @@ export default function WeeklyBulletinPage() {
           <div style={{ ...postModalCardStyle, maxWidth: 460 }}>
             {autoPosting && (
               <>
-                <div style={{ fontSize: 32, marginBottom: 8, textAlign: "center" }}>🚀</div>
+                <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><Send size={36} strokeWidth={1.8} color="var(--accent)" /></div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", marginBottom: 14, textAlign: "center" }}>
                   자동 등록 진행 중
                 </div>
@@ -2310,13 +2316,13 @@ export default function WeeklyBulletinPage() {
                   fontSize: 11, color: "var(--ink-soft)", marginTop: 10, padding: "8px 12px",
                   background: "var(--warning-soft)", borderRadius: 6, lineHeight: 1.5, textAlign: "center",
                 }}>
-                  💡 UMS 가 입장권을 거부할 때마다 새로 받아 재시도 (최대 5회, 99% 통과)
+                  <Info size={12} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> UMS 가 입장권을 거부할 때마다 새로 받아 재시도 (최대 5회, 99% 통과)
                 </div>
               </>
             )}
             {autoPostResult && autoPostResult.ok && (
               <>
-                <div style={{ fontSize: 32, marginBottom: 8, textAlign: "center" }}>✅</div>
+                <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><CheckCircle2 size={36} strokeWidth={1.8} color="var(--success)" /></div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: "var(--success)", marginBottom: 6, textAlign: "center" }}>
                   등록 완료!
                 </div>
@@ -2338,7 +2344,7 @@ export default function WeeklyBulletinPage() {
             )}
             {autoPostResult && !autoPostResult.ok && (
               <>
-                <div style={{ fontSize: 32, marginBottom: 8, textAlign: "center" }}>⚠️</div>
+                <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><AlertTriangle size={36} strokeWidth={1.8} color="var(--danger)" /></div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: "var(--danger)", marginBottom: 6, textAlign: "center" }}>
                   자동등록 실패
                 </div>
@@ -2355,9 +2361,9 @@ export default function WeeklyBulletinPage() {
                   </button>
                   <button
                     onClick={() => { setAutoPostResult(null); setPostStep(null); handleAutoPost(); }}
-                    style={primaryBtnStyle}
+                    style={{ ...primaryBtnStyle, display: "inline-flex", alignItems: "center", gap: 5 }}
                   >
-                    🔄 다시 시도
+                    <RefreshCw size={14} strokeWidth={1.8} /> 다시 시도
                   </button>
                 </div>
               </>
@@ -2375,12 +2381,12 @@ export default function WeeklyBulletinPage() {
           />
           <div style={{
             position: "fixed", top: 0, right: 0, height: "100vh", width: "min(320px, 85vw)",
-            background: "#fff", zIndex: 999, padding: 16, overflowY: "auto",
+            background: "var(--card)", zIndex: 999, padding: 16, overflowY: "auto",
             boxShadow: "-4px 0 20px rgba(0,0,0,0.15)",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>📂 임시저장 목록</div>
-              <button onClick={() => setDrawerOpen(false)} style={iconBtnStyle}>✕</button>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><FolderOpen size={16} strokeWidth={1.8} /> 임시저장 목록</div>
+              <button onClick={() => setDrawerOpen(false)} style={{ ...iconBtnStyle, display: "inline-flex", alignItems: "center" }}><X size={16} strokeWidth={1.8} /></button>
             </div>
             <DraftSidebar
               draftList={draftList}
@@ -2423,7 +2429,7 @@ function ActionCard({
   compact?: boolean;
 }) {
   const cardCss: React.CSSProperties = {
-    background: "#fff", borderRadius: 14, padding: compact ? 14 : 20,
+    background: "var(--card)", borderRadius: 14, padding: compact ? 14 : 20,
     boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
   };
 
@@ -2443,13 +2449,13 @@ function ActionCard({
         <div style={{ fontSize: 11, lineHeight: 1.4 }}>
           {credsMeta?.has_credentials ? (
             <>
-              <span style={{ fontWeight: 700, color: "var(--success)" }}>✅ UMS 계정 등록됨</span>
+              <span style={{ fontWeight: 700, color: "var(--success)", display: "inline-flex", alignItems: "center", gap: 4 }}><CheckCircle2 size={13} strokeWidth={1.8} /> UMS 계정 등록됨</span>
               <br />
               <span style={{ color: "var(--success)" }}>{credsMeta.ums_user_id}</span>
             </>
           ) : (
             <>
-              <span style={{ fontWeight: 700, color: "var(--warning)" }}>⚠️ UMS 계정 미등록</span>
+              <span style={{ fontWeight: 700, color: "var(--warning)", display: "inline-flex", alignItems: "center", gap: 4 }}><AlertTriangle size={13} strokeWidth={1.8} /> UMS 계정 미등록</span>
               <br />
               <span style={{ color: "var(--warning)" }}>등록 후 자동등록 가능</span>
             </>
@@ -2457,17 +2463,19 @@ function ActionCard({
         </div>
         <div style={{ display: "flex", gap: 4 }}>
           <button onClick={onOpenCredsModal} style={{
-            padding: "5px 8px", background: "#fff", border: "1px solid var(--hairline-strong)",
+            padding: "5px 8px", background: "var(--card)", border: "1px solid var(--hairline-strong)",
             borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+            display: "inline-flex", alignItems: "center",
           }}>
-            ⚙️
+            <Settings size={14} strokeWidth={1.8} />
           </button>
           {credsMeta?.has_credentials && (
             <button onClick={onDeleteCreds} title="삭제" style={{
               padding: "5px 8px", background: "var(--danger-soft)", color: "var(--danger)",
               border: "1px solid var(--danger-soft)", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+              display: "inline-flex", alignItems: "center",
             }}>
-              ✕
+              <X size={14} strokeWidth={1.8} />
             </button>
           )}
         </div>
@@ -2492,7 +2500,7 @@ function ActionCard({
             background: "#E2EDF2", border: "1px solid #C9DEE8", borderRadius: 8,
             padding: 8, marginBottom: 10, fontSize: 11, color: "#3E6A85", lineHeight: 1.5,
           }}>
-            🚀 자동등록 = 폼 → PDF 자동 생성 → UMS 게시판 등록까지 1클릭
+            <Send size={12} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> 자동등록 = 폼 → PDF 자동 생성 → UMS 게시판 등록까지 1클릭
           </div>
         )
       )}
@@ -2514,7 +2522,7 @@ function ActionCard({
           display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
         }}
       >
-        <span>{autoPosting ? "등록 중..." : "🚀 1클릭 자동등록"}</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{autoPosting ? "등록 중..." : <><Send size={15} strokeWidth={1.8} /> 1클릭 자동등록</>}</span>
         {!autoPosting && (!cooldown || cooldown.can_post) && (
           <span style={{ fontSize: 10, fontWeight: 500, opacity: 0.85 }}>
             PDF 자동 생성 후 업로드 합니다
@@ -2529,27 +2537,27 @@ function ActionCard({
           border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 11, fontWeight: 700,
           cursor: "pointer", fontFamily: "inherit",
         }}>
-          {savingDraft ? "저장 중..." : "💾 임시저장"}
+          {savingDraft ? "저장 중..." : <span style={{ display: "inline-flex", alignItems: "center", gap: 4, justifyContent: "center" }}><Save size={13} strokeWidth={1.8} /> 임시저장</span>}
         </button>
         <button onClick={onDownloadHwpx} disabled={generating} style={{
           flex: 1, padding: "8px 10px", background: "var(--bg-soft)", color: "var(--ink-mid)",
           border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 11, fontWeight: 700,
           cursor: "pointer", fontFamily: "inherit",
         }}>
-          {generating ? "생성 중..." : "📥 hwpx"}
+          {generating ? "생성 중..." : <span style={{ display: "inline-flex", alignItems: "center", gap: 4, justifyContent: "center" }}><Download size={13} strokeWidth={1.8} /> hwpx</span>}
         </button>
         <button onClick={onDownloadPdf} disabled={generating} style={{
           flex: 1, padding: "8px 10px", background: "var(--bg-soft)", color: "var(--ink-mid)",
           border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 11, fontWeight: 700,
           cursor: "pointer", fontFamily: "inherit",
         }}>
-          {generating ? "생성 중..." : "📥 PDF"}
+          {generating ? "생성 중..." : <span style={{ display: "inline-flex", alignItems: "center", gap: 4, justifyContent: "center" }}><Download size={13} strokeWidth={1.8} /> PDF</span>}
         </button>
       </div>
 
       {/* 고급 */}
       <details style={{ marginTop: 10, fontSize: 11, color: "var(--ink-soft)" }}>
-        <summary style={{ cursor: "pointer", fontWeight: 700 }}>🔧 한글 PDF 직접 첨부</summary>
+        <summary style={{ cursor: "pointer", fontWeight: 700 }}><Wrench size={13} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> 한글 PDF 직접 첨부</summary>
         <div style={{ marginTop: 6, padding: 8, background: "var(--surface)", borderRadius: 6 }}>
           <input
             type="file" accept="application/pdf,.pdf"
@@ -2557,8 +2565,8 @@ function ActionCard({
             style={{ width: "100%", padding: 4, fontSize: 10 }}
           />
           {pdfFile && (
-            <div style={{ fontSize: 10, color: "var(--success)", marginTop: 4 }}>
-              ✅ {pdfFile.name}
+            <div style={{ fontSize: 10, color: "var(--success)", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+              <CheckCircle2 size={12} strokeWidth={1.8} /> {pdfFile.name}
             </div>
           )}
         </div>
@@ -2618,13 +2626,13 @@ function PhotoSlot({ index, file, onChange }: {
               position: "absolute", top: 6, right: 6,
               padding: "3px 8px", background: "rgba(0,0,0,0.55)", color: "#fff",
               border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700,
-              cursor: "pointer",
+              cursor: "pointer", display: "inline-flex", alignItems: "center",
             }}
-          >✕</button>
+          ><X size={13} strokeWidth={1.8} /></button>
         </>
       ) : (
         <div style={{ textAlign: "center", color: "var(--ink-faint)", fontSize: 12 }}>
-          <div style={{ fontSize: 22, marginBottom: 4 }}>📷</div>
+          <div style={{ marginBottom: 4, display: "flex", justifyContent: "center" }}><Camera size={22} strokeWidth={1.8} /></div>
           <div>슬롯 {index + 1}</div>
           <div style={{ fontSize: 10, marginTop: 2 }}>탭/드래그</div>
         </div>
@@ -2646,7 +2654,7 @@ function DraftSidebar({
     ? {}
     : {
         width: "100%",  // 부모 wrapper 의 width 따라감
-        background: "#fff", borderRadius: 14, padding: 16,
+        background: "var(--card)", borderRadius: 14, padding: 16,
         boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
         boxSizing: "border-box",
       };
@@ -2654,8 +2662,8 @@ function DraftSidebar({
   return (
     <div style={wrapperStyle}>
       {!embedded && (
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.5, marginBottom: 12 }}>
-          📂 임시저장 목록 ({draftList.length}건)
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.5, marginBottom: 12, display: "inline-flex", alignItems: "center", gap: 5 }}>
+          <FolderOpen size={14} strokeWidth={1.8} /> 임시저장 목록 ({draftList.length}건)
         </div>
       )}
       {draftList.length === 0 ? (
@@ -2700,9 +2708,10 @@ function DraftSidebar({
                     padding: "6px 8px", background: "var(--danger-soft)", color: "var(--danger)",
                     border: "1px solid var(--danger-soft)", borderRadius: 6, fontSize: 11,
                     cursor: "pointer", fontFamily: "inherit", lineHeight: 1,
+                    display: "inline-flex", alignItems: "center",
                   }}
                 >
-                  ✕
+                  <X size={13} strokeWidth={1.8} />
                 </button>
               </div>
             );
@@ -2751,7 +2760,7 @@ function QuizCard({ index, quiz, canRemove, onChange, onRemove }: {
           style={{
             flex: 1, padding: "6px 8px", fontSize: 12,
             border: "1px solid var(--hairline-strong)", borderRadius: 6, fontFamily: "inherit",
-            background: "#fff",
+            background: "var(--card)",
           }}
         >
           <option value="subjective">서술형 (단답)</option>
@@ -2766,11 +2775,11 @@ function QuizCard({ index, quiz, canRemove, onChange, onRemove }: {
               padding: "4px 10px", background: "var(--danger-soft)", color: "var(--danger)",
               border: "1px solid #E5B3AC", borderRadius: 6,
               fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-              flexShrink: 0,
+              flexShrink: 0, display: "inline-flex", alignItems: "center",
             }}
             title="문제 삭제"
           >
-            ✕
+            <X size={13} strokeWidth={1.8} />
           </button>
         )}
       </div>
@@ -2833,7 +2842,7 @@ function BulletinPreview({ currentPage, form, farmData, quizzes, photos, deptNam
   const pageCss: React.CSSProperties = {
     flex: 1,
     aspectRatio: "595/842",  // A4 비율 (한 페이지)
-    background: "#fff",
+    background: "var(--card)",
     border: "1px solid var(--hairline-strong)",
     borderRadius: 4,
     padding: 8,
@@ -2847,8 +2856,8 @@ function BulletinPreview({ currentPage, form, farmData, quizzes, photos, deptNam
 
   return (
     <div>
-      <div style={{ fontSize: 10, color: "var(--ink-faint)", fontWeight: 700, marginBottom: 6, textAlign: "center" }}>
-        📖 {spreadLabel} 미리보기
+      <div style={{ fontSize: 10, color: "var(--ink-faint)", fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+        <BookOpen size={12} strokeWidth={1.8} /> {spreadLabel} 미리보기
       </div>
       <div style={{ display: "flex", gap: 6, background: "var(--hairline)", padding: 6, borderRadius: 6 }}>
         {isSpread1 ? (
@@ -2926,7 +2935,7 @@ function PreviewPage1({ form, photos, deptName }: {
       {/* ── 표어 (사진 밑) ── */}
       {form.pageOneVerse ? (
         <div style={{
-          padding: "6px 8px", background: "#fff", borderLeft: "3px solid var(--warning)",
+          padding: "6px 8px", background: "var(--card)", borderLeft: "3px solid var(--warning)",
           fontSize: 7.5, lineHeight: 1.6, color: "var(--ink)", marginBottom: 6,
           fontStyle: "italic",
         }}>
@@ -3112,7 +3121,7 @@ function PreviewPage3({ form, quizzes }: { form: FormState; quizzes: QuizItem[] 
       </div>
 
       {/* 퀴즈 리스트 */}
-      <div style={{ background: "#fff", border: "1px solid #E0C893", borderRadius: 4, padding: "8px 10px" }}>
+      <div style={{ background: "var(--card)", border: "1px solid #E0C893", borderRadius: 4, padding: "8px 10px" }}>
         {quizzes.map((q, i) => (
           <div key={q.id} style={{ marginBottom: 8, paddingBottom: 6, borderBottom: i < quizzes.length - 1 ? "1px dashed #E0C893" : "none" }}>
             <div style={{ fontSize: 8.5, fontWeight: 700, color: "var(--ink)", marginBottom: 3 }}>
@@ -3240,7 +3249,7 @@ function SmallInput({ label, value, onChange, hint }: {
           width: "100%", padding: "6px 8px",
           border: "1px solid var(--hairline-strong)", borderRadius: 6,
           fontSize: 13, fontFamily: "inherit",
-          background: "#fff",
+          background: "var(--card)",
         }}
       />
       {hint && <div style={{ fontSize: 8, color: "var(--ink-faint)", marginTop: 2 }}>{hint}</div>}
@@ -3258,11 +3267,11 @@ const containerStyle: React.CSSProperties = {
   maxWidth: 720, margin: "0 auto", padding: 16, display: "flex", flexDirection: "column", gap: 14,
 };
 const headerStyle: React.CSSProperties = {
-  background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 16px",
+  background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 16px",
   display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
 };
 const cardStyle: React.CSSProperties = {
-  background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+  background: "var(--card)", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
 };
 const warnCardStyle: React.CSSProperties = {
   background: "#F8F0E3", border: "1.5px solid #fed7aa", borderRadius: 14, padding: 14, color: "#8A5526",
@@ -3302,7 +3311,7 @@ const modalBackdropStyle: React.CSSProperties = {
   padding: 16, zIndex: 1000,
 };
 const postModalCardStyle: React.CSSProperties = {
-  background: "#fff", borderRadius: 14, padding: 20,
+  background: "var(--card)", borderRadius: 14, padding: 20,
   width: "100%", maxWidth: 520, maxHeight: "92vh", overflowY: "auto",
   boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
 };
@@ -3333,7 +3342,7 @@ const mobileStickyBarStyle: React.CSSProperties = {
   left: 0,
   right: 0,
   zIndex: 100,
-  background: "#fff",
+  background: "var(--card)",
   borderTop: "1px solid var(--hairline)",
   padding: "10px 14px",
   paddingBottom: "calc(10px + env(safe-area-inset-bottom))",

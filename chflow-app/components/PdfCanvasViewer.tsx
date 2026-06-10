@@ -103,7 +103,7 @@ const viewerStyle: React.CSSProperties = {
   height: "100%",
   overflowY: "auto",
   WebkitOverflowScrolling: "touch",
-  background: "#fff",
+  background: "var(--card)",
 };
 
 const canvasHostStyle: React.CSSProperties = {

@@ -46,7 +46,7 @@ export default function SplashPage() {
         minHeight: "100vh",
         position: "relative",
         overflow: "hidden",
-        background: "#fff9f2",
+        background: "var(--card)",
         color: "#342a27",
         fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
       }}
@@ -65,7 +65,7 @@ export default function SplashPage() {
           inset: 0;
           background:
             linear-gradient(135deg, rgba(255, 255, 255, 0.62), transparent 42%),
-            linear-gradient(180deg, #fffaf5 0%, #fff7ee 100%);
+            linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
         }
         .launch-sheen {
           position: absolute;

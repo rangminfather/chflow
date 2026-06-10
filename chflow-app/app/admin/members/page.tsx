@@ -8,6 +8,7 @@ import { ExportMembersModal, ImportMembersModal } from "@/components/MemberDataT
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { Download, Upload, Building2, Shuffle, Hourglass, BarChart3, Search, User, Baby, Users, Info, AlertTriangle } from "lucide-react";
 
 interface Member {
   id: string;
@@ -230,7 +231,7 @@ function AdminMembersPage() {
 
       <div style={{ maxWidth: 1400, margin: "0 auto" }}>
         {/* Header */}
-        <div style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <HeaderLogo />
             <div>
@@ -240,18 +241,18 @@ function AdminMembersPage() {
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button onClick={() => setCreating(true)} style={btnPrimary}>+ 회원 추가</button>
-            <button onClick={() => setExporting(true)} style={{ ...btnGhost, background: "var(--success-soft)", color: "var(--success)" }}>📥 회원정보 백업</button>
-            <button onClick={() => setImporting(true)} style={{ ...btnGhost, background: "var(--accent-soft)", color: "var(--accent-strong)" }}>📤 일괄업로드</button>
-            <button onClick={() => router.push("/admin/dept-staff")} style={{ ...btnGhost, background: "#F5E5EB", color: "#9d174d" }}>🏢 부서원 관리</button>
-            <button onClick={() => router.push("/admin/rearrange")} style={{ ...btnGhost, background: "var(--accent-soft)", color: "var(--accent-strong)" }}>🔀 재편성</button>
-            <button onClick={() => router.push("/admin/pending")} style={btnWarning}>⏳ 가입 대기자</button>
-            <button onClick={() => router.push("/admin/ops-status")} style={{ ...btnGhost, background: "var(--success-soft)", color: "var(--success)" }}>📊 운영 상태</button>
+            <button onClick={() => setExporting(true)} style={{ ...btnGhost, background: "var(--success-soft)", color: "var(--success)", display: "inline-flex", alignItems: "center", gap: 6 }}><Download size={14} strokeWidth={1.8} /> 회원정보 백업</button>
+            <button onClick={() => setImporting(true)} style={{ ...btnGhost, background: "var(--accent-soft)", color: "var(--accent-strong)", display: "inline-flex", alignItems: "center", gap: 6 }}><Upload size={14} strokeWidth={1.8} /> 일괄업로드</button>
+            <button onClick={() => router.push("/admin/dept-staff")} style={{ ...btnGhost, background: "#F5E5EB", color: "#9d174d", display: "inline-flex", alignItems: "center", gap: 6 }}><Building2 size={14} strokeWidth={1.8} /> 부서원 관리</button>
+            <button onClick={() => router.push("/admin/rearrange")} style={{ ...btnGhost, background: "var(--accent-soft)", color: "var(--accent-strong)", display: "inline-flex", alignItems: "center", gap: 6 }}><Shuffle size={14} strokeWidth={1.8} /> 재편성</button>
+            <button onClick={() => router.push("/admin/pending")} style={{ ...btnWarning, display: "inline-flex", alignItems: "center", gap: 6 }}><Hourglass size={14} strokeWidth={1.8} /> 가입 대기자</button>
+            <button onClick={() => router.push("/admin/ops-status")} style={{ ...btnGhost, background: "var(--success-soft)", color: "var(--success)", display: "inline-flex", alignItems: "center", gap: 6 }}><BarChart3 size={14} strokeWidth={1.8} /> 운영 상태</button>
             <button onClick={() => router.push("/home")} style={btnGhost}>← 홈</button>
           </div>
         </div>
 
         {/* Search Bar */}
-        <div style={{ background: "#fff", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, padding: 16, marginBottom: 16 }}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <input
               type="text" value={query}
@@ -292,8 +293,8 @@ function AdminMembersPage() {
               <option value="inactive">분리보관</option>
               <option value="all">전체</option>
             </select>
-            <button onClick={runSearch} disabled={loading} style={btnPrimary}>
-              {loading ? "조회 중..." : "🔍 검색"}
+            <button onClick={runSearch} disabled={loading} style={{ ...btnPrimary, display: "inline-flex", alignItems: "center", gap: 6 }}>
+              {loading ? "조회 중..." : <><Search size={14} strokeWidth={1.8} /> 검색</>}
             </button>
             <button onClick={() => { setQuery(""); setFilterPlain(""); setFilterGrassland(""); setFilterPasture(""); setMemberStatus("active"); setShowChildren(true); setShowParents(true); setPage(1); doSearch(1, "", "", "", "", "active", true, true); }}
               style={btnGhost}>초기화</button>
@@ -330,7 +331,7 @@ function AdminMembersPage() {
         </div>
 
         {/* Table */}
-        <div style={{ background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
           <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--hairline)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-mid)" }}>
               총 <span style={{ color: "var(--accent)" }}>{total}</span>명 · {page}/{totalPages} 페이지
@@ -356,12 +357,12 @@ function AdminMembersPage() {
                         title="성도 카드 열기">
                         {m.photo_url
                           ? <img src={m.photo_url} alt="" style={{ width: 22, height: 22, borderRadius: "50%", objectFit: "cover" }} />
-                          : <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--hairline)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>{m.gender === "F" ? "👩" : "👨"}</span>}
+                          : <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--hairline)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><User size={13} strokeWidth={1.8} color={m.gender === "F" ? "var(--female)" : "var(--male)"} /></span>}
                         <span style={{ color: "var(--accent)", textDecoration: "underline", textUnderlineOffset: 3, textDecorationColor: "var(--accent-line)" }}>{m.name}</span>
                       </span>
                     </td>
                     <td style={tdStyle}>{m.gender === "M" ? "남" : m.gender === "F" ? "여" : "-"}</td>
-                    <td style={tdStyle}>{m.is_child ? "👶" : ""}</td>
+                    <td style={tdStyle}>{m.is_child ? <Baby size={15} strokeWidth={1.8} color="var(--accent)" /> : ""}</td>
                     <td style={tdStyle}>
                       <span style={{
                         padding: "2px 8px", borderRadius: 4, fontSize: 11,
@@ -418,7 +419,7 @@ function AdminMembersPage() {
       {deleting && (
         <ConfirmModal
           title="회원 삭제"
-          message={`${deleting.name} 님을 삭제하시겠습니까?${deleting.is_child ? "\n관련 부모(아버지/어머니)와의 자녀관계도 함께 끊어집니다." : ""}${deleting.has_account ? "\n⚠️ 앱 계정과 연결돼 있어 삭제 불가할 수 있습니다." : ""}`}
+          message={`${deleting.name} 님을 삭제하시겠습니까?${deleting.is_child ? "\n관련 부모(아버지/어머니)와의 자녀관계도 함께 끊어집니다." : ""}${deleting.has_account ? "\n앱 계정과 연결돼 있어 삭제 불가할 수 있습니다." : ""}`}
           onConfirm={handleDelete}
           onClose={() => setDeleting(null)}
         />
@@ -669,14 +670,14 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
 
         {member.is_child && (
           <div style={{ padding: 12, background: "var(--warning-soft)", border: "1.5px dashed #E0C893", borderRadius: 10, marginBottom: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", marginBottom: 8 }}>
-              👨‍👩‍👧 부모 회원 연결 <span style={{ fontWeight: 400, color: "var(--warning)" }}>(선택 — 비워두면 가족 연결 추가 없음)</span>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", marginBottom: 8, display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Users size={14} strokeWidth={1.8} /> 부모 회원 연결 <span style={{ fontWeight: 400, color: "var(--warning)" }}>(선택 — 비워두면 가족 연결 추가 없음)</span>
             </div>
-            <div style={{ fontSize: 10, color: "var(--warning)", marginBottom: 8 }}>
-              💡 기존 부모를 보거나 변경/제거하려면 성도 카드(이름 클릭)의 가족관계 메뉴를 사용하세요.
+            <div style={{ fontSize: 10, color: "var(--warning)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              <Info size={12} strokeWidth={1.8} style={{ flexShrink: 0 }} /> 기존 부모를 보거나 변경/제거하려면 성도 카드(이름 클릭)의 가족관계 메뉴를 사용하세요.
             </div>
             {parent ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, background: "#fff", borderRadius: 8, border: "1px solid #E0C893" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, background: "var(--card)", borderRadius: 8, border: "1px solid #E0C893" }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
                     {parent.name}
@@ -689,7 +690,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
                   </div>
                 </div>
                 <button onClick={() => { setParent(null); setParentCandidates([]); }}
-                  style={{ padding: "6px 10px", background: "#fff", border: "1px solid var(--hairline-strong)", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
+                  style={{ padding: "6px 10px", background: "var(--card)", border: "1px solid var(--hairline-strong)", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
                   다시
                 </button>
               </div>
@@ -711,7 +712,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {parentCandidates.map(c => (
                       <div key={c.id} onClick={() => setParent(c)}
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, background: "#fff", borderRadius: 8, border: "1px solid #E0C893", cursor: "pointer" }}>
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, background: "var(--card)", borderRadius: 8, border: "1px solid #E0C893", cursor: "pointer" }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>
                             {c.name} {c.phone && <span style={{ color: "var(--ink-soft)", fontWeight: 400 }}>({c.phone})</span>}
@@ -824,8 +825,8 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
           </div>
 
           {moveError && (
-            <div style={{ marginTop: 8, padding: 8, background: "var(--danger-soft)", border: "1px solid var(--danger-soft)", borderRadius: 6, fontSize: 11, color: "var(--danger)" }}>
-              ⚠️ {moveError}
+            <div style={{ marginTop: 8, padding: 8, background: "var(--danger-soft)", border: "1px solid var(--danger-soft)", borderRadius: 6, fontSize: 11, color: "var(--danger)", display: "flex", alignItems: "center", gap: 6 }}>
+              <AlertTriangle size={14} strokeWidth={1.8} style={{ flexShrink: 0 }} /> {moveError}
             </div>
           )}
         </div>
@@ -1017,11 +1018,11 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
 
         {isChild && (
           <div style={{ padding: 12, background: "var(--warning-soft)", border: "1.5px dashed #E0C893", borderRadius: 10, marginBottom: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", marginBottom: 8 }}>
-              👨‍👩‍👧 부모 회원 연결 <span style={{ fontWeight: 400, color: "var(--warning)" }}>(선택 — 비워두면 가족 연결 없이 추가)</span>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", marginBottom: 8, display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Users size={14} strokeWidth={1.8} /> 부모 회원 연결 <span style={{ fontWeight: 400, color: "var(--warning)" }}>(선택 — 비워두면 가족 연결 없이 추가)</span>
             </div>
             {parent ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, background: "#fff", borderRadius: 8, border: "1px solid #E0C893" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, background: "var(--card)", borderRadius: 8, border: "1px solid #E0C893" }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
                     {parent.name}
@@ -1032,12 +1033,12 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
                   <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>
                     {parent.phone || "연락처 없음"} · {parent.plain_name ? `${parent.plain_name}평원 · ` : ""}{parent.pasture_name || "소속 없음"} 목장
                   </div>
-                  <div style={{ fontSize: 10, color: "var(--warning)", marginTop: 4, fontWeight: 600 }}>
-                    👉 자녀는 이 부모의 가족(목장)에 합류합니다. 위 평원/초원/목장 입력은 무시됩니다.
+                  <div style={{ fontSize: 10, color: "var(--warning)", marginTop: 4, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                    <Info size={12} strokeWidth={1.8} style={{ flexShrink: 0 }} /> 자녀는 이 부모의 가족(목장)에 합류합니다. 위 평원/초원/목장 입력은 무시됩니다.
                   </div>
                 </div>
                 <button onClick={() => { setParent(null); setParentCandidates([]); }}
-                  style={{ padding: "6px 10px", background: "#fff", border: "1px solid var(--hairline-strong)", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
+                  style={{ padding: "6px 10px", background: "var(--card)", border: "1px solid var(--hairline-strong)", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
                   다시
                 </button>
               </div>
@@ -1059,7 +1060,7 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {parentCandidates.map(c => (
                       <div key={c.id} onClick={() => setParent(c)}
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, background: "#fff", borderRadius: 8, border: "1px solid #E0C893", cursor: "pointer" }}>
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, background: "var(--card)", borderRadius: 8, border: "1px solid #E0C893", cursor: "pointer" }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>
                             {c.name} {c.phone && <span style={{ color: "var(--ink-soft)", fontWeight: 400 }}>({c.phone})</span>}
@@ -1100,7 +1101,7 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
 
         <FormRow label="배우자" value={spouseName} onChange={setSpouseName} />
 
-        {error && <div style={{ padding: 10, background: "var(--danger-soft)", border: "1px solid var(--danger-soft)", borderRadius: 8, fontSize: 12, color: "var(--danger)", marginBottom: 10 }}>⚠️ {error}</div>}
+        {error && <div style={{ padding: 10, background: "var(--danger-soft)", border: "1px solid var(--danger-soft)", borderRadius: 8, fontSize: 12, color: "var(--danger)", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}><AlertTriangle size={14} strokeWidth={1.8} style={{ flexShrink: 0 }} /> {error}</div>}
 
         <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
           <button onClick={onClose} style={{ ...btnGhost, flex: 1, padding: "12px" }}>취소</button>
@@ -1149,7 +1150,7 @@ function FormRow({ label, value, onChange, placeholder }: { label: string; value
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 12px", fontSize: 13,
   border: "1.5px solid var(--hairline)", borderRadius: 8, outline: "none",
-  color: "var(--ink)", fontWeight: 500, boxSizing: "border-box", fontFamily: "inherit", background: "#fff",
+  color: "var(--ink)", fontWeight: 500, boxSizing: "border-box", fontFamily: "inherit", background: "var(--card)",
 };
 const selectStyle: React.CSSProperties = { ...inputStyle, width: "auto" };
 const lblStyle: React.CSSProperties = { fontSize: 11, color: "var(--ink-mid)", fontWeight: 700 };
@@ -1185,6 +1186,6 @@ const modalBgStyle: React.CSSProperties = {
   display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20,
 };
 const modalStyle: React.CSSProperties = {
-  background: "#fff", borderRadius: 16, padding: 24,
+  background: "var(--card)", borderRadius: 16, padding: 24,
   width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto",
 };

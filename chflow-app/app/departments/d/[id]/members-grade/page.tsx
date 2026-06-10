@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
+import { Lock, Medal } from "lucide-react";
 
 interface DeptMember {
   teacher_id: string | null;
@@ -196,8 +197,8 @@ export default function MembersGradePage() {
     return (
       <div style={pageStyle}>
         <div style={{ maxWidth: 480, margin: "60px auto", padding: 24 }}>
-          <div style={{ background: "#fff", borderRadius: 16, padding: 28, textAlign: "center" }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+          <div style={{ background: "var(--card)", borderRadius: 16, padding: 28, textAlign: "center" }}>
+            <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><Lock size={40} strokeWidth={1.8} color="var(--ink-faint)" /></div>
             <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>
               접근 권한이 없습니다
             </div>
@@ -220,7 +221,7 @@ export default function MembersGradePage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>🎖️ 부서원 등급 관리</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Medal size={18} strokeWidth={1.8} /> 부서원 등급 관리</div>
         <div style={{ width: 60 }} />
       </div>
 
@@ -273,7 +274,7 @@ export default function MembersGradePage() {
                         disabled={savingId === key}
                         style={{
                           padding: "6px 10px", fontSize: 12, fontFamily: "inherit",
-                          border: "1.5px solid var(--accent-line)", borderRadius: 8, background: "#fff",
+                          border: "1.5px solid var(--accent-line)", borderRadius: 8, background: "var(--card)",
                           cursor: savingId === key ? "not-allowed" : "pointer", minWidth: 180,
                         }}
                       >
@@ -338,7 +339,7 @@ export default function MembersGradePage() {
         <div style={modalBackdrop} onClick={() => !appointing && setAppointOpen(false)}>
           <div style={modalBox} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>🎖️ 부서원 임명</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Medal size={18} strokeWidth={1.8} /> 부서원 임명</div>
               <button onClick={() => !appointing && setAppointOpen(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--ink-faint)" }}>×</button>
             </div>
 
@@ -428,7 +429,7 @@ export default function MembersGradePage() {
                   style={{
                     width: "100%", padding: "10px 12px", fontSize: 14,
                     border: "1.5px solid var(--hairline-strong)", borderRadius: 8,
-                    fontFamily: "inherit", background: "#fff", boxSizing: "border-box",
+                    fontFamily: "inherit", background: "var(--card)", boxSizing: "border-box",
                   }}
                 >
                   {ROLE_OPTIONS.map((opt, idx) => (
@@ -469,11 +470,11 @@ const pageStyle: React.CSSProperties = {
   fontFamily: "'Noto Sans KR', sans-serif",
 };
 const headerStyle: React.CSSProperties = {
-  background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px",
+  background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px",
   display: "flex", alignItems: "center", justifyContent: "space-between",
 };
 const cardStyle: React.CSSProperties = {
-  background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+  background: "var(--card)", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
 };
 const sectionLabel: React.CSSProperties = {
   fontSize: 12, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.5, marginBottom: 12,
@@ -503,7 +504,7 @@ const modalBackdrop: React.CSSProperties = {
   zIndex: 1000, padding: 16,
 };
 const modalBox: React.CSSProperties = {
-  background: "#fff", borderRadius: 14, padding: 20,
+  background: "var(--card)", borderRadius: 14, padding: 20,
   width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto",
   fontFamily: "inherit",
 };

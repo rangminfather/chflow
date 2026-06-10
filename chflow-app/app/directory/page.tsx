@@ -991,7 +991,7 @@ const subtitleStyle: CSSProperties = { marginTop: 3, fontSize: 12, color: "var(-
 const searchPanelStyle: CSSProperties = {
   maxWidth: 1180,
   margin: "0 auto 14px",
-  background: "#fff",
+  background: "var(--card)",
   border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: 12,
@@ -1010,7 +1010,7 @@ const inputStyle: CSSProperties = {
   padding: "0 12px",
   fontSize: 14,
   fontFamily: "inherit",
-  background: "#fff",
+  background: "var(--card)",
   minWidth: 0,
 };
 
@@ -1037,7 +1037,7 @@ const ghostButtonStyle: CSSProperties = {
   border: "1px solid var(--hairline-strong)",
   borderRadius: 8,
   padding: "0 14px",
-  background: "#fff",
+  background: "var(--card)",
   color: "var(--ink-mid)",
   fontSize: 13,
   fontWeight: 800,
@@ -1048,7 +1048,7 @@ const ghostButtonStyle: CSSProperties = {
 const contentStyle: CSSProperties = {
   maxWidth: 1180,
   margin: "0 auto",
-  background: "#fff",
+  background: "var(--card)",
   border: "1px solid var(--hairline)",
   borderRadius: 8,
   overflow: "hidden",
@@ -1080,7 +1080,7 @@ const memberCardStyle: CSSProperties = {
   minHeight: 94,
   border: "1px solid var(--hairline)",
   borderRadius: 8,
-  background: "#fff",
+  background: "var(--card)",
   padding: 10,
   textAlign: "left",
   cursor: "pointer",
@@ -1119,7 +1119,7 @@ const modalCardStyle: CSSProperties = {
   maxWidth: 620,
   maxHeight: "90vh",
   overflowY: "auto",
-  background: "#fff",
+  background: "var(--card)",
   borderRadius: 8,
   boxShadow: "0 20px 60px rgba(43, 39, 34,0.25)",
   padding: 18,
@@ -1223,7 +1223,7 @@ const quickEditInputStyle: CSSProperties = {
   fontSize: 13,
   fontFamily: "inherit",
   color: "var(--ink)",
-  background: "#fff",
+  background: "var(--card)",
   minWidth: 0,
 };
 
@@ -1242,7 +1242,7 @@ const quickEditReadOnlyStyle: CSSProperties = {
   padding: 10,
   fontSize: 12,
   color: "var(--ink-soft)",
-  background: "#fff",
+  background: "var(--card)",
 };
 
 const quickEditActionsStyle: CSSProperties = {
@@ -1270,7 +1270,7 @@ const quickEditConfirmCardStyle: CSSProperties = {
   maxHeight: "90vh",
   overflowY: "auto",
   borderRadius: 8,
-  background: "#fff",
+  background: "var(--card)",
   padding: 16,
   boxShadow: "0 20px 60px rgba(43, 39, 34,0.28)",
 };
@@ -1341,7 +1341,7 @@ const chipStyle: CSSProperties = {
   gap: 7,
   border: "1px solid var(--hairline)",
   borderRadius: 8,
-  background: "#fff",
+  background: "var(--card)",
   padding: 6,
   minWidth: 130,
   cursor: "pointer",
@@ -1358,7 +1358,7 @@ const relationRowStyle: CSSProperties = {
   width: "100%",
   border: "1px solid var(--hairline)",
   borderRadius: 8,
-  background: "#fff",
+  background: "var(--card)",
   padding: 8,
   textAlign: "left",
   cursor: "pointer",

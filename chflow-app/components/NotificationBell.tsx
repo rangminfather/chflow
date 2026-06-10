@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Bell } from "lucide-react";
+import { Bell, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   fetchNotifications,
@@ -232,7 +232,7 @@ export default function NotificationBell({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                border: "2px solid #fff",
+                border: "2px solid var(--card)",
                 boxSizing: "content-box",
               }}
             >
@@ -291,7 +291,7 @@ export default function NotificationBell({
                   gap: 6,
                   padding: "10px 12px",
                   borderBottom: "1px solid var(--hairline)",
-                  background: "rgba(251,248,241,0.86)",
+                  background: "color-mix(in srgb, var(--surface) 86%, transparent)",
                 }}>
                   <PanelTabButton
                     label="알림"
@@ -529,9 +529,12 @@ function ToastCard({
           borderRadius: 6,
           fontSize: 12,
           flexShrink: 0,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        ✕
+        <X size={12} strokeWidth={2.2} />
       </button>
     </div>
   );

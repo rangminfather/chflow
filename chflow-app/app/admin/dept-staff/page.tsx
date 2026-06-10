@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { Building2, Hourglass, Inbox, Folder, Info, Users, MousePointerClick } from "lucide-react";
 
 interface Dept {
   id: string;
@@ -169,24 +170,24 @@ export default function DeptStaffPage() {
 
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         {/* Header */}
-        <div style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <div style={{ background: "var(--card)", borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <HeaderLogo />
             <div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>🏢 부서원 관리</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 6 }}><Building2 size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 부서원 관리</div>
               <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>부서별 인원과 등급 임명 (관리자 전용)</div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => router.push("/admin/members")} style={btnGhost}>← 회원관리</button>
-            <button onClick={() => router.push("/admin/pending")} style={{ ...btnGhost, background: "var(--warning-soft)", color: "var(--warning)" }}>⏳ 가입 대기자</button>
-            <button onClick={() => router.push("/admin/dept-pending")} style={{ ...btnGhost, background: "var(--accent-soft)", color: "var(--accent-strong)" }}>📨 부서가입 신청</button>
+            <button onClick={() => router.push("/admin/pending")} style={{ ...btnGhost, background: "var(--warning-soft)", color: "var(--warning)" }}><Hourglass size={14} strokeWidth={1.8} /> 가입 대기자</button>
+            <button onClick={() => router.push("/admin/dept-pending")} style={{ ...btnGhost, background: "var(--accent-soft)", color: "var(--accent-strong)" }}><Inbox size={14} strokeWidth={1.8} /> 부서가입 신청</button>
           </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 16 }}>
           {/* Left: Department list */}
-          <div style={{ background: "#fff", borderRadius: 12, padding: 12 }}>
+          <div style={{ background: "var(--card)", borderRadius: 12, padding: 12 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-mid)", padding: "4px 8px", marginBottom: 6 }}>
               부서 ({depts.length}개)
             </div>
@@ -207,8 +208,8 @@ export default function DeptStaffPage() {
                       marginBottom: 4,
                     }}
                   >
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
-                      {d.icon || "📁"} {d.name}
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", display: "flex", alignItems: "center", gap: 6 }}>
+                      {d.icon ? <span>{d.icon}</span> : <Folder size={15} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />} {d.name}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 600 }}>
                       {d.member_count}명
@@ -218,24 +219,20 @@ export default function DeptStaffPage() {
               </div>
             ))}
             {depts.length === 0 && (
-              <div style={{ padding: 20, textAlign: "center", color: "var(--ink-faint)", fontSize: 12 }}>
-                부서가 없습니다
-              </div>
+              <EmptyState padding={20} message="부서가 없습니다" />
             )}
           </div>
 
           {/* Right: Members of selected dept */}
-          <div style={{ background: "#fff", borderRadius: 12, padding: 16 }}>
+          <div style={{ background: "var(--card)", borderRadius: 12, padding: 16 }}>
             {!selectedDept ? (
-              <div style={{ padding: 60, textAlign: "center", color: "var(--ink-faint)", fontSize: 14 }}>
-                ← 좌측에서 부서를 선택하세요
-              </div>
+              <EmptyState padding={60} icon={<MousePointerClick size={24} strokeWidth={1.6} />} message="좌측에서 부서를 선택하세요" />
             ) : (
               <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid var(--hairline)" }}>
                   <div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>
-                      {selectedDept.icon || "📁"} {selectedDept.category} / {selectedDept.name}
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 6 }}>
+                      {selectedDept.icon ? <span>{selectedDept.icon}</span> : <Folder size={18} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />} {selectedDept.category} / {selectedDept.name}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>
                       등록된 부서원 {members.length}명
@@ -246,7 +243,7 @@ export default function DeptStaffPage() {
                 {/* 등급 안내 */}
                 <details style={{ marginBottom: 14, fontSize: 11, color: "var(--ink-mid)" }}>
                   <summary style={{ cursor: "pointer", padding: "6px 10px", background: "var(--surface)", borderRadius: 6, fontWeight: 600 }}>
-                    💡 등급 안내 (펼치기)
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Info size={13} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 등급 안내 (펼치기)</span>
                   </summary>
                   <div style={{ padding: 10, background: "var(--surface)", borderRadius: 6, marginTop: 6 }}>
                     {GRADES.map(g => (
@@ -262,10 +259,12 @@ export default function DeptStaffPage() {
                 {loading ? (
                   <div style={{ padding: 40, textAlign: "center", color: "var(--ink-faint)" }}>조회 중...</div>
                 ) : members.length === 0 ? (
-                  <div style={{ padding: 40, textAlign: "center", color: "var(--ink-faint)", fontSize: 13 }}>
-                    부서원이 없습니다.<br /><br />
-                    <span style={{ fontSize: 11 }}>사용자가 /departments 페이지에서 가입 신청을 해야 합니다.</span>
-                  </div>
+                  <EmptyState
+                    padding={40}
+                    icon={<Users size={24} strokeWidth={1.6} />}
+                    message="부서원이 없습니다"
+                    hint="사용자가 /departments 페이지에서 가입 신청을 해야 합니다."
+                  />
                 ) : (
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                     <thead>
@@ -314,7 +313,7 @@ export default function DeptStaffPage() {
                                   onChange={(e) => changeGrade(m, Number(e.target.value))}
                                   style={{
                                     padding: "5px 8px", fontSize: 12, border: "1.5px solid var(--hairline)",
-                                    borderRadius: 6, fontFamily: "inherit", background: "#fff", cursor: "pointer",
+                                    borderRadius: 6, fontFamily: "inherit", background: "var(--card)", cursor: "pointer",
                                   }}>
                                   {GRADES.map(opt => (
                                     <option key={opt.v} value={opt.v}>{opt.v} · {opt.label}</option>
@@ -343,6 +342,7 @@ export default function DeptStaffPage() {
 const th: React.CSSProperties = { padding: "10px 8px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", whiteSpace: "nowrap" };
 const td: React.CSSProperties = { padding: "10px 8px", verticalAlign: "middle" };
 const btnGhost: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
   padding: "8px 14px", background: "var(--bg-soft)", border: "none",
   borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
 };

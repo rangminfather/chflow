@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { Vote, CheckCircle2 } from "lucide-react";
 
 interface ActiveVote {
   id: string;
@@ -67,13 +68,15 @@ export default function VoteListPage() {
 
       {/* 헤더 */}
       <div style={{
-        background: "#fff", borderBottom: "1px solid var(--hairline)",
+        background: "var(--card)", borderBottom: "1px solid var(--hairline)",
         padding: "14px 24px", display: "flex", alignItems: "center", gap: 12,
       }}>
         <button onClick={() => router.push("/home")} style={iconBtnStyle}>←</button>
         <HeaderLogo />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>🗳️ 투표</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Vote size={16} strokeWidth={1.8} /> 투표
+          </div>
           <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>진행 중인 투표에 참여하세요</div>
         </div>
         {canManageVotes && (
@@ -88,12 +91,15 @@ export default function VoteListPage() {
           <LoadingView padding={48} label="불러오는 중..." />
         ) : votes.length === 0 ? (
           <div style={{
-            textAlign: "center", padding: 56, background: "#fff",
+            textAlign: "center", padding: 56, background: "var(--card)",
             borderRadius: 20, border: "1px solid var(--hairline)",
           }}>
-            <div style={{ fontSize: 40, marginBottom: 10 }}>🗳️</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>진행 중인 투표가 없습니다</div>
-            <div style={{ fontSize: 13, color: "var(--ink-faint)" }}>투표가 시작되면 여기에 표시됩니다.</div>
+            <EmptyState
+              icon={<Vote size={24} strokeWidth={1.6} />}
+              message="진행 중인 투표가 없습니다"
+              hint="투표가 시작되면 여기에 표시됩니다."
+              padding={0}
+            />
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -102,7 +108,7 @@ export default function VoteListPage() {
                 key={vote.id}
                 onClick={() => !vote.already_voted && router.push(`/vote/${vote.id}`)}
                 style={{
-                  background: "#fff", borderRadius: 16,
+                  background: "var(--card)", borderRadius: 16,
                   border: `1.5px solid ${vote.already_voted ? "var(--success-soft)" : "var(--accent-line)"}`,
                   padding: "20px 22px",
                   cursor: vote.already_voted ? "default" : "pointer",
@@ -115,9 +121,11 @@ export default function VoteListPage() {
                     width: 48, height: 48, borderRadius: 14, flexShrink: 0,
                     background: vote.already_voted ? "var(--success-soft)" : "linear-gradient(135deg, var(--accent), var(--accent-muted))",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 22,
+                    color: vote.already_voted ? "var(--success)" : "#fff",
                   }}>
-                    {vote.already_voted ? "✅" : "🗳️"}
+                    {vote.already_voted
+                      ? <CheckCircle2 size={22} strokeWidth={1.8} />
+                      : <Vote size={22} strokeWidth={1.8} />}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>

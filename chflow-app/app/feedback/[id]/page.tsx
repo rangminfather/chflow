@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
+import { Lock, AlertTriangle, MessageSquare } from "lucide-react";
 
 type FeedbackStatus = "submitted" | "received" | "reviewing" | "resolved" | "rejected";
 
@@ -256,7 +257,7 @@ export default function FeedbackDetailPage() {
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
           <span style={seqBadge}>#{post.seq}</span>
-          {post.is_private && <span style={lockBadge}>🔒 비공개</span>}
+          {post.is_private && <span style={{ ...lockBadge, display: "inline-flex", alignItems: "center", gap: 4 }}><Lock size={12} strokeWidth={1.8} /> 비공개</span>}
           <span style={{
             padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800,
             background: meta.bg, color: meta.fg,
@@ -315,8 +316,8 @@ export default function FeedbackDetailPage() {
 
         {/* 댓글 목록 */}
         <div style={{ marginTop: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--ink-mid)", marginBottom: 10 }}>
-            💬 댓글 {post.comments.length}개
+          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--ink-mid)", marginBottom: 10, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <MessageSquare size={14} strokeWidth={1.8} /> 댓글 {post.comments.length}개
           </div>
           {post.comments.length === 0 && (
             <div style={{ padding: 20, textAlign: "center", color: "var(--ink-faint)", fontSize: 13 }}>
@@ -381,7 +382,7 @@ export default function FeedbackDetailPage() {
             </div>
             <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFilesChange} style={{ display: "none" }} />
 
-            {error && <div style={errorStyle}>⚠️ {error}</div>}
+            {error && <div style={{ ...errorStyle, display: "inline-flex", alignItems: "center", gap: 6, width: "100%" }}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>}
 
             <button type="submit" disabled={submittingComment} style={{ ...primaryBtn, marginTop: 10, opacity: submittingComment ? 0.6 : 1 }}>
               {submittingComment ? "등록 중..." : "댓글 등록"}
@@ -415,13 +416,13 @@ function formatDate(iso: string): string {
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(135deg, #EFF5F7 0%, var(--warning-soft) 100%)",
+  background: "linear-gradient(135deg, var(--info-soft) 0%, var(--warning-soft) 100%)",
   padding: "20px 16px 60px",
   fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
 };
 const cardStyle: React.CSSProperties = {
   maxWidth: 720, margin: "0 auto",
-  background: "rgba(255,255,255,0.92)",
+  background: "color-mix(in srgb, var(--card) 92%, transparent)",
   borderRadius: 16, padding: 20,
   boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
 };
@@ -444,7 +445,7 @@ const labelStyle: React.CSSProperties = {
 };
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "12px 14px", fontSize: 14,
-  background: "#fff", border: "1.5px solid var(--hairline)", borderRadius: 10,
+  background: "var(--card)", border: "1.5px solid var(--hairline)", borderRadius: 10,
   outline: "none", fontFamily: "inherit", boxSizing: "border-box",
   color: "var(--ink)", fontWeight: 500,
 };
@@ -464,7 +465,7 @@ const loadingStyle: React.CSSProperties = {
 };
 const attBtn: React.CSSProperties = {
   aspectRatio: "1", border: "1px solid var(--hairline)", borderRadius: 10,
-  overflow: "hidden", padding: 0, cursor: "pointer", background: "#fff",
+  overflow: "hidden", padding: 0, cursor: "pointer", background: "var(--card)",
 };
 const attImg: React.CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
 const statusBoxStyle: React.CSSProperties = {

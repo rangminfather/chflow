@@ -8,7 +8,8 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
-import { LoadingView } from "@/components/StatusViews";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { ClipboardCheck } from "lucide-react";
 
 interface Student {
   id: string;
@@ -215,19 +216,12 @@ export default function MyClassAttendancePage() {
             <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
             <HeaderLogo />
           </div>
-          <div style={{ fontSize: 19, fontWeight: 800, color: "var(--ink)" }}>📋 내 반 출결</div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><ClipboardCheck size={18} strokeWidth={1.8} /> 내 반 출결</div>
           <div style={{ width: 80 }} />
         </div>
         <div style={{ maxWidth: 600, margin: "60px auto", padding: 16 }}>
-          <div style={{ ...cardStyle, textAlign: "center", padding: 40 }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🙇</div>
-            <div style={{ fontSize: 17, fontWeight: 700, color: "var(--ink)", marginBottom: 8 }}>
-              본인이 담임으로 등록된 반이 없습니다
-            </div>
-            <div style={{ fontSize: 14, color: "var(--ink-soft)", lineHeight: 1.6 }}>
-              부장 또는 전도사에게 담임 등록을 요청하세요.<br />
-              (행정관리 → 담임선생님 지정)
-            </div>
+          <div style={{ ...cardStyle, textAlign: "center" }}>
+            <EmptyState message="본인이 담임으로 등록된 반이 없습니다" hint="부장 또는 전도사에게 담임 등록을 요청하세요. (행정관리 → 담임선생님 지정)" />
           </div>
         </div>
       </div>
@@ -246,8 +240,8 @@ export default function MyClassAttendancePage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 19, fontWeight: 800, color: "var(--ink)" }}>
-          📋 내 반 출결 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
+        <div style={{ fontSize: 19, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <ClipboardCheck size={18} strokeWidth={1.8} /> 내 반 출결 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
         </div>
         <div style={{ width: 80 }} />
       </div>
@@ -497,7 +491,7 @@ function SummaryBox({ label, value }: { label: string; value: number }) {
   );
 }
 
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
-const cardStyle: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const cardStyle: React.CSSProperties = { background: "var(--card)", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
 const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
 const navBtnStyle: React.CSSProperties = { padding: "7px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 16, cursor: "pointer", fontFamily: "inherit", color: "var(--ink-mid)" };
