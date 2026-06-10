@@ -564,7 +564,7 @@ function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartmen
   const empty = approved.length === 0 && pending.length === 0;
 
   return (
-    <Section bg="rgba(237,242,239,0.95)" style={{ height: "100%", marginBottom: 0, border: "1px solid #D8E4DC" }}>
+    <Section bg="rgba(248,245,240,0.90)" style={{ height: "100%", marginBottom: 0, border: "1px solid #E8E3DA" }}>
       <SectionHeader
         icon={<Folder size={18} strokeWidth={1.75} />}
         iconColor="#2B4539"

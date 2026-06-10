@@ -353,10 +353,10 @@ const stateTextStyle: React.CSSProperties = {
 
 const heroStatsStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(120px, 1fr))",
+  gridTemplateColumns: "repeat(3, 1fr)",
   gap: 10,
-  flex: "1 1 420px",
-  maxWidth: 520,
+  flex: "1 1 240px",
+  minWidth: 0,
 };
 
 const metricStyle: React.CSSProperties = {
