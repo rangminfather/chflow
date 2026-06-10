@@ -68,19 +68,19 @@ type CommonMenu = {
 };
 
 const COMMON_MENUS: CommonMenu[] = [
-  { id: "bulletin",  label: "주보 보기",      icon: BookOpen,  color: "#2F6B4F", bg: "#EAF3ED", desc: "이번 주 주보",  href: "/bulletin" },
-  { id: "directory", label: "성도 요람",      icon: Users,     color: "#336F8F", bg: "#E9F2F7", desc: "성도 검색",     href: "/directory" },
-  { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "#B45D3B", bg: "#F8ECE6", desc: "건의사항 접수", href: "/feedback" },
-  { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "var(--ink-mid)", bg: "var(--bg-soft)", desc: "앱 사용 안내",   href: "/manual" },
+  { id: "bulletin",  label: "주보 보기",     icon: BookOpen,  color: "#2B4539", bg: "#EDF2EF", desc: "", href: "/bulletin" },
+  { id: "directory", label: "성도 요람",     icon: Users,     color: "#2B4539", bg: "#EDF2EF", desc: "", href: "/directory" },
+  { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "#2B4539", bg: "#EDF2EF", desc: "", href: "/feedback" },
+  { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "#2B4539", bg: "#EDF2EF", desc: "", href: "/manual" },
 ];
 
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [
-  { id: "vote",     label: "투표",        icon: Vote,          color: "var(--accent)", bg: "var(--accent-soft)", desc: "전자투표", href: "/vote" },
-  { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "#3E7D74", bg: "#E6F4F1", desc: "공지사항" },
-  { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "var(--accent)", bg: "#EAF1FF", desc: "월간 일정" },
-  { id: "facility", label: "시설 신청",   icon: Landmark,      color: "var(--warning)", bg: "#FFF2DE", desc: "교육관/예배실" },
-  { id: "vehicle",  label: "차량 신청",   icon: Bus,           color: "#6B4F8C", bg: "#F1EBFF", desc: "교회 차량" },
-  { id: "booking",  label: "예약 캘린더", icon: CalendarClock, color: "var(--danger)", bg: "#FDECEF", desc: "예약 현황" },
+  { id: "vote",     label: "투표",        icon: Vote,          color: "#B8963E", bg: "#F5EDD8", desc: "", href: "/vote" },
+  { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "#B8963E", bg: "#F5EDD8", desc: "" },
+  { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "#B8963E", bg: "#F5EDD8", desc: "" },
+  { id: "facility", label: "시설 신청",   icon: Landmark,      color: "#B8963E", bg: "#F5EDD8", desc: "" },
+  { id: "vehicle",  label: "차량 신청",   icon: Bus,           color: "#B8963E", bg: "#F5EDD8", desc: "" },
+  { id: "booking",  label: "예약 캘린더", icon: CalendarClock, color: "#B8963E", bg: "#F5EDD8", desc: "" },
 ];
 
 // =============================================================
@@ -183,7 +183,7 @@ export default function HomePage() {
   const userImage = getRoleImageByLabel(user.sub_role || "");
 
   return (
-    <PageShell>
+    <PageShell style={{ background: "#F5F1EB" }}>
 
       <style>{`
         @media (max-width: 768px) {
@@ -482,7 +482,7 @@ function UserSummary({ user, photoUrl, userImage, router }: {
   const OVERLAP = Math.round(SIZE / 3); // 1/3 가려짐 → 2/3 노출
 
   return (
-    <SafeCard onClick={() => router.push("/myinfo")} padding={14} style={{ marginBottom: 18, borderRadius: 14, background: "color-mix(in srgb, var(--surface) 90%, transparent)", cursor: "pointer" }}>
+    <SafeCard onClick={() => router.push("/myinfo")} padding={16} style={{ marginBottom: 18, borderRadius: 20, background: "#FFFFFF", border: "1px solid #E8E3DA", boxShadow: "0 2px 16px rgba(26,22,18,0.06)", cursor: "pointer" }}>
       <SafeRow gap={14}>
         {/* 겹친 사진 + 직분 아바타 (좌우 겹침) */}
         <div style={{ position: "relative", width: SIZE + (SIZE - OVERLAP), height: SIZE, flexShrink: 0 }}>
@@ -557,10 +557,10 @@ function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartmen
   const empty = approved.length === 0 && pending.length === 0;
 
   return (
-    <Section bg="rgba(234,239,232,0.72)" style={{ height: "100%", marginBottom: 0 }}>
+    <Section bg="rgba(237,242,239,0.95)" style={{ height: "100%", marginBottom: 0, border: "1px solid #D8E4DC" }}>
       <SectionHeader
         icon={<Folder size={18} strokeWidth={1.75} />}
-        iconColor={T.ministryPoint}
+        iconColor="#2B4539"
         title="내 사역 · 부서"
       />
 
@@ -607,9 +607,9 @@ function MinistryCard({ dept, status, onClick }: {
   onClick: () => void;
 }) {
   return (
-    <SafeCard onClick={onClick} padding={11} style={{ borderRadius: 10 }}>
+    <SafeCard onClick={onClick} padding={12} style={{ borderRadius: 14, background: "#FFFFFF", border: "1px solid #E8E3DA", boxShadow: "0 1px 4px rgba(26,22,18,0.04)" }}>
       <SafeRow gap={12}>
-        <IconBox bg="#EAF3ED" size={40}>
+        <IconBox bg="#EDF2EF" size={40}>
           <DeptIcon name={dept.name} category={dept.category} size={20} />
         </IconBox>
         <SafeGrow>
@@ -718,10 +718,10 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
 // =============================================================
 function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: RouterType }) {
   return (
-    <Section bg="rgba(251,248,241,0.68)">
+    <Section bg="rgba(248,245,240,0.90)" style={{ border: "1px solid #E8E3DA" }}>
       <SectionHeader
         icon={<LayoutGrid size={18} strokeWidth={1.75} />}
-        iconColor={T.commonPoint}
+        iconColor="#2B4539"
         title="공통 메뉴"
       />
       <SafeGrid cols={2} gap={10} className="home-menu-grid">
@@ -730,11 +730,17 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
 
       {isAdmin && (
         <>
-          <div className="kr-keep" style={{
-            marginTop: 20, marginBottom: 8,
-            fontSize: 12, fontWeight: 700, color: T.textMuted,
-            letterSpacing: 0.4,
-          }}>관리자 메뉴</div>
+          <div style={{
+            marginTop: 20, marginBottom: 10,
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: T.text }}>관리자 메뉴</span>
+            <span style={{
+              padding: "2px 7px", background: "#F5EDD8", borderRadius: 5,
+              fontSize: 9, fontWeight: 800, color: "#B8963E", letterSpacing: 0.8,
+              textTransform: "uppercase",
+            }}>ADMIN</span>
+          </div>
           <SafeGrid cols={2} gap={9} className="admin-menu-grid">
             {ADMIN_EXTRA_MENUS.map((m) => <MenuCard key={m.id} menu={m} router={router} compact />)}
           </SafeGrid>
@@ -752,22 +758,24 @@ function MenuCard({ menu, router, compact }: { menu: CommonMenu; router: RouterT
   return (
     <SafeCard
       onClick={handleClick}
-      padding={compact ? 11 : 12}
+      padding={compact ? 12 : 14}
       style={{
-        minHeight: compact ? 58 : 64,
-        borderRadius: 10,
-        background: "color-mix(in srgb, var(--surface) 94%, transparent)",
-        transition: "border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease",
+        minHeight: compact ? 58 : 68,
+        borderRadius: 14,
+        background: "#FFFFFF",
+        border: "1px solid #E8E3DA",
+        boxShadow: "0 1px 4px rgba(26,22,18,0.04)",
+        transition: "border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease",
       }}
       onMouseOver={(e) => {
         e.currentTarget.style.borderColor = menu.color;
         e.currentTarget.style.transform = "translateY(-1px)";
-        e.currentTarget.style.boxShadow = `0 12px 24px color-mix(in srgb, ${menu.color} 12%, transparent)`;
+        e.currentTarget.style.boxShadow = "0 8px 20px rgba(26,22,18,0.10)";
       }}
       onMouseOut={(e) => {
-        e.currentTarget.style.borderColor = T.border;
+        e.currentTarget.style.borderColor = "#E8E3DA";
         e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "none";
+        e.currentTarget.style.boxShadow = "0 1px 4px rgba(26,22,18,0.04)";
       }}
     >
       <SafeRow gap={10}>
@@ -1018,10 +1026,12 @@ const compactOutlineButtonStyle: React.CSSProperties = {
   minHeight: 38,
   padding: "0 14px",
   borderRadius: 9,
-  borderWidth: 1,
+  borderWidth: 1.5,
+  borderStyle: "dashed",
   fontSize: 13,
-  fontWeight: 800,
-  background: "color-mix(in srgb, var(--surface) 90%, transparent)",
+  fontWeight: 700,
+  background: "transparent",
+  color: "#4A7B6A",
 };
 
 // =============================================================
