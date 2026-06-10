@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import DeptIcon from "@/components/DeptIcon";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Inbox, AlertTriangle, Folder, Phone, CheckCircle2 } from "lucide-react";
@@ -140,7 +141,7 @@ export default function DeptApprovalPage() {
             pending.map((j) => (
               <div key={j.id} style={{ padding: "14px 18px", borderBottom: "1px solid var(--bg-soft)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg, var(--accent-soft), #EDE7F2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-                  {j.dept_icon || <Folder size={20} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />}
+                  <DeptIcon name={j.dept_name} size={20} />
                 </div>
                 <div style={{ flex: 1, minWidth: 180 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>

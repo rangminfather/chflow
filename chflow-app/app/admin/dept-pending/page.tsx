@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import DeptIcon from "@/components/DeptIcon";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Hourglass, Users, MapPin, User, MousePointerClick, CheckCircle2, Medal, Folder, Menu } from "lucide-react";
@@ -260,8 +261,8 @@ export default function AdminDeptPage() {
               <div style={{ background: "var(--card)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
                 <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--hairline)", background: "linear-gradient(135deg, var(--accent-soft), #F2EDF6)" }}>
                   <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 700 }}>{selectedDept.category}</div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>
-                    {selectedDept.icon} {selectedDept.name}
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 7 }}>
+                    <DeptIcon name={selectedDept.name} category={selectedDept.category} size={18} /> {selectedDept.name}
                     <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-soft)", marginLeft: 8 }}>
                       회원 {members.length}명
                     </span>
@@ -451,7 +452,7 @@ function Sidebar({
                 gap: 6,
               }}
             >
-              <span style={{ fontSize: 14, display: "inline-flex", alignItems: "center" }}>{d.icon ? d.icon : <Folder size={14} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />}</span>
+              <DeptIcon name={d.name} size={14} color="currentColor" />
               <span style={{ flex: 1 }}>{d.name}</span>
               {d.member_count > 0 && (
                 <span style={{ fontSize: 9, color: "var(--ink-faint)" }}>{d.member_count}</span>

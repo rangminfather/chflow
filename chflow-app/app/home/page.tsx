@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getRoleImageByLabel } from "@/lib/roles";
 import HeaderLogo from "@/components/HeaderLogo";
+import DeptIcon from "@/components/DeptIcon";
 import {
   type LucideIcon,
   BookOpen, BookText, Users, User, Lightbulb, Vote, Megaphone, CalendarDays,
@@ -610,7 +611,7 @@ function MinistryCard({ dept, status, onClick }: {
     <SafeCard onClick={onClick} padding={11} style={{ borderRadius: 10 }}>
       <SafeRow gap={12}>
         <IconBox bg="#EAF3ED" size={40}>
-          {dept.icon ? <span style={{ fontSize: 20 }}>{dept.icon}</span> : <Folder size={20} strokeWidth={1.75} color="var(--accent)" />}
+          <DeptIcon name={dept.name} category={dept.category} size={20} />
         </IconBox>
         <SafeGrow>
           <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
@@ -906,9 +907,7 @@ function SidebarContent({ user, myDepartments, router, onNavigate, onLogout }: {
       ) : (
         approved.map((d) => (
           <SidebarItem key={d.id} onClick={() => go(`/departments/d/${d.department_id}`)}>
-            {d.icon
-              ? <span style={{ marginRight: 6 }}>{d.icon}</span>
-              : <Folder size={15} strokeWidth={1.75} style={{ marginRight: 6, flexShrink: 0 }} />}
+            <DeptIcon name={d.name} size={15} color="currentColor" style={{ marginRight: 6 }} />
             <span className="kr-keep">{d.name}</span>
           </SidebarItem>
         ))

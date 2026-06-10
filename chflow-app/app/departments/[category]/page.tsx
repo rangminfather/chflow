@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import DeptIcon from "@/components/DeptIcon";
 import HeaderLogo from "@/components/HeaderLogo";
 import { T, PageShell, PageContent } from "@/components/Layout";
 import { LoadingView } from "@/components/StatusViews";
@@ -220,7 +221,7 @@ export default function CategoryPage() {
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 22, flexShrink: 0,
                     }}>
-                      {d.icon || <Folder size={20} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />}
+                      <DeptIcon name={d.name} category={d.category} size={20} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
@@ -290,7 +291,7 @@ export default function CategoryPage() {
               width: 64, height: 64, borderRadius: 16, background: T.ministryBg,
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 36, margin: "0 auto 16px",
-            }}>{confirmDept.icon || <Building2 size={32} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />}</div>
+            }}><DeptIcon name={confirmDept.name} category={confirmDept.category} size={32} /></div>
             <div style={{ fontSize: 11, color: T.ministryPoint, fontWeight: 700, marginBottom: 4 }}>{confirmDept.category}</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 6 }}>{confirmDept.name}</div>
             {confirmDept.description && (

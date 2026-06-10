@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import DeptIcon from "@/components/DeptIcon";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Building2, Hourglass, Inbox, Folder, Info, Users, MousePointerClick } from "lucide-react";
@@ -209,7 +210,7 @@ export default function DeptStaffPage() {
                     }}
                   >
                     <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", display: "flex", alignItems: "center", gap: 6 }}>
-                      {d.icon ? <span>{d.icon}</span> : <Folder size={15} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />} {d.name}
+                      <DeptIcon name={d.name} category={d.category} size={15} /> {d.name}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 600 }}>
                       {d.member_count}명
@@ -232,7 +233,7 @@ export default function DeptStaffPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid var(--hairline)" }}>
                   <div>
                     <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 6 }}>
-                      {selectedDept.icon ? <span>{selectedDept.icon}</span> : <Folder size={18} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />} {selectedDept.category} / {selectedDept.name}
+                      <DeptIcon name={selectedDept.name} category={selectedDept.category} size={18} /> {selectedDept.category} / {selectedDept.name}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>
                       등록된 부서원 {members.length}명

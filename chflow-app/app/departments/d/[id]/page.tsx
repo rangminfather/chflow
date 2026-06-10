@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import DeptIcon from "@/components/DeptIcon";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import {
@@ -235,8 +236,8 @@ export default function DepartmentDetailPage() {
             <HeaderLogo />
             <div>
               <div style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 600 }}>{dept.category}</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>
-                {dept.icon} {dept.name}
+              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 7 }}>
+                <DeptIcon name={dept.name} category={dept.category} size={18} /> {dept.name}
                 {grade <= 4 && (
                   <span style={{
                     marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700,
@@ -258,7 +259,9 @@ export default function DepartmentDetailPage() {
           textAlign: "center", color: "#fff", marginBottom: 24,
           boxShadow: "0 20px 60px rgba(62, 90, 74, 0.25)",
         }}>
-          <div style={{ fontSize: 48, marginBottom: 10 }}>{dept.icon || <Smile size={44} strokeWidth={1.8} />}</div>
+          <div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}>
+            <DeptIcon name={dept.name} category={dept.category} size={44} color="#fff" />
+          </div>
           <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6, letterSpacing: -0.5 }}>{dept.name}</div>
           {dept.description && (
             <div style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.6, marginBottom: 14 }}>
