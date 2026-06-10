@@ -174,6 +174,35 @@ export default function AdminDeptPage() {
         @media (min-width: 769px) {
           .dept-sidebar-toggle { display: none !important; }
         }
+        /* 회원 카드 컨테이너 */
+        .member-card-list {
+          display: flex;
+          overflow-x: auto;
+          scroll-snap-type: x mandatory;
+          -webkit-overflow-scrolling: touch;
+          gap: 12px;
+          padding: 16px;
+          scrollbar-width: none;
+        }
+        .member-card-list::-webkit-scrollbar { display: none; }
+        .member-card-item {
+          flex-shrink: 0;
+          width: 80vw;
+          max-width: 280px;
+          scroll-snap-align: start;
+        }
+        @media (min-width: 769px) {
+          .member-card-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            overflow-x: visible;
+            scroll-snap-type: none;
+          }
+          .member-card-item {
+            width: auto;
+            max-width: none;
+          }
+        }
       `}</style>
 
       {/* 헤더 */}
@@ -223,7 +252,7 @@ export default function AdminDeptPage() {
         )}
 
         {/* === 메인 === */}
-        <div className="dept-main" style={{ flex: 1, padding: 20, overflowX: "hidden" }}>
+        <div className="dept-main" style={{ flex: 1, padding: 20, minWidth: 0 }}>
           <div style={{ maxWidth: 1100, margin: "0 auto" }}>
             {/* === 가입 신청 영역 === */}
             <div style={{ background: "var(--card)", borderRadius: 12, marginBottom: 20, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
@@ -272,9 +301,9 @@ export default function AdminDeptPage() {
                 {members.length === 0 ? (
                   <EmptyState padding={40} icon={<Users size={24} strokeWidth={1.6} />} message="이 부서에 가입된 회원이 없습니다" />
                 ) : (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, padding: 16 }}>
+                  <div className="member-card-list">
                     {members.map((m) => (
-                      <div key={m.id} style={{ background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div key={m.id} className="member-card-item" style={{ background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
                         {/* 아바타 + 이름 */}
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           {m.user_avatar_url ? (
