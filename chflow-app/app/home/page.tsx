@@ -562,7 +562,6 @@ function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartmen
         icon={<Folder size={18} strokeWidth={1.75} />}
         iconColor={T.ministryPoint}
         title="내 사역 · 부서"
-        subtitle="가입된 사역과 부서를 확인하세요"
       />
 
       {empty ? (
@@ -724,7 +723,6 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
         icon={<LayoutGrid size={18} strokeWidth={1.75} />}
         iconColor={T.commonPoint}
         title="공통 메뉴"
-        subtitle="모든 성도가 사용할 수 있는 기능"
       />
       <SafeGrid cols={2} gap={10} className="home-menu-grid">
         {COMMON_MENUS.map((m) => <MenuCard key={m.id} menu={m} router={router} />)}
@@ -784,11 +782,6 @@ function MenuCard({ menu, router, compact }: { menu: CommonMenu; router: RouterT
             color: T.text,
             lineHeight: 1.25,
           }}>{menu.label}</div>
-          <div className="line-clamp-1 kr-keep" style={{
-            fontSize: 11,
-            color: T.textMuted,
-            marginTop: 2,
-          }}>{menu.desc}</div>
         </SafeGrow>
       </SafeRow>
     </SafeCard>
