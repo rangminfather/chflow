@@ -569,6 +569,17 @@ function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartmen
         icon={<Folder size={18} strokeWidth={1.75} />}
         iconColor="#2B4539"
         title="내 사역 · 부서"
+        action={
+          <button
+            onClick={() => router.push("/departments")}
+            style={{
+              padding: "4px 10px", fontSize: 11, fontWeight: 700,
+              color: T.ministryPoint, background: "transparent",
+              border: `1.5px dashed ${T.ministryPoint}`, borderRadius: 8,
+              cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+            }}
+          >+ 가입</button>
+        }
       />
 
       {empty ? (
@@ -578,7 +589,7 @@ function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartmen
           </div>
         </SafeCard>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12, width: "100%", maxWidth: "100%", minWidth: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", maxWidth: "100%", minWidth: 0 }}>
           {approved.map((d) => (
             <MinistryCard
               key={d.id}
@@ -597,13 +608,6 @@ function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartmen
           ))}
         </div>
       )}
-
-      <OutlineButton
-        label="사역 · 부서 가입"
-        color={T.ministryPoint}
-        onClick={() => router.push("/departments")}
-        style={compactOutlineButtonStyle}
-      />
     </Section>
   );
 }

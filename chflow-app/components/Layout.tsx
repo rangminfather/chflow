@@ -145,11 +145,13 @@ export function SectionHeader({
   iconColor,
   title,
   subtitle,
+  action,
 }: {
   icon: ReactNode;
   iconColor: string;
   title: string;
   subtitle?: string;
+  action?: ReactNode;
 }) {
   return (
     <div style={{ marginBottom: 14, minWidth: 0 }}>
@@ -169,6 +171,7 @@ export function SectionHeader({
         <div className="safe-grow kr-keep" style={{ fontFamily: "var(--app-serif)", fontSize: 18, fontWeight: 600, color: T.text }}>
           {title}
         </div>
+        {action && <div style={{ flexShrink: 0 }}>{action}</div>}
       </div>
       {subtitle && (
         <div

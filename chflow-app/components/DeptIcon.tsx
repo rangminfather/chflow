@@ -2,6 +2,7 @@
 
 import {
   Baby, School, GraduationCap, Users, Music, BookOpen, Globe, Heart, HeartHandshake, Folder,
+  Smile, Pencil,
 } from "lucide-react";
 import { createElement, type CSSProperties } from "react";
 
@@ -11,9 +12,12 @@ import { createElement, type CSSProperties } from "react";
    ============================================================ */
 
 function pickIcon(label: string) {
-  if (/영아|유아|유치/.test(label)) return Baby;
-  if (/초등/.test(label)) return School;
+  // 교육부서 — 연령대별 개성 부여
+  if (/영아|유아/.test(label)) return Baby;           // 영아부: 아기 아이콘
+  if (/유치/.test(label))      return Smile;          // 유치부: 밝은 웃는 얼굴
+  if (/초등/.test(label))      return /2/.test(label) ? Pencil : BookOpen; // 초등1→책, 초등2→연필
   if (/중등|고등|중고등|청소년|학생/.test(label)) return GraduationCap;
+  // 일반
   if (/청년|대학|장년|남선교|여선교/.test(label)) return Users;
   if (/찬양|성가|워십|악기|미디어|방송/.test(label)) return Music;
   if (/교육|훈련|양육|성경|말씀/.test(label)) return BookOpen;

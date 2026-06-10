@@ -283,6 +283,35 @@ export default function CategoryPage() {
 
   return (
     <PageShell>
+      <style>{`
+        .dept-card-list {
+          display: flex;
+          overflow-x: auto;
+          scroll-snap-type: x mandatory;
+          -webkit-overflow-scrolling: touch;
+          gap: 14px;
+          padding: 16px 16px 20px;
+          scrollbar-width: none;
+        }
+        .dept-card-list::-webkit-scrollbar { display: none; }
+        .dept-card-item {
+          flex-shrink: 0;
+          width: 78vw;
+          max-width: 300px;
+          scroll-snap-align: start;
+        }
+        @media (min-width: 640px) {
+          .dept-card-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            overflow-x: visible;
+            scroll-snap-type: none;
+            padding: 0;
+          }
+          .dept-card-item { width: auto; max-width: none; }
+        }
+      `}</style>
+
       <div style={{
         background: T.bgCard, borderBottom: `1px solid ${T.border}`,
         padding: "10px clamp(12px, 4vw, 20px)",
@@ -301,59 +330,72 @@ export default function CategoryPage() {
         }}>← 뒤로</button>
       </div>
 
-      <PageContent maxWidth={860}>
+      <PageContent maxWidth={960}>
         {loading ? (
           <LoadingView padding={40} />
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 280px))", gap: 12 }}>
+          <div className="dept-card-list">
             {depts.map((d) => {
               const badge = statusBadge(d.my_status);
               const disabled = d.my_status === "approved" || d.my_status === "pending";
-              const borderColor = d.my_status === "approved" ? "#4ade80" : d.my_status === "pending" ? "#E0C893" : T.border;
+              const theme = getDeptTheme(d.name);
               const slots = keyMembers[d.id] ?? null;
               return (
                 <div
                   key={d.id}
+                  className="dept-card-item"
                   onClick={() => {
                     if (d.my_status === "approved") { router.push(`/departments/d/${d.id}`); return; }
                     if (!disabled) openModal(d);
                   }}
                   style={{
-                    background: T.bgCard, border: `1.5px solid ${borderColor}`, borderRadius: 16,
-                    padding: "18px 16px 14px", cursor: disabled && d.my_status !== "approved" ? "default" : "pointer",
-                    position: "relative", boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-                    transition: "box-shadow 0.15s, transform 0.15s",
-                    display: "flex", flexDirection: "column", gap: 10,
+                    background: T.bgCard,
+                    border: `1.5px solid ${d.my_status === "approved" ? "#4ade80" : d.my_status === "pending" ? "#E0C893" : T.border}`,
+                    borderRadius: 18,
+                    cursor: disabled && d.my_status !== "approved" ? "default" : "pointer",
+                    overflow: "hidden",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                    display: "flex", flexDirection: "column",
                   }}
-                  onMouseOver={(e) => { if (disabled) return; e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.1)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-                  onMouseOut={(e) => { if (disabled) return; e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "translateY(0)"; }}
                 >
-                  {badge && (
-                    <div style={{ position: "absolute", top: 12, right: 12, padding: "3px 10px", background: badge.bg, color: badge.color, borderRadius: 6, fontSize: 10, fontWeight: 700 }}>{badge.label}</div>
-                  )}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: T.ministryBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <DeptIcon name={d.name} category={d.category} size={20} />
+                  {/* 컬러 상단 배너 */}
+                  <div style={{
+                    background: theme.gradient,
+                    padding: "22px 16px 16px",
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                    position: "relative",
+                  }}>
+                    {badge && (
+                      <div style={{ position: "absolute", top: 10, right: 10, padding: "3px 9px", background: "rgba(255,255,255,0.9)", color: badge.color, borderRadius: 6, fontSize: 10, fontWeight: 800, backdropFilter: "blur(4px)" }}>{badge.label}</div>
+                    )}
+                    <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
+                      <DeptIcon name={d.name} category={d.category} size={26} color={theme.iconColor} />
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: T.text, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{d.name}</div>
-                      {d.description && <div style={{ fontSize: 11, color: T.textMuted, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{d.description}</div>}
+                    <div style={{ fontSize: 17, fontWeight: 900, color: theme.titleColor, textAlign: "center", letterSpacing: -0.3 }}>{d.name}</div>
+                  </div>
+
+                  {/* 하단 정보 */}
+                  <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
+                    {d.description && (
+                      <div style={{ fontSize: 11, color: T.textMuted, lineHeight: 1.5 }}>{d.description}</div>
+                    )}
+                    {/* 주요 인원 사진 */}
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      {ROLE_SLOTS.map(({ key }) => {
+                        const person = slots?.[key] ?? null;
+                        return person?.photoUrl ? (
+                          <img key={key} src={person.photoUrl} alt={person.name || ""} title={`${key}: ${person.name || ""}`} style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", objectPosition: "top center", border: `2px solid ${T.border}` }} />
+                        ) : (
+                          <div key={key} style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--bg-soft)", display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${T.border}` }}>
+                            <User size={14} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 5 }}>
-                    {ROLE_SLOTS.map(({ key }) => {
-                      const person = slots?.[key] ?? null;
-                      return person?.photoUrl ? (
-                        <img key={key} src={person.photoUrl} alt={person.name || ""} style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", objectPosition: "top center", border: `1.5px solid ${T.border}` }} />
-                      ) : (
-                        <div key={key} style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--hairline)", display: "flex", alignItems: "center", justifyContent: "center", border: `1.5px solid ${T.border}` }}>
-                          <User size={16} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div style={{ fontSize: 11, color: T.ministryPoint, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <Users size={13} strokeWidth={1.8} /> {d.member_count}명 활동 중
+                    {/* 활동 인원 */}
+                    <div style={{ fontSize: 12, color: theme.iconColor, fontWeight: 700, display: "flex", alignItems: "center", gap: 5, marginTop: "auto" }}>
+                      <Users size={13} strokeWidth={1.8} /> {d.member_count}명 활동 중
+                    </div>
                   </div>
                 </div>
               );
@@ -604,4 +646,18 @@ export default function CategoryPage() {
       )}
     </PageShell>
   );
+}
+
+// 부서명 기반 컬러 테마
+function getDeptTheme(name: string) {
+  if (/영아/.test(name))  return { gradient: "linear-gradient(135deg, #FFE0E9, #FFBAD0)", iconColor: "#D63A6A", titleColor: "#8B1A3C" };
+  if (/유치/.test(name))  return { gradient: "linear-gradient(135deg, #FFF3C4, #FFE082)", iconColor: "#D97706", titleColor: "#7C4F00" };
+  if (/초등.*2|초등2/.test(name)) return { gradient: "linear-gradient(135deg, #C8F5E0, #86EFAC)", iconColor: "#16A34A", titleColor: "#145229" };
+  if (/초등/.test(name))  return { gradient: "linear-gradient(135deg, #DBEAFE, #93C5FD)", iconColor: "#2563EB", titleColor: "#1D3A80" };
+  if (/중고등|청소년/.test(name)) return { gradient: "linear-gradient(135deg, #EDE9FE, #C4B5FD)", iconColor: "#7C3AED", titleColor: "#3B1A7A" };
+  if (/청년/.test(name))  return { gradient: "linear-gradient(135deg, #D1FAE5, #6EE7B7)", iconColor: "#059669", titleColor: "#064E3B" };
+  if (/찬양|예배/.test(name)) return { gradient: "linear-gradient(135deg, #FEE2E2, #FCA5A5)", iconColor: "#DC2626", titleColor: "#7F1D1D" };
+  if (/선교/.test(name))  return { gradient: "linear-gradient(135deg, #D1FAE5, #A7F3D0)", iconColor: "#059669", titleColor: "#064E3B" };
+  if (/봉사|섬김/.test(name)) return { gradient: "linear-gradient(135deg, #FEF3C7, #FDE68A)", iconColor: "#B45309", titleColor: "#6B2D00" };
+  return { gradient: "linear-gradient(135deg, #EDF2EF, #C8DACC)", iconColor: "#2B4539", titleColor: "#1A2E25" };
 }
