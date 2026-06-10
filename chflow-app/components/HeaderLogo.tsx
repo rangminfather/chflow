@@ -7,7 +7,7 @@ interface HeaderLogoProps {
   showText?: boolean;
 }
 
-export default function HeaderLogo({ size = 40, showText = false }: HeaderLogoProps) {
+export default function HeaderLogo({ size = 48, showText = false }: HeaderLogoProps) {
   const router = useRouter();
   return (
     <button
