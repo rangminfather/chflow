@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, BookOpen, ExternalLink, List, RefreshCw, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import PdfCanvasViewer from "@/components/PdfCanvasViewer";
+import { LoadingView } from "@/components/StatusViews";
 
 type BulletinItem = {
   no: number;
@@ -102,7 +103,7 @@ export default function BulletinPage() {
   if (!authChecked) {
     return (
       <main style={pageStyle}>
-        <div style={loadingStyle}>불러오는 중...</div>
+        <LoadingView full />
       </main>
     );
   }
@@ -279,7 +280,7 @@ const titleStyle: React.CSSProperties = {
   margin: 0,
   fontSize: 24,
   lineHeight: 1.25,
-  fontWeight: 850,
+  fontWeight: 800,
   letterSpacing: 0,
 };
 
@@ -352,7 +353,7 @@ const latestTitleStyle: React.CSSProperties = {
   margin: 0,
   fontSize: "clamp(20px, 4.8vw, 28px)",
   lineHeight: 1.25,
-  fontWeight: 850,
+  fontWeight: 800,
   letterSpacing: 0,
 };
 
@@ -382,7 +383,7 @@ const openButtonStyle: React.CSSProperties = {
   justifyContent: "center",
   gap: 7,
   fontSize: 13,
-  fontWeight: 850,
+  fontWeight: 800,
   flexShrink: 0,
 };
 
@@ -423,7 +424,7 @@ const listHeaderRowStyle: React.CSSProperties = {
 
 const sectionTitleTextStyle: React.CSSProperties = {
   fontSize: 14,
-  fontWeight: 850,
+  fontWeight: 800,
 };
 
 const listCloseStyle: React.CSSProperties = {
@@ -486,7 +487,7 @@ const chooseTextStyle: React.CSSProperties = {
   flexShrink: 0,
   color: "#3E5A4A",
   fontSize: 12,
-  fontWeight: 850,
+  fontWeight: 800,
   textAlign: "right",
 };
 
@@ -505,14 +506,6 @@ const noticeStyle: React.CSSProperties = {
   lineHeight: 1.6,
 };
 
-const loadingStyle: React.CSSProperties = {
-  minHeight: "70vh",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  color: "var(--ink-soft)",
-  fontSize: 14,
-};
 
 const loadingPanelStyle: React.CSSProperties = {
   minHeight: 180,
@@ -541,7 +534,7 @@ const emptyStyle: React.CSSProperties = {
 
 const emptyTitleStyle: React.CSSProperties = {
   fontSize: 16,
-  fontWeight: 850,
+  fontWeight: 800,
 };
 
 const emptyTextStyle: React.CSSProperties = {
@@ -559,6 +552,6 @@ const primaryButtonStyle: React.CSSProperties = {
   background: "#3E5A4A",
   color: "#FFFDF7",
   fontSize: 13,
-  fontWeight: 850,
+  fontWeight: 800,
   cursor: "pointer",
 };

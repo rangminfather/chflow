@@ -8,6 +8,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 interface Student {
   id: string;
@@ -47,9 +48,9 @@ const ATTENDANCE_OPTIONS = [
 ];
 
 const STATUS_COLOR: Record<string, string> = {
-  출: "#047857",
-  결: "#b91c1c",
-  인: "#1d4ed8",
+  출: "var(--success)",
+  결: "var(--danger)",
+  인: "var(--accent-strong)",
 };
 
 export default function MyClassAttendancePage() {
@@ -203,27 +204,27 @@ export default function MyClassAttendancePage() {
     return { total: students.length, attend, absent, otherChurch };
   };
 
-  if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
+  if (!authChecked) return <LoadingView full />;
 
   // 담임 아닌 경우
   if (!myTeacherId) {
     return (
-      <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
+      <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
         <div style={headerStyle}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
             <HeaderLogo />
           </div>
-          <div style={{ fontSize: 19, fontWeight: 800, color: "#1e293b" }}>📋 내 반 출결</div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: "var(--ink)" }}>📋 내 반 출결</div>
           <div style={{ width: 80 }} />
         </div>
         <div style={{ maxWidth: 600, margin: "60px auto", padding: 16 }}>
           <div style={{ ...cardStyle, textAlign: "center", padding: 40 }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>🙇</div>
-            <div style={{ fontSize: 17, fontWeight: 700, color: "#1e293b", marginBottom: 8 }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: "var(--ink)", marginBottom: 8 }}>
               본인이 담임으로 등록된 반이 없습니다
             </div>
-            <div style={{ fontSize: 14, color: "#64748b", lineHeight: 1.6 }}>
+            <div style={{ fontSize: 14, color: "var(--ink-soft)", lineHeight: 1.6 }}>
               부장 또는 전도사에게 담임 등록을 요청하세요.<br />
               (행정관리 → 담임선생님 지정)
             </div>
@@ -234,10 +235,10 @@ export default function MyClassAttendancePage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
       <style>{`
         .status-btn { transition: background 0.12s, border-color 0.12s, color 0.12s; }
-        .status-btn:hover { border-color: #94a3b8; }
+        .status-btn:hover { border-color: var(--ink-faint); }
       `}</style>
 
       <div style={headerStyle}>
@@ -245,31 +246,31 @@ export default function MyClassAttendancePage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 19, fontWeight: 800, color: "#1e293b" }}>
-          📋 내 반 출결 {myClassName && <span style={{ color: "#6366f1", marginLeft: 6 }}>{myClassName}반</span>}
+        <div style={{ fontSize: 19, fontWeight: 800, color: "var(--ink)" }}>
+          📋 내 반 출결 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
         </div>
         <div style={{ width: 80 }} />
       </div>
 
       <main className="mx-auto w-full max-w-6xl px-0 py-4 md:px-4">
         {/* 월 선택 */}
-        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 md:mx-0">
+        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-lg border border-hairline bg-white px-4 py-3 md:mx-0">
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
-          <div className="min-w-[140px] text-center text-[19px] font-extrabold text-slate-800">
+          <div className="min-w-[140px] text-center text-[19px] font-extrabold text-ink">
             {year}년 {month}월
           </div>
           <button onClick={() => nextMonth(year, month, setYear, setMonth)} style={navBtnStyle}>▶</button>
-          <div className="w-full text-center text-[13px] font-semibold text-slate-400">
+          <div className="w-full text-center text-[13px] font-semibold text-ink-faint">
             주일 {todayWeekIndex >= 0 ? todayWeekIndex + 1 : Math.min(1, sundays.length)}주차/{sundays.length}주차
           </div>
         </div>
 
         {loading ? (
-          <div className="mx-4 rounded-lg border border-slate-200 bg-white py-16 text-center text-[17px] text-slate-400 md:mx-0">
+          <div className="mx-4 rounded-lg border border-hairline bg-white py-16 text-center text-[17px] text-ink-faint md:mx-0">
             불러오는 중...
           </div>
         ) : students.length === 0 ? (
-          <div className="mx-4 rounded-lg border border-slate-200 bg-white py-16 text-center text-[17px] text-slate-400 md:mx-0">
+          <div className="mx-4 rounded-lg border border-hairline bg-white py-16 text-center text-[17px] text-ink-faint md:mx-0">
             담당 반 학생이 없습니다. 부장 또는 전도사에게 학생 배정을 요청하세요.
           </div>
         ) : (
@@ -287,19 +288,19 @@ export default function MyClassAttendancePage() {
                   className={[
                     "shrink-0 w-[84vw] snap-center overflow-hidden rounded-lg bg-white shadow-sm md:w-auto",
                     isTodayWeek
-                      ? "border-2 border-amber-500 shadow-[0_10px_30px_rgba(217,119,6,0.16)]"
-                      : "border border-slate-300",
+                      ? "border-2 border-amber-500 shadow-[0_10px_30px_rgba(165, 119, 42,0.16)]"
+                      : "border border-hairline-strong",
                   ].join(" ")}
                 >
                   <header className={[
                     "border-b px-4 py-3",
                     isTodayWeek
                       ? "border-amber-200 bg-gradient-to-r from-amber-50 to-white"
-                      : "border-slate-200 bg-slate-50",
+                      : "border-hairline bg-surface",
                   ].join(" ")}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="flex items-center gap-2 text-[19px] font-extrabold text-slate-900">
+                        <div className="flex items-center gap-2 text-[19px] font-extrabold text-ink">
                           {index + 1}주차
                           {isTodayWeek && (
                             <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[12px] font-extrabold text-amber-800">
@@ -311,19 +312,19 @@ export default function MyClassAttendancePage() {
                               className={[
                                 "rounded-full border px-2 py-0.5 text-[12px] font-extrabold",
                                 editState === "past"
-                                  ? "border-slate-200 bg-white text-slate-400"
-                                  : "border-sky-200 bg-sky-50 text-sky-700",
+                                  ? "border-hairline bg-white text-ink-faint"
+                                  : "border-accent-line bg-accent-soft text-accent-strong",
                               ].join(" ")}
                             >
                               {editState === "past" ? "수정 마감" : "예정"}
                             </span>
                           )}
                         </div>
-                        <div className="mt-1 text-[13px] font-semibold text-slate-500">{formatMD(date)} 주일</div>
+                        <div className="mt-1 text-[13px] font-semibold text-ink-soft">{formatMD(date)} 주일</div>
                       </div>
                       <div className={[
                         "rounded-md border bg-white px-2.5 py-1 text-[13px] font-extrabold",
-                        isTodayWeek ? "border-amber-200 text-amber-800" : "border-slate-200 text-slate-700",
+                        isTodayWeek ? "border-amber-200 text-amber-800" : "border-hairline text-ink-mid",
                       ].join(" ")}>
                         {summary.total}명
                       </div>
@@ -336,12 +337,12 @@ export default function MyClassAttendancePage() {
                       const currentStatus = normalizeStatus(cell?.attend_status);
 
                       return (
-                        <div key={student.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div key={student.id} className="rounded-lg border border-hairline bg-surface p-3">
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <div className="flex min-w-0 items-baseline gap-2">
-                              <div className="truncate text-[16px] font-extrabold text-slate-800">{student.name}</div>
+                              <div className="truncate text-[16px] font-extrabold text-ink">{student.name}</div>
                               {studentMeta(student) && (
-                                <div className="shrink-0 text-[12px] font-semibold text-slate-400">
+                                <div className="shrink-0 text-[12px] font-semibold text-ink-faint">
                                   {studentMeta(student)}
                                 </div>
                               )}
@@ -368,11 +369,11 @@ export default function MyClassAttendancePage() {
                                     "status-btn min-h-12 rounded-md border px-1 text-[15px] font-extrabold leading-tight",
                                     !isEditableWeek
                                       ? selected
-                                        ? "cursor-not-allowed border-slate-300 bg-slate-200 text-slate-500"
-                                        : "cursor-not-allowed border-slate-200 bg-white text-slate-400 opacity-70"
+                                        ? "cursor-not-allowed border-hairline-strong bg-hairline text-ink-soft"
+                                        : "cursor-not-allowed border-hairline bg-white text-ink-faint opacity-70"
                                       : selected
-                                        ? "border-slate-800 bg-slate-800 text-white"
-                                        : "border-slate-200 bg-white text-slate-600",
+                                        ? "border-ink bg-ink text-white"
+                                        : "border-hairline bg-white text-ink-mid",
                                   ].join(" ")}
                                 >
                                   {option.label}
@@ -385,7 +386,7 @@ export default function MyClassAttendancePage() {
                     })}
                   </section>
 
-                  <footer className="border-t border-slate-200 bg-slate-50 px-4 py-3">
+                  <footer className="border-t border-hairline bg-surface px-4 py-3">
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <SummaryBox label="출석" value={summary.attend} />
                       <SummaryBox label="결석" value={summary.absent} />
@@ -489,15 +490,14 @@ function studentMeta(student: Student) {
 
 function SummaryBox({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white px-2 py-2">
-      <div className="text-[12px] font-bold text-slate-400">{label}</div>
-      <div className="mt-0.5 text-[17px] font-extrabold text-slate-800">{value}</div>
+    <div className="rounded-md border border-hairline bg-white px-2 py-2">
+      <div className="text-[12px] font-bold text-ink-faint">{label}</div>
+      <div className="mt-0.5 text-[17px] font-extrabold text-ink">{value}</div>
     </div>
   );
 }
 
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const cardStyle: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 14, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
-const navBtnStyle: React.CSSProperties = { padding: "7px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 16, cursor: "pointer", fontFamily: "inherit", color: "#475569" };
-const loadingStyle: React.CSSProperties = { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" };
+const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
+const navBtnStyle: React.CSSProperties = { padding: "7px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 16, cursor: "pointer", fontFamily: "inherit", color: "var(--ink-mid)" };

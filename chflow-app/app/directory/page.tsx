@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { formatPhone, supabase } from "@/lib/supabase";
+import { LoadingView } from "@/components/StatusViews";
 
 type UserInfo = {
   role: string;
@@ -346,7 +347,7 @@ export default function DirectoryPage() {
   }
 
   if (!authChecked) {
-    return <div style={loadingStyle}>로딩 중...</div>;
+    return <LoadingView full />;
   }
 
   return (
@@ -433,7 +434,7 @@ export default function DirectoryPage() {
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={memberNameStyle}>
                     {member.name}
-                    {member.is_child && <span style={tagStyle("#fef3c7", "#92400e")}>자녀</span>}
+                    {member.is_child && <span style={tagStyle("var(--warning-soft)", "var(--warning)")}>자녀</span>}
                   </div>
                   <div style={memberMetaStyle}>{member.sub_role || "직분 미지정"} · {member.family_church || "목원"}</div>
                   <div style={memberMetaStyle}>{member.phone || member.home_phone || "연락처 없음"}</div>
@@ -597,7 +598,7 @@ function DirectoryProfileModal({
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={profileNameStyle}>
               {member.name}
-              {member.is_child && <span style={tagStyle("#fef3c7", "#92400e")}>자녀</span>}
+              {member.is_child && <span style={tagStyle("var(--warning-soft)", "var(--warning)")}>자녀</span>}
             </div>
             <div style={profileMetaStyle}>{member.sub_role || "직분 미지정"} · {member.family_church || "목원"}</div>
             <InfoLine label="연락처" value={member.phone || member.home_phone || member.household_home_phone || "없음"} />
@@ -797,13 +798,13 @@ function Avatar({ member, size }: { member: { name: string; photo_url: string | 
       height: size,
       borderRadius: 8,
       overflow: "hidden",
-      background: "#e2e8f0",
+      background: "var(--hairline)",
       flexShrink: 0,
       display: "grid",
       placeItems: "center",
-      color: "#64748b",
+      color: "var(--ink-soft)",
       fontSize: Math.max(14, Math.floor(size / 3)),
-      fontWeight: 900,
+      fontWeight: 800,
     }}>
       {member.photo_url ? (
         <img src={member.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -967,20 +968,12 @@ function locationText(member: { plain_name?: string | null; grassland_name?: str
 
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
-  background: "#f8fafc",
-  color: "#0f172a",
+  background: "var(--surface)",
+  color: "var(--ink)",
   fontFamily: "'Noto Sans KR', system-ui, sans-serif",
   padding: 16,
 };
 
-const loadingStyle: CSSProperties = {
-  minHeight: "100vh",
-  display: "grid",
-  placeItems: "center",
-  background: "#f8fafc",
-  color: "#0f172a",
-  fontFamily: "'Noto Sans KR', system-ui, sans-serif",
-};
 
 const headerStyle: CSSProperties = {
   maxWidth: 1180,
@@ -992,14 +985,14 @@ const headerStyle: CSSProperties = {
   flexWrap: "wrap",
 };
 
-const titleStyle: CSSProperties = { margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: 0 };
-const subtitleStyle: CSSProperties = { marginTop: 3, fontSize: 12, color: "#64748b" };
+const titleStyle: CSSProperties = { margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: 0 };
+const subtitleStyle: CSSProperties = { marginTop: 3, fontSize: 12, color: "var(--ink-soft)" };
 
 const searchPanelStyle: CSSProperties = {
   maxWidth: 1180,
   margin: "0 auto 14px",
   background: "#fff",
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: 12,
 };
@@ -1012,7 +1005,7 @@ const searchGridStyle: CSSProperties = {
 
 const inputStyle: CSSProperties = {
   height: 40,
-  border: "1px solid #cbd5e1",
+  border: "1px solid var(--hairline-strong)",
   borderRadius: 8,
   padding: "0 12px",
   fontSize: 14,
@@ -1031,7 +1024,7 @@ const buttonStyle: CSSProperties = {
   border: 0,
   borderRadius: 8,
   padding: "0 14px",
-  background: "#2563eb",
+  background: "var(--accent)",
   color: "#fff",
   fontSize: 13,
   fontWeight: 800,
@@ -1041,11 +1034,11 @@ const buttonStyle: CSSProperties = {
 
 const ghostButtonStyle: CSSProperties = {
   minHeight: 40,
-  border: "1px solid #cbd5e1",
+  border: "1px solid var(--hairline-strong)",
   borderRadius: 8,
   padding: "0 14px",
   background: "#fff",
-  color: "#334155",
+  color: "var(--ink-mid)",
   fontSize: 13,
   fontWeight: 800,
   fontFamily: "inherit",
@@ -1056,7 +1049,7 @@ const contentStyle: CSSProperties = {
   maxWidth: 1180,
   margin: "0 auto",
   background: "#fff",
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   overflow: "hidden",
 };
@@ -1066,9 +1059,9 @@ const resultHeadStyle: CSSProperties = {
   justifyContent: "space-between",
   gap: 10,
   padding: "12px 14px",
-  borderBottom: "1px solid #e2e8f0",
+  borderBottom: "1px solid var(--hairline)",
   fontSize: 13,
-  color: "#475569",
+  color: "var(--ink-mid)",
   flexWrap: "wrap",
 };
 
@@ -1085,7 +1078,7 @@ const memberCardStyle: CSSProperties = {
   alignItems: "center",
   width: "100%",
   minHeight: 94,
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   background: "#fff",
   padding: 10,
@@ -1094,10 +1087,10 @@ const memberCardStyle: CSSProperties = {
   fontFamily: "inherit",
 };
 
-const memberNameStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 6, fontSize: 15, fontWeight: 900, color: "#0f172a" };
-const memberMetaStyle: CSSProperties = { marginTop: 3, fontSize: 12, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-const memberPlaceStyle: CSSProperties = { marginTop: 3, fontSize: 11, color: "#2563eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-const emptyStyle: CSSProperties = { padding: 40, textAlign: "center", color: "#94a3b8", fontSize: 13 };
+const memberNameStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 6, fontSize: 15, fontWeight: 800, color: "var(--ink)" };
+const memberMetaStyle: CSSProperties = { marginTop: 3, fontSize: 12, color: "var(--ink-soft)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const memberPlaceStyle: CSSProperties = { marginTop: 3, fontSize: 11, color: "var(--accent)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const emptyStyle: CSSProperties = { padding: 40, textAlign: "center", color: "var(--ink-faint)", fontSize: 13 };
 
 const pagerStyle: CSSProperties = {
   display: "flex",
@@ -1105,15 +1098,15 @@ const pagerStyle: CSSProperties = {
   justifyContent: "space-between",
   gap: 10,
   padding: 12,
-  borderTop: "1px solid #e2e8f0",
+  borderTop: "1px solid var(--hairline)",
   fontSize: 13,
-  color: "#475569",
+  color: "var(--ink-mid)",
 };
 
 const modalBgStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(15,23,42,0.58)",
+  background: "rgba(43, 39, 34,0.58)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -1128,7 +1121,7 @@ const modalCardStyle: CSSProperties = {
   overflowY: "auto",
   background: "#fff",
   borderRadius: 8,
-  boxShadow: "0 20px 60px rgba(15,23,42,0.25)",
+  boxShadow: "0 20px 60px rgba(43, 39, 34,0.25)",
   padding: 18,
 };
 
@@ -1145,8 +1138,8 @@ const closeButtonStyle: CSSProperties = {
   height: 34,
   border: 0,
   borderRadius: 8,
-  background: "#f1f5f9",
-  color: "#334155",
+  background: "var(--bg-soft)",
+  color: "var(--ink-mid)",
   fontSize: 22,
   cursor: "pointer",
 };
@@ -1158,8 +1151,8 @@ const profileTopStyle: CSSProperties = {
   marginBottom: 16,
 };
 
-const profileNameStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 8, fontSize: 24, fontWeight: 900, color: "#0f172a" };
-const profileMetaStyle: CSSProperties = { marginTop: 3, marginBottom: 10, fontSize: 13, color: "#64748b" };
+const profileNameStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 8, fontSize: 24, fontWeight: 800, color: "var(--ink)" };
+const profileMetaStyle: CSSProperties = { marginTop: 3, marginBottom: 10, fontSize: 13, color: "var(--ink-soft)" };
 
 const infoLineStyle: CSSProperties = {
   display: "grid",
@@ -1167,22 +1160,22 @@ const infoLineStyle: CSSProperties = {
   gap: 8,
   marginTop: 5,
   fontSize: 12,
-  color: "#64748b",
+  color: "var(--ink-soft)",
 };
 
 const profileSectionStyle: CSSProperties = {
-  borderTop: "1px solid #e2e8f0",
+  borderTop: "1px solid var(--hairline)",
   paddingTop: 14,
   marginTop: 14,
 };
 
-const sectionTitleStyle: CSSProperties = { marginBottom: 10, fontSize: 13, fontWeight: 900, color: "#334155" };
-const sectionEmptyStyle: CSSProperties = { padding: "10px 0", color: "#94a3b8", fontSize: 12 };
+const sectionTitleStyle: CSSProperties = { marginBottom: 10, fontSize: 13, fontWeight: 800, color: "var(--ink-mid)" };
+const sectionEmptyStyle: CSSProperties = { padding: "10px 0", color: "var(--ink-faint)", fontSize: 12 };
 
 const adminQuickEditWrapStyle: CSSProperties = {
-  border: "1px solid #dbeafe",
+  border: "1px solid var(--accent-soft)",
   borderRadius: 8,
-  background: "#f8fbff",
+  background: "var(--surface)",
   padding: 12,
   marginBottom: 14,
 };
@@ -1199,7 +1192,7 @@ const adminQuickEditHintStyle: CSSProperties = {
   marginTop: 3,
   fontSize: 11,
   lineHeight: 1.4,
-  color: "#64748b",
+  color: "var(--ink-soft)",
 };
 
 const quickEditFormStyle: CSSProperties = {
@@ -1218,18 +1211,18 @@ const quickEditFieldStyle: CSSProperties = {
 
 const quickEditLabelStyle: CSSProperties = {
   fontSize: 11,
-  fontWeight: 900,
-  color: "#475569",
+  fontWeight: 800,
+  color: "var(--ink-mid)",
 };
 
 const quickEditInputStyle: CSSProperties = {
   height: 38,
-  border: "1px solid #cbd5e1",
+  border: "1px solid var(--hairline-strong)",
   borderRadius: 8,
   padding: "0 10px",
   fontSize: 13,
   fontFamily: "inherit",
-  color: "#0f172a",
+  color: "var(--ink)",
   background: "#fff",
   minWidth: 0,
 };
@@ -1239,16 +1232,16 @@ const quickEditClearStyle: CSSProperties = {
   alignItems: "center",
   gap: 5,
   fontSize: 11,
-  color: "#64748b",
+  color: "var(--ink-soft)",
 };
 
 const quickEditReadOnlyStyle: CSSProperties = {
   gridColumn: "1 / -1",
-  border: "1px dashed #cbd5e1",
+  border: "1px dashed var(--hairline-strong)",
   borderRadius: 8,
   padding: 10,
   fontSize: 12,
-  color: "#64748b",
+  color: "var(--ink-soft)",
   background: "#fff",
 };
 
@@ -1264,7 +1257,7 @@ const quickEditConfirmOverlayStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
   zIndex: 120,
-  background: "rgba(15, 23, 42, 0.62)",
+  background: "rgba(43, 39, 34, 0.62)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -1279,7 +1272,7 @@ const quickEditConfirmCardStyle: CSSProperties = {
   borderRadius: 8,
   background: "#fff",
   padding: 16,
-  boxShadow: "0 20px 60px rgba(15,23,42,0.28)",
+  boxShadow: "0 20px 60px rgba(43, 39, 34,0.28)",
 };
 
 const quickEditCompareGridStyle: CSSProperties = {
@@ -1290,42 +1283,42 @@ const quickEditCompareGridStyle: CSSProperties = {
 };
 
 const miniProfileCardStyle: CSSProperties = {
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: 12,
-  background: "#f8fafc",
+  background: "var(--surface)",
 };
 
 const miniProfileTitleStyle: CSSProperties = {
   marginBottom: 8,
   fontSize: 12,
-  fontWeight: 900,
-  color: "#2563eb",
+  fontWeight: 800,
+  color: "var(--accent)",
 };
 
 const miniProfileNameStyle: CSSProperties = {
   marginBottom: 8,
   fontSize: 18,
-  fontWeight: 900,
-  color: "#0f172a",
+  fontWeight: 800,
+  color: "var(--ink)",
 };
 
 const miniProfileValueStyle: CSSProperties = {
   marginTop: 4,
   fontSize: 12,
-  color: "#475569",
+  color: "var(--ink-mid)",
 };
 
 const miniProfileChangedValueStyle: CSSProperties = {
-  color: "#1d4ed8",
-  fontWeight: 900,
-  background: "#dbeafe",
+  color: "var(--accent-strong)",
+  fontWeight: 800,
+  background: "var(--accent-soft)",
   borderRadius: 6,
   padding: "3px 6px",
 };
 
 const quickEditChangeListStyle: CSSProperties = {
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   overflow: "hidden",
   marginBottom: 12,
@@ -1336,7 +1329,7 @@ const quickEditChangeRowStyle: CSSProperties = {
   gridTemplateColumns: "90px minmax(0, 1fr) 24px minmax(0, 1fr)",
   gap: 8,
   padding: "9px 10px",
-  borderBottom: "1px solid #e2e8f0",
+  borderBottom: "1px solid var(--hairline)",
   fontSize: 12,
   alignItems: "center",
 };
@@ -1346,7 +1339,7 @@ const chipStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 7,
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   background: "#fff",
   padding: 6,
@@ -1355,15 +1348,15 @@ const chipStyle: CSSProperties = {
   fontFamily: "inherit",
   textAlign: "left",
 };
-const chipNameStyle: CSSProperties = { display: "block", fontSize: 12, color: "#0f172a" };
-const chipSubStyle: CSSProperties = { display: "block", fontSize: 10, color: "#64748b" };
+const chipNameStyle: CSSProperties = { display: "block", fontSize: 12, color: "var(--ink)" };
+const chipSubStyle: CSSProperties = { display: "block", fontSize: 10, color: "var(--ink-soft)" };
 
 const relationRowStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 10,
   width: "100%",
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   background: "#fff",
   padding: 8,
@@ -1372,8 +1365,8 @@ const relationRowStyle: CSSProperties = {
   fontFamily: "inherit",
 };
 
-const relationNameStyle: CSSProperties = { display: "block", fontSize: 13, color: "#0f172a" };
-const relationSubStyle: CSSProperties = { display: "block", marginTop: 2, fontSize: 11, color: "#64748b" };
+const relationNameStyle: CSSProperties = { display: "block", fontSize: 13, color: "var(--ink)" };
+const relationSubStyle: CSSProperties = { display: "block", marginTop: 2, fontSize: 11, color: "var(--ink-soft)" };
 
 function tagStyle(bg: string, color: string): CSSProperties {
   return {

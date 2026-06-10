@@ -7,6 +7,7 @@ import MemberCardModal from "@/components/MemberCardModal";
 import { ExportMembersModal, ImportMembersModal } from "@/components/MemberDataTools";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
 
 interface Member {
   id: string;
@@ -60,7 +61,7 @@ const PAGE_SIZE = 50;
 
 export default function AdminMembersPageWrapper() {
   return (
-    <Suspense fallback={<div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9" }}>로딩 중...</div>}>
+    <Suspense fallback={<LoadingView full />}>
       <AdminMembersPage />
     </Suspense>
   );
@@ -221,11 +222,11 @@ function AdminMembersPage() {
   };
 
   if (!authChecked) {
-    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9" }}>로딩 중...</div>;
+    return <LoadingView full />;
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif", padding: 16 }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif", padding: 16 }}>
 
       <div style={{ maxWidth: 1400, margin: "0 auto" }}>
         {/* Header */}
@@ -233,18 +234,18 @@ function AdminMembersPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <HeaderLogo />
             <div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>회원 관리</div>
-              <div style={{ fontSize: 11, color: "#94a3b8" }}>명성교회 성도 데이터베이스</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>회원 관리</div>
+              <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>명성교회 성도 데이터베이스</div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button onClick={() => setCreating(true)} style={btnPrimary}>+ 회원 추가</button>
-            <button onClick={() => setExporting(true)} style={{ ...btnGhost, background: "#dcfce7", color: "#15803d" }}>📥 회원정보 백업</button>
-            <button onClick={() => setImporting(true)} style={{ ...btnGhost, background: "#dbeafe", color: "#1e40af" }}>📤 일괄업로드</button>
-            <button onClick={() => router.push("/admin/dept-staff")} style={{ ...btnGhost, background: "#fce7f3", color: "#9d174d" }}>🏢 부서원 관리</button>
-            <button onClick={() => router.push("/admin/rearrange")} style={{ ...btnGhost, background: "#e0e7ff", color: "#4338ca" }}>🔀 재편성</button>
+            <button onClick={() => setExporting(true)} style={{ ...btnGhost, background: "var(--success-soft)", color: "var(--success)" }}>📥 회원정보 백업</button>
+            <button onClick={() => setImporting(true)} style={{ ...btnGhost, background: "var(--accent-soft)", color: "var(--accent-strong)" }}>📤 일괄업로드</button>
+            <button onClick={() => router.push("/admin/dept-staff")} style={{ ...btnGhost, background: "#F5E5EB", color: "#9d174d" }}>🏢 부서원 관리</button>
+            <button onClick={() => router.push("/admin/rearrange")} style={{ ...btnGhost, background: "var(--accent-soft)", color: "var(--accent-strong)" }}>🔀 재편성</button>
             <button onClick={() => router.push("/admin/pending")} style={btnWarning}>⏳ 가입 대기자</button>
-            <button onClick={() => router.push("/admin/ops-status")} style={{ ...btnGhost, background: "#ecfdf5", color: "#047857" }}>📊 운영 상태</button>
+            <button onClick={() => router.push("/admin/ops-status")} style={{ ...btnGhost, background: "var(--success-soft)", color: "var(--success)" }}>📊 운영 상태</button>
             <button onClick={() => router.push("/home")} style={btnGhost}>← 홈</button>
           </div>
         </div>
@@ -297,7 +298,7 @@ function AdminMembersPage() {
             <button onClick={() => { setQuery(""); setFilterPlain(""); setFilterGrassland(""); setFilterPasture(""); setMemberStatus("active"); setShowChildren(true); setShowParents(true); setPage(1); doSearch(1, "", "", "", "", "active", true, true); }}
               style={btnGhost}>초기화</button>
           </div>
-          <div style={{ display: "flex", gap: 16, marginTop: 10, alignItems: "center", fontSize: 12, color: "#475569" }}>
+          <div style={{ display: "flex", gap: 16, marginTop: 10, alignItems: "center", fontSize: 12, color: "var(--ink-mid)" }}>
             <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
               <input
                 type="checkbox"
@@ -324,21 +325,21 @@ function AdminMembersPage() {
               />
               자녀 보기
             </label>
-            <span style={{ color: "#94a3b8", fontSize: 11 }}>체크 해제 시 같은 목장 안의 부모/자녀만 숨깁니다 (다른 목장 가족은 유지)</span>
+            <span style={{ color: "var(--ink-faint)", fontSize: 11 }}>체크 해제 시 같은 목장 안의 부모/자녀만 숨깁니다 (다른 목장 가족은 유지)</span>
           </div>
         </div>
 
         {/* Table */}
         <div style={{ background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>
-              총 <span style={{ color: "#6366f1" }}>{total}</span>명 · {page}/{totalPages} 페이지
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--hairline)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-mid)" }}>
+              총 <span style={{ color: "var(--accent)" }}>{total}</span>명 · {page}/{totalPages} 페이지
             </div>
           </div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
-                <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                <tr style={{ background: "var(--surface)", borderBottom: "1px solid var(--hairline)" }}>
                   {["평원", "초원", "목장", "이름", "성별", "자녀", "가정교회", "직분", "배우자", "휴대폰", "집전화", "주소", "구분", "작업"].map(h => (
                     <th key={h} style={thStyle}>{h}</th>
                   ))}
@@ -346,17 +347,17 @@ function AdminMembersPage() {
               </thead>
               <tbody>
                 {members.map((m) => (
-                  <tr key={m.id} style={{ borderBottom: "1px solid #f1f5f9", cursor: "default" }}>
-                    <td style={{ ...tdStyle, textAlign: "center", fontWeight: 700, color: "#6366f1" }}>{m.plain_name || "-"}</td>
+                  <tr key={m.id} style={{ borderBottom: "1px solid var(--bg-soft)", cursor: "default" }}>
+                    <td style={{ ...tdStyle, textAlign: "center", fontWeight: 700, color: "var(--accent)" }}>{m.plain_name || "-"}</td>
                     <td style={{ ...tdStyle, textAlign: "center" }}>{m.grassland_name || "-"}</td>
                     <td style={{ ...tdStyle, textAlign: "center" }}>{m.pasture_name || "-"}</td>
-                    <td style={{ ...tdStyle, fontWeight: 700, color: "#1e293b" }}>
+                    <td style={{ ...tdStyle, fontWeight: 700, color: "var(--ink)" }}>
                       <span onClick={() => setCardMemberId(m.id)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
                         title="성도 카드 열기">
                         {m.photo_url
                           ? <img src={m.photo_url} alt="" style={{ width: 22, height: 22, borderRadius: "50%", objectFit: "cover" }} />
-                          : <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#e2e8f0", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>{m.gender === "F" ? "👩" : "👨"}</span>}
-                        <span style={{ color: "#6366f1", textDecoration: "underline", textUnderlineOffset: 3, textDecorationColor: "#c7d2fe" }}>{m.name}</span>
+                          : <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--hairline)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>{m.gender === "F" ? "👩" : "👨"}</span>}
+                        <span style={{ color: "var(--accent)", textDecoration: "underline", textUnderlineOffset: 3, textDecorationColor: "var(--accent-line)" }}>{m.name}</span>
                       </span>
                     </td>
                     <td style={tdStyle}>{m.gender === "M" ? "남" : m.gender === "F" ? "여" : "-"}</td>
@@ -364,25 +365,25 @@ function AdminMembersPage() {
                     <td style={tdStyle}>
                       <span style={{
                         padding: "2px 8px", borderRadius: 4, fontSize: 11,
-                        background: m.family_church === "목자" ? "#dbeafe" : m.family_church === "목녀" ? "#fce7f3" : "#f1f5f9",
-                        color: m.family_church === "목자" ? "#1e40af" : m.family_church === "목녀" ? "#9d174d" : "#475569",
+                        background: m.family_church === "목자" ? "var(--accent-soft)" : m.family_church === "목녀" ? "#F5E5EB" : "var(--bg-soft)",
+                        color: m.family_church === "목자" ? "var(--accent-strong)" : m.family_church === "목녀" ? "#9d174d" : "var(--ink-mid)",
                       }}>{m.family_church || "-"}</span>
                     </td>
                     <td style={tdStyle}>{m.sub_role || "-"}</td>
-                    <td style={{ ...tdStyle, color: "#64748b" }}>{m.spouse_name || "-"}</td>
-                    <td style={{ ...tdStyle, whiteSpace: "nowrap", color: "#475569" }}>{m.phone || "-"}</td>
-                    <td style={{ ...tdStyle, whiteSpace: "nowrap", color: "#475569" }}>{m.home_phone || "-"}</td>
-                    <td style={{ ...tdStyle, color: "#64748b", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.address || "-"}</td>
+                    <td style={{ ...tdStyle, color: "var(--ink-soft)" }}>{m.spouse_name || "-"}</td>
+                    <td style={{ ...tdStyle, whiteSpace: "nowrap", color: "var(--ink-mid)" }}>{m.phone || "-"}</td>
+                    <td style={{ ...tdStyle, whiteSpace: "nowrap", color: "var(--ink-mid)" }}>{m.home_phone || "-"}</td>
+                    <td style={{ ...tdStyle, color: "var(--ink-soft)", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.address || "-"}</td>
                     <td style={tdStyle}>
                       <span style={{
                         padding: "2px 8px", borderRadius: 4, fontSize: 10,
-                        background: m.has_account ? "#dcfce7" : "#fef3c7",
-                        color: m.has_account ? "#15803d" : "#92400e",
+                        background: m.has_account ? "var(--success-soft)" : "var(--warning-soft)",
+                        color: m.has_account ? "var(--success)" : "var(--warning)",
                       }}>{m.has_account ? "회원" : "비회원"}</span>
                     </td>
                     <td style={tdStyle}>
-                      <button onClick={() => setEditing({ ...m })} style={{ ...btnMini, background: "#6366f1", color: "#fff" }}>수정</button>
-                      <button onClick={() => setDeleting(m)} style={{ ...btnMini, background: "#fecaca", color: "#b91c1c", marginLeft: 4 }}>삭제</button>
+                      <button onClick={() => setEditing({ ...m })} style={{ ...btnMini, background: "var(--accent)", color: "#fff" }}>수정</button>
+                      <button onClick={() => setDeleting(m)} style={{ ...btnMini, background: "var(--danger-soft)", color: "var(--danger)", marginLeft: 4 }}>삭제</button>
                     </td>
                   </tr>
                 ))}
@@ -390,17 +391,17 @@ function AdminMembersPage() {
             </table>
           </div>
           {members.length === 0 && !loading && (
-            <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontSize: 13 }}>검색 결과가 없습니다</div>
+            <EmptyState message="검색 결과가 없습니다" hint="검색어나 필터를 바꿔 다시 시도해 보세요" />
           )}
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div style={{ padding: "12px 16px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "center", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ padding: "12px 16px", borderTop: "1px solid var(--hairline)", display: "flex", justifyContent: "center", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <button onClick={() => goPage(1)} disabled={page === 1} style={pageBtn(page === 1)}>«</button>
               <button onClick={() => goPage(Math.max(1, page - 1))} disabled={page === 1} style={pageBtn(page === 1)}>‹</button>
               {renderPageNumbers(page, totalPages).map((p, i) =>
                 p === -1
-                  ? <span key={i} style={{ padding: "0 6px", color: "#94a3b8" }}>…</span>
+                  ? <span key={i} style={{ padding: "0 6px", color: "var(--ink-faint)" }}>…</span>
                   : <button key={i} onClick={() => goPage(p)} style={pageBtn(false, p === page)}>{p}</button>
               )}
               <button onClick={() => goPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} style={pageBtn(page === totalPages)}>›</button>
@@ -635,7 +636,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
   return (
     <ModalBackdrop onClose={onClose} style={modalBgStyle}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...modalStyle, maxWidth: 560 }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 18 }}>회원 수정</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 18 }}>회원 수정</div>
 
         <FormRow label="이름" value={member.name} onChange={(v) => setMember({ ...member, name: v })} />
         <FormRow label="휴대폰" value={member.phone} onChange={(v) => setMember({ ...member, phone: formatPhone(v) })} placeholder="010-0000-0000" />
@@ -650,7 +651,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
               <option value="F">여</option>
             </select>
           </div>
-          <label style={{ display: "flex", alignItems: "flex-end", gap: 6, fontSize: 12, fontWeight: 600, color: "#475569", paddingBottom: 10 }}>
+          <label style={{ display: "flex", alignItems: "flex-end", gap: 6, fontSize: 12, fontWeight: 600, color: "var(--ink-mid)", paddingBottom: 10 }}>
             <input type="checkbox" checked={member.is_child}
               onChange={(e) => {
                 const next = e.target.checked;
@@ -667,28 +668,28 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
         </div>
 
         {member.is_child && (
-          <div style={{ padding: 12, background: "#fefce8", border: "1.5px dashed #fde047", borderRadius: 10, marginBottom: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#854d0e", marginBottom: 8 }}>
-              👨‍👩‍👧 부모 회원 연결 <span style={{ fontWeight: 400, color: "#a16207" }}>(선택 — 비워두면 가족 연결 추가 없음)</span>
+          <div style={{ padding: 12, background: "var(--warning-soft)", border: "1.5px dashed #E0C893", borderRadius: 10, marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", marginBottom: 8 }}>
+              👨‍👩‍👧 부모 회원 연결 <span style={{ fontWeight: 400, color: "var(--warning)" }}>(선택 — 비워두면 가족 연결 추가 없음)</span>
             </div>
-            <div style={{ fontSize: 10, color: "#a16207", marginBottom: 8 }}>
+            <div style={{ fontSize: 10, color: "var(--warning)", marginBottom: 8 }}>
               💡 기존 부모를 보거나 변경/제거하려면 성도 카드(이름 클릭)의 가족관계 메뉴를 사용하세요.
             </div>
             {parent ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, background: "#fff", borderRadius: 8, border: "1px solid #fde68a" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, background: "#fff", borderRadius: 8, border: "1px solid #E0C893" }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
                     {parent.name}
-                    {parent.gender === "M" && <span style={{ fontSize: 11, color: "#3b82f6", marginLeft: 6 }}>♂ 아버지로 등록</span>}
-                    {parent.gender === "F" && <span style={{ fontSize: 11, color: "#ec4899", marginLeft: 6 }}>♀ 어머니로 등록</span>}
-                    {!parent.gender && <span style={{ fontSize: 11, color: "#64748b", marginLeft: 6 }}>(부모 성별 미지정)</span>}
+                    {parent.gender === "M" && <span style={{ fontSize: 11, color: "var(--male)", marginLeft: 6 }}>♂ 아버지로 등록</span>}
+                    {parent.gender === "F" && <span style={{ fontSize: 11, color: "var(--female)", marginLeft: 6 }}>♀ 어머니로 등록</span>}
+                    {!parent.gender && <span style={{ fontSize: 11, color: "var(--ink-soft)", marginLeft: 6 }}>(부모 성별 미지정)</span>}
                   </div>
-                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>
                     {parent.phone || "연락처 없음"} · {parent.plain_name ? `${parent.plain_name}평원 · ` : ""}{parent.pasture_name || "소속 없음"} 목장
                   </div>
                 </div>
                 <button onClick={() => { setParent(null); setParentCandidates([]); }}
-                  style={{ padding: "6px 10px", background: "#fff", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
+                  style={{ padding: "6px 10px", background: "#fff", border: "1px solid var(--hairline-strong)", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
                   다시
                 </button>
               </div>
@@ -702,7 +703,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
                     placeholder="휴대폰 (선택)" style={{ ...inputStyle, flex: 2 }}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchParent(); } }} />
                   <button type="button" onClick={searchParent}
-                    style={{ padding: "0 14px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                    style={{ padding: "0 14px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                     {parentSearching ? "..." : "검색"}
                   </button>
                 </div>
@@ -710,22 +711,22 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {parentCandidates.map(c => (
                       <div key={c.id} onClick={() => setParent(c)}
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, background: "#fff", borderRadius: 8, border: "1px solid #fde68a", cursor: "pointer" }}>
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, background: "#fff", borderRadius: 8, border: "1px solid #E0C893", cursor: "pointer" }}>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: "#1e293b" }}>
-                            {c.name} {c.phone && <span style={{ color: "#64748b", fontWeight: 400 }}>({c.phone})</span>}
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>
+                            {c.name} {c.phone && <span style={{ color: "var(--ink-soft)", fontWeight: 400 }}>({c.phone})</span>}
                           </div>
-                          <div style={{ fontSize: 10, color: "#64748b" }}>
+                          <div style={{ fontSize: 10, color: "var(--ink-soft)" }}>
                             {c.plain_name ? `${c.plain_name}평원 · ` : ""}{c.pasture_name || "소속 없음"} 목장
                           </div>
                         </div>
-                        <div style={{ fontSize: 10, color: "#6366f1", fontWeight: 700 }}>선택 →</div>
+                        <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 700 }}>선택 →</div>
                       </div>
                     ))}
                   </div>
                 )}
                 {parentCandidates.length === 0 && !parentSearching && parentSearchName && (
-                  <div style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", padding: 8 }}>검색 결과 없음 (이름은 정확히 일치해야 합니다)</div>
+                  <div style={{ fontSize: 11, color: "var(--ink-faint)", textAlign: "center", padding: 8 }}>검색 결과 없음 (이름은 정확히 일치해야 합니다)</div>
                 )}
               </>
             )}
@@ -737,8 +738,8 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
         <FormRow label="배우자" value={member.spouse_name} onChange={(v) => setMember({ ...member, spouse_name: v })} />
 
         {/* 주소 + 같이 옮길 가족 영역 */}
-        <div style={{ marginTop: 18, padding: 12, background: "#f0f9ff", borderRadius: 10, border: "1px solid #bae6fd" }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: "#1e293b", marginBottom: 8 }}>주소</div>
+        <div style={{ marginTop: 18, padding: 12, background: "#EFF5F7", borderRadius: 10, border: "1px solid #C9DEE8" }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>주소</div>
           <input
             value={address}
             onChange={(e) => setAddress(e.target.value)}
@@ -748,9 +749,9 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
 
           {member.household_id && householdMembers.length > 0 && (
             <>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 6 }}>
                 같이 옮길 가족
-                <span style={{ marginLeft: 6, fontWeight: 500, color: "#94a3b8" }}>
+                <span style={{ marginLeft: 6, fontWeight: 500, color: "var(--ink-faint)" }}>
                   체크한 사람들이 새 주소(또는 새 목장)로 함께 이동합니다
                 </span>
               </div>
@@ -761,8 +762,8 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
                   return (
                     <label key={hm.id} style={{
                       display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
-                      background: checked ? "#fff" : "#f1f5f9",
-                      borderRadius: 6, fontSize: 12, fontWeight: 600, color: "#1e293b",
+                      background: checked ? "#fff" : "var(--bg-soft)",
+                      borderRadius: 6, fontSize: 12, fontWeight: 600, color: "var(--ink)",
                       cursor: isSelf ? "default" : "pointer", opacity: isSelf ? 0.85 : 1
                     }}>
                       <input
@@ -772,7 +773,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
                         onChange={() => toggleId(hm.id)}
                       />
                       <span>{hm.name}</span>
-                      <span style={{ fontSize: 10, color: "#64748b", fontWeight: 500 }}>
+                      <span style={{ fontSize: 10, color: "var(--ink-soft)", fontWeight: 500 }}>
                         ({isSelf ? "본인" : fcLabel(hm)})
                       </span>
                     </label>
@@ -784,10 +785,10 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
         </div>
 
         {/* 소속(목장) 이동 영역 */}
-        <div style={{ marginTop: 12, padding: 12, background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0" }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: "#1e293b", marginBottom: 8 }}>
+        <div style={{ marginTop: 12, padding: 12, background: "var(--surface)", borderRadius: 10, border: "1px solid var(--hairline)" }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>
             소속 (평원 / 초원 / 목장)
-            <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 600, color: "#94a3b8" }}>
+            <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 600, color: "var(--ink-faint)" }}>
               현재: {member.plain_name || "-"} / {member.grassland_name || "-"} / {member.pasture_name || "-"}
             </span>
           </div>
@@ -806,7 +807,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
               value={moveGrass}
               onChange={(e) => { setMoveGrass(e.target.value); setMovePast(""); }}
               disabled={!movePlain}
-              style={{ ...inputStyle, flex: 1, background: movePlain ? "#fff" : "#f1f5f9" }}
+              style={{ ...inputStyle, flex: 1, background: movePlain ? "#fff" : "var(--bg-soft)" }}
             >
               <option value="">초원</option>
               {grasslandsForPlain.map(g => <option key={g} value={g}>{g}</option>)}
@@ -815,7 +816,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
               value={movePast}
               onChange={(e) => setMovePast(e.target.value)}
               disabled={!moveGrass}
-              style={{ ...inputStyle, flex: 1, background: moveGrass ? "#fff" : "#f1f5f9" }}
+              style={{ ...inputStyle, flex: 1, background: moveGrass ? "#fff" : "var(--bg-soft)" }}
             >
               <option value="">목장</option>
               {pasturesForGrassland.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
@@ -823,7 +824,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
           </div>
 
           {moveError && (
-            <div style={{ marginTop: 8, padding: 8, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, fontSize: 11, color: "#b91c1c" }}>
+            <div style={{ marginTop: 8, padding: 8, background: "var(--danger-soft)", border: "1px solid var(--danger-soft)", borderRadius: 6, fontSize: 11, color: "var(--danger)" }}>
               ⚠️ {moveError}
             </div>
           )}
@@ -972,21 +973,21 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
   return (
     <ModalBackdrop onClose={onClose} style={modalBgStyle}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...modalStyle, maxWidth: 560 }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 18 }}>회원 추가</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 18 }}>회원 추가</div>
 
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 6 }}>소속 (모르는 단계는 비워두세요)</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 6 }}>소속 (모르는 단계는 비워두세요)</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
           <select value={plain} onChange={(e) => { setPlain(e.target.value); setGrassland(""); setPasture(""); }} style={{ ...inputStyle, flex: 1 }}>
             <option value="">평원</option>
             {plainOptions.map(p => <option key={p.name} value={p.name}>{plainLabel(p.name)}</option>)}
           </select>
           <select value={grassland} onChange={(e) => { setGrassland(e.target.value); setPasture(""); }}
-            disabled={!plain} style={{ ...inputStyle, flex: 1, background: plain ? "#fff" : "#f1f5f9" }}>
+            disabled={!plain} style={{ ...inputStyle, flex: 1, background: plain ? "#fff" : "var(--bg-soft)" }}>
             <option value="">초원</option>
             {grasslandsForPlain.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
           <select value={pasture} onChange={(e) => setPasture(e.target.value)}
-            disabled={!grassland} style={{ ...inputStyle, flex: 1, background: grassland ? "#fff" : "#f1f5f9" }}>
+            disabled={!grassland} style={{ ...inputStyle, flex: 1, background: grassland ? "#fff" : "var(--bg-soft)" }}>
             <option value="">목장</option>
             {pasturesForGrassland.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
           </select>
@@ -1008,35 +1009,35 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
               <option value="F">여</option>
             </select>
           </div>
-          <label style={{ display: "flex", alignItems: "flex-end", gap: 6, fontSize: 12, fontWeight: 600, color: "#475569", paddingBottom: 10 }}>
+          <label style={{ display: "flex", alignItems: "flex-end", gap: 6, fontSize: 12, fontWeight: 600, color: "var(--ink-mid)", paddingBottom: 10 }}>
             <input type="checkbox" checked={isChild} onChange={(e) => handleToggleChild(e.target.checked)} />
             자녀
           </label>
         </div>
 
         {isChild && (
-          <div style={{ padding: 12, background: "#fefce8", border: "1.5px dashed #fde047", borderRadius: 10, marginBottom: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#854d0e", marginBottom: 8 }}>
-              👨‍👩‍👧 부모 회원 연결 <span style={{ fontWeight: 400, color: "#a16207" }}>(선택 — 비워두면 가족 연결 없이 추가)</span>
+          <div style={{ padding: 12, background: "var(--warning-soft)", border: "1.5px dashed #E0C893", borderRadius: 10, marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", marginBottom: 8 }}>
+              👨‍👩‍👧 부모 회원 연결 <span style={{ fontWeight: 400, color: "var(--warning)" }}>(선택 — 비워두면 가족 연결 없이 추가)</span>
             </div>
             {parent ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, background: "#fff", borderRadius: 8, border: "1px solid #fde68a" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, background: "#fff", borderRadius: 8, border: "1px solid #E0C893" }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
                     {parent.name}
-                    {parent.gender === "M" && <span style={{ fontSize: 11, color: "#3b82f6", marginLeft: 6 }}>♂ 아버지로 등록</span>}
-                    {parent.gender === "F" && <span style={{ fontSize: 11, color: "#ec4899", marginLeft: 6 }}>♀ 어머니로 등록</span>}
-                    {!parent.gender && <span style={{ fontSize: 11, color: "#64748b", marginLeft: 6 }}>(부모 성별 미지정)</span>}
+                    {parent.gender === "M" && <span style={{ fontSize: 11, color: "var(--male)", marginLeft: 6 }}>♂ 아버지로 등록</span>}
+                    {parent.gender === "F" && <span style={{ fontSize: 11, color: "var(--female)", marginLeft: 6 }}>♀ 어머니로 등록</span>}
+                    {!parent.gender && <span style={{ fontSize: 11, color: "var(--ink-soft)", marginLeft: 6 }}>(부모 성별 미지정)</span>}
                   </div>
-                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>
                     {parent.phone || "연락처 없음"} · {parent.plain_name ? `${parent.plain_name}평원 · ` : ""}{parent.pasture_name || "소속 없음"} 목장
                   </div>
-                  <div style={{ fontSize: 10, color: "#a16207", marginTop: 4, fontWeight: 600 }}>
+                  <div style={{ fontSize: 10, color: "var(--warning)", marginTop: 4, fontWeight: 600 }}>
                     👉 자녀는 이 부모의 가족(목장)에 합류합니다. 위 평원/초원/목장 입력은 무시됩니다.
                   </div>
                 </div>
                 <button onClick={() => { setParent(null); setParentCandidates([]); }}
-                  style={{ padding: "6px 10px", background: "#fff", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
+                  style={{ padding: "6px 10px", background: "#fff", border: "1px solid var(--hairline-strong)", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
                   다시
                 </button>
               </div>
@@ -1050,7 +1051,7 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
                     placeholder="휴대폰 (선택)" style={{ ...inputStyle, flex: 2 }}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchParent(); } }} />
                   <button type="button" onClick={searchParent}
-                    style={{ padding: "0 14px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                    style={{ padding: "0 14px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                     {parentSearching ? "..." : "검색"}
                   </button>
                 </div>
@@ -1058,22 +1059,22 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {parentCandidates.map(c => (
                       <div key={c.id} onClick={() => setParent(c)}
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, background: "#fff", borderRadius: 8, border: "1px solid #fde68a", cursor: "pointer" }}>
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, background: "#fff", borderRadius: 8, border: "1px solid #E0C893", cursor: "pointer" }}>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: "#1e293b" }}>
-                            {c.name} {c.phone && <span style={{ color: "#64748b", fontWeight: 400 }}>({c.phone})</span>}
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>
+                            {c.name} {c.phone && <span style={{ color: "var(--ink-soft)", fontWeight: 400 }}>({c.phone})</span>}
                           </div>
-                          <div style={{ fontSize: 10, color: "#64748b" }}>
+                          <div style={{ fontSize: 10, color: "var(--ink-soft)" }}>
                             {c.plain_name ? `${c.plain_name}평원 · ` : ""}{c.pasture_name || "소속 없음"} 목장
                           </div>
                         </div>
-                        <div style={{ fontSize: 10, color: "#6366f1", fontWeight: 700 }}>선택 →</div>
+                        <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 700 }}>선택 →</div>
                       </div>
                     ))}
                   </div>
                 )}
                 {parentCandidates.length === 0 && !parentSearching && parentSearchName && (
-                  <div style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", padding: 8 }}>검색 결과 없음 (이름은 정확히 일치해야 합니다)</div>
+                  <div style={{ fontSize: 11, color: "var(--ink-faint)", textAlign: "center", padding: 8 }}>검색 결과 없음 (이름은 정확히 일치해야 합니다)</div>
                 )}
               </>
             )}
@@ -1099,7 +1100,7 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
 
         <FormRow label="배우자" value={spouseName} onChange={setSpouseName} />
 
-        {error && <div style={{ padding: 10, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: 12, color: "#b91c1c", marginBottom: 10 }}>⚠️ {error}</div>}
+        {error && <div style={{ padding: 10, background: "var(--danger-soft)", border: "1px solid var(--danger-soft)", borderRadius: 8, fontSize: 12, color: "var(--danger)", marginBottom: 10 }}>⚠️ {error}</div>}
 
         <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
           <button onClick={onClose} style={{ ...btnGhost, flex: 1, padding: "12px" }}>취소</button>
@@ -1120,11 +1121,11 @@ function ConfirmModal({ title, message, onConfirm, onClose }: {
   return (
     <ModalBackdrop onClose={onClose} style={modalBgStyle}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...modalStyle, maxWidth: 360 }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", marginBottom: 14 }}>{title}</div>
-        <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.7, marginBottom: 18, whiteSpace: "pre-wrap" }}>{message}</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 14 }}>{title}</div>
+        <div style={{ fontSize: 13, color: "var(--ink-mid)", lineHeight: 1.7, marginBottom: 18, whiteSpace: "pre-wrap" }}>{message}</div>
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={onClose} style={{ ...btnGhost, flex: 1, padding: "12px" }}>취소</button>
-          <button onClick={onConfirm} style={{ flex: 1, padding: "12px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>확인</button>
+          <button onClick={onConfirm} style={{ flex: 1, padding: "12px", background: "var(--danger)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>확인</button>
         </div>
       </div>
     </ModalBackdrop>
@@ -1147,25 +1148,25 @@ function FormRow({ label, value, onChange, placeholder }: { label: string; value
 // ============ Styles ============
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 12px", fontSize: 13,
-  border: "1.5px solid #e2e8f0", borderRadius: 8, outline: "none",
-  color: "#0f172a", fontWeight: 500, boxSizing: "border-box", fontFamily: "inherit", background: "#fff",
+  border: "1.5px solid var(--hairline)", borderRadius: 8, outline: "none",
+  color: "var(--ink)", fontWeight: 500, boxSizing: "border-box", fontFamily: "inherit", background: "#fff",
 };
 const selectStyle: React.CSSProperties = { ...inputStyle, width: "auto" };
-const lblStyle: React.CSSProperties = { fontSize: 11, color: "#475569", fontWeight: 700 };
-const thStyle: React.CSSProperties = { padding: "10px 8px", textAlign: "left", fontWeight: 700, color: "#475569", whiteSpace: "nowrap" };
+const lblStyle: React.CSSProperties = { fontSize: 11, color: "var(--ink-mid)", fontWeight: 700 };
+const thStyle: React.CSSProperties = { padding: "10px 8px", textAlign: "left", fontWeight: 700, color: "var(--ink-mid)", whiteSpace: "nowrap" };
 const tdStyle: React.CSSProperties = { padding: "8px" };
 
 const btnPrimary: React.CSSProperties = {
-  padding: "10px 16px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  padding: "10px 16px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
 };
 const btnGhost: React.CSSProperties = {
-  padding: "10px 16px", background: "#f1f5f9", border: "none",
-  borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
+  padding: "10px 16px", background: "var(--bg-soft)", border: "none",
+  borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
 };
 const btnWarning: React.CSSProperties = {
-  padding: "10px 16px", background: "#fef3c7", color: "#92400e", border: "none",
+  padding: "10px 16px", background: "var(--warning-soft)", color: "var(--warning)", border: "none",
   borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
 };
 const btnMini: React.CSSProperties = {
@@ -1173,9 +1174,9 @@ const btnMini: React.CSSProperties = {
   cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
 };
 const pageBtn = (disabled: boolean, active?: boolean): React.CSSProperties => ({
-  minWidth: 30, padding: "5px 10px", border: "1px solid #e2e8f0",
-  borderRadius: 6, background: active ? "#6366f1" : "#fff",
-  color: active ? "#fff" : disabled ? "#cbd5e1" : "#475569",
+  minWidth: 30, padding: "5px 10px", border: "1px solid var(--hairline)",
+  borderRadius: 6, background: active ? "var(--accent)" : "#fff",
+  color: active ? "#fff" : disabled ? "var(--hairline-strong)" : "var(--ink-mid)",
   fontSize: 12, fontWeight: 700, cursor: disabled ? "default" : "pointer", fontFamily: "inherit",
 });
 

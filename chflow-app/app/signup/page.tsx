@@ -631,10 +631,10 @@ export default function SignupPage() {
       <div style={pageStyle}>
         <div style={cardStyle}>
           <div style={{ fontSize: 64, marginBottom: 20, textAlign: "center" }}>🙏</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#1e293b", marginBottom: 12, textAlign: "center" }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)", marginBottom: 12, textAlign: "center" }}>
             가입 신청 완료!
           </div>
-          <div style={{ fontSize: 13, color: "#64748b", lineHeight: 1.6, textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.6, textAlign: "center", marginBottom: 28 }}>
             회원가입 신청이 완료되었습니다.<br />
             <strong>관리자 승인</strong> 후 로그인 하실 수 있습니다.
           </div>
@@ -654,7 +654,7 @@ export default function SignupPage() {
           <BackBar onBack={() => router.push("/login")} title="회원가입" />
 
           <div style={{ textAlign: "center", marginBottom: 24 }}>
-            <div style={{ fontSize: 22, fontWeight: 900, color: "#1e293b", letterSpacing: -0.5 }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)", letterSpacing: -0.5 }}>
               스마트명성 <span style={{ color: "var(--ink-soft)", fontSize: 14, fontWeight: 600 }}>회원가입</span>
             </div>
             <div className="auth-copy" style={{ marginTop: 14 }}>
@@ -687,11 +687,11 @@ export default function SignupPage() {
                 style={{
                   ...inputStyle,
                   marginTop: 6,
-                  background: noPhone ? "#f1f5f9" : "#fff",
-                  color: noPhone ? "#94a3b8" : "#0f172a",
+                  background: noPhone ? "var(--bg-soft)" : "#fff",
+                  color: noPhone ? "var(--ink-faint)" : "var(--ink)",
                 }}
               />
-              <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontWeight: 600 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontWeight: 600 }}>
                 <input
                   type="checkbox"
                   checked={noPhone}
@@ -703,8 +703,8 @@ export default function SignupPage() {
             </div>
 
             {noPhone && (
-              <div style={{ padding: "14px", background: "#fefce8", border: "1.5px dashed #fde047", borderRadius: 12, marginBottom: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#854d0e", marginBottom: 10 }}>
+              <div style={{ padding: "14px", background: "var(--warning-soft)", border: "1.5px dashed #E0C893", borderRadius: 12, marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", marginBottom: 10 }}>
                   👨‍👩‍👧 부모님 정보 (본인 확인용)
                 </div>
                 <div style={{ marginBottom: 10 }}>
@@ -727,7 +727,7 @@ export default function SignupPage() {
                     style={{ ...inputStyle, marginTop: 6 }}
                   />
                 </div>
-                <div style={{ fontSize: 10, color: "#a16207", marginTop: 8, lineHeight: 1.5 }}>
+                <div style={{ fontSize: 10, color: "var(--warning)", marginTop: 8, lineHeight: 1.5 }}>
                   할아버지/할머니/아버지/어머니 중 누구의 이름이든 가능합니다.
                 </div>
               </div>
@@ -760,7 +760,7 @@ export default function SignupPage() {
 
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: "var(--accent)" }}>회원 정보 발견!</div>
-            <div style={{ fontSize: 18, fontWeight: 850, color: "var(--ink)", marginTop: 8 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginTop: 8 }}>
               아래 분이 맞으십니까?
             </div>
           </div>
@@ -776,7 +776,7 @@ export default function SignupPage() {
               {matched.photo_url && (
                 <div style={{
                   width: 64, height: 64, borderRadius: "50%",
-                  background: "#dbeafe", overflow: "hidden",
+                  background: "var(--accent-soft)", overflow: "hidden",
                   border: "1px solid rgba(62, 90, 74, 0.16)",
                   flexShrink: 0,
                   backgroundImage: cssUrl(matched.photo_url),
@@ -788,11 +788,11 @@ export default function SignupPage() {
               )}
               <div style={{
                 width: 56, height: 56, borderRadius: "50%",
-                background: "#dbeafe", display: matched.photo_url ? "none" : "flex", alignItems: "center",
+                background: "var(--accent-soft)", display: matched.photo_url ? "none" : "flex", alignItems: "center",
                 justifyContent: "center", fontSize: 28,
               }}>👤</div>
               <div>
-                <div style={{ fontSize: 22, fontWeight: 850, color: "var(--ink)" }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)" }}>
                   {matched.name} <span style={{ fontSize: 14, color: "var(--accent)", marginLeft: 6 }}>{matched.sub_role || matched.family_church}</span>
                 </div>
                 {matched.spouse_name && (
@@ -913,8 +913,8 @@ export default function SignupPage() {
             <div style={{
               padding: "4px 10px",
               borderRadius: 999,
-              background: "#f8fafc",
-              color: "#94a3b8",
+              background: "var(--surface)",
+              color: "var(--ink-faint)",
               fontSize: 11,
               fontWeight: 700,
             }}>
@@ -994,8 +994,8 @@ export default function SignupPage() {
             onClick={() => setStep("role")}
             style={{
               padding: "16px",
-              background: "#fef2f2",
-              border: "2px dashed #fca5a5",
+              background: "var(--danger-soft)",
+              border: "2px dashed #E5B3AC",
               borderRadius: 12,
               marginBottom: 16,
               textAlign: "center",
@@ -1003,10 +1003,10 @@ export default function SignupPage() {
             }}
           >
             <div style={{ fontSize: 24, marginBottom: 6 }}>👆</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--danger)" }}>
               직분을 선택해주세요 (필수)
             </div>
-            <div style={{ fontSize: 11, color: "#dc2626", marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 4 }}>
               여기를 누르면 직분 선택 화면으로 이동합니다
             </div>
           </div>
@@ -1186,7 +1186,7 @@ export default function SignupPage() {
             </div>
             {selectedPasture && (
               <div style={pastureSelectedStyle}>
-                <span style={{ fontWeight: 850 }}>{selectedPasture.pasture_name}</span>
+                <span style={{ fontWeight: 800 }}>{selectedPasture.pasture_name}</span>
                 <span>{selectedPasture.plain_name} / {selectedPasture.grassland_name} 자동 연결</span>
               </div>
             )}
@@ -1208,8 +1208,8 @@ export default function SignupPage() {
                 {usernameStatus === "checking" ? "확인중" : usernameStatus === "available" ? "✓ 가능" : "중복확인"}
               </button>
             </div>
-            {usernameStatus === "available" && <div style={{ fontSize: 11, color: "#10b981", marginTop: 4 }}>✓ 사용 가능</div>}
-            {usernameStatus === "taken" && <div style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>✗ 이미 사용 중</div>}
+            {usernameStatus === "available" && <div style={{ fontSize: 11, color: "var(--success)", marginTop: 4 }}>✓ 사용 가능</div>}
+            {usernameStatus === "taken" && <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 4 }}>✗ 이미 사용 중</div>}
           </div>
 
           <div style={{ marginBottom: 14 }}>
@@ -1232,8 +1232,8 @@ export default function SignupPage() {
               placeholder="비밀번호 다시 입력" style={{ ...inputStyle, marginTop: 6 }} />
           </div>
 
-          <div style={{ padding: "12px 14px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, marginBottom: 14 }}>
-            <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", fontSize: 12, color: "#334155", lineHeight: 1.5, fontWeight: 600 }}>
+          <div style={{ padding: "12px 14px", background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: 10, marginBottom: 14 }}>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--ink-mid)", lineHeight: 1.5, fontWeight: 600 }}>
               <input
                 type="checkbox"
                 checked={agreePrivacy}
@@ -1241,7 +1241,7 @@ export default function SignupPage() {
                 style={{ width: 16, height: 16, accentColor: "var(--accent)", marginTop: 2, flexShrink: 0 }}
               />
               <span>
-                <span style={{ color: "#dc2626" }}>[필수]</span> 개인정보 수집·이용에 동의합니다{" "}
+                <span style={{ color: "var(--danger)" }}>[필수]</span> 개인정보 수집·이용에 동의합니다{" "}
                 <a
                   href="/privacy"
                   onClick={(e) => e.stopPropagation()}
@@ -1252,7 +1252,7 @@ export default function SignupPage() {
               </span>
             </label>
             {noPhone && (
-              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", fontSize: 12, color: "#334155", lineHeight: 1.5, fontWeight: 600, marginTop: 10, paddingTop: 10, borderTop: "1px dashed #cbd5e1" }}>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--ink-mid)", lineHeight: 1.5, fontWeight: 600, marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--hairline-strong)" }}>
                 <input
                   type="checkbox"
                   checked={agreeGuardian}
@@ -1260,7 +1260,7 @@ export default function SignupPage() {
                   style={{ width: 16, height: 16, accentColor: "var(--accent)", marginTop: 2, flexShrink: 0 }}
                 />
                 <span>
-                  <span style={{ color: "#dc2626" }}>[필수]</span> 만 14세 미만 가입에 대해 법정대리인(보호자)이 동의합니다
+                  <span style={{ color: "var(--danger)" }}>[필수]</span> 만 14세 미만 가입에 대해 법정대리인(보호자)이 동의합니다
                 </span>
               </label>
             )}
@@ -1313,13 +1313,13 @@ function RoleCard({ role, onClick }: { role: Role; onClick: () => void }) {
   return (
     <div onClick={onClick} style={{
       cursor: "pointer", borderRadius: 14, overflow: "hidden",
-      background: "#fafafa", border: "2px solid #e2e8f0",
+      background: "#fafafa", border: "2px solid var(--hairline)",
       transition: "all 0.2s", boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
       position: "relative", aspectRatio: "0.62",
       display: "flex", alignItems: "center", justifyContent: "center", padding: 4,
     }}
     onMouseOver={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.transform = "translateY(-4px)"; }}
-    onMouseOut={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.transform = "translateY(0)"; }}>
+    onMouseOut={(e) => { e.currentTarget.style.borderColor = "var(--hairline)"; e.currentTarget.style.transform = "translateY(0)"; }}>
       <div
         role="img"
         aria-label={role.label}
@@ -1344,7 +1344,7 @@ function RoleCard({ role, onClick }: { role: Role; onClick: () => void }) {
 function SubRoleModal({ role, onSelect, onClose }: { role: Role; onSelect: (label: string) => void; onClose: () => void }) {
   return (
     <ModalBackdrop onClose={onClose} style={{
-      position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.55)",
+      position: "fixed", inset: 0, background: "rgba(43, 39, 34, 0.55)",
       backdropFilter: "blur(6px)", display: "flex", alignItems: "center",
       justifyContent: "center", zIndex: 100, padding: 16,
     }}>
@@ -1369,11 +1369,11 @@ function SubRoleModal({ role, onSelect, onClose }: { role: Role; onSelect: (labe
             }}
           />
           <div>
-            <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>선택한 직분</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: "#1e293b" }}>{role.label}</div>
+            <div style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 600 }}>선택한 직분</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "var(--ink)" }}>{role.label}</div>
           </div>
         </div>
-        <div style={{ fontSize: 13, color: "#475569", fontWeight: 600, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, color: "var(--ink-mid)", fontWeight: 600, marginBottom: 14 }}>
           세부 직분을 선택해주세요
         </div>
         <div className="subrole-grid" style={{
@@ -1383,7 +1383,7 @@ function SubRoleModal({ role, onSelect, onClose }: { role: Role; onSelect: (labe
           {role.subRoles!.map((sub) => (
             <div key={sub.label} onClick={() => onSelect(sub.label)} style={{
               cursor: "pointer", borderRadius: 14, overflow: "hidden",
-              background: "#fafafa", border: "2px solid #e2e8f0",
+              background: "#fafafa", border: "2px solid var(--hairline)",
               aspectRatio: "0.62", display: "flex",
               alignItems: "center", justifyContent: "center", padding: 4,
             }}>
@@ -1404,8 +1404,8 @@ function SubRoleModal({ role, onSelect, onClose }: { role: Role; onSelect: (labe
         </div>
         <button onClick={onClose} style={{
           width: "100%", marginTop: 14, padding: "12px",
-          background: "#f1f5f9", border: "none", borderRadius: 10,
-          fontSize: 13, fontWeight: 600, color: "#64748b", cursor: "pointer", fontFamily: "inherit",
+          background: "var(--bg-soft)", border: "none", borderRadius: 10,
+          fontSize: 13, fontWeight: 600, color: "var(--ink-soft)", cursor: "pointer", fontFamily: "inherit",
         }}>취소</button>
       </div>
     </ModalBackdrop>
@@ -1432,7 +1432,7 @@ function maskAddress(addr: string): string {
 // ============ Styles ============
 const pageStyle: React.CSSProperties = {
   minHeight: "100svh",
-  background: "linear-gradient(160deg, #f7f4ec 0%, #eef5f1 48%, #e8eff7 100%)",
+  background: "linear-gradient(160deg, #f7f4ec 0%, #eef5f1 48%, var(--info-soft) 100%)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -1454,7 +1454,7 @@ const cardStyle: React.CSSProperties = {
 
 const labelStyle: React.CSSProperties = {
   fontSize: 13,
-  fontWeight: 750,
+  fontWeight: 700,
   color: "var(--ink)",
   letterSpacing: 0,
 };
@@ -1471,7 +1471,7 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "inherit",
   boxSizing: "border-box",
   color: "var(--ink)",
-  fontWeight: 650,
+  fontWeight: 600,
   WebkitTextFillColor: "var(--ink)",
   caretColor: "var(--accent)",
 };
@@ -1523,7 +1523,7 @@ const addressSearchBackdropStyle: React.CSSProperties = {
   position: "fixed",
   inset: 0,
   zIndex: 120,
-  background: "rgba(15, 23, 42, 0.48)",
+  background: "rgba(43, 39, 34, 0.48)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -1535,7 +1535,7 @@ const addressSearchPanelStyle: React.CSSProperties = {
   background: "#fff",
   borderRadius: 8,
   overflow: "visible",
-  boxShadow: "0 22px 70px rgba(15, 23, 42, 0.3)",
+  boxShadow: "0 22px 70px rgba(43, 39, 34, 0.3)",
 };
 
 const addressSearchHeaderStyle: React.CSSProperties = {
@@ -1544,7 +1544,7 @@ const addressSearchHeaderStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  borderBottom: "1px solid #e2e8f0",
+  borderBottom: "1px solid var(--hairline)",
   color: "var(--ink)",
   fontSize: 14,
 };
@@ -1597,7 +1597,7 @@ const errorStyle: React.CSSProperties = {
   border: "1px solid #f2c9c1",
   borderRadius: 8,
   fontSize: 13,
-  fontWeight: 650,
+  fontWeight: 600,
   color: "#8f2d2d",
   marginBottom: 12,
 };

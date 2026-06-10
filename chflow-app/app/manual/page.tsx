@@ -47,8 +47,8 @@ export default function ManualPage() {
     return (
       <div style={loadWrap}>
         <div style={{ textAlign: "center" }}>
-          <p style={{ fontSize: 16, fontWeight: 700, color: "#1e293b", marginBottom: 8 }}>스크린샷이 없습니다</p>
-          <code style={{ background: "#f1f5f9", padding: "8px 14px", borderRadius: 8, fontSize: 13 }}>
+          <p style={{ fontSize: 16, fontWeight: 700, color: "var(--ink)", marginBottom: 8 }}>스크린샷이 없습니다</p>
+          <code style={{ background: "var(--bg-soft)", padding: "8px 14px", borderRadius: 8, fontSize: 13 }}>
             npm run manual
           </code>
         </div>
@@ -179,7 +179,7 @@ export default function ManualPage() {
 // ── 스타일 토큰 ────────────────────────────────────────────
 const pageWrap: React.CSSProperties = {
   minHeight: "100vh",
-  background: "#f1f5f9",
+  background: "var(--bg-soft)",
   fontFamily: "'Noto Sans KR', sans-serif",
 };
 
@@ -189,7 +189,7 @@ const loadWrap: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
 };
-const loadText: React.CSSProperties = { fontSize: 15, color: "#64748b" };
+const loadText: React.CSSProperties = { fontSize: 15, color: "var(--ink-soft)" };
 
 const headerStyle: React.CSSProperties = {
   position: "sticky",
@@ -200,31 +200,31 @@ const headerStyle: React.CSSProperties = {
   gap: 4,
   padding: "10px 16px",
   background: "#fff",
-  borderBottom: "1px solid #e2e8f0",
+  borderBottom: "1px solid var(--hairline)",
 };
 const headerTitle: React.CSSProperties = {
   fontSize: 15,
   fontWeight: 800,
-  color: "#1e293b",
+  color: "var(--ink)",
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",
 };
-const headerSub: React.CSSProperties = { fontSize: 11, color: "#94a3b8" };
+const headerSub: React.CSSProperties = { fontSize: 11, color: "var(--ink-faint)" };
 const backBtn: React.CSSProperties = {
   flexShrink: 0,
   background: "transparent",
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: "6px 12px",
   fontSize: 13,
-  color: "#475569",
+  color: "var(--ink-mid)",
   cursor: "pointer",
   whiteSpace: "nowrap",
 };
 const printBtn: React.CSSProperties = {
   flexShrink: 0,
-  background: "#1e293b",
+  background: "var(--ink)",
   color: "#fff",
   border: "none",
   borderRadius: 8,
@@ -240,7 +240,7 @@ const tabBarWrap: React.CSSProperties = {
   gap: 6,
   padding: "10px 14px",
   background: "#fff",
-  borderBottom: "1px solid #e2e8f0",
+  borderBottom: "1px solid var(--hairline)",
   scrollbarWidth: "none",
   WebkitOverflowScrolling: "touch",
 };
@@ -248,18 +248,18 @@ const tabBtn: React.CSSProperties = {
   flexShrink: 0,
   padding: "7px 14px",
   borderRadius: 20,
-  border: "1px solid #e2e8f0",
-  background: "#f8fafc",
+  border: "1px solid var(--hairline)",
+  background: "var(--surface)",
   fontSize: 13,
   fontWeight: 500,
-  color: "#475569",
+  color: "var(--ink-mid)",
   cursor: "pointer",
   whiteSpace: "nowrap",
   transition: "all 0.15s",
 };
 const tabBtnActive: React.CSSProperties = {
-  background: "#1e4e8c",
-  borderColor: "#1e4e8c",
+  background: "var(--info)",
+  borderColor: "var(--info)",
   color: "#fff",
   fontWeight: 700,
 };
@@ -291,15 +291,15 @@ const sideItem: React.CSSProperties = {
   padding: "10px 14px",
   fontSize: 13,
   fontWeight: 500,
-  color: "#475569",
+  color: "var(--ink-mid)",
   background: "transparent",
   cursor: "pointer",
   lineHeight: 1.4,
   width: "100%",
 };
 const sideItemActive: React.CSSProperties = {
-  background: "#e8eff7",
-  color: "#1e4e8c",
+  background: "var(--info-soft)",
+  color: "var(--info)",
   fontWeight: 700,
 };
 
@@ -313,7 +313,7 @@ const mainStyle: React.CSSProperties = {
 };
 const stepCard: React.CSSProperties = {
   background: "#fff",
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   borderRadius: 14,
   padding: "18px 16px",
 };
@@ -327,7 +327,7 @@ const numBadge: React.CSSProperties = {
   width: 26,
   height: 26,
   borderRadius: "50%",
-  background: "#1e4e8c",
+  background: "var(--info)",
   color: "#fff",
   fontSize: 13,
   fontWeight: 700,
@@ -339,11 +339,11 @@ const numBadge: React.CSSProperties = {
 const stepTitle: React.CSSProperties = {
   fontSize: 15,
   fontWeight: 700,
-  color: "#1e293b",
+  color: "var(--ink)",
 };
 const stepDesc: React.CSSProperties = {
   fontSize: 14,
-  color: "#475569",
+  color: "var(--ink-mid)",
   lineHeight: 1.65,
   margin: "0 0 14px",
 };
@@ -355,7 +355,7 @@ const shotWrap: React.CSSProperties = {
   cursor: "zoom-in",
   borderRadius: 12,
   overflow: "hidden",
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   maxWidth: 320,          /* 모바일에서도 넉넉한 폭 */
 };
 const shotImg: React.CSSProperties = {
@@ -375,11 +375,11 @@ const shotOverlay: React.CSSProperties = {
 };
 const noShot: React.CSSProperties = {
   fontSize: 12,
-  color: "#94a3b8",
+  color: "var(--ink-faint)",
   padding: "12px 14px",
-  background: "#f8fafc",
+  background: "var(--surface)",
   borderRadius: 8,
-  border: "1px dashed #cbd5e1",
+  border: "1px dashed var(--hairline-strong)",
 };
 
 /* 라이트박스 */

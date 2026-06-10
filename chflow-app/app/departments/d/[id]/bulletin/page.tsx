@@ -7,6 +7,7 @@ import { ArrowLeft, BookOpen, ExternalLink, List, RefreshCw, X } from "lucide-re
 import HeaderLogo from "@/components/HeaderLogo";
 import PdfCanvasViewer from "@/components/PdfCanvasViewer";
 import { supabase } from "@/lib/supabase";
+import { LoadingView } from "@/components/StatusViews";
 
 type DeptBulletinItem = {
   no: number;
@@ -103,7 +104,7 @@ export default function DepartmentBulletinPage() {
   if (!authChecked) {
     return (
       <main style={pageStyle}>
-        <div style={loadingStyle}>로딩 중...</div>
+        <LoadingView full />
       </main>
     );
   }
@@ -267,7 +268,7 @@ const titleStyle: React.CSSProperties = {
   margin: 0,
   fontSize: 24,
   lineHeight: 1.25,
-  fontWeight: 850,
+  fontWeight: 800,
   letterSpacing: 0,
 };
 
@@ -299,8 +300,8 @@ const latestIconStyle: React.CSSProperties = {
   width: 52,
   height: 52,
   borderRadius: 12,
-  background: "#ccfbf1",
-  color: "#0f766e",
+  background: "#DFEDEA",
+  color: "#3E7D74",
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -313,8 +314,8 @@ const badgeStyle: React.CSSProperties = {
   minHeight: 24,
   padding: "0 9px",
   borderRadius: 999,
-  background: "#ccfbf1",
-  color: "#0f766e",
+  background: "#DFEDEA",
+  color: "#3E7D74",
   fontSize: 12,
   fontWeight: 800,
   marginBottom: 8,
@@ -324,7 +325,7 @@ const latestTitleStyle: React.CSSProperties = {
   margin: 0,
   fontSize: "clamp(20px, 4.8vw, 28px)",
   lineHeight: 1.25,
-  fontWeight: 850,
+  fontWeight: 800,
   letterSpacing: 0,
 };
 
@@ -339,7 +340,7 @@ const openButtonStyle: React.CSSProperties = {
   minHeight: 40,
   padding: "0 14px",
   borderRadius: 10,
-  background: "#0f766e",
+  background: "#3E7D74",
   color: "#fff",
   textDecoration: "none",
   display: "inline-flex",
@@ -347,7 +348,7 @@ const openButtonStyle: React.CSSProperties = {
   justifyContent: "center",
   gap: 7,
   fontSize: 13,
-  fontWeight: 850,
+  fontWeight: 800,
   flexShrink: 0,
 };
 
@@ -388,7 +389,7 @@ const listHeaderRowStyle: React.CSSProperties = {
 
 const sectionTitleTextStyle: React.CSSProperties = {
   fontSize: 14,
-  fontWeight: 850,
+  fontWeight: 800,
 };
 
 const listCloseStyle: React.CSSProperties = {
@@ -449,15 +450,15 @@ const rowMetaStyle: React.CSSProperties = {
 const chooseTextStyle: React.CSSProperties = {
   minWidth: 48,
   flexShrink: 0,
-  color: "#0f766e",
+  color: "#3E7D74",
   fontSize: 12,
-  fontWeight: 850,
+  fontWeight: 800,
   textAlign: "right",
 };
 
 const activeTextStyle: React.CSSProperties = {
   ...chooseTextStyle,
-  color: "#a16207",
+  color: "var(--warning)",
 };
 
 const noticeStyle: React.CSSProperties = {
@@ -465,19 +466,11 @@ const noticeStyle: React.CSSProperties = {
   padding: "12px 14px",
   borderRadius: 12,
   background: "rgba(20, 184, 166, 0.1)",
-  color: "#0f766e",
+  color: "#3E7D74",
   fontSize: 12,
   lineHeight: 1.6,
 };
 
-const loadingStyle: React.CSSProperties = {
-  minHeight: "70vh",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  color: "var(--ink-soft)",
-  fontSize: 14,
-};
 
 const loadingPanelStyle: React.CSSProperties = {
   minHeight: 180,
@@ -506,7 +499,7 @@ const emptyStyle: React.CSSProperties = {
 
 const emptyTitleStyle: React.CSSProperties = {
   fontSize: 16,
-  fontWeight: 850,
+  fontWeight: 800,
 };
 
 const emptyTextStyle: React.CSSProperties = {
@@ -521,9 +514,9 @@ const primaryButtonStyle: React.CSSProperties = {
   padding: "0 14px",
   borderRadius: 10,
   border: "none",
-  background: "#0f766e",
+  background: "#3E7D74",
   color: "#fff",
   fontSize: 13,
-  fontWeight: 850,
+  fontWeight: 800,
   cursor: "pointer",
 };

@@ -4,6 +4,14 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
+import {
+  type LucideIcon,
+  Megaphone, CalendarDays, Newspaper, GraduationCap, ClipboardCheck, ClipboardList,
+  Medal, Users, Inbox, BookText, CalendarPlus, BookOpen, FileText, BarChart3,
+  TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks, FileSearch,
+  Settings, Award,
+} from "lucide-react";
 
 interface DeptInfo {
   id: string;
@@ -26,7 +34,7 @@ interface DeptInfo {
 interface MenuItem {
   id: string;            // route slug ("journal" 등). null 이면 placeholder (라우트 없음)
   label: string;
-  icon: string;
+  icon: LucideIcon;
   desc: string;
   color: string;
   implemented: boolean;  // 구현 안 된 페이지는 클릭 시 "준비 중" 토스트
@@ -37,7 +45,7 @@ interface MenuItem {
 interface MenuCategory {
   id: string;
   label: string;
-  icon: string;
+  icon: LucideIcon;
   maxGrade: number;       // 이 등급 이하만 표시 (예: 행정관리 maxGrade=2 → 0/1/2 만 보임)
   desc: string;
   items: MenuItem[];
@@ -49,62 +57,62 @@ const MENU_CATEGORIES: MenuCategory[] = [
   {
     id: "notices",
     label: "공통",
-    icon: "📢",
+    icon: Megaphone,
     maxGrade: 4,
     desc: "부서 공통 자료 / 공지 / 주보",
     items: [
-      { id: "notices", label: "공지 게시판", icon: "📢", desc: "부서 공지·알림", color: "#0ea5e9", implemented: true },
-      { id: "monthly-plan", label: "월간 교육계획서", icon: "🗓️", desc: "월간 교육계획 파일 조회", color: "#2563eb", implemented: true },
-      { id: "bulletin", label: "주보 보기", icon: "📰", desc: "초등1부 주보 열람", color: "#14b8a6", implemented: true, onlyForDept: "초등1부" },
+      { id: "notices", label: "공지 게시판", icon: Megaphone, desc: "부서 공지·알림", color: "#4A7B96", implemented: true },
+      { id: "monthly-plan", label: "월간 교육계획서", icon: CalendarDays, desc: "월간 교육계획 파일 조회", color: "var(--accent)", implemented: true },
+      { id: "bulletin", label: "주보 보기", icon: Newspaper, desc: "초등1부 주보 열람", color: "#3E7D74", implemented: true, onlyForDept: "초등1부" },
     ],
   },
   {
     id: "students",
     label: "학생관리",
-    icon: "👨‍🎓",
+    icon: GraduationCap,
     maxGrade: 3,
     desc: "출결 / 달란트 / 우리반 정보",
     onlyForDept: "초등1부",
     items: [
-      { id: "my-class-attendance", label: "내 반 출결", icon: "📋", desc: "내 담당 반 학생 출석 체크", color: "#10b981", implemented: true },
-      { id: "talent", label: "달란트통장", icon: "🏅", desc: "달란트 적립 · 누적 합계", color: "#8b5cf6", implemented: true },
-      { id: "my-class", label: "우리반 아이 정보", icon: "👶", desc: "담당 반 학생 정보", color: "#f59e0b", implemented: true },
+      { id: "my-class-attendance", label: "내 반 출결", icon: ClipboardCheck, desc: "내 담당 반 학생 출석 체크", color: "var(--success)", implemented: true },
+      { id: "talent", label: "달란트통장", icon: Medal, desc: "달란트 적립 · 누적 합계", color: "var(--accent-muted)", implemented: true },
+      { id: "my-class", label: "우리반 아이 정보", icon: Users, desc: "담당 반 학생 정보", color: "var(--warning)", implemented: true },
     ],
   },
   {
     id: "admin",
     label: "행정관리",
-    icon: "📋",
+    icon: ClipboardList,
     maxGrade: 2,
     desc: "주보 / 일지 / 통계 / 등록 / 가입승인",
     onlyForDept: "초등1부",
     items: [
-      { id: "dept-approval", label: "사역 가입 승인", icon: "📥", desc: "본 부서 가입 신청 승인 · 등급 부여", color: "#10b981", implemented: true, onlyForDept: null, maxGrade: 2 },
-      { id: "weekly-bulletin", label: "주보 만들기", icon: "📰", desc: "주보 자동 생성·UMS 등록", color: "#14b8a6", implemented: true },
-      { id: "journal", label: "교육일지작성", icon: "📓", desc: "일지 · 통계 · 헌금", color: "#6366f1", implemented: true },
-      { id: "monthly-plan-upload", label: "월간교육등록", icon: "🗓️", desc: "월간 교육계획서 등록", color: "#2563eb", implemented: true },
-      { id: "review-upload", label: "복습문제 관리", icon: "📚", desc: "공과 복습문제 PPTX 업로드·삭제", color: "#7c3aed", implemented: true },
-      { id: "students-info", label: "학생정보관리", icon: "📇", desc: "학생 명부 · 인적사항", color: "#f97316", implemented: false },
-      { id: "attendance-stats", label: "출결통계", icon: "📊", desc: "선생님·학생 출석 통계", color: "#84cc16", implemented: false },
-      { id: "talent-stats", label: "달란트통계", icon: "📈", desc: "달란트 누적·랭킹", color: "#a855f7", implemented: false },
-      { id: "talent-rules", label: "달란트 규칙", icon: "🏅", desc: "매주 적립 규칙·특별·보너스", color: "#f59e0b", implemented: true },
-      { id: "new-friend", label: "새친구등록", icon: "🌟", desc: "새친구 등록카드 · 생활기록부", color: "#ec4899", implemented: true },
-      { id: "teacher-attendance", label: "선생님 등록 / 출석", icon: "👨‍🏫", desc: "교사 출석부 · 월별 관리", color: "#0ea5e9", implemented: true },
-      { id: "teacher-assign", label: "담임선생님 지정", icon: "👩‍🏫", desc: "반별 담임 변경 · 회원 연결 (전도사·부장)", color: "#8b5cf6", implemented: true },
-      { id: "attendance", label: "출결 통합 조회", icon: "📊", desc: "전 반 학생 출결 (관리자 강제 수정 가능)", color: "#10b981", implemented: true },
-      { id: "student-record", label: "학생 출결 조회", icon: "🔍", desc: "개별 학생 출결 이력", color: "#eab308", implemented: true },
+      { id: "dept-approval", label: "사역 가입 승인", icon: Inbox, desc: "본 부서 가입 신청 승인 · 등급 부여", color: "var(--success)", implemented: true, onlyForDept: null, maxGrade: 2 },
+      { id: "weekly-bulletin", label: "주보 만들기", icon: Newspaper, desc: "주보 자동 생성·UMS 등록", color: "#3E7D74", implemented: true },
+      { id: "journal", label: "교육일지작성", icon: BookText, desc: "일지 · 통계 · 헌금", color: "var(--accent)", implemented: true },
+      { id: "monthly-plan-upload", label: "월간교육등록", icon: CalendarPlus, desc: "월간 교육계획서 등록", color: "var(--accent)", implemented: true },
+      { id: "review-upload", label: "복습문제 관리", icon: BookOpen, desc: "공과 복습문제 PPTX 업로드·삭제", color: "#6B4F8C", implemented: true },
+      { id: "students-info", label: "학생정보관리", icon: FileText, desc: "학생 명부 · 인적사항", color: "#B97B3D", implemented: false },
+      { id: "attendance-stats", label: "출결통계", icon: BarChart3, desc: "선생님·학생 출석 통계", color: "#7A8C3D", implemented: false },
+      { id: "talent-stats", label: "달란트통계", icon: TrendingUp, desc: "달란트 누적·랭킹", color: "#7E5F9E", implemented: false },
+      { id: "talent-rules", label: "달란트 규칙", icon: ScrollText, desc: "매주 적립 규칙·특별·보너스", color: "var(--warning)", implemented: true },
+      { id: "new-friend", label: "새친구등록", icon: Sparkles, desc: "새친구 등록카드 · 생활기록부", color: "#C26D8C", implemented: true },
+      { id: "teacher-attendance", label: "선생님 등록 / 출석", icon: UserCheck, desc: "교사 출석부 · 월별 관리", color: "#4A7B96", implemented: true },
+      { id: "teacher-assign", label: "담임선생님 지정", icon: UserCog, desc: "반별 담임 변경 · 회원 연결 (전도사·부장)", color: "var(--accent-muted)", implemented: true },
+      { id: "attendance", label: "출결 통합 조회", icon: ListChecks, desc: "전 반 학생 출결 (관리자 강제 수정 가능)", color: "var(--success)", implemented: true },
+      { id: "student-record", label: "학생 출결 조회", icon: FileSearch, desc: "개별 학생 출결 이력", color: "var(--warning)", implemented: true },
     ],
   },
   {
     id: "department",
     label: "부서관리",
-    icon: "⚙️",
+    icon: Settings,
     maxGrade: 1,
     desc: "부서원 등급 · 설정",
     items: [
-      { id: "monthly-plan-upload", label: "월간교육등록", icon: "🗓️", desc: "월간 교육계획서 등록", color: "#2563eb", implemented: true, maxGrade: 2 },
-      { id: "members-grade", label: "부서원 등급 관리", icon: "🎖️", desc: "각 부서원 등급(0~4) 변경 — 전도사·부장만 가능", color: "#6366f1", implemented: true },
-      { id: "promote", label: "진급 마법사", icon: "🎓", desc: "매년 학년 진급 · 반편성 · 담임배정", color: "#dc2626", implemented: true },
+      { id: "monthly-plan-upload", label: "월간교육등록", icon: CalendarPlus, desc: "월간 교육계획서 등록", color: "var(--accent)", implemented: true, maxGrade: 2 },
+      { id: "members-grade", label: "부서원 등급 관리", icon: Award, desc: "각 부서원 등급(0~4) 변경 — 전도사·부장만 가능", color: "var(--accent)", implemented: true },
+      { id: "promote", label: "진급 마법사", icon: GraduationCap, desc: "매년 학년 진급 · 반편성 · 담임배정", color: "var(--danger)", implemented: true },
     ],
   },
 ];
@@ -156,14 +164,14 @@ export default function DepartmentDetailPage() {
     router.push(`/departments/d/${deptId}/${item.id}`);
   };
 
-  if (!authChecked || loading) return <div style={loadingStyle}>로딩 중...</div>;
+  if (!authChecked || loading) return <LoadingView full />;
 
   if (!dept) {
     return (
       <div style={pageStyle}>
         <div style={{ textAlign: "center", padding: 60 }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>❓</div>
-          <div style={{ fontSize: 14, color: "#94a3b8" }}>부서를 찾을 수 없습니다</div>
+          <div style={{ fontSize: 14, color: "var(--ink-faint)" }}>부서를 찾을 수 없습니다</div>
           <button onClick={() => router.push("/home")} style={{ ...backBtnStyle, marginTop: 16 }}>홈으로</button>
         </div>
       </div>
@@ -179,10 +187,10 @@ export default function DepartmentDetailPage() {
             boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
           }}>
             <div style={{ fontSize: 64, marginBottom: 16 }}>🔒</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 8 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>
               아직 가입되지 않은 부서입니다
             </div>
-            <div style={{ fontSize: 13, color: "#64748b", marginBottom: 24 }}>
+            <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 24 }}>
               {dept.my_status === "pending"
                 ? "관리자 승인을 기다리고 있습니다"
                 : "사역·부서 가입 페이지에서 가입을 신청해주세요"}
@@ -190,7 +198,7 @@ export default function DepartmentDetailPage() {
             <button
               onClick={() => router.push(`/departments/${encodeURIComponent(dept.category)}`)}
               style={{
-                padding: "12px 24px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                padding: "12px 24px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
                 color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700,
                 cursor: "pointer", fontFamily: "inherit",
               }}
@@ -227,14 +235,14 @@ export default function DepartmentDetailPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <HeaderLogo />
             <div>
-              <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>{dept.category}</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>
+              <div style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 600 }}>{dept.category}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>
                 {dept.icon} {dept.name}
                 {grade <= 4 && (
                   <span style={{
                     marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700,
-                    background: GRADE_BADGE[grade]?.bg || "#f1f5f9",
-                    color: GRADE_BADGE[grade]?.color || "#64748b",
+                    background: GRADE_BADGE[grade]?.bg || "var(--bg-soft)",
+                    color: GRADE_BADGE[grade]?.color || "var(--ink-soft)",
                   }}>
                     {GRADE_BADGE[grade]?.label || `등급 ${grade}`}
                   </span>
@@ -247,12 +255,12 @@ export default function DepartmentDetailPage() {
 
         {/* Welcome Card */}
         <div style={{
-          background: "linear-gradient(135deg, #6366f1, #8b5cf6)", borderRadius: 24, padding: "32px 28px",
+          background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", borderRadius: 24, padding: "32px 28px",
           textAlign: "center", color: "#fff", marginBottom: 24,
-          boxShadow: "0 20px 60px rgba(99, 102, 241, 0.25)",
+          boxShadow: "0 20px 60px rgba(62, 90, 74, 0.25)",
         }}>
           <div style={{ fontSize: 48, marginBottom: 10 }}>{dept.icon || "👋"}</div>
-          <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 6, letterSpacing: -0.5 }}>{dept.name}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6, letterSpacing: -0.5 }}>{dept.name}</div>
           {dept.description && (
             <div style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.6, marginBottom: 14 }}>
               {dept.description}
@@ -270,10 +278,10 @@ export default function DepartmentDetailPage() {
         {!isEduDept && (
           <div style={{
             background: "#fff", borderRadius: 16, padding: 28, textAlign: "center",
-            color: "#94a3b8", fontSize: 13, lineHeight: 1.7, marginBottom: 16,
+            color: "var(--ink-faint)", fontSize: 13, lineHeight: 1.7, marginBottom: 16,
           }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>🚧</div>
-            <div style={{ fontWeight: 700, color: "#64748b", marginBottom: 6 }}>
+            <div style={{ fontWeight: 700, color: "var(--ink-soft)", marginBottom: 6 }}>
               부서 게시판 / 일정 / 모임 등은 곧 추가됩니다
             </div>
             <div>앞으로 이 페이지에서 부서 공지, 일정, 모임 신청 등을 확인하실 수 있습니다.</div>
@@ -286,8 +294,8 @@ export default function DepartmentDetailPage() {
             <div style={{
               display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12,
             }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b", display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 18 }}>{cat.icon}</span>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 }}>
+                <cat.icon size={17} strokeWidth={1.8} style={{ color: "var(--accent)" }} />
                 {cat.label}
               </div>
             </div>
@@ -311,8 +319,8 @@ export default function DepartmentDetailPage() {
         {/* 접근 가능한 메뉴가 전혀 없는 경우 안내 */}
         {visibleCategories.length === 0 && (
           <div style={{
-            background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: 12, padding: 20,
-            textAlign: "center", color: "#9a3412",
+            background: "#F8F0E3", border: "1.5px solid #fed7aa", borderRadius: 12, padding: 20,
+            textAlign: "center", color: "#8A5526",
           }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>🔒</div>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>접근 가능한 메뉴가 없습니다</div>
@@ -335,8 +343,8 @@ function MenuCard({ item, onClick }: { item: MenuItem; onClick: () => void }) {
     <div
       onClick={onClick}
       style={{
-        background: dim ? "#f8fafc" : "#fff",
-        border: `1.5px solid ${dim ? "#e2e8f0" : item.color + "33"}`,
+        background: dim ? "var(--surface)" : "#fff",
+        border: `1.5px solid ${dim ? "var(--hairline)" : `color-mix(in srgb, ${item.color} 26%, transparent)`}`,
         borderRadius: 12,
         padding: "14px 14px",
         cursor: "pointer",
@@ -351,26 +359,28 @@ function MenuCard({ item, onClick }: { item: MenuItem; onClick: () => void }) {
         if (dim) return;
         e.currentTarget.style.borderColor = item.color;
         e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = `0 8px 20px ${item.color}22`;
+        e.currentTarget.style.boxShadow = `0 8px 20px color-mix(in srgb, ${item.color} 13%, transparent)`;
       }}
       onMouseOut={(e) => {
-        e.currentTarget.style.borderColor = dim ? "#e2e8f0" : `${item.color}33`;
+        e.currentTarget.style.borderColor = dim ? "var(--hairline)" : `color-mix(in srgb, ${item.color} 26%, transparent)`;
         e.currentTarget.style.transform = "translateY(0)";
         e.currentTarget.style.boxShadow = "none";
       }}
     >
       <div style={{
         width: 36, height: 36, borderRadius: 9,
-        background: dim ? "#e2e8f0" : `${item.color}15`,
+        background: dim ? "var(--hairline)" : `color-mix(in srgb, ${item.color} 9%, transparent)`,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 18, flexShrink: 0,
-      }}>{item.icon}</div>
+        flexShrink: 0,
+      }}>
+        <item.icon size={18} strokeWidth={1.8} style={{ color: dim ? "var(--ink-faint)" : item.color }} />
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: dim ? "#94a3b8" : "#1e293b" }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: dim ? "var(--ink-faint)" : "var(--ink)" }}>
           {item.label}
-          {dim && <span style={{ fontSize: 9, color: "#94a3b8", marginLeft: 6, fontWeight: 500 }}>(준비 중)</span>}
+          {dim && <span style={{ fontSize: 9, color: "var(--ink-faint)", marginLeft: 6, fontWeight: 500 }}>(준비 중)</span>}
         </div>
-        <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2, lineHeight: 1.3 }}>{item.desc}</div>
+        <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 2, lineHeight: 1.3 }}>{item.desc}</div>
       </div>
     </div>
   );
@@ -385,33 +395,27 @@ const GRADE_LABEL: Record<number, string> = {
 };
 
 const GRADE_BADGE: Record<number, { label: string; bg: string; color: string }> = {
-  0: { label: "전도사", bg: "#ecfdf5", color: "#15803d" },
-  1: { label: "부장", bg: "#fef3c7", color: "#92400e" },
-  2: { label: "총무·서기", bg: "#dbeafe", color: "#1e40af" },
-  3: { label: "교사", bg: "#f1f5f9", color: "#475569" },
-  4: { label: "학부모", bg: "#fef2f2", color: "#b91c1c" },
+  0: { label: "전도사", bg: "var(--success-soft)", color: "var(--success)" },
+  1: { label: "부장", bg: "var(--warning-soft)", color: "var(--warning)" },
+  2: { label: "총무·서기", bg: "var(--accent-soft)", color: "var(--accent-strong)" },
+  3: { label: "교사", bg: "var(--bg-soft)", color: "var(--ink-mid)" },
+  4: { label: "학부모", bg: "var(--danger-soft)", color: "var(--danger)" },
 };
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "#f1f5f9",
+  background: "var(--bg-soft)",
   fontFamily: "'Noto Sans KR', sans-serif",
 };
 
-const loadingStyle: React.CSSProperties = {
-  ...pageStyle,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
 
 const backBtnStyle: React.CSSProperties = {
   padding: "8px 14px",
-  background: "#f1f5f9",
+  background: "var(--bg-soft)",
   border: "none",
   borderRadius: 8,
   fontSize: 12,
-  color: "#475569",
+  color: "var(--ink-mid)",
   cursor: "pointer",
   fontFamily: "inherit",
 };
@@ -421,7 +425,7 @@ const toastStyle: React.CSSProperties = {
   bottom: 40,
   left: "50%",
   transform: "translateX(-50%)",
-  background: "rgba(15,23,42,0.88)",
+  background: "rgba(43, 39, 34,0.88)",
   color: "#fff",
   padding: "12px 24px",
   borderRadius: 999,

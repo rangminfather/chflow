@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 interface Student {
   id: string;
@@ -24,7 +25,7 @@ interface HistoryRow {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  출: "#10b981", 빠: "#f59e0b", 결: "#ef4444", 인: "#6366f1",
+  출: "var(--success)", 빠: "var(--warning)", 결: "var(--danger)", 인: "var(--accent)",
 };
 
 const CHECKS = [
@@ -86,10 +87,10 @@ export default function StudentRecordPage() {
   const totalSkip   = history.filter((h) => h.attend_status === "빠").length;
   const totalAll    = history.length;
 
-  if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
+  if (!authChecked) return <LoadingView full />;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
 
       {/* Header */}
       <div style={headerStyle}>
@@ -97,7 +98,7 @@ export default function StudentRecordPage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>🔍 학생출결 이력</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>🔍 학생출결 이력</div>
         <div />
       </div>
 
@@ -133,7 +134,7 @@ export default function StudentRecordPage() {
               </div>
             </div>
 
-            <div style={{ alignSelf: "flex-end", paddingBottom: 2, color: "#94a3b8", fontWeight: 700 }}>~</div>
+            <div style={{ alignSelf: "flex-end", paddingBottom: 2, color: "var(--ink-faint)", fontWeight: 700 }}>~</div>
 
             <div>
               <div style={fieldLabel}>종료 기간</div>
@@ -159,26 +160,26 @@ export default function StudentRecordPage() {
             {/* 요약 카드 */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
               {[
-                { label: "전체 주일", value: totalAll, color: "#64748b" },
-                { label: "출석", value: totalAttend, color: "#10b981" },
-                { label: "빠짐", value: totalSkip, color: "#f59e0b" },
-                { label: "결석", value: totalAbsent, color: "#ef4444" },
+                { label: "전체 주일", value: totalAll, color: "var(--ink-soft)" },
+                { label: "출석", value: totalAttend, color: "var(--success)" },
+                { label: "빠짐", value: totalSkip, color: "var(--warning)" },
+                { label: "결석", value: totalAbsent, color: "var(--danger)" },
               ].map((s) => (
                 <div key={s.label} style={{ ...cardStyle, textAlign: "center", padding: "16px 12px" }}>
-                  <div style={{ fontSize: 24, fontWeight: 900, color: s.color }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>{s.label}</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.value}</div>
+                  <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 4 }}>{s.label}</div>
                 </div>
               ))}
             </div>
 
             {/* 이력 테이블 */}
             <div style={{ ...cardStyle, overflowX: "auto" }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", marginBottom: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", marginBottom: 12 }}>
                 {selectedStudent.name} 출결 이력 ({totalAll}개 주일)
               </div>
               <table style={{ borderCollapse: "collapse", width: "100%" }}>
                 <thead>
-                  <tr style={{ background: "#f8fafc" }}>
+                  <tr style={{ background: "var(--surface)" }}>
                     <th style={thStyle("left")}>날짜</th>
                     {CHECKS.map((c) => (
                       <th key={c.key} style={thStyle("center")}>{c.label}</th>
@@ -189,7 +190,7 @@ export default function StudentRecordPage() {
                 </thead>
                 <tbody>
                   {history.map((h) => (
-                    <tr key={h.attend_date} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <tr key={h.attend_date} style={{ borderBottom: "1px solid var(--bg-soft)" }}>
                       <td style={{ padding: "10px 12px", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap" }}>
                         {formatDate(h.attend_date)}
                       </td>
@@ -197,7 +198,7 @@ export default function StudentRecordPage() {
                         <td key={c.key} style={{ textAlign: "center", padding: 8 }}>
                           <span style={{
                             fontSize: 16,
-                            color: (h as unknown as Record<string, boolean>)[c.key] ? "#6366f1" : "#e2e8f0",
+                            color: (h as unknown as Record<string, boolean>)[c.key] ? "var(--accent)" : "var(--hairline)",
                           }}>
                             {(h as unknown as Record<string, boolean>)[c.key] ? "✓" : "·"}
                           </span>
@@ -216,7 +217,7 @@ export default function StudentRecordPage() {
                           {h.attend_status}
                         </span>
                       </td>
-                      <td style={{ padding: "10px 12px", fontSize: 12, color: "#64748b" }}>
+                      <td style={{ padding: "10px 12px", fontSize: 12, color: "var(--ink-soft)" }}>
                         {h.memo || "-"}
                       </td>
                     </tr>
@@ -228,21 +229,21 @@ export default function StudentRecordPage() {
         )}
 
         {selectedStudent && !loading && history.length === 0 && (
-          <div style={{ ...cardStyle, textAlign: "center", padding: 60, color: "#94a3b8" }}>
+          <div style={{ ...cardStyle, textAlign: "center", padding: 60, color: "var(--ink-faint)" }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>📭</div>
             <div>선택한 기간에 출결 기록이 없습니다</div>
           </div>
         )}
 
         {!selectedId && (
-          <div style={{ ...cardStyle, textAlign: "center", padding: 60, color: "#94a3b8" }}>
+          <div style={{ ...cardStyle, textAlign: "center", padding: 60, color: "var(--ink-faint)" }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>🔍</div>
             <div>학생을 선택하고 조회 버튼을 누르세요</div>
           </div>
         )}
 
         {loading && (
-          <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>불러오는 중...</div>
+          <LoadingView padding={40} label="불러오는 중..." />
         )}
       </div>
     </div>
@@ -254,11 +255,10 @@ function formatDate(d: string) {
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
 }
 
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const cardStyle: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
-const inputStyle: React.CSSProperties = { padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
-const fieldLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 };
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
-const searchBtnStyle: React.CSSProperties = { padding: "10px 20px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const thStyle = (align: "left" | "center"): React.CSSProperties => ({ padding: "10px 12px", textAlign: align, fontSize: 11, fontWeight: 700, color: "#64748b", borderBottom: "2px solid #e2e8f0", background: "#f8fafc", whiteSpace: "nowrap" });
-const loadingStyle: React.CSSProperties = { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" };
+const inputStyle: React.CSSProperties = { padding: "9px 12px", border: "1.5px solid var(--hairline)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
+const fieldLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 4 };
+const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
+const searchBtnStyle: React.CSSProperties = { padding: "10px 20px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const thStyle = (align: "left" | "center"): React.CSSProperties => ({ padding: "10px 12px", textAlign: align, fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", borderBottom: "2px solid var(--hairline)", background: "var(--surface)", whiteSpace: "nowrap" });

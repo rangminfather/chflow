@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
+import { LoadingView } from "@/components/StatusViews";
 
 interface Student {
   id: string;
@@ -394,7 +395,7 @@ export default function TalentPage() {
     window.setTimeout(() => setToast(""), 2400);
   }
 
-  if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
+  if (!authChecked) return <LoadingView full />;
 
   if (!myTeacherId) {
     return (
@@ -408,10 +409,10 @@ export default function TalentPage() {
           <div style={{ width: 80 }} />
         </div>
         <div className="mx-auto max-w-lg px-4 py-14">
-          <div className="rounded-lg border border-slate-200 bg-white px-6 py-10 text-center">
+          <div className="rounded-lg border border-hairline bg-white px-6 py-10 text-center">
             <div className="text-[48px]">🙇</div>
-            <div className="mt-4 text-[18px] font-extrabold text-slate-800">본인이 담임으로 등록된 반이 없습니다</div>
-            <div className="mt-2 text-[15px] leading-6 text-slate-500">부장 또는 전도사에게 담임 등록을 요청하세요.</div>
+            <div className="mt-4 text-[18px] font-extrabold text-ink">본인이 담임으로 등록된 반이 없습니다</div>
+            <div className="mt-2 text-[15px] leading-6 text-ink-soft">부장 또는 전도사에게 담임 등록을 요청하세요.</div>
           </div>
         </div>
       </div>
@@ -427,29 +428,29 @@ export default function TalentPage() {
           <HeaderLogo />
         </div>
         <div style={titleStyle}>
-          🏅 달란트통장 {myClassName && <span style={{ color: "#6366f1", marginLeft: 6 }}>{myClassName}반</span>}
+          🏅 달란트통장 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
         </div>
         <div style={{ width: 80 }} />
       </div>
 
       <main className="mx-auto w-full max-w-6xl px-0 py-4 md:px-4">
-        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 md:mx-0">
+        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-lg border border-hairline bg-white px-4 py-3 md:mx-0">
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
-          <div className="min-w-[140px] text-center text-[19px] font-extrabold text-slate-800">
+          <div className="min-w-[140px] text-center text-[19px] font-extrabold text-ink">
             {year}년 {month}월
           </div>
           <button onClick={() => nextMonth(year, month, setYear, setMonth)} style={navBtnStyle}>▶</button>
-          <div className="w-full text-center text-[13px] font-semibold text-slate-400">
+          <div className="w-full text-center text-[13px] font-semibold text-ink-faint">
             주일 {todayWeekIndex >= 0 ? todayWeekIndex + 1 : Math.min(1, sundays.length)}주차/{sundays.length}주차
           </div>
         </div>
 
         {loading ? (
-          <div className="mx-4 rounded-lg border border-slate-200 bg-white py-16 text-center text-[17px] text-slate-400 md:mx-0">
+          <div className="mx-4 rounded-lg border border-hairline bg-white py-16 text-center text-[17px] text-ink-faint md:mx-0">
             불러오는 중...
           </div>
         ) : students.length === 0 ? (
-          <div className="mx-4 rounded-lg border border-slate-200 bg-white py-16 text-center text-[17px] text-slate-400 md:mx-0">
+          <div className="mx-4 rounded-lg border border-hairline bg-white py-16 text-center text-[17px] text-ink-faint md:mx-0">
             담당 반 학생이 없습니다.
           </div>
         ) : (
@@ -466,18 +467,18 @@ export default function TalentPage() {
                   className={[
                     "shrink-0 w-[84vw] snap-center overflow-hidden rounded-lg bg-white shadow-sm md:w-auto",
                     isTodayWeek
-                      ? "border-2 border-amber-500 shadow-[0_10px_30px_rgba(217,119,6,0.16)]"
-                      : "border border-slate-300",
+                      ? "border-2 border-amber-500 shadow-[0_10px_30px_rgba(165, 119, 42,0.16)]"
+                      : "border border-hairline-strong",
                   ].join(" ")}
                 >
                   <header className={[
                     "border-b px-4 py-3",
-                    isTodayWeek ? "border-amber-200 bg-gradient-to-r from-amber-50 to-white" : "border-slate-200 bg-slate-50",
+                    isTodayWeek ? "border-amber-200 bg-gradient-to-r from-amber-50 to-white" : "border-hairline bg-surface",
                   ].join(" ")}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="flex flex-wrap items-center gap-2 text-[19px] font-extrabold text-slate-900">
+                        <div className="flex flex-wrap items-center gap-2 text-[19px] font-extrabold text-ink">
                           {index + 1}주차
                           {isTodayWeek && (
                             <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[12px] font-extrabold text-amber-800">
@@ -489,19 +490,19 @@ export default function TalentPage() {
                               className={[
                                 "rounded-full border px-2 py-0.5 text-[12px] font-extrabold",
                                 editState === "past"
-                                  ? "border-slate-200 bg-white text-slate-400"
-                                  : "border-sky-200 bg-sky-50 text-sky-700",
+                                  ? "border-hairline bg-white text-ink-faint"
+                                  : "border-accent-line bg-accent-soft text-accent-strong",
                               ].join(" ")}
                             >
                               {editState === "past" ? "수정 마감" : "예정"}
                             </span>
                           )}
                         </div>
-                        <div className="mt-1 text-[13px] font-semibold text-slate-500">{formatMD(date)} 주일</div>
+                        <div className="mt-1 text-[13px] font-semibold text-ink-soft">{formatMD(date)} 주일</div>
                       </div>
                       <div className={[
                         "rounded-md border bg-white px-2.5 py-1 text-[13px] font-extrabold",
-                        isTodayWeek ? "border-amber-200 text-amber-800" : "border-slate-200 text-slate-700",
+                        isTodayWeek ? "border-amber-200 text-amber-800" : "border-hairline text-ink-mid",
                       ].join(" ")}
                       >
                         {weekTotal(date)}개
@@ -516,9 +517,9 @@ export default function TalentPage() {
                       const other = getOther(student.id, date);
 
                       return (
-                        <div key={student.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div key={student.id} className="rounded-lg border border-hairline bg-surface p-3">
                           <div className="mb-3 flex items-center justify-between gap-3">
-                            <div className="min-w-0 truncate text-[16px] font-extrabold text-slate-800">{student.name}</div>
+                            <div className="min-w-0 truncate text-[16px] font-extrabold text-ink">{student.name}</div>
                             <span className="shrink-0 rounded-md border border-amber-200 bg-white px-2 py-1 text-[13px] font-extrabold text-amber-700">
                               {studentTotal}개
                             </span>
@@ -530,7 +531,7 @@ export default function TalentPage() {
                                 "min-h-12 rounded-md border px-2 py-2 text-center text-[15px] font-extrabold leading-tight",
                                 present
                                   ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                                  : "border-slate-200 bg-white text-slate-400",
+                                  : "border-hairline bg-white text-ink-faint",
                               ].join(" ")}
                             >
                               출석 자동 +{getRulePoints("attendance")}
@@ -543,8 +544,8 @@ export default function TalentPage() {
                               className={[
                                 "min-h-12 rounded-md border px-2 py-2 text-center text-[15px] font-extrabold leading-tight",
                                 other
-                                  ? "border-violet-300 bg-violet-50 text-violet-700"
-                                  : "border-slate-200 bg-white text-slate-600",
+                                  ? "border-accent-line bg-accent-soft text-accent-strong"
+                                  : "border-hairline bg-white text-ink-mid",
                                 !isEditableWeek ? "cursor-not-allowed opacity-60" : "",
                               ].join(" ")}
                             >
@@ -567,8 +568,8 @@ export default function TalentPage() {
                                   className={[
                                     "min-h-12 rounded-md border px-2 py-2 text-[15px] font-extrabold leading-tight",
                                     selected
-                                      ? "border-slate-800 bg-slate-800 text-white"
-                                      : "border-slate-200 bg-white text-slate-600",
+                                      ? "border-ink bg-ink text-white"
+                                      : "border-hairline bg-white text-ink-mid",
                                     (!rule || !isEditableWeek) ? "cursor-not-allowed opacity-60" : "",
                                   ].join(" ")}
                                 >
@@ -582,7 +583,7 @@ export default function TalentPage() {
                     })}
                   </section>
 
-                  <footer className="border-t border-slate-200 bg-slate-50 px-4 py-3">
+                  <footer className="border-t border-hairline bg-surface px-4 py-3">
                     <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[15px] leading-6 text-amber-900">
                       출석은 내반출결에서 자동 반영됩니다. 기타는 사유와 수량을 직접 입력합니다.
                     </div>
@@ -595,31 +596,31 @@ export default function TalentPage() {
       </main>
 
       {otherModal && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/50 p-4" onClick={() => !otherSaving && setOtherModal(null)}>
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-ink/50 p-4" onClick={() => !otherSaving && setOtherModal(null)}>
           <div className="w-full max-w-sm rounded-lg bg-white p-5" onClick={(event) => event.stopPropagation()}>
-            <div className="mb-1 text-[19px] font-extrabold text-slate-900">
+            <div className="mb-1 text-[19px] font-extrabold text-ink">
               기타 달란트
             </div>
-            <div className="mb-4 text-[14px] font-semibold text-slate-500">
+            <div className="mb-4 text-[14px] font-semibold text-ink-soft">
               {otherModal.student.name} · {formatMD(otherModal.date)} 주일
             </div>
 
-            <label className="mb-1 block text-[15px] font-bold text-slate-600">사유</label>
+            <label className="mb-1 block text-[15px] font-bold text-ink-mid">사유</label>
             <input
               type="text"
               value={otherNote}
               onChange={(event) => setOtherNote(event.target.value)}
               placeholder="예: 특별활동, 찬양, 선생님 재량"
-              className="mb-3 w-full rounded-md border border-slate-300 px-3 py-3 text-[16px] outline-none focus:border-violet-400"
+              className="mb-3 w-full rounded-md border border-hairline-strong px-3 py-3 text-[16px] outline-none focus:border-accent-muted"
             />
 
-            <label className="mb-1 block text-[15px] font-bold text-slate-600">달란트 수량</label>
+            <label className="mb-1 block text-[15px] font-bold text-ink-mid">달란트 수량</label>
             <input
               type="number"
               min={0}
               value={otherAmount}
               onChange={(event) => setOtherAmount(event.target.value)}
-              className="mb-4 w-full rounded-md border border-slate-300 px-3 py-3 text-center text-[18px] font-extrabold outline-none focus:border-violet-400"
+              className="mb-4 w-full rounded-md border border-hairline-strong px-3 py-3 text-center text-[18px] font-extrabold outline-none focus:border-accent-muted"
             />
 
             <div className="flex gap-2">
@@ -627,7 +628,7 @@ export default function TalentPage() {
                 type="button"
                 onClick={() => setOtherModal(null)}
                 disabled={otherSaving}
-                className="min-h-12 flex-1 rounded-md bg-slate-100 text-[16px] font-extrabold text-slate-600"
+                className="min-h-12 flex-1 rounded-md bg-bg-soft text-[16px] font-extrabold text-ink-mid"
               >
                 취소
               </button>
@@ -635,7 +636,7 @@ export default function TalentPage() {
                 type="button"
                 onClick={saveOther}
                 disabled={otherSaving}
-                className="min-h-12 flex-[1.4] rounded-md bg-slate-900 text-[16px] font-extrabold text-white"
+                className="min-h-12 flex-[1.4] rounded-md bg-ink text-[16px] font-extrabold text-white"
               >
                 {otherSaving ? "저장 중..." : "저장"}
               </button>
@@ -728,10 +729,9 @@ function extraKey(studentId: string, date: string, ruleId: string) {
   return `${studentId}_${date}_${ruleId}`;
 }
 
-const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" };
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
-const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "#1e293b" };
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 14, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
-const navBtnStyle: React.CSSProperties = { padding: "7px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 16, cursor: "pointer", fontFamily: "inherit", color: "#475569" };
-const loadingStyle: React.CSSProperties = { ...pageStyle, display: "flex", alignItems: "center", justifyContent: "center" };
-const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(15,23,42,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 14, fontWeight: 700, zIndex: 1100, fontFamily: "inherit", whiteSpace: "nowrap" };
+const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
+const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)" };
+const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
+const navBtnStyle: React.CSSProperties = { padding: "7px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 16, cursor: "pointer", fontFamily: "inherit", color: "var(--ink-mid)" };
+const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 14, fontWeight: 700, zIndex: 1100, fontFamily: "inherit", whiteSpace: "nowrap" };

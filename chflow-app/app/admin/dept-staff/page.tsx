@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 interface Dept {
   id: string;
@@ -33,17 +34,17 @@ interface DeptMemberCountRow {
 }
 
 const GRADES = [
-  { v: 0, label: "전도사/교육사",  desc: "모든 메뉴 (최고)",   color: "#7c3aed", bg: "#ede9fe" },
-  { v: 1, label: "부장",           desc: "공지·학생·행정·부서", color: "#dc2626", bg: "#fee2e2" },
-  { v: 2, label: "부부장/총무/서기", desc: "공지·학생·행정",      color: "#ea580c", bg: "#ffedd5" },
-  { v: 3, label: "교사",           desc: "공지·학생",            color: "#16a34a", bg: "#dcfce7" },
-  { v: 4, label: "학부모",         desc: "공지 읽기/댓글",       color: "#64748b", bg: "#f1f5f9" },
+  { v: 0, label: "전도사/교육사",  desc: "모든 메뉴 (최고)",   color: "#6B4F8C", bg: "#EDE7F2" },
+  { v: 1, label: "부장",           desc: "공지·학생·행정·부서", color: "var(--danger)", bg: "var(--danger-soft)" },
+  { v: 2, label: "부부장/총무/서기", desc: "공지·학생·행정",      color: "#B97B3D", bg: "#F4E8D7" },
+  { v: 3, label: "교사",           desc: "공지·학생",            color: "var(--success)", bg: "var(--success-soft)" },
+  { v: 4, label: "학부모",         desc: "공지 읽기/댓글",       color: "var(--ink-soft)", bg: "var(--bg-soft)" },
 ];
 
 const STATUS = {
-  pending:  { label: "신청중",  color: "#92400e", bg: "#fef3c7" },
-  approved: { label: "승인",    color: "#15803d", bg: "#dcfce7" },
-  rejected: { label: "거절",    color: "#991b1b", bg: "#fee2e2" },
+  pending:  { label: "신청중",  color: "var(--warning)", bg: "var(--warning-soft)" },
+  approved: { label: "승인",    color: "var(--success)", bg: "var(--success-soft)" },
+  rejected: { label: "거절",    color: "var(--danger)", bg: "var(--danger-soft)" },
 };
 
 export default function DeptStaffPage() {
@@ -153,7 +154,7 @@ export default function DeptStaffPage() {
   };
 
   if (!authChecked) {
-    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9" }}>로딩 중...</div>;
+    return <LoadingView full />;
   }
 
   // 카테고리별로 그룹화
@@ -164,7 +165,7 @@ export default function DeptStaffPage() {
   });
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif", padding: 16 }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif", padding: 16 }}>
 
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         {/* Header */}
@@ -172,26 +173,26 @@ export default function DeptStaffPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <HeaderLogo />
             <div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>🏢 부서원 관리</div>
-              <div style={{ fontSize: 11, color: "#94a3b8" }}>부서별 인원과 등급 임명 (관리자 전용)</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>🏢 부서원 관리</div>
+              <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>부서별 인원과 등급 임명 (관리자 전용)</div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => router.push("/admin/members")} style={btnGhost}>← 회원관리</button>
-            <button onClick={() => router.push("/admin/pending")} style={{ ...btnGhost, background: "#fef3c7", color: "#92400e" }}>⏳ 가입 대기자</button>
-            <button onClick={() => router.push("/admin/dept-pending")} style={{ ...btnGhost, background: "#dbeafe", color: "#1e40af" }}>📨 부서가입 신청</button>
+            <button onClick={() => router.push("/admin/pending")} style={{ ...btnGhost, background: "var(--warning-soft)", color: "var(--warning)" }}>⏳ 가입 대기자</button>
+            <button onClick={() => router.push("/admin/dept-pending")} style={{ ...btnGhost, background: "var(--accent-soft)", color: "var(--accent-strong)" }}>📨 부서가입 신청</button>
           </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 16 }}>
           {/* Left: Department list */}
           <div style={{ background: "#fff", borderRadius: 12, padding: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", padding: "4px 8px", marginBottom: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-mid)", padding: "4px 8px", marginBottom: 6 }}>
               부서 ({depts.length}개)
             </div>
             {Object.entries(grouped).map(([cat, list]) => (
               <div key={cat} style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: "#94a3b8", padding: "4px 8px", textTransform: "uppercase" }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: "var(--ink-faint)", padding: "4px 8px", textTransform: "uppercase" }}>
                   {cat}
                 </div>
                 {list.map(d => (
@@ -201,15 +202,15 @@ export default function DeptStaffPage() {
                     style={{
                       display: "flex", justifyContent: "space-between", alignItems: "center",
                       padding: "10px 12px", borderRadius: 8, cursor: "pointer",
-                      background: selectedDept?.id === d.id ? "#eef2ff" : "transparent",
-                      border: selectedDept?.id === d.id ? "1.5px solid #6366f1" : "1.5px solid transparent",
+                      background: selectedDept?.id === d.id ? "var(--accent-soft)" : "transparent",
+                      border: selectedDept?.id === d.id ? "1.5px solid var(--accent)" : "1.5px solid transparent",
                       marginBottom: 4,
                     }}
                   >
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
                       {d.icon || "📁"} {d.name}
                     </div>
-                    <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>
+                    <div style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 600 }}>
                       {d.member_count}명
                     </div>
                   </div>
@@ -217,7 +218,7 @@ export default function DeptStaffPage() {
               </div>
             ))}
             {depts.length === 0 && (
-              <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 12 }}>
+              <div style={{ padding: 20, textAlign: "center", color: "var(--ink-faint)", fontSize: 12 }}>
                 부서가 없습니다
               </div>
             )}
@@ -226,49 +227,49 @@ export default function DeptStaffPage() {
           {/* Right: Members of selected dept */}
           <div style={{ background: "#fff", borderRadius: 12, padding: 16 }}>
             {!selectedDept ? (
-              <div style={{ padding: 60, textAlign: "center", color: "#94a3b8", fontSize: 14 }}>
+              <div style={{ padding: 60, textAlign: "center", color: "var(--ink-faint)", fontSize: 14 }}>
                 ← 좌측에서 부서를 선택하세요
               </div>
             ) : (
               <>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid #e2e8f0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid var(--hairline)" }}>
                   <div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>
                       {selectedDept.icon || "📁"} {selectedDept.category} / {selectedDept.name}
                     </div>
-                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>
                       등록된 부서원 {members.length}명
                     </div>
                   </div>
                 </div>
 
                 {/* 등급 안내 */}
-                <details style={{ marginBottom: 14, fontSize: 11, color: "#475569" }}>
-                  <summary style={{ cursor: "pointer", padding: "6px 10px", background: "#f8fafc", borderRadius: 6, fontWeight: 600 }}>
+                <details style={{ marginBottom: 14, fontSize: 11, color: "var(--ink-mid)" }}>
+                  <summary style={{ cursor: "pointer", padding: "6px 10px", background: "var(--surface)", borderRadius: 6, fontWeight: 600 }}>
                     💡 등급 안내 (펼치기)
                   </summary>
-                  <div style={{ padding: 10, background: "#f8fafc", borderRadius: 6, marginTop: 6 }}>
+                  <div style={{ padding: 10, background: "var(--surface)", borderRadius: 6, marginTop: 6 }}>
                     {GRADES.map(g => (
                       <div key={g.v} style={{ display: "flex", gap: 8, marginBottom: 4 }}>
                         <span style={{ display: "inline-block", minWidth: 22, height: 18, lineHeight: "18px", textAlign: "center", borderRadius: 4, background: g.bg, color: g.color, fontWeight: 700, fontSize: 11 }}>{g.v}</span>
-                        <span style={{ fontWeight: 600, color: "#1e293b" }}>{g.label}</span>
-                        <span style={{ color: "#64748b" }}>· {g.desc}</span>
+                        <span style={{ fontWeight: 600, color: "var(--ink)" }}>{g.label}</span>
+                        <span style={{ color: "var(--ink-soft)" }}>· {g.desc}</span>
                       </div>
                     ))}
                   </div>
                 </details>
 
                 {loading ? (
-                  <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>조회 중...</div>
+                  <div style={{ padding: 40, textAlign: "center", color: "var(--ink-faint)" }}>조회 중...</div>
                 ) : members.length === 0 ? (
-                  <div style={{ padding: 40, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                  <div style={{ padding: 40, textAlign: "center", color: "var(--ink-faint)", fontSize: 13 }}>
                     부서원이 없습니다.<br /><br />
                     <span style={{ fontSize: 11 }}>사용자가 /departments 페이지에서 가입 신청을 해야 합니다.</span>
                   </div>
                 ) : (
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                     <thead>
-                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                      <tr style={{ background: "var(--surface)", borderBottom: "1px solid var(--hairline)" }}>
                         <th style={th}>이름</th>
                         <th style={th}>상태</th>
                         <th style={th}>현재 등급</th>
@@ -279,10 +280,10 @@ export default function DeptStaffPage() {
                     <tbody>
                       {members.map(m => {
                         const g = GRADES.find(x => x.v === m.grade);
-                        const s = (STATUS as any)[m.status] || { label: m.status, color: "#64748b", bg: "#f1f5f9" };
+                        const s = (STATUS as any)[m.status] || { label: m.status, color: "var(--ink-soft)", bg: "var(--bg-soft)" };
                         const isPending = m.status === "pending";
                         return (
-                          <tr key={m.user_id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <tr key={m.user_id} style={{ borderBottom: "1px solid var(--bg-soft)" }}>
                             <td style={td}><b>{m.name}</b></td>
                             <td style={td}>
                               <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: s.bg, color: s.color }}>{s.label}</span>
@@ -292,17 +293,17 @@ export default function DeptStaffPage() {
                                 <span style={{ padding: "3px 10px", borderRadius: 5, fontSize: 11, fontWeight: 700, background: g.bg, color: g.color }}>
                                   {g.v} · {g.label}
                                 </span>
-                              ) : <span style={{ color: "#94a3b8" }}>—</span>}
+                              ) : <span style={{ color: "var(--ink-faint)" }}>—</span>}
                             </td>
                             <td style={td}>
                               {isPending ? (
                                 <div style={{ display: "flex", gap: 6 }}>
                                   <button onClick={() => approveOrReject(m, true)} disabled={busy === m.user_id}
-                                    style={{ padding: "5px 10px", background: "#16a34a", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                                    style={{ padding: "5px 10px", background: "var(--success)", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                                     승인
                                   </button>
                                   <button onClick={() => approveOrReject(m, false)} disabled={busy === m.user_id}
-                                    style={{ padding: "5px 10px", background: "#fecaca", color: "#b91c1c", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                                    style={{ padding: "5px 10px", background: "var(--danger-soft)", color: "var(--danger)", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                                     거절
                                   </button>
                                 </div>
@@ -312,7 +313,7 @@ export default function DeptStaffPage() {
                                   disabled={busy === m.user_id}
                                   onChange={(e) => changeGrade(m, Number(e.target.value))}
                                   style={{
-                                    padding: "5px 8px", fontSize: 12, border: "1.5px solid #e2e8f0",
+                                    padding: "5px 8px", fontSize: 12, border: "1.5px solid var(--hairline)",
                                     borderRadius: 6, fontFamily: "inherit", background: "#fff", cursor: "pointer",
                                   }}>
                                   {GRADES.map(opt => (
@@ -321,7 +322,7 @@ export default function DeptStaffPage() {
                                 </select>
                               )}
                             </td>
-                            <td style={{ ...td, color: "#64748b", fontSize: 11 }}>
+                            <td style={{ ...td, color: "var(--ink-soft)", fontSize: 11 }}>
                               {m.joined_at ? new Date(m.joined_at).toLocaleDateString("ko-KR") : "—"}
                             </td>
                           </tr>
@@ -339,9 +340,9 @@ export default function DeptStaffPage() {
   );
 }
 
-const th: React.CSSProperties = { padding: "10px 8px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#475569", whiteSpace: "nowrap" };
+const th: React.CSSProperties = { padding: "10px 8px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", whiteSpace: "nowrap" };
 const td: React.CSSProperties = { padding: "10px 8px", verticalAlign: "middle" };
 const btnGhost: React.CSSProperties = {
-  padding: "8px 14px", background: "#f1f5f9", border: "none",
-  borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
+  padding: "8px 14px", background: "var(--bg-soft)", border: "none",
+  borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
 };

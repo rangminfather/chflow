@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 interface JournalSummary {
   id: string;
@@ -344,13 +345,13 @@ export default function JournalPage() {
     setForm((f) => ({ ...f, [key]: Number(val) || 0 }));
   };
 
-  if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
+  if (!authChecked) return <LoadingView full />;
 
   const showForm = isNew || selected;
   const canPrefill = !!showForm && !!DEPT_PREFILL_KEY[deptName];
 
   return (
-    <div className="app-shell journal-page" style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div className="app-shell journal-page" style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
 
       {/* Header */}
       <div className="journal-header" style={headerStyle}>
@@ -358,7 +359,7 @@ export default function JournalPage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>📓 일지작성</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>📓 일지작성</div>
         <button onClick={newJournal} style={addBtnStyle}>+ 새 일지</button>
       </div>
 
@@ -368,9 +369,9 @@ export default function JournalPage() {
           <div style={cardStyle}>
             <div style={sectionLabel}>일지 목록</div>
             {loading ? (
-              <div style={{ color: "#94a3b8", fontSize: 12, padding: 12 }}>불러오는 중...</div>
+              <LoadingView padding={12} label="불러오는 중..." />
             ) : journals.length === 0 ? (
-              <div style={{ color: "#94a3b8", fontSize: 12, padding: 12 }}>작성된 일지가 없습니다</div>
+              <div style={{ color: "var(--ink-faint)", fontSize: 12, padding: 12 }}>작성된 일지가 없습니다</div>
             ) : (
               journals.map((j) => (
                 <div
@@ -381,18 +382,18 @@ export default function JournalPage() {
                     borderRadius: 8,
                     marginBottom: 4,
                     cursor: "pointer",
-                    background: selected?.id === j.id ? "#eef2ff" : "transparent",
-                    border: selected?.id === j.id ? "1.5px solid #6366f1" : "1.5px solid transparent",
+                    background: selected?.id === j.id ? "var(--accent-soft)" : "transparent",
+                    border: selected?.id === j.id ? "1.5px solid var(--accent)" : "1.5px solid transparent",
                     transition: "all 0.15s",
                   }}
                 >
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1e293b" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>
                     {formatDate(j.journal_date)}
                   </div>
                   {j.edu_topic && (
-                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{j.edu_topic}</div>
+                    <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>{j.edu_topic}</div>
                   )}
-                  <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
+                  <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 2 }}>
                     출석 {j.stat_attend}명 · 헌금 {j.offering?.toLocaleString()}원
                   </div>
                 </div>
@@ -404,7 +405,7 @@ export default function JournalPage() {
         {/* 폼 */}
         <div className="journal-content" style={{ flex: 1, minWidth: 0 }}>
           {!showForm ? (
-            <div style={{ ...cardStyle, textAlign: "center", padding: 60, color: "#94a3b8" }}>
+            <div style={{ ...cardStyle, textAlign: "center", padding: 60, color: "var(--ink-faint)" }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>📓</div>
               <div style={{ fontSize: 14 }}>왼쪽에서 일지를 선택하거나<br />새 일지를 작성하세요</div>
             </div>
@@ -551,7 +552,7 @@ export default function JournalPage() {
 
               {/* 12) 통계 */}
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 8 }}>통계</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 8 }}>통계</div>
                 <div className="journal-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
                   {[
                     { key: "stat_reg_male",   label: "등록 남" },
@@ -562,7 +563,7 @@ export default function JournalPage() {
                     { key: "stat_absent",     label: "결석" },
                   ].map(({ key, label }) => (
                     <div key={key}>
-                      <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 3 }}>{label}</div>
+                      <div style={{ fontSize: 10, color: "var(--ink-faint)", marginBottom: 3 }}>{label}</div>
                       <input
                         type="number"
                         min={0}
@@ -619,7 +620,7 @@ export default function JournalPage() {
             <div style={{ fontSize: 28, marginBottom: 6 }}>
               {prefillStatus === "done" ? "✅" : prefillStatus === "failed" ? "⚠️" : "📄"}
             </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b", marginBottom: 6 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>
               {prefillStatus === "done"
                 ? "주보 데이터 불러오기 성공"
                 : prefillStatus === "failed"
@@ -628,14 +629,14 @@ export default function JournalPage() {
                 ? `잠시 대기 중... (${prefillAttempt + 1}/${MAX_PREFILL_ATTEMPTS}회차 준비)`
                 : `주보 데이터 불러오는 중... (${prefillAttempt}/${MAX_PREFILL_ATTEMPTS})`}
             </div>
-            <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5, marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.5, marginBottom: 14 }}>
               {prefillStatus === "done"
                 ? "폼이 자동으로 채워졌어요. 확인 후 저장하세요."
                 : prefillStatus === "failed" ? (
                   <>
                     잠시 후 다시 시도해주세요. 사이트의 일시 차단으로 시간이 좀 지나야 풀립니다.
                     {prefillLastError && (
-                      <div style={{ marginTop: 6, fontSize: 11, color: "#94a3b8" }}>
+                      <div style={{ marginTop: 6, fontSize: 11, color: "var(--ink-faint)" }}>
                         마지막 오류: {prefillLastError.slice(0, 80)}
                       </div>
                     )}
@@ -645,7 +646,7 @@ export default function JournalPage() {
                     명성교회 사무실 게시판이 짧은 시간 같은 IP의 반복 요청을 일시 차단합니다.
                     그래서 5번까지 자동으로 다시 시도합니다 (성공률 ~97%).
                     {prefillLastError && prefillAttempt > 1 && (
-                      <div style={{ marginTop: 6, fontSize: 11, color: "#94a3b8" }}>
+                      <div style={{ marginTop: 6, fontSize: 11, color: "var(--ink-faint)" }}>
                         직전 오류: {prefillLastError.slice(0, 60)}
                       </div>
                     )}
@@ -665,10 +666,10 @@ export default function JournalPage() {
                       borderRadius: 3,
                       background:
                         idx < prefillAttempt
-                          ? "#6366f1"
+                          ? "var(--accent)"
                           : idx === prefillAttempt && prefillStatus === "trying"
-                          ? "#a5b4fc"
-                          : "#e2e8f0",
+                          ? "var(--accent-line)"
+                          : "var(--hairline)",
                     }}
                   />
                 ))}
@@ -700,7 +701,7 @@ export default function JournalPage() {
 function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 4 }}>{label}</div>
       {children}
     </div>
   );
@@ -718,7 +719,7 @@ function formatDate(d: string) {
 
 const headerStyle: React.CSSProperties = {
   background: "#fff",
-  borderBottom: "1px solid #e2e8f0",
+  borderBottom: "1px solid var(--hairline)",
   padding: "12px 24px",
   display: "flex",
   alignItems: "center",
@@ -742,7 +743,7 @@ const inputStyle: React.CSSProperties = {
   width: "100%",
   minWidth: 0,
   padding: "9px 12px",
-  border: "1.5px solid #e2e8f0",
+  border: "1.5px solid var(--hairline)",
   borderRadius: 8,
   fontSize: 13,
   fontFamily: "inherit",
@@ -753,14 +754,14 @@ const inputStyle: React.CSSProperties = {
 const sectionLabel: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
-  color: "#94a3b8",
+  color: "var(--ink-faint)",
   letterSpacing: 0.5,
   marginBottom: 12,
 };
 
 const saveBtnStyle: React.CSSProperties = {
   padding: "8px 18px",
-  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   color: "#fff",
   border: "none",
   borderRadius: 8,
@@ -772,9 +773,9 @@ const saveBtnStyle: React.CSSProperties = {
 
 const prefillBtnStyle: React.CSSProperties = {
   padding: "8px 14px",
-  background: "#ecfeff",
-  color: "#0369a1",
-  border: "1.5px solid #67e8f9",
+  background: "#E2EDF2",
+  color: "#3E6A85",
+  border: "1.5px solid #C9DEE8",
   borderRadius: 8,
   fontSize: 12,
   fontWeight: 700,
@@ -784,9 +785,9 @@ const prefillBtnStyle: React.CSSProperties = {
 
 const deleteBtnStyle: React.CSSProperties = {
   padding: "8px 14px",
-  background: "#fef2f2",
-  color: "#b91c1c",
-  border: "1px solid #fecaca",
+  background: "var(--danger-soft)",
+  color: "var(--danger)",
+  border: "1px solid var(--danger-soft)",
   borderRadius: 8,
   fontSize: 13,
   fontWeight: 700,
@@ -796,7 +797,7 @@ const deleteBtnStyle: React.CSSProperties = {
 
 const addBtnStyle: React.CSSProperties = {
   padding: "8px 14px",
-  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   color: "#fff",
   border: "none",
   borderRadius: 8,
@@ -808,11 +809,11 @@ const addBtnStyle: React.CSSProperties = {
 
 const backBtnStyle: React.CSSProperties = {
   padding: "8px 14px",
-  background: "#f1f5f9",
+  background: "var(--bg-soft)",
   border: "none",
   borderRadius: 8,
   fontSize: 12,
-  color: "#475569",
+  color: "var(--ink-mid)",
   cursor: "pointer",
   fontFamily: "inherit",
 };
@@ -822,7 +823,7 @@ const toastStyle: React.CSSProperties = {
   bottom: 40,
   left: "50%",
   transform: "translateX(-50%)",
-  background: "rgba(15,23,42,0.88)",
+  background: "rgba(43, 39, 34,0.88)",
   color: "#fff",
   padding: "12px 24px",
   borderRadius: 999,
@@ -833,19 +834,11 @@ const toastStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const loadingStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background: "#f1f5f9",
-  fontFamily: "'Noto Sans KR', sans-serif",
-};
 
 const modalBackdropStyle: React.CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(15,23,42,0.55)",
+  background: "rgba(43, 39, 34,0.55)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -865,7 +858,7 @@ const modalCardStyle: React.CSSProperties = {
 
 const modalPrimaryBtnStyle: React.CSSProperties = {
   padding: "8px 18px",
-  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   color: "#fff",
   border: "none",
   borderRadius: 8,
@@ -877,9 +870,9 @@ const modalPrimaryBtnStyle: React.CSSProperties = {
 
 const modalSecondaryBtnStyle: React.CSSProperties = {
   padding: "8px 14px",
-  background: "#f1f5f9",
-  color: "#475569",
-  border: "1.5px solid #e2e8f0",
+  background: "var(--bg-soft)",
+  color: "var(--ink-mid)",
+  border: "1.5px solid var(--hairline)",
   borderRadius: 8,
   fontSize: 13,
   fontWeight: 700,

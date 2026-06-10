@@ -210,8 +210,8 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
   return (
     <ModalBackdrop onClose={onClose} style={modalBg}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...modal, maxWidth: 480 }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 6 }}>📥 회원정보 백업</div>
-        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>📥 회원정보 백업</div>
+        <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 16 }}>
           포함할 데이터를 선택하세요. 엑셀(.xlsx)로 다운로드됩니다.
         </div>
 
@@ -221,24 +221,24 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
             style={{
               display: "flex", alignItems: "flex-start", gap: 10, padding: 12,
               borderRadius: 8, marginBottom: 6,
-              background: sel[info.key] ? "#eef2ff" : "#f8fafc",
-              border: `1.5px solid ${sel[info.key] ? "#6366f1" : "#e2e8f0"}`,
+              background: sel[info.key] ? "var(--accent-soft)" : "var(--surface)",
+              border: `1.5px solid ${sel[info.key] ? "var(--accent)" : "var(--hairline)"}`,
               cursor: info.required ? "default" : "pointer",
               opacity: info.required ? 0.85 : 1,
             }}>
             <input type="checkbox" checked={sel[info.key]} disabled={info.required} readOnly
               style={{ marginTop: 2 }} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
-                {info.label} {info.required && <span style={{ fontSize: 10, color: "#dc2626", fontWeight: 600 }}>(필수)</span>}
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
+                {info.label} {info.required && <span style={{ fontSize: 10, color: "var(--danger)", fontWeight: 600 }}>(필수)</span>}
               </div>
-              <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{info.desc}</div>
+              <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>{info.desc}</div>
             </div>
           </label>
         ))}
 
         {progress && (
-          <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "#f1f5f9", fontSize: 12, color: "#475569" }}>
+          <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "var(--bg-soft)", fontSize: 12, color: "var(--ink-mid)" }}>
             {progress}
           </div>
         )}
@@ -418,11 +418,11 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
   return (
     <ModalBackdrop onClose={() => { if (!busy) onClose(); }} style={modalBg}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...modal, maxWidth: 720 }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 6 }}>📤 회원정보 일괄업로드</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>📤 회원정보 일괄업로드</div>
 
         {step === "select" && (
           <>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 14 }}>
               백업한 엑셀(.xlsx) 파일을 검수 후 업로드합니다. 기존 데이터의 id 컬럼은 매칭에 사용되니 수정 금지.
             </div>
 
@@ -431,7 +431,7 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
               <input type="file" accept=".xlsx,.xls"
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
                 style={{ ...input, marginTop: 4, padding: 8 }} />
-              {file && <div style={{ fontSize: 11, color: "#475569", marginTop: 4 }}>📎 {file.name} ({(file.size / 1024).toFixed(1)} KB)</div>}
+              {file && <div style={{ fontSize: 11, color: "var(--ink-mid)", marginTop: 4 }}>📎 {file.name} ({(file.size / 1024).toFixed(1)} KB)</div>}
             </div>
 
             <div style={{ marginBottom: 14 }}>
@@ -453,7 +453,7 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
             </div>
 
             {progress && (
-              <div style={{ padding: 10, borderRadius: 8, background: "#f1f5f9", fontSize: 12, color: "#475569", marginBottom: 12 }}>
+              <div style={{ padding: 10, borderRadius: 8, background: "var(--bg-soft)", fontSize: 12, color: "var(--ink-mid)", marginBottom: 12 }}>
                 {progress}
               </div>
             )}
@@ -469,8 +469,8 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
 
         {step === "preview" && diffs && (
           <>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
-              모드 <b style={{ color: "#6366f1" }}>{mode}</b> 으로 아래 변경이 적용됩니다. 검토 후 적용하세요.
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 14 }}>
+              모드 <b style={{ color: "var(--accent)" }}>{mode}</b> 으로 아래 변경이 적용됩니다. 검토 후 적용하세요.
             </div>
 
             <div style={{ maxHeight: 360, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -480,26 +480,26 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
                 const total = d.updates.length + ins + del;
                 return (
                   <div key={d.sheet} style={{
-                    padding: 12, borderRadius: 8, border: "1px solid #e2e8f0",
-                    background: total === 0 ? "#f8fafc" : "#fff",
+                    padding: 12, borderRadius: 8, border: "1px solid var(--hairline)",
+                    background: total === 0 ? "var(--surface)" : "#fff",
                   }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 6 }}>
-                      [{d.sheet}] {d.label} <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>({d.table})</span>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>
+                      [{d.sheet}] {d.label} <span style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 500 }}>({d.table})</span>
                     </div>
-                    <div style={{ display: "flex", gap: 12, fontSize: 12, color: "#475569" }}>
-                      <span>변경: <b style={{ color: "#6366f1" }}>{d.updates.length}</b></span>
-                      <span style={{ opacity: mode === 2 ? 0.4 : 1 }}>추가: <b style={{ color: "#16a34a" }}>{ins}</b>{mode === 2 && d.inserts.length > 0 && ` (${d.inserts.length}건 무시)`}</span>
-                      <span style={{ opacity: mode === 1 ? 1 : 0.4 }}>삭제: <b style={{ color: "#dc2626" }}>{del}</b>{mode !== 1 && d.deletes.length > 0 && ` (${d.deletes.length}건 무시)`}</span>
-                      <span style={{ color: "#94a3b8" }}>변화없음: {d.unchanged}</span>
+                    <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--ink-mid)" }}>
+                      <span>변경: <b style={{ color: "var(--accent)" }}>{d.updates.length}</b></span>
+                      <span style={{ opacity: mode === 2 ? 0.4 : 1 }}>추가: <b style={{ color: "var(--success)" }}>{ins}</b>{mode === 2 && d.inserts.length > 0 && ` (${d.inserts.length}건 무시)`}</span>
+                      <span style={{ opacity: mode === 1 ? 1 : 0.4 }}>삭제: <b style={{ color: "var(--danger)" }}>{del}</b>{mode !== 1 && d.deletes.length > 0 && ` (${d.deletes.length}건 무시)`}</span>
+                      <span style={{ color: "var(--ink-faint)" }}>변화없음: {d.unchanged}</span>
                     </div>
                     {d.updates.length > 0 && (
                       <details style={{ marginTop: 6 }}>
-                        <summary style={{ fontSize: 11, color: "#6366f1", cursor: "pointer" }}>변경 미리보기 ({Math.min(10, d.updates.length)}/{d.updates.length})</summary>
-                        <ul style={{ marginTop: 4, marginLeft: 16, fontSize: 11, color: "#475569" }}>
+                        <summary style={{ fontSize: 11, color: "var(--accent)", cursor: "pointer" }}>변경 미리보기 ({Math.min(10, d.updates.length)}/{d.updates.length})</summary>
+                        <ul style={{ marginTop: 4, marginLeft: 16, fontSize: 11, color: "var(--ink-mid)" }}>
                           {d.updates.slice(0, 10).map(u => (
                             <li key={u.id} style={{ marginBottom: 2 }}>
                               <b>{u.name}</b>: {Object.entries(u.changes).map(([k, [a, b]]) =>
-                                <span key={k}>{" "}{k}: <s style={{ color: "#94a3b8" }}>{String(a ?? "—")}</s> → <span style={{ color: "#16a34a" }}>{String(b ?? "—")}</span></span>
+                                <span key={k}>{" "}{k}: <s style={{ color: "var(--ink-faint)" }}>{String(a ?? "—")}</s> → <span style={{ color: "var(--success)" }}>{String(b ?? "—")}</span></span>
                               )}
                             </li>
                           ))}
@@ -512,7 +512,7 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
             </div>
 
             {progress && (
-              <div style={{ padding: 10, borderRadius: 8, background: "#f1f5f9", fontSize: 12, color: "#475569", marginTop: 12, whiteSpace: "pre-wrap" }}>
+              <div style={{ padding: 10, borderRadius: 8, background: "var(--bg-soft)", fontSize: 12, color: "var(--ink-mid)", marginTop: 12, whiteSpace: "pre-wrap" }}>
                 {progress}
               </div>
             )}
@@ -521,7 +521,7 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
               <button onClick={() => { setStep("select"); setDiffs(null); }} disabled={busy} style={{ ...btnGhost, flex: 1, padding: 12 }}>← 다시 선택</button>
               <button onClick={apply} disabled={busy} style={{
                 ...btnPrimary, flex: 1, padding: 12,
-                background: mode === 1 ? "linear-gradient(135deg, #dc2626, #b91c1c)" : btnPrimary.background,
+                background: mode === 1 ? "linear-gradient(135deg, var(--danger), var(--danger))" : btnPrimary.background,
               }}>
                 {busy ? "적용 중..." : `${mode === 1 ? "⚠️ " : ""}적용`}
               </button>
@@ -531,7 +531,7 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
 
         {step === "done" && (
           <>
-            <div style={{ padding: 14, borderRadius: 8, background: "#dcfce7", color: "#15803d", fontSize: 13, fontWeight: 700, marginBottom: 14, whiteSpace: "pre-wrap" }}>
+            <div style={{ padding: 14, borderRadius: 8, background: "var(--success-soft)", color: "var(--success)", fontSize: 13, fontWeight: 700, marginBottom: 14, whiteSpace: "pre-wrap" }}>
               {progress}
             </div>
             <button onClick={onClose} style={{ ...btnPrimary, width: "100%", padding: 12 }}>닫기</button>
@@ -552,22 +552,22 @@ function ModeOption({ value, cur, onClick, badge, tone, title, desc }: {
 }) {
   const active = value === cur;
   const colors = {
-    ok:     { bg: "#dcfce7", fg: "#15803d", brd: "#16a34a" },
-    info:   { bg: "#dbeafe", fg: "#1e40af", brd: "#3b82f6" },
-    danger: { bg: "#fee2e2", fg: "#991b1b", brd: "#dc2626" },
+    ok:     { bg: "var(--success-soft)", fg: "var(--success)", brd: "var(--success)" },
+    info:   { bg: "var(--accent-soft)", fg: "var(--accent-strong)", brd: "var(--accent)" },
+    danger: { bg: "var(--danger-soft)", fg: "var(--danger)", brd: "var(--danger)" },
   }[tone];
   return (
     <label onClick={onClick} style={{
       display: "flex", gap: 10, padding: 10, borderRadius: 8,
-      background: active ? colors.bg : "#f8fafc",
-      border: `1.5px solid ${active ? colors.brd : "#e2e8f0"}`,
+      background: active ? colors.bg : "var(--surface)",
+      border: `1.5px solid ${active ? colors.brd : "var(--hairline)"}`,
       cursor: "pointer",
     }}>
       <input type="radio" checked={active} readOnly style={{ marginTop: 3 }} />
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: colors.fg, marginBottom: 2 }}>모드 {value} · {badge}</div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{title}</div>
-        <div style={{ fontSize: 11, color: "#64748b", marginTop: 1 }}>{desc}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{title}</div>
+        <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 1 }}>{desc}</div>
       </div>
     </label>
   );
@@ -668,16 +668,16 @@ const modal: React.CSSProperties = {
 };
 const input: React.CSSProperties = {
   width: "100%", padding: "10px 12px", fontSize: 13,
-  border: "1.5px solid #e2e8f0", borderRadius: 8, outline: "none",
-  color: "#0f172a", boxSizing: "border-box", fontFamily: "inherit", background: "#fff",
+  border: "1.5px solid var(--hairline)", borderRadius: 8, outline: "none",
+  color: "var(--ink)", boxSizing: "border-box", fontFamily: "inherit", background: "#fff",
 };
-const lbl: React.CSSProperties = { fontSize: 11, color: "#475569", fontWeight: 700 };
+const lbl: React.CSSProperties = { fontSize: 11, color: "var(--ink-mid)", fontWeight: 700 };
 const btnPrimary: React.CSSProperties = {
-  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
 };
 const btnGhost: React.CSSProperties = {
-  background: "#f1f5f9", border: "none",
-  borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
+  background: "var(--bg-soft)", border: "none",
+  borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
 };

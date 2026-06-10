@@ -35,7 +35,7 @@ export default function HeaderLogo({ size = 40, showText = false }: HeaderLogoPr
         }}
       />
       {showText && (
-        <span style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", whiteSpace: "nowrap" }}>
           스마트명성
         </span>
       )}

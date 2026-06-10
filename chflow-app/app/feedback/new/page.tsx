@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { LoadingView } from "@/components/StatusViews";
 
 type Attachment = {
   localId: string;
@@ -136,7 +137,7 @@ export default function NewFeedbackPage() {
     router.replace(`/feedback/${newId}`);
   }
 
-  if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
+  if (!authChecked) return <LoadingView full />;
 
   return (
     <div style={pageStyle}>
@@ -144,7 +145,7 @@ export default function NewFeedbackPage() {
       <div style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
           <button onClick={() => router.replace("/feedback")} style={backBtnStyle}>←</button>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>새 글 작성</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>새 글 작성</div>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -178,7 +179,7 @@ export default function NewFeedbackPage() {
                 <div key={att.localId} style={thumbWrap}>
                   <img src={att.previewUrl} alt="" style={thumbImg} />
                   {att.uploading && <div style={thumbOverlay}>업로드중...</div>}
-                  {att.error && <div style={{ ...thumbOverlay, background: "rgba(220, 38, 38, 0.8)" }}>{att.error}</div>}
+                  {att.error && <div style={{ ...thumbOverlay, background: "rgba(168, 68, 60, 0.8)" }}>{att.error}</div>}
                   <button type="button" onClick={() => removeAttachment(att)} style={thumbRemove}>×</button>
                 </div>
               ))}
@@ -189,8 +190,8 @@ export default function NewFeedbackPage() {
             <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFilesChange} style={{ display: "none" }} />
           </div>
 
-          <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "#f8fafc", borderRadius: 10, cursor: "pointer", fontSize: 13, color: "#334155", fontWeight: 600, marginBottom: 14 }}>
-            <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} style={{ width: 16, height: 16, accentColor: "#6366f1" }} />
+          <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "var(--surface)", borderRadius: 10, cursor: "pointer", fontSize: 13, color: "var(--ink-mid)", fontWeight: 600, marginBottom: 14 }}>
+            <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} style={{ width: 16, height: 16, accentColor: "var(--accent)" }} />
             🔒 비공개 글 (다른 사용자에게는 제목/내용이 보이지 않음. 관리자와 본인만 열람 가능)
           </label>
 
@@ -207,7 +208,7 @@ export default function NewFeedbackPage() {
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(135deg, #f0f9ff 0%, #fef3c7 100%)",
+  background: "linear-gradient(135deg, #EFF5F7 0%, var(--warning-soft) 100%)",
   padding: "20px 16px 60px",
   fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
 };
@@ -218,35 +219,31 @@ const cardStyle: React.CSSProperties = {
   boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
 };
 const backBtnStyle: React.CSSProperties = {
-  width: 36, height: 36, borderRadius: 10, background: "#f1f5f9",
-  border: "none", fontSize: 16, cursor: "pointer", color: "#475569",
+  width: 36, height: 36, borderRadius: 10, background: "var(--bg-soft)",
+  border: "none", fontSize: 16, cursor: "pointer", color: "var(--ink-mid)",
 };
 const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, color: "#475569", letterSpacing: 0.3,
+  fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", letterSpacing: 0.3,
 };
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "12px 14px", fontSize: 14,
-  background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 10,
+  background: "#fff", border: "1.5px solid var(--hairline)", borderRadius: 10,
   outline: "none", fontFamily: "inherit", boxSizing: "border-box",
-  color: "#0f172a", fontWeight: 500,
+  color: "var(--ink)", fontWeight: 500,
 };
 const primaryBtn: React.CSSProperties = {
   width: "100%", padding: "14px 16px", fontSize: 15, fontWeight: 800,
-  color: "#fff", background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  color: "#fff", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   border: "none", borderRadius: 12, cursor: "pointer",
-  boxShadow: "0 8px 20px rgba(99,102,241,0.3)", fontFamily: "inherit",
+  boxShadow: "0 8px 20px rgba(62, 90, 74,0.3)", fontFamily: "inherit",
 };
 const errorStyle: React.CSSProperties = {
-  padding: "10px 14px", background: "#fef2f2", border: "1px solid #fecaca",
-  borderRadius: 10, fontSize: 12, color: "#b91c1c", marginBottom: 12,
-};
-const loadingStyle: React.CSSProperties = {
-  display: "flex", alignItems: "center", justifyContent: "center",
-  minHeight: "100vh", color: "#64748b",
+  padding: "10px 14px", background: "var(--danger-soft)", border: "1px solid var(--danger-soft)",
+  borderRadius: 10, fontSize: 12, color: "var(--danger)", marginBottom: 12,
 };
 const thumbWrap: React.CSSProperties = {
   position: "relative", aspectRatio: "1", borderRadius: 10,
-  overflow: "hidden", border: "1.5px solid #e2e8f0", background: "#f8fafc",
+  overflow: "hidden", border: "1.5px solid var(--hairline)", background: "var(--surface)",
 };
 const thumbImg: React.CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
 const thumbOverlay: React.CSSProperties = {
@@ -256,11 +253,11 @@ const thumbOverlay: React.CSSProperties = {
 };
 const thumbRemove: React.CSSProperties = {
   position: "absolute", top: 4, right: 4, width: 22, height: 22,
-  borderRadius: "50%", border: "none", background: "rgba(15,23,42,0.7)",
+  borderRadius: "50%", border: "none", background: "rgba(43, 39, 34,0.7)",
   color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", lineHeight: 1,
 };
 const addThumbBtn: React.CSSProperties = {
-  aspectRatio: "1", border: "2px dashed #cbd5e1", background: "#f8fafc",
-  borderRadius: 10, fontSize: 12, fontWeight: 700, color: "#64748b",
+  aspectRatio: "1", border: "2px dashed var(--hairline-strong)", background: "var(--surface)",
+  borderRadius: 10, fontSize: 12, fontWeight: 700, color: "var(--ink-soft)",
   cursor: "pointer", fontFamily: "inherit",
 };

@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 interface PendingJoin {
   id: string;
@@ -104,64 +105,64 @@ export default function DeptApprovalPage() {
   }
 
   if (!authChecked) {
-    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9" }}>권한 확인 중...</div>;
+    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-soft)" }}>권한 확인 중...</div>;
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", paddingBottom: 60, fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-soft)", paddingBottom: 60, fontFamily: "'Noto Sans KR', sans-serif" }}>
       <HeaderLogo />
 
       <div style={{ maxWidth: 800, margin: "0 auto", padding: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={btnGhost}>←</button>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", margin: 0 }}>📥 사역 가입 승인</h1>
-            <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{deptName}</div>
+            <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0 }}>📥 사역 가입 승인</h1>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{deptName}</div>
           </div>
         </div>
 
-        <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: 12, fontSize: 12, color: "#78350f", marginBottom: 16, lineHeight: 1.6 }}>
+        <div style={{ background: "var(--warning-soft)", border: "1px solid #E0C893", borderRadius: 8, padding: 12, fontSize: 12, color: "var(--warning)", marginBottom: 16, lineHeight: 1.6 }}>
           ⚠️ 본 부서로 가입 신청한 사용자만 표시됩니다. 승인 시 등급(권한)을 선택할 수 있고, 추후 <strong>부서원 등급 관리</strong>에서 수정 가능합니다.
         </div>
 
         <div style={{ background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-          <div style={{ padding: "14px 18px", borderBottom: "1px solid #e2e8f0", background: "#fffbeb" }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: "#92400e" }}>
+          <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--hairline)", background: "var(--warning-soft)" }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--warning)" }}>
               ⏳ 가입 신청 대기 ({pending.length}건)
             </div>
           </div>
           {loading ? (
-            <div style={{ padding: 30, textAlign: "center", color: "#94a3b8" }}>로딩 중...</div>
+            <LoadingView padding={30} />
           ) : pending.length === 0 ? (
-            <div style={{ padding: "40px 20px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+            <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--ink-faint)", fontSize: 13 }}>
               대기 중인 가입 신청이 없습니다
             </div>
           ) : (
             pending.map((j) => (
-              <div key={j.id} style={{ padding: "14px 18px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                <div style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg, #eef2ff, #ede9fe)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
+              <div key={j.id} style={{ padding: "14px 18px", borderBottom: "1px solid var(--bg-soft)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg, var(--accent-soft), #EDE7F2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
                   {j.dept_icon || "📁"}
                 </div>
                 <div style={{ flex: 1, minWidth: 180 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>
                       {j.user_name}
                     </span>
-                    <span style={{ fontSize: 11, color: "#64748b", fontWeight: 500 }}>
+                    <span style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 500 }}>
                       ({j.user_sub_role || "-"})
                     </span>
                     {j.requested_role && (
                       <span style={{
                         fontSize: 10, fontWeight: 700, padding: "2px 7px",
                         borderRadius: 6,
-                        background: j.requested_role === "학부모" ? "#fef3c7" : "#dbeafe",
-                        color: j.requested_role === "학부모" ? "#92400e" : "#1d4ed8",
+                        background: j.requested_role === "학부모" ? "var(--warning-soft)" : "var(--accent-soft)",
+                        color: j.requested_role === "학부모" ? "var(--warning)" : "var(--accent-strong)",
                       }}>
                         {j.requested_role === "teacher" ? "교사" : j.requested_role}
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 11, color: "#475569", marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: "var(--ink-mid)", marginTop: 2 }}>
                     📞 {j.user_phone || "-"} · 신청 {new Date(j.requested_at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
                   </div>
                 </div>
@@ -179,8 +180,8 @@ export default function DeptApprovalPage() {
       {approving && (
         <div onClick={() => setApproving(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 440, width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 6 }}>✅ 부서 가입 승인</div>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>✅ 부서 가입 승인</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 16 }}>
               <strong>{approving.user_name}</strong>님을 <strong>{deptName}</strong>에 승인합니다. 등급(권한)을 선택하세요.
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -190,9 +191,9 @@ export default function DeptApprovalPage() {
                   onClick={() => setPickedGrade(row.g)}
                   style={{
                     padding: "12px 14px",
-                    background: pickedGrade === row.g ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "#f8fafc",
-                    color: pickedGrade === row.g ? "#fff" : "#1e293b",
-                    border: pickedGrade === row.g ? "1px solid transparent" : "1px solid #e2e8f0",
+                    background: pickedGrade === row.g ? "linear-gradient(135deg, var(--accent), var(--accent-muted))" : "var(--surface)",
+                    color: pickedGrade === row.g ? "#fff" : "var(--ink)",
+                    border: pickedGrade === row.g ? "1px solid transparent" : "1px solid var(--hairline)",
                     borderRadius: 10,
                     fontSize: 12,
                     fontWeight: 700,
@@ -204,17 +205,17 @@ export default function DeptApprovalPage() {
                     gap: 10,
                   }}
                 >
-                  <div style={{ width: 28, height: 28, borderRadius: 8, background: pickedGrade === row.g ? "rgba(255,255,255,0.2)" : "#eef2ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: pickedGrade === row.g ? "#fff" : "#6366f1" }}>{row.g}</div>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: pickedGrade === row.g ? "rgba(255,255,255,0.2)" : "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: pickedGrade === row.g ? "#fff" : "var(--accent)" }}>{row.g}</div>
                   <div>
                     <div>{row.label}</div>
-                    <div style={{ fontSize: 10, fontWeight: 500, color: pickedGrade === row.g ? "rgba(255,255,255,0.8)" : "#94a3b8", marginTop: 2 }}>{row.desc}</div>
+                    <div style={{ fontSize: 10, fontWeight: 500, color: pickedGrade === row.g ? "rgba(255,255,255,0.8)" : "var(--ink-faint)", marginTop: 2 }}>{row.desc}</div>
                   </div>
                 </button>
               ))}
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-              <button onClick={() => setApproving(null)} style={{ flex: 1, padding: 12, background: "#f1f5f9", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "#64748b", cursor: "pointer", fontFamily: "inherit" }}>취소</button>
-              <button onClick={doApprove} disabled={processing === approving.id} style={{ flex: 1, padding: 12, background: "linear-gradient(135deg, #10b981, #059669)", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer", fontFamily: "inherit" }}>
+              <button onClick={() => setApproving(null)} style={{ flex: 1, padding: 12, background: "var(--bg-soft)", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "var(--ink-soft)", cursor: "pointer", fontFamily: "inherit" }}>취소</button>
+              <button onClick={doApprove} disabled={processing === approving.id} style={{ flex: 1, padding: 12, background: "linear-gradient(135deg, var(--success), var(--success))", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer", fontFamily: "inherit" }}>
                 {processing === approving.id ? "처리 중..." : `등급 ${pickedGrade} 으로 승인`}
               </button>
             </div>
@@ -223,7 +224,7 @@ export default function DeptApprovalPage() {
       )}
 
       {toast && (
-        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1e293b", color: "#fff", padding: "10px 18px", borderRadius: 12, fontSize: 13, zIndex: 9999 }}>
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "var(--ink)", color: "#fff", padding: "10px 18px", borderRadius: 12, fontSize: 13, zIndex: 9999 }}>
           {toast}
         </div>
       )}
@@ -231,6 +232,6 @@ export default function DeptApprovalPage() {
   );
 }
 
-const btnGhost: React.CSSProperties = { padding: "10px 16px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const btnApprove: React.CSSProperties = { padding: "8px 14px", background: "linear-gradient(135deg, #10b981, #059669)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const btnDanger: React.CSSProperties = { padding: "8px 14px", background: "#fee2e2", color: "#b91c1c", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const btnGhost: React.CSSProperties = { padding: "10px 16px", background: "var(--bg-soft)", color: "var(--ink-mid)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const btnApprove: React.CSSProperties = { padding: "8px 14px", background: "linear-gradient(135deg, var(--success), var(--success))", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const btnDanger: React.CSSProperties = { padding: "8px 14px", background: "var(--danger-soft)", color: "var(--danger)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };

@@ -4,6 +4,7 @@ import { useCallback, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 interface PendingUser {
   id: string;
@@ -101,16 +102,14 @@ export default function AdminPendingPage() {
 
   if (!authChecked) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9" }}>
-        로딩 중...
-      </div>
+      <LoadingView full />
     );
   }
 
   return (
     <div style={{
       minHeight: "100vh",
-      background: "#f1f5f9",
+      background: "var(--bg-soft)",
       fontFamily: "'Noto Sans KR', sans-serif",
       padding: 16,
     }}>
@@ -121,44 +120,44 @@ export default function AdminPendingPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <HeaderLogo />
             <div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>가입 대기자 관리</div>
-              <div style={{ fontSize: 11, color: "#94a3b8" }}>회원가입 신청 → 승인/거절</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>가입 대기자 관리</div>
+              <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>회원가입 신청 → 승인/거절</div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={() => router.push("/admin/members")} style={{
-              padding: "8px 14px", background: "#eef2ff", color: "#6366f1", border: "none",
+              padding: "8px 14px", background: "var(--accent-soft)", color: "var(--accent)", border: "none",
               borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
             }}>회원 관리</button>
             <button onClick={() => router.push("/home")} style={{
-              padding: "8px 14px", background: "#f1f5f9", border: "none",
-              borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit",
+              padding: "8px 14px", background: "var(--bg-soft)", border: "none",
+              borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit",
             }}>← 홈</button>
           </div>
         </div>
 
         {/* Stats */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
-          <StatCard icon="⏳" label="대기 중" value={pending.length} color="#f59e0b" />
-          <StatCard icon="✅" label="성도 매칭됨" value={pending.filter(p => p.matched_member_id).length} color="#10b981" />
-          <StatCard icon="❓" label="신규 (매칭 없음)" value={pending.filter(p => !p.matched_member_id).length} color="#6366f1" />
+          <StatCard icon="⏳" label="대기 중" value={pending.length} color="var(--warning)" />
+          <StatCard icon="✅" label="성도 매칭됨" value={pending.filter(p => p.matched_member_id).length} color="var(--success)" />
+          <StatCard icon="❓" label="신규 (매칭 없음)" value={pending.filter(p => !p.matched_member_id).length} color="var(--accent)" />
         </div>
 
         {/* List */}
         <div style={{ background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--hairline)", display: "flex", justifyContent: "space-between" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-mid)" }}>
               가입 신청 목록 ({pending.length}건)
             </div>
             <button onClick={load} disabled={loading} style={{
-              padding: "4px 12px", background: "#eef2ff", color: "#6366f1",
+              padding: "4px 12px", background: "var(--accent-soft)", color: "var(--accent)",
               border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600,
               cursor: "pointer", fontFamily: "inherit",
             }}>{loading ? "로딩..." : "🔄 새로고침"}</button>
           </div>
 
           {pending.length === 0 && !loading && (
-            <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>
+            <div style={{ textAlign: "center", padding: 60, color: "var(--ink-faint)" }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
               <div style={{ fontSize: 14 }}>대기 중인 가입 신청이 없습니다</div>
             </div>
@@ -167,7 +166,7 @@ export default function AdminPendingPage() {
           {pending.map((user) => (
             <div key={user.id} style={{
               padding: "16px 20px",
-              borderBottom: "1px solid #f1f5f9",
+              borderBottom: "1px solid var(--bg-soft)",
               display: "flex",
               alignItems: "center",
               gap: 16,
@@ -176,14 +175,14 @@ export default function AdminPendingPage() {
               {/* Match Badge */}
               {user.matched_member_id ? (
                 <div style={{
-                  padding: "4px 10px", background: "#dcfce7",
-                  color: "#15803d", borderRadius: 6, fontSize: 10, fontWeight: 700,
+                  padding: "4px 10px", background: "var(--success-soft)",
+                  color: "var(--success)", borderRadius: 6, fontSize: 10, fontWeight: 700,
                   whiteSpace: "nowrap",
                 }}>✓ 등록 성도</div>
               ) : (
                 <div style={{
-                  padding: "4px 10px", background: "#fef3c7",
-                  color: "#92400e", borderRadius: 6, fontSize: 10, fontWeight: 700,
+                  padding: "4px 10px", background: "var(--warning-soft)",
+                  color: "var(--warning)", borderRadius: 6, fontSize: 10, fontWeight: 700,
                   whiteSpace: "nowrap",
                 }}>신규</div>
               )}
@@ -191,35 +190,35 @@ export default function AdminPendingPage() {
               {/* User Info */}
               <div style={{ flex: 1, minWidth: 200 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>{user.name}</div>
-                  <div style={{ fontSize: 11, color: "#94a3b8" }}>@{user.username}</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>{user.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>@{user.username}</div>
                 </div>
-                <div style={{ fontSize: 12, color: "#475569", display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ fontSize: 12, color: "var(--ink-mid)", display: "flex", gap: 12, flexWrap: "wrap" }}>
                   <span>📞 {user.phone || "-"}</span>
                   {user.signup_birth_date && <span>🎂 {user.signup_birth_date}</span>}
                   {user.signup_gender && <span>{displayGender(user.signup_gender)}</span>}
                   <span style={{
-                    padding: "1px 8px", background: "#eef2ff",
-                    color: "#6366f1", borderRadius: 4, fontSize: 11, fontWeight: 600,
+                    padding: "1px 8px", background: "var(--accent-soft)",
+                    color: "var(--accent)", borderRadius: 4, fontSize: 11, fontWeight: 600,
                   }}>{user.sub_role || user.role}</span>
                   {user.matched_plain && (
-                    <span style={{ color: "#64748b" }}>
+                    <span style={{ color: "var(--ink-soft)" }}>
                       📍 {user.matched_plain}평원 · {user.matched_pasture}목장
                     </span>
                   )}
                   {user.signup_is_child && (
-                    <span style={{ color: "#64748b" }}>
+                    <span style={{ color: "var(--ink-soft)" }}>
                       보호자: {user.signup_parent_name || user.signup_guardian_name || "-"} / {user.signup_guardian_phone || "-"}
                     </span>
                   )}
                 </div>
                 {(user.signup_address || user.signup_pasture) && (
-                  <div style={{ fontSize: 11, color: "#64748b", marginTop: 5, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 5, display: "flex", gap: 12, flexWrap: "wrap" }}>
                     {user.signup_address && <span>주소: {user.signup_address}</span>}
                     {user.signup_pasture && <span>신청 목장: {user.signup_plain ? `${user.signup_plain} · ` : ""}{user.signup_pasture}</span>}
                   </div>
                 )}
-                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>
+                <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 4 }}>
                   신청일: {new Date(user.created_at).toLocaleString("ko-KR")}
                 </div>
               </div>
@@ -231,8 +230,8 @@ export default function AdminPendingPage() {
                   disabled={processing === user.id}
                   style={{
                     padding: "8px 16px",
-                    background: "#fee2e2",
-                    color: "#b91c1c",
+                    background: "var(--danger-soft)",
+                    color: "var(--danger)",
                     border: "none",
                     borderRadius: 8,
                     fontSize: 12,
@@ -248,7 +247,7 @@ export default function AdminPendingPage() {
                   disabled={processing === user.id}
                   style={{
                     padding: "8px 16px",
-                    background: "linear-gradient(135deg, #10b981, #059669)",
+                    background: "linear-gradient(135deg, var(--success), var(--success))",
                     color: "#fff",
                     border: "none",
                     borderRadius: 8,
@@ -256,7 +255,7 @@ export default function AdminPendingPage() {
                     fontWeight: 700,
                     cursor: processing === user.id ? "not-allowed" : "pointer",
                     fontFamily: "inherit",
-                    boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
+                    boxShadow: "0 4px 12px rgba(61, 122, 78, 0.3)",
                   }}
                 >
                   {processing === user.id ? "..." : "✓ 승인"}
@@ -266,7 +265,7 @@ export default function AdminPendingPage() {
           ))}
         </div>
 
-        <div style={{ marginTop: 16, padding: "12px 16px", background: "#eff6ff", borderRadius: 10, fontSize: 11, color: "#1e40af", lineHeight: 1.6 }}>
+        <div style={{ marginTop: 16, padding: "12px 16px", background: "var(--accent-soft)", borderRadius: 10, fontSize: 11, color: "var(--accent-strong)", lineHeight: 1.6 }}>
           💡 <strong>등록 성도</strong>는 명성교회 요람에 등록된 회원과 매칭된 가입 신청입니다.<br />
           <strong>신규</strong>는 요람에 없는 신규 가입 신청입니다. 본인 확인 후 승인해주세요.
         </div>
@@ -288,8 +287,8 @@ function StatCard({ icon, label, value, color }: { icon: string; label: string; 
     }}>
       <div style={{ fontSize: 28 }}>{icon}</div>
       <div>
-        <div style={{ fontSize: 24, fontWeight: 800, color: "#1e293b" }}>{value}</div>
-        <div style={{ fontSize: 11, color: "#64748b" }}>{label}</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: "var(--ink)" }}>{value}</div>
+        <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>{label}</div>
       </div>
     </div>
   );

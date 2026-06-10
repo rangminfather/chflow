@@ -13,13 +13,13 @@ export default function PrivacyPage() {
             if (typeof window !== "undefined" && window.history.length > 1) router.back();
             else router.push("/signup");
           }} style={{
-            width: 36, height: 36, borderRadius: 10, background: "#f1f5f9",
-            border: "none", fontSize: 16, cursor: "pointer", color: "#475569",
+            width: 36, height: 36, borderRadius: 10, background: "var(--bg-soft)",
+            border: "none", fontSize: 16, cursor: "pointer", color: "var(--ink-mid)",
           }}>←</button>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>개인정보 처리방침</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>개인정보 처리방침</div>
         </div>
 
-        <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.75 }}>
+        <div style={{ fontSize: 13, color: "var(--ink-mid)", lineHeight: 1.75 }}>
           <p style={pStyle}>
             <strong>스마트명성</strong>(이하 &ldquo;서비스&rdquo;)은 명성교회 회원 관리 및 사역 지원을 목적으로
             아래와 같이 개인정보를 수집·이용하며, 회원의 개인정보를 중요시하고 「개인정보 보호법」을 준수합니다.
@@ -81,7 +81,7 @@ export default function PrivacyPage() {
             <li>문의: 교회 사무실 또는 앱 관리자</li>
           </ul>
 
-          <p style={{ ...pStyle, marginTop: 24, fontSize: 11, color: "#94a3b8" }}>
+          <p style={{ ...pStyle, marginTop: 24, fontSize: 11, color: "var(--ink-faint)" }}>
             본 방침은 2026년 4월 27일부터 적용됩니다.
           </p>
         </div>
@@ -98,7 +98,7 @@ export default function PrivacyPage() {
             fontSize: 14,
             fontWeight: 700,
             color: "#fff",
-            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
             border: "none",
             borderRadius: 12,
             cursor: "pointer",
@@ -114,7 +114,7 @@ export default function PrivacyPage() {
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(135deg, #f0f9ff 0%, #fef3c7 100%)",
+  background: "linear-gradient(135deg, #EFF5F7 0%, var(--warning-soft) 100%)",
   display: "flex",
   alignItems: "flex-start",
   justifyContent: "center",
@@ -137,7 +137,7 @@ const cardStyle: React.CSSProperties = {
 const h3Style: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 800,
-  color: "#1e293b",
+  color: "var(--ink)",
   marginTop: 18,
   marginBottom: 8,
 };

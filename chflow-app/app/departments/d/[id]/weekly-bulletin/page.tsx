@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 // ─────────────────────────────────────────────────────────────────
 // 폼 정의
@@ -550,10 +551,10 @@ function AttemptList({ attempts }: { attempts?: AttemptInfo[] }) {
   if (!attempts || attempts.length === 0) return null;
   const passedCount = attempts.filter((a) => a.passed).length;
   return (
-    <div style={{ marginTop: 14, padding: 10, background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+    <div style={{ marginTop: 14, padding: 10, background: "var(--surface)", borderRadius: 8, border: "1px solid var(--hairline)" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
         <span>🎲 UMS 입장권 시도 내역</span>
-        <span style={{ color: "#94a3b8", fontWeight: 600 }}>
+        <span style={{ color: "var(--ink-faint)", fontWeight: 600 }}>
           {passedCount}/{attempts.length} 통과
         </span>
       </div>
@@ -563,19 +564,19 @@ function AttemptList({ attempts }: { attempts?: AttemptInfo[] }) {
           style={{
             display: "flex", alignItems: "center", gap: 8,
             padding: "5px 8px", fontSize: 11, fontFamily: "ui-monospace, monospace",
-            background: a.passed ? "#f0fdf4" : "#fef2f2",
-            borderLeft: `3px solid ${a.passed ? "#22c55e" : "#ef4444"}`,
+            background: a.passed ? "var(--success-soft)" : "var(--danger-soft)",
+            borderLeft: `3px solid ${a.passed ? "var(--success)" : "var(--danger)"}`,
             marginBottom: 3, borderRadius: 4,
           }}
         >
           <span style={{ width: 18, textAlign: "center" }}>{a.passed ? "✅" : "❌"}</span>
-          <span style={{ width: 26, color: "#94a3b8" }}>#{a.i}</span>
-          <span style={{ flex: 1, color: "#475569" }}>{a.phpsessid}…</span>
-          <span style={{ color: "#94a3b8" }}>{(a.size / 1024).toFixed(0)}KB</span>
+          <span style={{ width: 26, color: "var(--ink-faint)" }}>#{a.i}</span>
+          <span style={{ flex: 1, color: "var(--ink-mid)" }}>{a.phpsessid}…</span>
+          <span style={{ color: "var(--ink-faint)" }}>{(a.size / 1024).toFixed(0)}KB</span>
         </div>
       ))}
       {passedCount === 0 && (
-        <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 6, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 6, lineHeight: 1.5 }}>
           ⚠️ UMS 가 모든 입장권을 거부. 잠시 후 다시 시도해주세요.
         </div>
       )}
@@ -608,24 +609,24 @@ function PostStepper({ currentStep }: { currentStep: PostStepId | null }) {
                    : status === "active" ? "⏳"
                    : status === "error" ? "❌"
                    : "⚪";
-        const labelColor = status === "done" ? "#15803d"
-                         : status === "active" ? "#1e293b"
-                         : status === "error" ? "#b91c1c"
-                         : "#94a3b8";
+        const labelColor = status === "done" ? "var(--success)"
+                         : status === "active" ? "var(--ink)"
+                         : status === "error" ? "var(--danger)"
+                         : "var(--ink-faint)";
         return (
           <div key={s.id} style={{
             display: "flex", alignItems: "center", gap: 10,
             padding: "8px 12px",
-            background: status === "active" ? "#eff6ff" : "transparent",
+            background: status === "active" ? "var(--accent-soft)" : "transparent",
             borderRadius: 8,
-            border: status === "active" ? "1px solid #bfdbfe" : "1px solid transparent",
+            border: status === "active" ? "1px solid var(--accent-line)" : "1px solid transparent",
           }}>
             <div style={{ fontSize: 18, width: 22, textAlign: "center" }}>{icon}</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: status === "active" ? 800 : 600, color: labelColor }}>
                 {s.label}
               </div>
-              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>{s.hint}</div>
+              <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 1 }}>{s.hint}</div>
             </div>
           </div>
         );
@@ -1431,7 +1432,7 @@ export default function WeeklyBulletinPage() {
     }
   };
 
-  if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
+  if (!authChecked) return <LoadingView full />;
 
   const isSupported = deptName === SUPPORTED_DEPT;
   const currentYear = new Date().getFullYear();
@@ -1444,7 +1445,7 @@ export default function WeeklyBulletinPage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>📰 주보 만들기</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>📰 주보 만들기</div>
         <div style={{ display: "flex", gap: 6 }}>
           {!isDesktop && (
             <button onClick={() => setDrawerOpen(true)} style={iconBtnStyle} title="임시저장 목록">
@@ -1489,12 +1490,12 @@ export default function WeeklyBulletinPage() {
 
         {/* 직전 저장 정보 (현재 발행일자 기준) */}
         {draftMeta && (
-          <div style={{ ...cardStyle, padding: "10px 16px", background: "#ecfeff", border: "1px solid #67e8f9" }}>
+          <div style={{ ...cardStyle, padding: "10px 16px", background: "#E2EDF2", border: "1px solid #C9DEE8" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
-              <div style={{ fontSize: 12, color: "#0369a1", fontWeight: 700 }}>
+              <div style={{ fontSize: 12, color: "#3E6A85", fontWeight: 700 }}>
                 💾 이 발행일자에 임시저장본 있음 — <b>{formatRelativeTime(draftMeta.last_edited_at)}</b> 저장
               </div>
-              <div style={{ fontSize: 11, color: "#0e7490" }}>
+              <div style={{ fontSize: 11, color: "#3E6A85" }}>
                 {new Date(draftMeta.last_edited_at).toLocaleString("ko-KR")}
               </div>
             </div>
@@ -1503,24 +1504,24 @@ export default function WeeklyBulletinPage() {
 
         {/* ─── 작성 헤더 ─── */}
         <div style={{
-          background: "linear-gradient(135deg, #faf5ff, #eff6ff)",
-          border: "1px solid #ddd6fe",
+          background: "linear-gradient(135deg, #F2EDF6, var(--accent-soft))",
+          border: "1px solid #D8CCE4",
           borderRadius: 12,
           padding: "12px 16px",
           marginBottom: 12,
           display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8,
         }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "#7c3aed" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#6B4F8C" }}>
               📝 주보 작성 중
             </div>
-            <div style={{ fontSize: 11, color: "#9333ea", marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: "#7E5F9E", marginTop: 2 }}>
               {form.date ? formatKoreanDate(form.date) : "발행일 미선택"} · {currentPage}페이지 입력 중
             </div>
             {form.date && (
               <div style={{
                 fontSize: 11, fontWeight: 800, marginTop: 4,
-                color: planApplyState === "applied" ? "#16a34a" : "#94a3b8",
+                color: planApplyState === "applied" ? "var(--success)" : "var(--ink-faint)",
               }}>
                 {planApplyState === "applied"
                   ? "📋 월간교육계획서 적용됨"
@@ -1534,8 +1535,8 @@ export default function WeeklyBulletinPage() {
             {form.issueNumber && (
               <div style={{
                 padding: "4px 10px", background: "#fff",
-                borderRadius: 6, fontSize: 12, fontWeight: 700, color: "#7c3aed",
-                border: "1px solid #ddd6fe",
+                borderRadius: 6, fontSize: 12, fontWeight: 700, color: "#6B4F8C",
+                border: "1px solid #D8CCE4",
               }}>
                 {form.issueNumber}
               </div>
@@ -1545,8 +1546,8 @@ export default function WeeklyBulletinPage() {
               title={`${currentPage}페이지 입력 초기화 (자동 입력값은 보존)`}
               style={{
                 padding: "5px 10px",
-                background: "#fff", color: "#dc2626",
-                border: "1px solid #fca5a5", borderRadius: 6,
+                background: "#fff", color: "var(--danger)",
+                border: "1px solid #E5B3AC", borderRadius: 6,
                 fontSize: 11, fontWeight: 700,
                 cursor: "pointer", fontFamily: "inherit",
               }}
@@ -1559,7 +1560,7 @@ export default function WeeklyBulletinPage() {
         {/* ─── 페이지 선택 탭 (hwpx 1/2/3/4 페이지 구조) ─── */}
         <div style={{
           display: "flex", gap: 4, padding: 4,
-          background: "#f1f5f9", borderRadius: 10, marginBottom: 12,
+          background: "var(--bg-soft)", borderRadius: 10, marginBottom: 12,
           overflowX: "auto",
         }}>
           {[
@@ -1575,7 +1576,7 @@ export default function WeeklyBulletinPage() {
                 flex: 1, minWidth: 84,
                 padding: "10px 8px",
                 background: currentPage === p.n ? "#fff" : "transparent",
-                color: currentPage === p.n ? "#1e293b" : "#64748b",
+                color: currentPage === p.n ? "var(--ink)" : "var(--ink-soft)",
                 border: "none", borderRadius: 8,
                 fontSize: 12, fontWeight: currentPage === p.n ? 800 : 600,
                 cursor: "pointer", fontFamily: "inherit",
@@ -1585,7 +1586,7 @@ export default function WeeklyBulletinPage() {
               }}
             >
               <div style={{ fontSize: 14, marginBottom: 1 }}>{p.icon}</div>
-              <div style={{ fontSize: 9, color: currentPage === p.n ? "#7c3aed" : "#94a3b8" }}>
+              <div style={{ fontSize: 9, color: currentPage === p.n ? "#6B4F8C" : "var(--ink-faint)" }}>
                 {p.spread}페이지 {p.n === 3 || p.n === 2 ? "좌" : "우"}
               </div>
               <div>{p.label}</div>
@@ -1634,27 +1635,27 @@ export default function WeeklyBulletinPage() {
           {!themeEditMode ? (
             yearlyTheme ? (
               <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b", marginBottom: 4 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 4 }}>
                   {yearlyTheme.theme}
                 </div>
                 {yearlyTheme.scripture_ref && (
-                  <div style={{ fontSize: 12, color: "#64748b" }}>{yearlyTheme.scripture_ref}</div>
+                  <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>{yearlyTheme.scripture_ref}</div>
                 )}
                 {yearlyTheme.page_one_verse && (
                   <div style={{
                     marginTop: 6, padding: "6px 10px",
-                    background: "#eff6ff", borderLeft: "3px solid #3b82f6",
-                    fontSize: 12, lineHeight: 1.6, color: "#1e293b", fontStyle: "italic",
+                    background: "var(--accent-soft)", borderLeft: "3px solid var(--accent)",
+                    fontSize: 12, lineHeight: 1.6, color: "var(--ink)", fontStyle: "italic",
                   }}>
                     {yearlyTheme.page_one_verse}
                   </div>
                 )}
-                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>
+                <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 6 }}>
                   매 주보 작성 시 자동 채움 (주제제창 + 1페이지 표어)
                 </div>
               </div>
             ) : (
-              <div style={{ fontSize: 13, color: "#64748b" }}>
+              <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>
                 {currentYear}년 표어가 등록되지 않았습니다.
                 <button onClick={() => setThemeEditMode(true)} style={{ ...smallBtnStyle, marginLeft: 8 }}>+ 등록하기</button>
               </div>
@@ -1765,20 +1766,20 @@ export default function WeeklyBulletinPage() {
 
         {/* 복습문제 (page 3) */}
         {currentPage === 3 && (
-          <div style={{ ...cardStyle, border: "1px solid #bfdbfe", background: "#f8fbff" }}>
+          <div style={{ ...cardStyle, border: "1px solid var(--accent-line)", background: "var(--surface)" }}>
             {/* 헤더 */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontSize: 14, fontWeight: 900, color: "#1e40af" }}>📚 복습문제</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "var(--accent-strong)" }}>📚 복습문제</div>
               <div style={{ display: "flex", gap: 6 }}>
                 <button
                   type="button"
                   onClick={loadReviewProblems}
                   disabled={reviewLoading || !form.date}
-                  style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #93c5fd", background: "#fff", color: "#1d4ed8", fontSize: 12, fontWeight: 800, cursor: reviewLoading ? "default" : "pointer", fontFamily: "inherit", opacity: reviewLoading ? 0.6 : 1 }}
+                  style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid var(--accent-line)", background: "#fff", color: "var(--accent-strong)", fontSize: 12, fontWeight: 800, cursor: reviewLoading ? "default" : "pointer", fontFamily: "inherit", opacity: reviewLoading ? 0.6 : 1 }}
                 >
                   {reviewLoading ? "확인 중…" : "새로고침"}
                 </button>
-                <label style={{ padding: "5px 10px", borderRadius: 7, border: "1px dashed #93c5fd", background: "#fff", color: "#1d4ed8", fontSize: 12, fontWeight: 800, cursor: reviewUploading ? "default" : "pointer", opacity: reviewUploading ? 0.6 : 1 }}>
+                <label style={{ padding: "5px 10px", borderRadius: 7, border: "1px dashed var(--accent-line)", background: "#fff", color: "var(--accent-strong)", fontSize: 12, fontWeight: 800, cursor: reviewUploading ? "default" : "pointer", opacity: reviewUploading ? 0.6 : 1 }}>
                   {reviewUploading ? "업로드 중…" : "+ PPTX 업로드"}
                   <input type="file" accept=".pptx" multiple disabled={reviewUploading} onChange={(e) => { handleReviewUpload(e.target.files); e.currentTarget.value = ""; }} style={{ display: "none" }} />
                 </label>
@@ -1786,13 +1787,13 @@ export default function WeeklyBulletinPage() {
             </div>
 
             {reviewError && (
-              <div style={{ marginBottom: 8, padding: "8px 10px", borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontSize: 12, fontWeight: 800 }}>
+              <div style={{ marginBottom: 8, padding: "8px 10px", borderRadius: 8, background: "var(--danger-soft)", border: "1px solid var(--danger-soft)", color: "var(--danger)", fontSize: 12, fontWeight: 800 }}>
                 {reviewError}
               </div>
             )}
 
             {reviewLoading && !reviewPlanStatus && (
-              <div style={{ padding: "14px 0", textAlign: "center", fontSize: 13, color: "#64748b", fontWeight: 700 }}>매칭 중…</div>
+              <div style={{ padding: "14px 0", textAlign: "center", fontSize: 13, color: "var(--ink-soft)", fontWeight: 700 }}>매칭 중…</div>
             )}
 
             {/* 자동 매칭 상태 카드 */}
@@ -1800,8 +1801,8 @@ export default function WeeklyBulletinPage() {
               <div style={{
                 padding: "10px 12px",
                 borderRadius: 8,
-                border: reviewMatch ? "1.5px solid #86efac" : "1.5px solid #fde68a",
-                background: reviewMatch ? "#f0fdf4" : "#fffbeb",
+                border: reviewMatch ? "1.5px solid #BCD6C1" : "1.5px solid #E0C893",
+                background: reviewMatch ? "var(--success-soft)" : "var(--warning-soft)",
               }}>
                 {/* 매칭 상태 배지 + 플랜 정보 */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -1810,14 +1811,14 @@ export default function WeeklyBulletinPage() {
                     padding: "2px 8px",
                     borderRadius: 99,
                     fontSize: 11,
-                    fontWeight: 900,
-                    background: reviewMatch ? "#dcfce7" : "#fef9c3",
-                    color: reviewMatch ? "#166534" : "#854d0e",
+                    fontWeight: 800,
+                    background: reviewMatch ? "var(--success-soft)" : "var(--warning-soft)",
+                    color: reviewMatch ? "var(--success)" : "var(--warning)",
                   }}>
                     {reviewMatch ? "✅ 자동 매칭" : "⚠️ 미매칭"}
                   </span>
                   {reviewPlanStatus.plan && (
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-mid)" }}>
                       {reviewPlanStatus.plan.sheetName}
                       {(reviewPlanStatus.plan.activity || reviewPlanStatus.plan.sermon) && ` · ${reviewPlanStatus.plan.activity || reviewPlanStatus.plan.sermon}`}
                     </span>
@@ -1826,14 +1827,14 @@ export default function WeeklyBulletinPage() {
 
                 {reviewMatch && (
                   <>
-                    <div style={{ marginTop: 8, fontSize: 14, fontWeight: 900, color: "#1e293b" }}>{reviewMatch.title}</div>
-                    <div style={{ marginTop: 2, fontSize: 12, fontWeight: 700, color: "#64748b" }}>
+                    <div style={{ marginTop: 8, fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>{reviewMatch.title}</div>
+                    <div style={{ marginTop: 2, fontSize: 12, fontWeight: 700, color: "var(--ink-soft)" }}>
                       {reviewMatch.lessonNum ? `${reviewMatch.lessonNum}과` : reviewMatch.specialTitle || ""} · {reviewMatch.quizzes.length}문제
                     </div>
                     <button
                       type="button"
                       onClick={() => applyReviewProblem(reviewMatch)}
-                      style={{ marginTop: 10, width: "100%", minHeight: 38, borderRadius: 8, border: "1px solid #16a34a", background: "#16a34a", color: "#fff", fontSize: 13, fontWeight: 900, cursor: "pointer", fontFamily: "inherit" }}
+                      style={{ marginTop: 10, width: "100%", minHeight: 38, borderRadius: 8, border: "1px solid var(--success)", background: "var(--success)", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}
                     >
                       이 문제 적용
                     </button>
@@ -1841,7 +1842,7 @@ export default function WeeklyBulletinPage() {
                 )}
 
                 {!reviewMatch && reviewPlanStatus.message && (
-                  <div style={{ marginTop: 6, fontSize: 12, fontWeight: 700, color: "#92400e" }}>{reviewPlanStatus.message}</div>
+                  <div style={{ marginTop: 6, fontSize: 12, fontWeight: 700, color: "var(--warning)" }}>{reviewPlanStatus.message}</div>
                 )}
               </div>
             )}
@@ -1852,7 +1853,7 @@ export default function WeeklyBulletinPage() {
                 <button
                   type="button"
                   onClick={() => setShowReviewList((v) => !v)}
-                  style={{ width: "100%", padding: "7px 12px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", color: "#334155", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+                  style={{ width: "100%", padding: "7px 12px", borderRadius: 8, border: "1px solid var(--hairline-strong)", background: "#fff", color: "var(--ink-mid)", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
                 >
                   {showReviewList ? "▲ 목록 접기" : `▼ 다른 문제 선택 (${reviewProblems.length}개)`}
                 </button>
@@ -1868,8 +1869,8 @@ export default function WeeklyBulletinPage() {
                           style={{
                             padding: "9px 12px",
                             borderRadius: 8,
-                            border: isSelected ? "1.5px solid #2563eb" : "1px solid #e2e8f0",
-                            background: isSelected ? "#eff6ff" : "#fff",
+                            border: isSelected ? "1.5px solid var(--accent)" : "1px solid var(--hairline)",
+                            background: isSelected ? "var(--accent-soft)" : "#fff",
                             cursor: "pointer",
                             display: "flex",
                             alignItems: "center",
@@ -1880,16 +1881,16 @@ export default function WeeklyBulletinPage() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                               {problem.lessonNum && (
-                                <span style={{ display: "inline-block", padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 900, background: "#dbeafe", color: "#1e40af" }}>{problem.lessonNum}과</span>
+                                <span style={{ display: "inline-block", padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: "var(--accent-soft)", color: "var(--accent-strong)" }}>{problem.lessonNum}과</span>
                               )}
                               {problem.specialTitle && !problem.lessonNum && (
-                                <span style={{ display: "inline-block", padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 900, background: "#ede9fe", color: "#5b21b6" }}>절기</span>
+                                <span style={{ display: "inline-block", padding: "1px 7px", borderRadius: 99, fontSize: 10, fontWeight: 800, background: "#EDE7F2", color: "#57407A" }}>절기</span>
                               )}
-                              <span style={{ fontSize: 13, fontWeight: 800, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{problem.title}</span>
+                              <span style={{ fontSize: 13, fontWeight: 800, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{problem.title}</span>
                             </div>
-                            <div style={{ marginTop: 2, fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>{problem.quizCount}문제</div>
+                            <div style={{ marginTop: 2, fontSize: 11, fontWeight: 600, color: "var(--ink-faint)" }}>{problem.quizCount}문제</div>
                           </div>
-                          {isSelected && <span style={{ fontSize: 16, color: "#2563eb" }}>✓</span>}
+                          {isSelected && <span style={{ fontSize: 16, color: "var(--accent)" }}>✓</span>}
                         </div>
                       );
                     })}
@@ -1897,7 +1898,7 @@ export default function WeeklyBulletinPage() {
                       type="button"
                       onClick={() => { applyReviewProblem(reviewProblems.find((p) => p.path === selectedReviewPath) || null); setShowReviewList(false); }}
                       disabled={!selectedReviewPath}
-                      style={{ minHeight: 40, borderRadius: 8, border: "1px solid #334155", background: "#334155", color: "#fff", fontSize: 13, fontWeight: 900, cursor: "pointer", fontFamily: "inherit", opacity: selectedReviewPath ? 1 : 0.4 }}
+                      style={{ minHeight: 40, borderRadius: 8, border: "1px solid var(--ink-mid)", background: "var(--ink-mid)", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", opacity: selectedReviewPath ? 1 : 0.4 }}
                     >
                       선택한 문제 적용
                     </button>
@@ -1941,8 +1942,8 @@ export default function WeeklyBulletinPage() {
             onClick={() => addQuiz("mc4")}
             style={{
               width: "100%", padding: "12px", marginTop: 6,
-              background: "#eff6ff", color: "#1e40af",
-              border: "2px dashed #93c5fd", borderRadius: 10,
+              background: "var(--accent-soft)", color: "var(--accent-strong)",
+              border: "2px dashed var(--accent-line)", borderRadius: 10,
               fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
             }}
           >
@@ -1951,9 +1952,9 @@ export default function WeeklyBulletinPage() {
 
           {quizzes.length > 4 && (
             <div style={{
-              marginTop: 8, padding: 10, background: "#fef3c7",
-              border: "1px solid #fbbf24", borderRadius: 8,
-              fontSize: 11, color: "#92400e", lineHeight: 1.5,
+              marginTop: 8, padding: 10, background: "var(--warning-soft)",
+              border: "1px solid #E0C893", borderRadius: 8,
+              fontSize: 11, color: "var(--warning)", lineHeight: 1.5,
             }}>
               ⚠️ 5번째 문제부터는 hwpx 출력에 포함되지 않습니다 (양식 자리 4번까지).
               필요 시 PDF 자동 생성에는 모든 문제 포함됨.
@@ -1989,7 +1990,7 @@ export default function WeeklyBulletinPage() {
               rows={5}
               style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
             />
-            <div style={{ ...hintStyle, color: "#94a3b8" }}>
+            <div style={{ ...hintStyle, color: "var(--ink-faint)" }}>
               hwpx 양식엔 광고 본문 자리가 없어 현재 hwpx 출력엔 반영 X. UMS 글 본문(memo)에는 들어감.
             </div>
           </FormRow>
@@ -2017,7 +2018,7 @@ export default function WeeklyBulletinPage() {
               <button onClick={compactPhotos} style={smallBtnStyle}>빈칸 정리</button>
             )}
           </div>
-          <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10 }}>
+          <div style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 10 }}>
             현재 26년 4월 26일자 양식엔 사진 슬롯이 없어 hwpx 출력엔 반영되지 않음. PDF 자동 생성에만 사용됨.
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
@@ -2037,7 +2038,7 @@ export default function WeeklyBulletinPage() {
         {currentPage === 1 && (
           <div style={cardStyle}>
             <div style={sectionLabel}>⑩ 1페이지 표어 (이번 주)</div>
-            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 8, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 8, lineHeight: 1.5 }}>
               ② 표어에 등록한 1페이지 본문이 자동 채워짐. 이번 주만 다르게 사용하려면 직접 수정.
               영구 변경하려면 ② 표어 카드에서 수정.
             </div>
@@ -2058,7 +2059,7 @@ export default function WeeklyBulletinPage() {
           <>
             <div style={cardStyle}>
               <div style={sectionLabel}>⑨ 목장 현황 (9개 반)</div>
-              <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6, marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: "var(--ink-faint)", lineHeight: 1.6, marginBottom: 12 }}>
                 hwpx 4페이지 (2페이지 우측) 의 통계 표. 점수 입력 → 소계 자동 계산.
                 나중에 출석/달란트 시스템 구현되면 자동 채움 예정.
               </div>
@@ -2069,12 +2070,12 @@ export default function WeeklyBulletinPage() {
                 return (
                   <div key={cls} style={{
                     padding: 12, marginBottom: 10,
-                    background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0",
+                    background: "var(--surface)", borderRadius: 8, border: "1px solid var(--hairline)",
                   }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <div style={{
-                          padding: "4px 10px", background: "#3b82f6", color: "#fff",
+                          padding: "4px 10px", background: "var(--accent)", color: "#fff",
                           borderRadius: 6, fontSize: 13, fontWeight: 800,
                         }}>
                           {cls}
@@ -2087,8 +2088,8 @@ export default function WeeklyBulletinPage() {
                           style={{ ...inputStyle, fontSize: 13, padding: "4px 8px", flex: 1 }}
                         />
                       </div>
-                      <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>
-                        소계 <span style={{ color: "#3b82f6", fontSize: 14 }}>{subtotal}</span>
+                      <div style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 700 }}>
+                        소계 <span style={{ color: "var(--accent)", fontSize: 14 }}>{subtotal}</span>
                       </div>
                     </div>
 
@@ -2097,7 +2098,7 @@ export default function WeeklyBulletinPage() {
                       <SmallInput label="출석인원" value={row.attended} onChange={(v) => setFarmRow(cls, "attended", v)} hint="×2점 자동" />
                     </div>
 
-                    <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 700, margin: "6px 0 4px" }}>
+                    <div style={{ fontSize: 10, color: "var(--ink-faint)", fontWeight: 700, margin: "6px 0 4px" }}>
                       점수 (각 항목 직접 입력)
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 6 }}>
@@ -2132,13 +2133,13 @@ export default function WeeklyBulletinPage() {
               </FormRow>
             </div>
 
-            <div style={{ ...cardStyle, background: "#eff6ff", border: "1px solid #bfdbfe" }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#1e40af", marginBottom: 8 }}>전체 합계 (자동)</div>
+            <div style={{ ...cardStyle, background: "var(--accent-soft)", border: "1px solid var(--accent-line)" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-strong)", marginBottom: 8 }}>전체 합계 (자동)</div>
               {(() => {
                 const totalEnrolled = FARM_CLASSES.reduce((s, c) => s + (parseInt(farmData.rows[c].enrolled) || 0), 0);
                 const totalAttended = FARM_CLASSES.reduce((s, c) => s + (parseInt(farmData.rows[c].attended) || 0), 0);
                 return (
-                  <div style={{ display: "flex", gap: 16, fontSize: 13, color: "#1e40af" }}>
+                  <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--accent-strong)" }}>
                     <div>재적 합계: <b>{totalEnrolled}</b></div>
                     <div>출석 합계: <b>{totalAttended}</b></div>
                   </div>
@@ -2219,7 +2220,7 @@ export default function WeeklyBulletinPage() {
       {!isDesktop && (
         <div style={mobileStickyBarStyle}>
           {cooldown && cooldown.last_post_no && cooldown.remaining_seconds > 0 ? (
-            <div style={{ flex: 1, fontSize: 12, color: "#92400e", textAlign: "center" }}>
+            <div style={{ flex: 1, fontSize: 12, color: "var(--warning)", textAlign: "center" }}>
               ⏱ <b style={{ fontFamily: "monospace", fontSize: 14 }}>{formatRemaining(cooldown.remaining_seconds)}</b> 후 등록 가능
             </div>
           ) : (
@@ -2228,8 +2229,8 @@ export default function WeeklyBulletinPage() {
               disabled={autoPosting}
               style={{
                 flex: 1, padding: "10px 18px",
-                background: autoPosting ? "#e2e8f0" : "linear-gradient(135deg, #ec4899, #8b5cf6)",
-                color: autoPosting ? "#94a3b8" : "#fff",
+                background: autoPosting ? "var(--hairline)" : "linear-gradient(135deg, var(--accent), var(--accent-muted))",
+                color: autoPosting ? "var(--ink-faint)" : "#fff",
                 border: "none", borderRadius: 10, fontSize: 14, fontWeight: 800,
                 cursor: autoPosting ? "not-allowed" : "pointer", fontFamily: "inherit",
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
@@ -2251,14 +2252,14 @@ export default function WeeklyBulletinPage() {
         <div style={modalBackdropStyle} onClick={() => setCredsModalOpen(false)}>
           <div style={{ ...postModalCardStyle, maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>⚙️ UMS 계정 설정</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>⚙️ UMS 계정 설정</div>
               <button onClick={() => setCredsModalOpen(false)} style={iconBtnStyle}>✕</button>
             </div>
 
-            <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 14, background: "#f8fafc", padding: 10, borderRadius: 8 }}>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.6, marginBottom: 14, background: "var(--surface)", padding: 10, borderRadius: 8 }}>
               <b>본인의 명성교회 홈페이지(ums.or.kr) 계정</b>을 등록하세요.<br />
               자동등록 시 본인 계정으로 글이 올라갑니다.<br />
-              <span style={{ fontSize: 11, color: "#94a3b8" }}>비밀번호는 AES-256-GCM 으로 암호화돼 저장됩니다.</span>
+              <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>비밀번호는 AES-256-GCM 으로 암호화돼 저장됩니다.</span>
             </div>
 
             <FormRow label="UMS 아이디">
@@ -2287,8 +2288,8 @@ export default function WeeklyBulletinPage() {
               </button>
             </div>
 
-            <div style={{ marginTop: 14, fontSize: 11, color: "#94a3b8", lineHeight: 1.5 }}>
-              계정 없으면 <a href="http://www.ums.or.kr/bbs/join.php" target="_blank" rel="noopener noreferrer" style={{ color: "#6366f1" }}>ums.or.kr 회원가입</a> 후 등록.
+            <div style={{ marginTop: 14, fontSize: 11, color: "var(--ink-faint)", lineHeight: 1.5 }}>
+              계정 없으면 <a href="http://www.ums.or.kr/bbs/join.php" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>ums.or.kr 회원가입</a> 후 등록.
             </div>
           </div>
         </div>
@@ -2301,13 +2302,13 @@ export default function WeeklyBulletinPage() {
             {autoPosting && (
               <>
                 <div style={{ fontSize: 32, marginBottom: 8, textAlign: "center" }}>🚀</div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b", marginBottom: 14, textAlign: "center" }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", marginBottom: 14, textAlign: "center" }}>
                   자동 등록 진행 중
                 </div>
                 <PostStepper currentStep={postStep} />
                 <div style={{
-                  fontSize: 11, color: "#64748b", marginTop: 10, padding: "8px 12px",
-                  background: "#fef9c3", borderRadius: 6, lineHeight: 1.5, textAlign: "center",
+                  fontSize: 11, color: "var(--ink-soft)", marginTop: 10, padding: "8px 12px",
+                  background: "var(--warning-soft)", borderRadius: 6, lineHeight: 1.5, textAlign: "center",
                 }}>
                   💡 UMS 가 입장권을 거부할 때마다 새로 받아 재시도 (최대 5회, 99% 통과)
                 </div>
@@ -2316,10 +2317,10 @@ export default function WeeklyBulletinPage() {
             {autoPostResult && autoPostResult.ok && (
               <>
                 <div style={{ fontSize: 32, marginBottom: 8, textAlign: "center" }}>✅</div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#15803d", marginBottom: 6, textAlign: "center" }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "var(--success)", marginBottom: 6, textAlign: "center" }}>
                   등록 완료!
                 </div>
-                <div style={{ fontSize: 13, color: "#1e293b", marginBottom: 4, textAlign: "center" }}>
+                <div style={{ fontSize: 13, color: "var(--ink)", marginBottom: 4, textAlign: "center" }}>
                   글번호 #{autoPostResult.postNo}
                 </div>
                 <AttemptList attempts={autoPostResult.attempts} />
@@ -2338,10 +2339,10 @@ export default function WeeklyBulletinPage() {
             {autoPostResult && !autoPostResult.ok && (
               <>
                 <div style={{ fontSize: 32, marginBottom: 8, textAlign: "center" }}>⚠️</div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "#b91c1c", marginBottom: 6, textAlign: "center" }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "var(--danger)", marginBottom: 6, textAlign: "center" }}>
                   자동등록 실패
                 </div>
-                <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.6, marginBottom: 4, wordBreak: "break-word" }}>
+                <div style={{ fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.6, marginBottom: 4, wordBreak: "break-word" }}>
                   {autoPostResult.error}
                 </div>
                 <AttemptList attempts={autoPostResult.attempts} />
@@ -2370,7 +2371,7 @@ export default function WeeklyBulletinPage() {
         <>
           <div
             onClick={() => setDrawerOpen(false)}
-            style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", zIndex: 998 }}
+            style={{ position: "fixed", inset: 0, background: "rgba(43, 39, 34,0.4)", zIndex: 998 }}
           />
           <div style={{
             position: "fixed", top: 0, right: 0, height: "100vh", width: "min(320px, 85vw)",
@@ -2378,7 +2379,7 @@ export default function WeeklyBulletinPage() {
             boxShadow: "-4px 0 20px rgba(0,0,0,0.15)",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b" }}>📂 임시저장 목록</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>📂 임시저장 목록</div>
               <button onClick={() => setDrawerOpen(false)} style={iconBtnStyle}>✕</button>
             </div>
             <DraftSidebar
@@ -2428,7 +2429,7 @@ function ActionCard({
 
   return (
     <div style={cardCss}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: 0.5, marginBottom: 10 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.5, marginBottom: 10 }}>
         등록
       </div>
 
@@ -2436,35 +2437,35 @@ function ActionCard({
       <div style={{
         display: "flex", justifyContent: "space-between", alignItems: "center",
         padding: "8px 10px", borderRadius: 8, marginBottom: 10,
-        background: credsMeta?.has_credentials ? "#dcfce7" : "#fef3c7",
-        border: `1px solid ${credsMeta?.has_credentials ? "#86efac" : "#fbbf24"}`,
+        background: credsMeta?.has_credentials ? "var(--success-soft)" : "var(--warning-soft)",
+        border: `1px solid ${credsMeta?.has_credentials ? "#BCD6C1" : "#E0C893"}`,
       }}>
         <div style={{ fontSize: 11, lineHeight: 1.4 }}>
           {credsMeta?.has_credentials ? (
             <>
-              <span style={{ fontWeight: 700, color: "#15803d" }}>✅ UMS 계정 등록됨</span>
+              <span style={{ fontWeight: 700, color: "var(--success)" }}>✅ UMS 계정 등록됨</span>
               <br />
-              <span style={{ color: "#15803d" }}>{credsMeta.ums_user_id}</span>
+              <span style={{ color: "var(--success)" }}>{credsMeta.ums_user_id}</span>
             </>
           ) : (
             <>
-              <span style={{ fontWeight: 700, color: "#92400e" }}>⚠️ UMS 계정 미등록</span>
+              <span style={{ fontWeight: 700, color: "var(--warning)" }}>⚠️ UMS 계정 미등록</span>
               <br />
-              <span style={{ color: "#a16207" }}>등록 후 자동등록 가능</span>
+              <span style={{ color: "var(--warning)" }}>등록 후 자동등록 가능</span>
             </>
           )}
         </div>
         <div style={{ display: "flex", gap: 4 }}>
           <button onClick={onOpenCredsModal} style={{
-            padding: "5px 8px", background: "#fff", border: "1px solid #cbd5e1",
+            padding: "5px 8px", background: "#fff", border: "1px solid var(--hairline-strong)",
             borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
           }}>
             ⚙️
           </button>
           {credsMeta?.has_credentials && (
             <button onClick={onDeleteCreds} title="삭제" style={{
-              padding: "5px 8px", background: "#fef2f2", color: "#b91c1c",
-              border: "1px solid #fecaca", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+              padding: "5px 8px", background: "var(--danger-soft)", color: "var(--danger)",
+              border: "1px solid var(--danger-soft)", borderRadius: 6, fontSize: 11, cursor: "pointer", fontFamily: "inherit",
             }}>
               ✕
             </button>
@@ -2475,21 +2476,21 @@ function ActionCard({
       {/* 쿨다운 / 안내 */}
       {cooldown && cooldown.last_post_no && cooldown.remaining_seconds > 0 ? (
         <div style={{
-          background: "#fef3c7", border: "1.5px solid #fbbf24", borderRadius: 8,
+          background: "var(--warning-soft)", border: "1.5px solid #E0C893", borderRadius: 8,
           padding: 10, marginBottom: 10, textAlign: "center",
         }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#92400e", marginBottom: 2 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--warning)", marginBottom: 2 }}>
             ⏱ #{cooldown.last_post_no} 후 30분 대기
           </div>
-          <div style={{ fontSize: 18, fontWeight: 900, color: "#92400e", fontFamily: "monospace" }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--warning)", fontFamily: "monospace" }}>
             {formatRemaining(cooldown.remaining_seconds)}
           </div>
         </div>
       ) : (
         !compact && (
           <div style={{
-            background: "#ecfeff", border: "1px solid #67e8f9", borderRadius: 8,
-            padding: 8, marginBottom: 10, fontSize: 11, color: "#0369a1", lineHeight: 1.5,
+            background: "#E2EDF2", border: "1px solid #C9DEE8", borderRadius: 8,
+            padding: 8, marginBottom: 10, fontSize: 11, color: "#3E6A85", lineHeight: 1.5,
           }}>
             🚀 자동등록 = 폼 → PDF 자동 생성 → UMS 게시판 등록까지 1클릭
           </div>
@@ -2503,9 +2504,9 @@ function ActionCard({
         style={{
           width: "100%", padding: compact ? "13px 18px" : "16px 22px",
           background: (autoPosting || (cooldown && !cooldown.can_post))
-            ? "#e2e8f0"
-            : "linear-gradient(135deg, #ec4899, #8b5cf6)",
-          color: (autoPosting || (cooldown && !cooldown.can_post)) ? "#94a3b8" : "#fff",
+            ? "var(--hairline)"
+            : "linear-gradient(135deg, var(--accent), var(--accent-muted))",
+          color: (autoPosting || (cooldown && !cooldown.can_post)) ? "var(--ink-faint)" : "#fff",
           border: "none", borderRadius: 10,
           fontSize: compact ? 14 : 16, fontWeight: 800,
           cursor: (autoPosting || (cooldown && !cooldown.can_post)) ? "not-allowed" : "pointer",
@@ -2524,22 +2525,22 @@ function ActionCard({
       {/* 보조 */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <button onClick={onSaveDraft} disabled={savingDraft} style={{
-          flex: 1, padding: "8px 10px", background: "#f1f5f9", color: "#475569",
-          border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 11, fontWeight: 700,
+          flex: 1, padding: "8px 10px", background: "var(--bg-soft)", color: "var(--ink-mid)",
+          border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 11, fontWeight: 700,
           cursor: "pointer", fontFamily: "inherit",
         }}>
           {savingDraft ? "저장 중..." : "💾 임시저장"}
         </button>
         <button onClick={onDownloadHwpx} disabled={generating} style={{
-          flex: 1, padding: "8px 10px", background: "#f1f5f9", color: "#475569",
-          border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 11, fontWeight: 700,
+          flex: 1, padding: "8px 10px", background: "var(--bg-soft)", color: "var(--ink-mid)",
+          border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 11, fontWeight: 700,
           cursor: "pointer", fontFamily: "inherit",
         }}>
           {generating ? "생성 중..." : "📥 hwpx"}
         </button>
         <button onClick={onDownloadPdf} disabled={generating} style={{
-          flex: 1, padding: "8px 10px", background: "#f1f5f9", color: "#475569",
-          border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 11, fontWeight: 700,
+          flex: 1, padding: "8px 10px", background: "var(--bg-soft)", color: "var(--ink-mid)",
+          border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 11, fontWeight: 700,
           cursor: "pointer", fontFamily: "inherit",
         }}>
           {generating ? "생성 중..." : "📥 PDF"}
@@ -2547,16 +2548,16 @@ function ActionCard({
       </div>
 
       {/* 고급 */}
-      <details style={{ marginTop: 10, fontSize: 11, color: "#64748b" }}>
+      <details style={{ marginTop: 10, fontSize: 11, color: "var(--ink-soft)" }}>
         <summary style={{ cursor: "pointer", fontWeight: 700 }}>🔧 한글 PDF 직접 첨부</summary>
-        <div style={{ marginTop: 6, padding: 8, background: "#f8fafc", borderRadius: 6 }}>
+        <div style={{ marginTop: 6, padding: 8, background: "var(--surface)", borderRadius: 6 }}>
           <input
             type="file" accept="application/pdf,.pdf"
             onChange={(e) => onSetPdfFile(e.target.files?.[0] || null)}
             style={{ width: "100%", padding: 4, fontSize: 10 }}
           />
           {pdfFile && (
-            <div style={{ fontSize: 10, color: "#15803d", marginTop: 4 }}>
+            <div style={{ fontSize: 10, color: "var(--success)", marginTop: 4 }}>
               ✅ {pdfFile.name}
             </div>
           )}
@@ -2597,8 +2598,8 @@ function PhotoSlot({ index, file, onChange }: {
         position: "relative",
         aspectRatio: "3/2",
         borderRadius: 10,
-        border: file ? "1.5px solid #6366f1" : "1.5px dashed #cbd5e1",
-        background: file ? "#000" : "#f8fafc",
+        border: file ? "1.5px solid var(--accent)" : "1.5px dashed var(--hairline-strong)",
+        background: file ? "#000" : "var(--surface)",
         cursor: "pointer",
         display: "flex",
         alignItems: "center",
@@ -2622,7 +2623,7 @@ function PhotoSlot({ index, file, onChange }: {
           >✕</button>
         </>
       ) : (
-        <div style={{ textAlign: "center", color: "#94a3b8", fontSize: 12 }}>
+        <div style={{ textAlign: "center", color: "var(--ink-faint)", fontSize: 12 }}>
           <div style={{ fontSize: 22, marginBottom: 4 }}>📷</div>
           <div>슬롯 {index + 1}</div>
           <div style={{ fontSize: 10, marginTop: 2 }}>탭/드래그</div>
@@ -2653,12 +2654,12 @@ function DraftSidebar({
   return (
     <div style={wrapperStyle}>
       {!embedded && (
-        <div style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: 0.5, marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.5, marginBottom: 12 }}>
           📂 임시저장 목록 ({draftList.length}건)
         </div>
       )}
       {draftList.length === 0 ? (
-        <div style={{ fontSize: 12, color: "#94a3b8", padding: 12, textAlign: "center" }}>
+        <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: 12, textAlign: "center" }}>
           저장된 임시본 없음
         </div>
       ) : (
@@ -2671,8 +2672,8 @@ function DraftSidebar({
                 style={{
                   padding: "10px 12px",
                   borderRadius: 8,
-                  border: isCurrent ? "1.5px solid #6366f1" : "1px solid #e2e8f0",
-                  background: isCurrent ? "#eef2ff" : "#fff",
+                  border: isCurrent ? "1.5px solid var(--accent)" : "1px solid var(--hairline)",
+                  background: isCurrent ? "var(--accent-soft)" : "#fff",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
@@ -2683,12 +2684,12 @@ function DraftSidebar({
                   onClick={() => !isCurrent && onSelect(d.issue_date)}
                   style={{ flex: 1, minWidth: 0, cursor: isCurrent ? "default" : "pointer" }}
                 >
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
                     {d.issue_date}
-                    {d.issue_number && <span style={{ fontSize: 11, color: "#64748b", marginLeft: 6 }}>{d.issue_number}</span>}
+                    {d.issue_number && <span style={{ fontSize: 11, color: "var(--ink-soft)", marginLeft: 6 }}>{d.issue_number}</span>}
                   </div>
-                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
-                    {isCurrent && <span style={{ color: "#6366f1", marginRight: 6 }}>● 작성 중</span>}
+                  <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 2 }}>
+                    {isCurrent && <span style={{ color: "var(--accent)", marginRight: 6 }}>● 작성 중</span>}
                     {formatRelativeTime(d.last_edited_at)}
                   </div>
                 </div>
@@ -2696,8 +2697,8 @@ function DraftSidebar({
                   onClick={(e) => { e.stopPropagation(); onDelete(d.issue_date); }}
                   title="삭제"
                   style={{
-                    padding: "6px 8px", background: "#fef2f2", color: "#b91c1c",
-                    border: "1px solid #fecaca", borderRadius: 6, fontSize: 11,
+                    padding: "6px 8px", background: "var(--danger-soft)", color: "var(--danger)",
+                    border: "1px solid var(--danger-soft)", borderRadius: 6, fontSize: 11,
                     cursor: "pointer", fontFamily: "inherit", lineHeight: 1,
                   }}
                 >
@@ -2715,7 +2716,7 @@ function DraftSidebar({
 function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 4 }}>{label}</div>
       {children}
     </div>
   );
@@ -2735,11 +2736,11 @@ function QuizCard({ index, quiz, canRemove, onChange, onRemove }: {
   return (
     <div style={{
       padding: 12, marginBottom: 10,
-      background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0",
+      background: "var(--surface)", borderRadius: 10, border: "1px solid var(--hairline)",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <div style={{
-          padding: "4px 10px", background: "#3b82f6", color: "#fff",
+          padding: "4px 10px", background: "var(--accent)", color: "#fff",
           borderRadius: 6, fontSize: 13, fontWeight: 800, flexShrink: 0,
         }}>
           {index + 1}번
@@ -2749,7 +2750,7 @@ function QuizCard({ index, quiz, canRemove, onChange, onRemove }: {
           onChange={(e) => onChange(changeQuizType(quiz, e.target.value as QuizType))}
           style={{
             flex: 1, padding: "6px 8px", fontSize: 12,
-            border: "1px solid #cbd5e1", borderRadius: 6, fontFamily: "inherit",
+            border: "1px solid var(--hairline-strong)", borderRadius: 6, fontFamily: "inherit",
             background: "#fff",
           }}
         >
@@ -2762,8 +2763,8 @@ function QuizCard({ index, quiz, canRemove, onChange, onRemove }: {
           <button
             onClick={onRemove}
             style={{
-              padding: "4px 10px", background: "#fee2e2", color: "#b91c1c",
-              border: "1px solid #fca5a5", borderRadius: 6,
+              padding: "4px 10px", background: "var(--danger-soft)", color: "var(--danger)",
+              border: "1px solid #E5B3AC", borderRadius: 6,
               fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
               flexShrink: 0,
             }}
@@ -2781,7 +2782,7 @@ function QuizCard({ index, quiz, canRemove, onChange, onRemove }: {
         rows={2}
         style={{
           width: "100%", padding: "8px 10px", marginBottom: 8,
-          border: "1px solid #cbd5e1", borderRadius: 6,
+          border: "1px solid var(--hairline-strong)", borderRadius: 6,
           fontSize: 13, fontFamily: "inherit", resize: "vertical",
         }}
       />
@@ -2801,7 +2802,7 @@ function QuizCard({ index, quiz, canRemove, onChange, onRemove }: {
               placeholder={`${choiceMarkers[ci]} 보기`}
               style={{
                 width: "100%", padding: "6px 10px",
-                border: "1px solid #cbd5e1", borderRadius: 6,
+                border: "1px solid var(--hairline-strong)", borderRadius: 6,
                 fontSize: 12, fontFamily: "inherit",
               }}
             />
@@ -2833,12 +2834,12 @@ function BulletinPreview({ currentPage, form, farmData, quizzes, photos, deptNam
     flex: 1,
     aspectRatio: "595/842",  // A4 비율 (한 페이지)
     background: "#fff",
-    border: "1px solid #cbd5e1",
+    border: "1px solid var(--hairline-strong)",
     borderRadius: 4,
     padding: 8,
     fontSize: 8,
     lineHeight: 1.4,
-    color: "#1e293b",
+    color: "var(--ink)",
     overflow: "auto",
     boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
     fontFamily: "'Noto Sans KR', sans-serif",
@@ -2846,10 +2847,10 @@ function BulletinPreview({ currentPage, form, farmData, quizzes, photos, deptNam
 
   return (
     <div>
-      <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 700, marginBottom: 6, textAlign: "center" }}>
+      <div style={{ fontSize: 10, color: "var(--ink-faint)", fontWeight: 700, marginBottom: 6, textAlign: "center" }}>
         📖 {spreadLabel} 미리보기
       </div>
-      <div style={{ display: "flex", gap: 6, background: "#e2e8f0", padding: 6, borderRadius: 6 }}>
+      <div style={{ display: "flex", gap: 6, background: "var(--hairline)", padding: 6, borderRadius: 6 }}>
         {isSpread1 ? (
           <>
             <div style={pageCss}><PreviewPage3 form={form} quizzes={quizzes} /></div>
@@ -2878,24 +2879,24 @@ function PreviewPage1({ form, photos, deptName }: {
     <div style={{ padding: "4px 6px" }}>
       {/* ── 상단: 호수 (좌) + 날짜 (우) 같은 줄 ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, fontSize: 9 }}>
-        <div style={{ color: "#475569", fontWeight: 700 }}>{issueNum || "(호수 미입력)"}</div>
-        <div style={{ color: "#475569", fontWeight: 700 }}>{dateStr || "(날짜 미선택)"}</div>
+        <div style={{ color: "var(--ink-mid)", fontWeight: 700 }}>{issueNum || "(호수 미입력)"}</div>
+        <div style={{ color: "var(--ink-mid)", fontWeight: 700 }}>{dateStr || "(날짜 미선택)"}</div>
       </div>
 
       {/* ── 큰 컬러풀 부서명 타이틀 (hwpx 의 무지개 글씨 흉내) ── */}
-      <div style={{ textAlign: "center", margin: "8px 0", fontSize: 22, fontWeight: 900, letterSpacing: 4 }}>
-        <span style={{ color: "#dc2626" }}>초</span>
-        <span style={{ color: "#ea580c" }}>등</span>
-        <span style={{ color: "#9333ea" }}> 1 </span>
-        <span style={{ color: "#0891b2" }}>초</span>
-        <span style={{ color: "#16a34a" }}>원</span>
+      <div style={{ textAlign: "center", margin: "8px 0", fontSize: 22, fontWeight: 800, letterSpacing: 4 }}>
+        <span style={{ color: "var(--danger)" }}>초</span>
+        <span style={{ color: "#B97B3D" }}>등</span>
+        <span style={{ color: "#7E5F9E" }}> 1 </span>
+        <span style={{ color: "#3E6A85" }}>초</span>
+        <span style={{ color: "var(--success)" }}>원</span>
       </div>
 
       {/* ── 주제 (환영 자리에 — hwpx 와 동일) ── */}
       <div style={{
-        textAlign: "center", fontSize: 9, fontWeight: 700, color: "#1e40af",
+        textAlign: "center", fontSize: 9, fontWeight: 700, color: "var(--accent-strong)",
         margin: "6px 0 10px", padding: "4px 6px",
-        background: "#eff6ff", borderRadius: 4,
+        background: "var(--accent-soft)", borderRadius: 4,
       }}>
         주제 : {form.theme || "(미입력)"}
       </div>
@@ -2906,7 +2907,7 @@ function PreviewPage1({ form, photos, deptName }: {
           {photoUrls.map((url, i) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img key={i} src={url} alt={`사진 ${i + 1}`}
-              style={{ width: "100%", height: 70, objectFit: "cover", borderRadius: 3, border: "1px solid #cbd5e1" }} />
+              style={{ width: "100%", height: 70, objectFit: "cover", borderRadius: 3, border: "1px solid var(--hairline-strong)" }} />
           ))}
         </div>
       ) : (
@@ -2914,9 +2915,9 @@ function PreviewPage1({ form, photos, deptName }: {
           {[0, 1, 2, 3].map((i) => (
             <div key={i} style={{
               width: "100%", height: 70,
-              background: "#f1f5f9", border: "1px dashed #cbd5e1", borderRadius: 3,
+              background: "var(--bg-soft)", border: "1px dashed var(--hairline-strong)", borderRadius: 3,
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 7, color: "#94a3b8",
+              fontSize: 7, color: "var(--ink-faint)",
             }}>사진 {i + 1}</div>
           ))}
         </div>
@@ -2925,14 +2926,14 @@ function PreviewPage1({ form, photos, deptName }: {
       {/* ── 표어 (사진 밑) ── */}
       {form.pageOneVerse ? (
         <div style={{
-          padding: "6px 8px", background: "#fff", borderLeft: "3px solid #f59e0b",
-          fontSize: 7.5, lineHeight: 1.6, color: "#1e293b", marginBottom: 6,
+          padding: "6px 8px", background: "#fff", borderLeft: "3px solid var(--warning)",
+          fontSize: 7.5, lineHeight: 1.6, color: "var(--ink)", marginBottom: 6,
           fontStyle: "italic",
         }}>
           {form.pageOneVerse}
         </div>
       ) : (
-        <div style={{ padding: 6, fontSize: 7, color: "#cbd5e1", borderLeft: "3px solid #fde68a", fontStyle: "italic" }}>
+        <div style={{ padding: 6, fontSize: 7, color: "var(--hairline-strong)", borderLeft: "3px solid #E0C893", fontStyle: "italic" }}>
           (1페이지 표어 미입력)
         </div>
       )}
@@ -2940,16 +2941,16 @@ function PreviewPage1({ form, photos, deptName }: {
       {/* ── 푸터 (교회 정보) ── */}
       <div style={{
         marginTop: 8, padding: "6px 8px",
-        background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 4,
-        fontSize: 6.5, color: "#475569", lineHeight: 1.5,
+        background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: 4,
+        fontSize: 6.5, color: "var(--ink-mid)", lineHeight: 1.5,
       }}>
-        <div style={{ textAlign: "center", fontWeight: 700, color: "#1e293b", marginBottom: 2 }}>
+        <div style={{ textAlign: "center", fontWeight: 700, color: "var(--ink)", marginBottom: 2 }}>
           대한예수교 장로회 명성교회
         </div>
-        <div style={{ textAlign: "center", fontSize: 6, color: "#64748b" }}>
+        <div style={{ textAlign: "center", fontSize: 6, color: "var(--ink-soft)" }}>
           울산광역시 동구 명덕5길-9 (서부동) ☎ 251-7991 (친구구원)
         </div>
-        <div style={{ marginTop: 3, paddingTop: 3, borderTop: "1px dashed #cbd5e1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, fontSize: 6 }}>
+        <div style={{ marginTop: 3, paddingTop: 3, borderTop: "1px dashed var(--hairline-strong)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, fontSize: 6 }}>
           <div>✿교장: 김종혁목사</div>
           <div>✿지도: 김희숙전도사</div>
           <div>✿부장: 최성헌</div>
@@ -2984,19 +2985,19 @@ function PreviewPage2({ form }: { form: FormState }) {
       display: "flex", alignItems: "center", gap: 4,
       padding: "3px 0", fontSize: 7.5,
     }}>
-      <div style={{ width: 50, textAlign: "right", color: "#1e293b", fontWeight: 600, flexShrink: 0 }}>
+      <div style={{ width: 50, textAlign: "right", color: "var(--ink)", fontWeight: 600, flexShrink: 0 }}>
         {item.label}
       </div>
       <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 3, minWidth: 0 }}>
-        <div style={{ flex: 1, height: 1, background: "#475569" }} />
+        <div style={{ flex: 1, height: 1, background: "var(--ink-mid)" }} />
         {item.mid && (
-          <div style={{ padding: "0 4px", fontSize: 7, color: "#9333ea", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div style={{ padding: "0 4px", fontSize: 7, color: "#7E5F9E", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {item.mid}
           </div>
         )}
-        <div style={{ flex: 1, height: 1, background: "#475569" }} />
+        <div style={{ flex: 1, height: 1, background: "var(--ink-mid)" }} />
       </div>
-      <div style={{ width: 90, textAlign: "left", color: "#1e293b", fontSize: 7.5, flexShrink: 0 }}>
+      <div style={{ width: 90, textAlign: "left", color: "var(--ink)", fontSize: 7.5, flexShrink: 0 }}>
         {item.right}
       </div>
     </div>
@@ -3008,7 +3009,7 @@ function PreviewPage2({ form }: { form: FormState }) {
       <div style={{ textAlign: "center", marginBottom: 8 }}>
         <span style={{ fontSize: 12 }}>👧🏻</span>
         <span style={{
-          fontSize: 16, fontWeight: 800, color: "#1e293b",
+          fontSize: 16, fontWeight: 800, color: "var(--ink)",
           margin: "0 8px", letterSpacing: 2,
           textShadow: "1px 1px 0 rgba(124,58,237,0.2)",
         }}>
@@ -3020,7 +3021,7 @@ function PreviewPage2({ form }: { form: FormState }) {
       {/* ✿1부 예배 + ✿안내 (같은 줄, 양쪽 끝) */}
       <div style={{
         display: "flex", justifyContent: "space-between",
-        fontSize: 8, fontWeight: 700, color: "#1e40af",
+        fontSize: 8, fontWeight: 700, color: "var(--accent-strong)",
         margin: "0 0 6px",
       }}>
         <span>✿1부 예배 : 오전 {form.startTime}</span>
@@ -3036,7 +3037,7 @@ function PreviewPage2({ form }: { form: FormState }) {
       {form.twoPartActivity && (
         <div style={{ marginTop: 8 }}>
           {form.twoPartActivity.split("\n").map((line, i) => (
-            <div key={i} style={{ fontSize: 7.5, color: "#1e40af", fontWeight: 700, marginBottom: 2 }}>
+            <div key={i} style={{ fontSize: 7.5, color: "var(--accent-strong)", fontWeight: 700, marginBottom: 2 }}>
               {i === 0 ? "✿2부 행사 : " : "             "}{line}
             </div>
           ))}
@@ -3045,7 +3046,7 @@ function PreviewPage2({ form }: { form: FormState }) {
 
       {/* ✿다음 주 기도 */}
       {form.nextPrayer && (
-        <div style={{ marginTop: 4, fontSize: 7.5, color: "#1e40af", fontWeight: 700 }}>
+        <div style={{ marginTop: 4, fontSize: 7.5, color: "var(--accent-strong)", fontWeight: 700 }}>
           ✿다음 주 기도 : {form.nextPrayer}
         </div>
       )}
@@ -3054,7 +3055,7 @@ function PreviewPage2({ form }: { form: FormState }) {
       <div style={{ marginTop: 12, display: "flex", alignItems: "flex-start", gap: 8 }}>
         <div style={{
           padding: "8px 14px",
-          background: "#fce7f3",
+          background: "#F5E5EB",
           border: "2px solid #f9a8d4",
           borderRadius: "50%",
           fontSize: 10,
@@ -3067,8 +3068,8 @@ function PreviewPage2({ form }: { form: FormState }) {
           헌금
         </div>
         <div style={{ flex: 1, fontSize: 7.5, paddingTop: 4 }}>
-          <div>십일조 : <b style={{ color: "#1e293b" }}>{form.tithe || ""}</b></div>
-          <div style={{ marginTop: 4 }}>감사헌금 : <b style={{ color: "#1e293b" }}>{form.thanksgiving || ""}</b></div>
+          <div>십일조 : <b style={{ color: "var(--ink)" }}>{form.tithe || ""}</b></div>
+          <div style={{ marginTop: 4 }}>감사헌금 : <b style={{ color: "var(--ink)" }}>{form.thanksgiving || ""}</b></div>
         </div>
       </div>
     </div>
@@ -3082,7 +3083,7 @@ function PreviewPage3({ form, quizzes }: { form: FormState; quizzes: QuizItem[] 
       {/* ── 상단: "알 립 니 다 !" 빨간 큰 글씨 ── */}
       <div style={{
         textAlign: "center", marginBottom: 4,
-        fontSize: 18, fontWeight: 900, color: "#dc2626",
+        fontSize: 18, fontWeight: 800, color: "var(--danger)",
         letterSpacing: 4, fontStyle: "italic",
         textShadow: "1px 1px 0 rgba(0,0,0,0.1)",
       }}>
@@ -3090,12 +3091,12 @@ function PreviewPage3({ form, quizzes }: { form: FormState; quizzes: QuizItem[] 
       </div>
 
       {/* ── 환영 문구 (hwpx 양식: 알립니다 바로 아래) ── */}
-      <div style={{ textAlign: "center", fontSize: 9, color: "#dc2626", fontWeight: 700, margin: "4px 0 8px", letterSpacing: 1 }}>
+      <div style={{ textAlign: "center", fontSize: 9, color: "var(--danger)", fontWeight: 700, margin: "4px 0 8px", letterSpacing: 1 }}>
         ♥ 멋진 초등 1 초원 모든 친구들 환영합니다 ♥
       </div>
 
       {/* ── 안내 사항 (예배시간 / 교사회의 / 2부 복습) ── */}
-      <div style={{ fontSize: 7.5, color: "#1e293b", lineHeight: 1.7, padding: "6px 8px", background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 4, marginBottom: 8 }}>
+      <div style={{ fontSize: 7.5, color: "var(--ink)", lineHeight: 1.7, padding: "6px 8px", background: "var(--warning-soft)", border: "1px solid #E0C893", borderRadius: 4, marginBottom: 8 }}>
         <div>♥ 예배시간을 잘 지킵시다.</div>
         <div>♥ 교사회의는 10시 20분에 합니다. 모든 선생님들 참석해주세요.</div>
         <div>♥ 매달 마지막 주일 2부 시간에 공과 요절암송 및 퀴즈로 복습합니다.</div>
@@ -3103,19 +3104,19 @@ function PreviewPage3({ form, quizzes }: { form: FormState; quizzes: QuizItem[] 
 
       {/* hwpx 의 "♣ N과 공과 퀴즈 ♣" 헤더 */}
       <div style={{ textAlign: "center", marginBottom: 8 }}>
-        <span style={{ fontSize: 13, color: "#dc2626", fontWeight: 900 }}>♣</span>
-        <span style={{ fontSize: 13, fontWeight: 800, color: "#1e293b", margin: "0 8px" }}>
+        <span style={{ fontSize: 13, color: "var(--danger)", fontWeight: 800 }}>♣</span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: "var(--ink)", margin: "0 8px" }}>
           {form.lessonNum || "?"}과 공과 퀴즈
         </span>
-        <span style={{ fontSize: 13, color: "#dc2626", fontWeight: 900 }}>♣</span>
+        <span style={{ fontSize: 13, color: "var(--danger)", fontWeight: 800 }}>♣</span>
       </div>
 
       {/* 퀴즈 리스트 */}
-      <div style={{ background: "#fff", border: "1px solid #fde68a", borderRadius: 4, padding: "8px 10px" }}>
+      <div style={{ background: "#fff", border: "1px solid #E0C893", borderRadius: 4, padding: "8px 10px" }}>
         {quizzes.map((q, i) => (
-          <div key={q.id} style={{ marginBottom: 8, paddingBottom: 6, borderBottom: i < quizzes.length - 1 ? "1px dashed #fde68a" : "none" }}>
-            <div style={{ fontSize: 8.5, fontWeight: 700, color: "#1e293b", marginBottom: 3 }}>
-              {i + 1}. {q.question || <span style={{ color: "#cbd5e1", fontWeight: 400 }}>(문제 미입력)</span>}
+          <div key={q.id} style={{ marginBottom: 8, paddingBottom: 6, borderBottom: i < quizzes.length - 1 ? "1px dashed #E0C893" : "none" }}>
+            <div style={{ fontSize: 8.5, fontWeight: 700, color: "var(--ink)", marginBottom: 3 }}>
+              {i + 1}. {q.question || <span style={{ color: "var(--hairline-strong)", fontWeight: 400 }}>(문제 미입력)</span>}
             </div>
             {q.type !== "subjective" && (
               <div style={{ paddingLeft: 6 }}>
@@ -3123,7 +3124,7 @@ function PreviewPage3({ form, quizzes }: { form: FormState; quizzes: QuizItem[] 
                   // 4지 — 2x2 grid (hwpx 와 비슷하게)
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1px 8px" }}>
                     {q.choices.map((c, ci) => (
-                      <div key={ci} style={{ fontSize: 7.5, color: c ? "#1e293b" : "#cbd5e1" }}>
+                      <div key={ci} style={{ fontSize: 7.5, color: c ? "var(--ink)" : "var(--hairline-strong)" }}>
                         {choiceMarkers[ci]} {c || "—"}
                       </div>
                     ))}
@@ -3131,7 +3132,7 @@ function PreviewPage3({ form, quizzes }: { form: FormState; quizzes: QuizItem[] 
                 ) : (
                   // 3지 / 5지 — 세로 한 줄씩
                   q.choices.map((c, ci) => (
-                    <div key={ci} style={{ fontSize: 7.5, color: c ? "#1e293b" : "#cbd5e1" }}>
+                    <div key={ci} style={{ fontSize: 7.5, color: c ? "var(--ink)" : "var(--hairline-strong)" }}>
                       {choiceMarkers[ci]} {c || "—"}
                     </div>
                   ))
@@ -3146,18 +3147,18 @@ function PreviewPage3({ form, quizzes }: { form: FormState; quizzes: QuizItem[] 
       {form.versePassage ? (
         <div style={{
           marginTop: 8, padding: "8px 10px",
-          background: "#dbeafe", border: "1px solid #93c5fd",
+          background: "var(--accent-soft)", border: "1px solid var(--accent-line)",
           borderRadius: 4,
         }}>
-          <div style={{ fontSize: 8.5, color: "#1e40af", fontWeight: 800, marginBottom: 3, letterSpacing: 1 }}>
+          <div style={{ fontSize: 8.5, color: "var(--accent-strong)", fontWeight: 800, marginBottom: 3, letterSpacing: 1 }}>
             요절암송
           </div>
-          <div style={{ fontSize: 8, lineHeight: 1.6, color: "#1e293b" }}>
+          <div style={{ fontSize: 8, lineHeight: 1.6, color: "var(--ink)" }}>
             {form.versePassage}
           </div>
         </div>
       ) : (
-        <div style={{ marginTop: 8, padding: 6, fontSize: 7, color: "#cbd5e1", textAlign: "center" }}>
+        <div style={{ marginTop: 8, padding: 6, fontSize: 7, color: "var(--hairline-strong)", textAlign: "center" }}>
           (요절암송 미입력)
         </div>
       )}
@@ -3170,19 +3171,19 @@ function PreviewPage4({ form, farmData }: { form: FormState; farmData: FarmData 
   const totalAttended = FARM_CLASSES.reduce((s, c) => s + (parseInt(farmData.rows[c].attended) || 0), 0);
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", marginBottom: 6 }}>
+      <div style={{ fontSize: 11, fontWeight: 800, color: "#6B4F8C", marginBottom: 6 }}>
         초등 1 초원 목장 현황
       </div>
       <div style={{ borderTop: "1px solid #c4b5fd", margin: "4px 0 6px" }} />
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 7 }}>
         <thead>
-          <tr style={{ background: "#f1f5f9" }}>
-            <th style={{ padding: 2, border: "1px solid #cbd5e1" }}>반</th>
-            <th style={{ padding: 2, border: "1px solid #cbd5e1" }}>담임</th>
-            <th style={{ padding: 2, border: "1px solid #cbd5e1" }}>재적</th>
-            <th style={{ padding: 2, border: "1px solid #cbd5e1" }}>출석</th>
-            <th style={{ padding: 2, border: "1px solid #cbd5e1" }}>소계</th>
-            <th style={{ padding: 2, border: "1px solid #cbd5e1" }}>누계</th>
+          <tr style={{ background: "var(--bg-soft)" }}>
+            <th style={{ padding: 2, border: "1px solid var(--hairline-strong)" }}>반</th>
+            <th style={{ padding: 2, border: "1px solid var(--hairline-strong)" }}>담임</th>
+            <th style={{ padding: 2, border: "1px solid var(--hairline-strong)" }}>재적</th>
+            <th style={{ padding: 2, border: "1px solid var(--hairline-strong)" }}>출석</th>
+            <th style={{ padding: 2, border: "1px solid var(--hairline-strong)" }}>소계</th>
+            <th style={{ padding: 2, border: "1px solid var(--hairline-strong)" }}>누계</th>
           </tr>
         </thead>
         <tbody>
@@ -3191,20 +3192,20 @@ function PreviewPage4({ form, farmData }: { form: FormState; farmData: FarmData 
             const sub = calcRowSubtotal(r);
             return (
               <tr key={cls}>
-                <td style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center" }}>{cls}</td>
-                <td style={{ padding: 2, border: "1px solid #cbd5e1" }}>{r.teacher || "—"}</td>
-                <td style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center" }}>{r.enrolled || "-"}</td>
-                <td style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center" }}>{r.attended || "-"}</td>
-                <td style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center", color: sub > 0 ? "#3b82f6" : "#cbd5e1" }}>{sub || "-"}</td>
-                <td style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center" }}>{r.cumulative || "-"}</td>
+                <td style={{ padding: 2, border: "1px solid var(--hairline-strong)", textAlign: "center" }}>{cls}</td>
+                <td style={{ padding: 2, border: "1px solid var(--hairline-strong)" }}>{r.teacher || "—"}</td>
+                <td style={{ padding: 2, border: "1px solid var(--hairline-strong)", textAlign: "center" }}>{r.enrolled || "-"}</td>
+                <td style={{ padding: 2, border: "1px solid var(--hairline-strong)", textAlign: "center" }}>{r.attended || "-"}</td>
+                <td style={{ padding: 2, border: "1px solid var(--hairline-strong)", textAlign: "center", color: sub > 0 ? "var(--accent)" : "var(--hairline-strong)" }}>{sub || "-"}</td>
+                <td style={{ padding: 2, border: "1px solid var(--hairline-strong)", textAlign: "center" }}>{r.cumulative || "-"}</td>
               </tr>
             );
           })}
-          <tr style={{ background: "#eff6ff", fontWeight: 700 }}>
-            <td colSpan={2} style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center" }}>합계</td>
-            <td style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center" }}>{totalEnrolled}</td>
-            <td style={{ padding: 2, border: "1px solid #cbd5e1", textAlign: "center" }}>{totalAttended}</td>
-            <td colSpan={2} style={{ padding: 2, border: "1px solid #cbd5e1" }}></td>
+          <tr style={{ background: "var(--accent-soft)", fontWeight: 700 }}>
+            <td colSpan={2} style={{ padding: 2, border: "1px solid var(--hairline-strong)", textAlign: "center" }}>합계</td>
+            <td style={{ padding: 2, border: "1px solid var(--hairline-strong)", textAlign: "center" }}>{totalEnrolled}</td>
+            <td style={{ padding: 2, border: "1px solid var(--hairline-strong)", textAlign: "center" }}>{totalAttended}</td>
+            <td colSpan={2} style={{ padding: 2, border: "1px solid var(--hairline-strong)" }}></td>
           </tr>
         </tbody>
       </table>
@@ -3215,8 +3216,8 @@ function PreviewPage4({ form, farmData }: { form: FormState; farmData: FarmData 
         </div>
       )}
       {farmData.promotion && (
-        <div style={{ marginTop: 6, padding: 6, background: "#ecfeff", borderRadius: 4 }}>
-          <div style={{ fontSize: 8, color: "#0891b2", fontWeight: 700 }}>등반</div>
+        <div style={{ marginTop: 6, padding: 6, background: "#E2EDF2", borderRadius: 4 }}>
+          <div style={{ fontSize: 8, color: "#3E6A85", fontWeight: 700 }}>등반</div>
           <div style={{ fontSize: 8 }}>{farmData.promotion}</div>
         </div>
       )}
@@ -3230,26 +3231,26 @@ function SmallInput({ label, value, onChange, hint }: {
 }) {
   return (
     <div>
-      <div style={{ fontSize: 9, color: "#64748b", fontWeight: 700, marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 9, color: "var(--ink-soft)", fontWeight: 700, marginBottom: 2 }}>{label}</div>
       <input
         type="number" min="0"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={{
           width: "100%", padding: "6px 8px",
-          border: "1px solid #cbd5e1", borderRadius: 6,
+          border: "1px solid var(--hairline-strong)", borderRadius: 6,
           fontSize: 13, fontFamily: "inherit",
           background: "#fff",
         }}
       />
-      {hint && <div style={{ fontSize: 8, color: "#94a3b8", marginTop: 2 }}>{hint}</div>}
+      {hint && <div style={{ fontSize: 8, color: "var(--ink-faint)", marginTop: 2 }}>{hint}</div>}
     </div>
   );
 }
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "#f1f5f9",
+  background: "var(--bg-soft)",
   fontFamily: "'Noto Sans KR', sans-serif",
   paddingBottom: 80, // 모바일 sticky bar 가려지지 않게
 };
@@ -3257,46 +3258,46 @@ const containerStyle: React.CSSProperties = {
   maxWidth: 720, margin: "0 auto", padding: 16, display: "flex", flexDirection: "column", gap: 14,
 };
 const headerStyle: React.CSSProperties = {
-  background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 16px",
+  background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 16px",
   display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
 };
 const cardStyle: React.CSSProperties = {
   background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
 };
 const warnCardStyle: React.CSSProperties = {
-  background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: 14, padding: 14, color: "#9a3412",
+  background: "#F8F0E3", border: "1.5px solid #fed7aa", borderRadius: 14, padding: 14, color: "#8A5526",
 };
 const sectionLabel: React.CSSProperties = {
-  fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: 0.5, marginBottom: 12,
+  fontSize: 12, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.5, marginBottom: 12,
 };
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8,
+  width: "100%", padding: "9px 12px", border: "1.5px solid var(--hairline)", borderRadius: 8,
   fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
 };
 const hintStyle: React.CSSProperties = {
-  fontSize: 11, color: "#94a3b8", marginTop: 4,
+  fontSize: 11, color: "var(--ink-faint)", marginTop: 4,
 };
 const backBtnStyle: React.CSSProperties = {
-  padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8,
-  fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit",
+  padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8,
+  fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit",
 };
 const primaryBtnStyle: React.CSSProperties = {
-  padding: "10px 22px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  padding: "10px 22px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   color: "#fff", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 800,
   cursor: "pointer", fontFamily: "inherit",
 };
 const draftBtnStyle: React.CSSProperties = {
-  padding: "8px 14px", background: "#ecfeff", color: "#0369a1",
-  border: "1.5px solid #67e8f9", borderRadius: 8, fontSize: 12, fontWeight: 700,
+  padding: "8px 14px", background: "#E2EDF2", color: "#3E6A85",
+  border: "1.5px solid #C9DEE8", borderRadius: 8, fontSize: 12, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
 };
 const iconBtnStyle: React.CSSProperties = {
-  padding: "8px 12px", background: "#f1f5f9", color: "#475569",
-  border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 14, fontWeight: 700,
+  padding: "8px 12px", background: "var(--bg-soft)", color: "var(--ink-mid)",
+  border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 14, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center",
 };
 const modalBackdropStyle: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)",
+  position: "fixed", inset: 0, background: "rgba(43, 39, 34,0.55)",
   display: "flex", alignItems: "center", justifyContent: "center",
   padding: 16, zIndex: 1000,
 };
@@ -3306,23 +3307,23 @@ const postModalCardStyle: React.CSSProperties = {
   boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
 };
 const resetBtnStyle: React.CSSProperties = {
-  padding: "10px 18px", background: "#f1f5f9", color: "#475569",
-  border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, fontWeight: 700,
+  padding: "10px 18px", background: "var(--bg-soft)", color: "var(--ink-mid)",
+  border: "1.5px solid var(--hairline)", borderRadius: 10, fontSize: 13, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
 };
 const cancelBtnStyle: React.CSSProperties = {
-  padding: "8px 14px", background: "#f1f5f9", color: "#475569",
-  border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 12, fontWeight: 700,
+  padding: "8px 14px", background: "var(--bg-soft)", color: "var(--ink-mid)",
+  border: "1.5px solid var(--hairline)", borderRadius: 8, fontSize: 12, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
 };
 const smallBtnStyle: React.CSSProperties = {
-  padding: "5px 12px", background: "#eef2ff", color: "#4f46e5",
-  border: "1px solid #c7d2fe", borderRadius: 6, fontSize: 11, fontWeight: 700,
+  padding: "5px 12px", background: "var(--accent-soft)", color: "var(--accent)",
+  border: "1px solid var(--accent-line)", borderRadius: 6, fontSize: 11, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
 };
 const toastStyle: React.CSSProperties = {
   position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)",
-  background: "rgba(15,23,42,0.88)", color: "#fff", padding: "12px 24px",
+  background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px",
   borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999,
   fontFamily: "inherit", whiteSpace: "nowrap", maxWidth: "90vw", textAlign: "center",
 };
@@ -3333,7 +3334,7 @@ const mobileStickyBarStyle: React.CSSProperties = {
   right: 0,
   zIndex: 100,
   background: "#fff",
-  borderTop: "1px solid #e2e8f0",
+  borderTop: "1px solid var(--hairline)",
   padding: "10px 14px",
   paddingBottom: "calc(10px + env(safe-area-inset-bottom))",
   display: "flex",
@@ -3342,7 +3343,3 @@ const mobileStickyBarStyle: React.CSSProperties = {
   boxShadow: "0 -4px 16px rgba(0,0,0,0.06)",
 };
 
-const loadingStyle: React.CSSProperties = {
-  minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-  background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif",
-};

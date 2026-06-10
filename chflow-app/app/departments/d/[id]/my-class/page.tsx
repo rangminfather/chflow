@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
+import { LoadingView } from "@/components/StatusViews";
 
 interface StudentRow {
   id: string;
@@ -227,17 +228,17 @@ export default function MyClassPage() {
     window.setTimeout(() => setToast(""), 2400);
   }
 
-  if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
+  if (!authChecked) return <LoadingView full />;
 
   if (!myTeacherId) {
     return (
       <div style={pageStyle}>
         <PageHeader deptId={deptId} router={router} myClassName="" />
         <main className="mx-auto max-w-lg px-4 py-14">
-          <div className="rounded-lg border border-slate-200 bg-white px-6 py-10 text-center">
+          <div className="rounded-lg border border-hairline bg-white px-6 py-10 text-center">
             <div className="text-[48px]">🙇</div>
-            <div className="mt-4 text-[18px] font-extrabold text-slate-800">본인이 담임으로 등록된 반이 없습니다</div>
-            <div className="mt-2 text-[15px] leading-6 text-slate-500">부장 또는 전도사에게 담임 등록을 요청하세요.</div>
+            <div className="mt-4 text-[18px] font-extrabold text-ink">본인이 담임으로 등록된 반이 없습니다</div>
+            <div className="mt-2 text-[15px] leading-6 text-ink-soft">부장 또는 전도사에게 담임 등록을 요청하세요.</div>
           </div>
         </main>
       </div>
@@ -249,16 +250,16 @@ export default function MyClassPage() {
       <PageHeader deptId={deptId} router={router} myClassName={myClassName} />
 
       <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-4 md:grid-cols-[300px_1fr]">
-        <section className="rounded-lg border border-slate-200 bg-white">
-          <div className="border-b border-slate-200 px-4 py-3">
-            <div className="text-[17px] font-extrabold text-slate-900">우리반 학생</div>
-            <div className="mt-1 text-[13px] font-semibold text-slate-400">{students.length}명</div>
+        <section className="rounded-lg border border-hairline bg-white">
+          <div className="border-b border-hairline px-4 py-3">
+            <div className="text-[17px] font-extrabold text-ink">우리반 학생</div>
+            <div className="mt-1 text-[13px] font-semibold text-ink-faint">{students.length}명</div>
           </div>
 
           {loading ? (
-            <div className="py-12 text-center text-[15px] text-slate-400">불러오는 중...</div>
+            <div className="py-12 text-center text-[15px] text-ink-faint">불러오는 중...</div>
           ) : students.length === 0 ? (
-            <div className="px-4 py-12 text-center text-[15px] leading-6 text-slate-400">담당 반 학생이 없습니다.</div>
+            <div className="px-4 py-12 text-center text-[15px] leading-6 text-ink-faint">담당 반 학생이 없습니다.</div>
           ) : (
             <div className="flex gap-2 overflow-x-auto p-3 scrollbar-hide md:block md:space-y-2 md:overflow-visible">
               {students.map((student) => (
@@ -270,11 +271,11 @@ export default function MyClassPage() {
                     "min-w-[160px] rounded-lg border px-3 py-3 text-left md:w-full",
                     selectedId === student.id
                       ? "border-amber-400 bg-amber-50"
-                      : "border-slate-200 bg-white",
+                      : "border-hairline bg-white",
                   ].join(" ")}
                 >
-                  <div className="text-[16px] font-extrabold text-slate-800">{student.name}</div>
-                  <div className="mt-1 text-[13px] font-semibold text-slate-400">
+                  <div className="text-[16px] font-extrabold text-ink">{student.name}</div>
+                  <div className="mt-1 text-[13px] font-semibold text-ink-faint">
                     {student.student_no ? `${student.student_no}번 · ` : ""}{student.student_type}
                   </div>
                 </button>
@@ -283,15 +284,15 @@ export default function MyClassPage() {
           )}
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white">
+        <section className="rounded-lg border border-hairline bg-white">
           {!draft ? (
-            <div className="py-20 text-center text-[16px] text-slate-400">학생을 선택하세요</div>
+            <div className="py-20 text-center text-[16px] text-ink-faint">학생을 선택하세요</div>
           ) : (
             <>
-              <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+              <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
                 <div>
-                  <div className="text-[19px] font-extrabold text-slate-900">{draft.name || "이름 없음"}</div>
-                  <div className="mt-1 text-[13px] font-semibold text-slate-400">
+                  <div className="text-[19px] font-extrabold text-ink">{draft.name || "이름 없음"}</div>
+                  <div className="mt-1 text-[13px] font-semibold text-ink-faint">
                     {draft.grade_year ? `${draft.grade_year}학년 · ` : ""}{draft.class_no ? `${draft.class_no}반` : "반 정보 없음"}
                   </div>
                 </div>
@@ -299,15 +300,15 @@ export default function MyClassPage() {
                   type="button"
                   onClick={handleSave}
                   disabled={saving}
-                  className="min-h-11 rounded-md bg-slate-900 px-5 text-[16px] font-extrabold text-white disabled:opacity-60"
+                  className="min-h-11 rounded-md bg-ink px-5 text-[16px] font-extrabold text-white disabled:opacity-60"
                 >
                   {saving ? "저장 중..." : "저장"}
                 </button>
               </div>
 
               <div className="grid gap-4 p-4 lg:grid-cols-2">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <div className="mb-3 text-[16px] font-extrabold text-slate-800">기본 정보</div>
+                <div className="rounded-lg border border-hairline bg-surface p-4">
+                  <div className="mb-3 text-[16px] font-extrabold text-ink">기본 정보</div>
                   <Field label="이름">
                     <input value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} className={inputClass} />
                   </Field>
@@ -332,8 +333,8 @@ export default function MyClassPage() {
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                  <div className="mb-3 text-[16px] font-extrabold text-slate-800">인적사항</div>
+                <div className="rounded-lg border border-hairline bg-surface p-4">
+                  <div className="mb-3 text-[16px] font-extrabold text-ink">인적사항</div>
                   {!draft.member_id && (
                     <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[14px] leading-6 text-amber-900">
                       연결된 성도 정보가 없어 기본 정보만 저장됩니다.
@@ -383,7 +384,7 @@ function PageHeader({ deptId, router, myClassName }: { deptId: string; router: R
         <HeaderLogo />
       </div>
       <div style={titleStyle}>
-        👶 우리반 아이 정보 {myClassName && <span style={{ color: "#6366f1", marginLeft: 6 }}>{myClassName}반</span>}
+        👶 우리반 아이 정보 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
       </div>
       <div style={{ width: 80 }} />
     </div>
@@ -393,7 +394,7 @@ function PageHeader({ deptId, router, myClassName }: { deptId: string; router: R
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="mb-3 block">
-      <div className="mb-1 text-[14px] font-bold text-slate-500">{label}</div>
+      <div className="mb-1 text-[14px] font-bold text-ink-soft">{label}</div>
       {children}
     </label>
   );
@@ -402,19 +403,18 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function ReadOnly({ label, value }: { label: string; value: string }) {
   return (
     <div className="mb-3">
-      <div className="mb-1 text-[14px] font-bold text-slate-500">{label}</div>
-      <div className="min-h-11 rounded-md border border-slate-200 bg-white px-3 py-2 text-[16px] font-bold text-slate-400">
+      <div className="mb-1 text-[14px] font-bold text-ink-soft">{label}</div>
+      <div className="min-h-11 rounded-md border border-hairline bg-white px-3 py-2 text-[16px] font-bold text-ink-faint">
         {value || "공란"}
       </div>
     </div>
   );
 }
 
-const inputClass = "min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-[16px] font-bold text-slate-800 outline-none focus:border-amber-400 disabled:bg-slate-100 disabled:text-slate-400";
+const inputClass = "min-h-11 w-full rounded-md border border-hairline-strong bg-white px-3 py-2 text-[16px] font-bold text-ink outline-none focus:border-amber-400 disabled:bg-bg-soft disabled:text-ink-faint";
 
-const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" };
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
-const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "#1e293b" };
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 14, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
-const loadingStyle: React.CSSProperties = { ...pageStyle, display: "flex", alignItems: "center", justifyContent: "center" };
-const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(15,23,42,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 14, fontWeight: 700, zIndex: 1100, fontFamily: "inherit", whiteSpace: "nowrap" };
+const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
+const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)" };
+const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
+const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 14, fontWeight: 700, zIndex: 1100, fontFamily: "inherit", whiteSpace: "nowrap" };

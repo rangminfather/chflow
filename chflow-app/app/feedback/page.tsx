@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 type FeedbackStatus = "submitted" | "received" | "reviewing" | "resolved" | "rejected";
 
@@ -24,11 +25,11 @@ type FeedbackListItem = {
 };
 
 const STATUS_META: Record<FeedbackStatus, { label: string; bg: string; fg: string }> = {
-  submitted: { label: "미접수", bg: "#fee2e2", fg: "#b91c1c" },
-  received:  { label: "접수",   bg: "#fef3c7", fg: "#92400e" },
-  reviewing: { label: "검토중", bg: "#dbeafe", fg: "#1e40af" },
-  resolved:  { label: "처리완료", bg: "#dcfce7", fg: "#166534" },
-  rejected:  { label: "처리불가", bg: "#e2e8f0", fg: "#475569" },
+  submitted: { label: "미접수", bg: "var(--danger-soft)", fg: "var(--danger)" },
+  received:  { label: "접수",   bg: "var(--warning-soft)", fg: "var(--warning)" },
+  reviewing: { label: "검토중", bg: "var(--accent-soft)", fg: "var(--accent-strong)" },
+  resolved:  { label: "처리완료", bg: "var(--success-soft)", fg: "var(--success)" },
+  rejected:  { label: "처리불가", bg: "var(--hairline)", fg: "var(--ink-mid)" },
 };
 
 const FILTERS: { value: FeedbackStatus | "all"; label: string }[] = [
@@ -137,11 +138,11 @@ export default function FeedbackListPage() {
         </div>
 
         {loading ? (
-          <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>로딩 중...</div>
+          <LoadingView padding={40} />
         ) : items.length === 0 ? (
           <div style={emptyStyle}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>📭</div>
-            <div style={{ fontSize: 14, color: "#64748b" }}>아직 등록된 글이 없습니다</div>
+            <div style={{ fontSize: 14, color: "var(--ink-soft)" }}>아직 등록된 글이 없습니다</div>
           </div>
         ) : (
           <>
@@ -242,7 +243,7 @@ function formatDate(iso: string): string {
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(135deg, #f0f9ff 0%, #fef3c7 100%)",
+  background: "linear-gradient(135deg, #EFF5F7 0%, var(--warning-soft) 100%)",
   padding: "20px 16px 60px",
   fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
 };
@@ -250,8 +251,8 @@ const headerStyle: React.CSSProperties = {
   display: "flex", justifyContent: "space-between", alignItems: "center",
   gap: 12, maxWidth: 920, margin: "0 auto 16px", padding: "0 4px",
 };
-const titleStyle: React.CSSProperties = { fontSize: 20, fontWeight: 900, color: "#1e293b", margin: 0 };
-const subtitleStyle: React.CSSProperties = { fontSize: 12, color: "#64748b", marginTop: 2 };
+const titleStyle: React.CSSProperties = { fontSize: 20, fontWeight: 800, color: "var(--ink)", margin: 0 };
+const subtitleStyle: React.CSSProperties = { fontSize: 12, color: "var(--ink-soft)", marginTop: 2 };
 const panelStyle: React.CSSProperties = {
   maxWidth: 920, margin: "0 auto",
   background: "rgba(255,255,255,0.92)",
@@ -262,52 +263,52 @@ const panelStyle: React.CSSProperties = {
 };
 const ghostButtonStyle: React.CSSProperties = {
   padding: "8px 14px", borderRadius: 10, background: "#fff",
-  border: "1.5px solid #e2e8f0", fontSize: 12, fontWeight: 700,
-  color: "#475569", cursor: "pointer", fontFamily: "inherit",
+  border: "1.5px solid var(--hairline)", fontSize: 12, fontWeight: 700,
+  color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit",
 };
 const primaryButtonStyle: React.CSSProperties = {
   padding: "8px 16px", borderRadius: 10,
-  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   color: "#fff", border: "none", fontSize: 13, fontWeight: 800,
   cursor: "pointer", fontFamily: "inherit",
-  boxShadow: "0 6px 16px rgba(99,102,241,0.3)",
+  boxShadow: "0 6px 16px rgba(62, 90, 74,0.3)",
 };
 const pill: React.CSSProperties = {
-  padding: "6px 12px", borderRadius: 999, border: "1px solid #e2e8f0",
-  background: "#fff", color: "#475569", fontSize: 12, fontWeight: 700,
+  padding: "6px 12px", borderRadius: 999, border: "1px solid var(--hairline)",
+  background: "#fff", color: "var(--ink-mid)", fontSize: 12, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
 };
 const pillActive: React.CSSProperties = {
-  ...pill, background: "#eef2ff", borderColor: "#6366f1", color: "#4338ca",
+  ...pill, background: "var(--accent-soft)", borderColor: "var(--accent)", color: "var(--accent-strong)",
 };
 const selectStyle: React.CSSProperties = {
-  padding: "6px 10px", borderRadius: 10, border: "1.5px solid #e2e8f0",
-  background: "#fff", fontSize: 12, fontWeight: 600, color: "#334155",
+  padding: "6px 10px", borderRadius: 10, border: "1.5px solid var(--hairline)",
+  background: "#fff", fontSize: 12, fontWeight: 600, color: "var(--ink-mid)",
   fontFamily: "inherit", cursor: "pointer",
 };
 const rowStyle: React.CSSProperties = {
   width: "100%", display: "flex", alignItems: "center", gap: 10,
-  padding: "14px 14px", background: "#fff", border: "1px solid #e2e8f0",
+  padding: "14px 14px", background: "#fff", border: "1px solid var(--hairline)",
   borderRadius: 12, cursor: "pointer", textAlign: "left",
   fontFamily: "inherit",
 };
 const seqStyle: React.CSSProperties = {
-  minWidth: 44, fontSize: 12, fontWeight: 800, color: "#94a3b8",
+  minWidth: 44, fontSize: 12, fontWeight: 800, color: "var(--ink-faint)",
   textAlign: "right", flexShrink: 0,
 };
 const rowTitleStyle: React.CSSProperties = {
-  fontSize: 14, fontWeight: 700, color: "#1e293b",
+  fontSize: 14, fontWeight: 700, color: "var(--ink)",
   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
 };
 const rowMetaStyle: React.CSSProperties = {
-  fontSize: 11, color: "#94a3b8", marginTop: 3,
+  fontSize: 11, color: "var(--ink-faint)", marginTop: 3,
 };
 const lockBadge: React.CSSProperties = {
   fontSize: 14, flexShrink: 0,
 };
 const mineBadge: React.CSSProperties = {
-  padding: "2px 6px", borderRadius: 6, background: "#fef3c7",
-  color: "#92400e", fontSize: 10, fontWeight: 700, flexShrink: 0,
+  padding: "2px 6px", borderRadius: 6, background: "var(--warning-soft)",
+  color: "var(--warning)", fontSize: 10, fontWeight: 700, flexShrink: 0,
 };
 const emptyStyle: React.CSSProperties = {
   padding: "60px 20px", textAlign: "center",
@@ -318,18 +319,18 @@ const pagerWrapStyle: React.CSSProperties = {
 };
 const pagerBtn: React.CSSProperties = {
   minWidth: 32, height: 32, padding: "0 8px", borderRadius: 8,
-  border: "1px solid #e2e8f0", background: "#fff", color: "#475569",
+  border: "1px solid var(--hairline)", background: "#fff", color: "var(--ink-mid)",
   fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
 };
 const pagerBtnActive: React.CSSProperties = {
-  ...pagerBtn, background: "#6366f1", color: "#fff", borderColor: "#6366f1",
+  ...pagerBtn, background: "var(--accent)", color: "#fff", borderColor: "var(--accent)",
 };
 const pagerNavBtn: React.CSSProperties = {
   ...pagerBtn, fontSize: 16, fontWeight: 800,
 };
 const pagerGapStyle: React.CSSProperties = {
-  padding: "0 4px", color: "#94a3b8", fontSize: 12,
+  padding: "0 4px", color: "var(--ink-faint)", fontSize: 12,
 };
 const pagerInfoStyle: React.CSSProperties = {
-  marginLeft: 8, fontSize: 11, color: "#94a3b8", fontWeight: 600,
+  marginLeft: 8, fontSize: 11, color: "var(--ink-faint)", fontWeight: 600,
 };

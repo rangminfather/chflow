@@ -298,7 +298,7 @@ export default function PhotoAvatar({
               width: size,
               height: size,
               borderRadius: "50%",
-              background: "linear-gradient(135deg, #475569, #334155)",
+              background: "linear-gradient(135deg, var(--ink-mid), var(--ink-mid))",
               border: "2px solid rgba(255,255,255,0.4)",
               boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
               display: "flex",
@@ -336,8 +336,8 @@ export default function PhotoAvatar({
               alignItems: "center",
               justifyContent: "center",
               fontSize: size * 0.3,
-              fontWeight: 900,
-              color: "#6366f1",
+              fontWeight: 800,
+              color: "var(--accent)",
               boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
             }}
           >
@@ -359,7 +359,7 @@ export default function PhotoAvatar({
             alignItems: "center",
             justifyContent: "center",
             fontSize: 13,
-            fontWeight: 900,
+            fontWeight: 800,
             border: "2px solid #fff",
             boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
             pointerEvents: "none",
@@ -389,7 +389,7 @@ export default function PhotoAvatar({
                     objectFit: "cover",
                     objectPosition: "center top",
                     boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                    border: "3px solid #e2e8f0",
+                    border: "3px solid var(--hairline)",
                   }}
                 />
               ) : (
@@ -397,13 +397,13 @@ export default function PhotoAvatar({
                   style={{
                     width: 200, height: 200,
                     borderRadius: 16,
-                    background: "linear-gradient(135deg, #f1f5f9, #e2e8f0)",
-                    border: "3px dashed #cbd5e1",
+                    background: "linear-gradient(135deg, var(--bg-soft), var(--hairline))",
+                    border: "3px dashed var(--hairline-strong)",
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "#94a3b8",
+                    color: "var(--ink-faint)",
                   }}
                 >
                   <div style={{ fontSize: 56, marginBottom: 8 }}>👤</div>
@@ -414,7 +414,7 @@ export default function PhotoAvatar({
 
             {isShowingFallback && (
               <div style={{
-                fontSize: 11, color: "#64748b", textAlign: "center",
+                fontSize: 11, color: "var(--ink-soft)", textAlign: "center",
                 marginBottom: 12, fontWeight: 600,
               }}>
                 요람 사진을 표시 중
@@ -435,23 +435,23 @@ export default function PhotoAvatar({
             <div style={{
               marginBottom: 14,
               padding: "12px 14px",
-              background: "#f8fafc",
+              background: "var(--surface)",
               borderRadius: 12,
             }}>
               <div style={{
-                fontSize: 12, fontWeight: 700, color: "#334155",
+                fontSize: 12, fontWeight: 700, color: "var(--ink-mid)",
                 marginBottom: 10, display: "flex", justifyContent: "space-between",
               }}>
                 <span>🖼️ 내가 올린 사진</span>
-                <span style={{ color: "#94a3b8", fontWeight: 500 }}>{gallery.length} / {MAX_GALLERY}</span>
+                <span style={{ color: "var(--ink-faint)", fontWeight: 500 }}>{gallery.length} / {MAX_GALLERY}</span>
               </div>
 
               {loadingGallery ? (
-                <div style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", padding: 12 }}>
+                <div style={{ fontSize: 11, color: "var(--ink-faint)", textAlign: "center", padding: 12 }}>
                   불러오는 중...
                 </div>
               ) : gallery.length === 0 ? (
-                <div style={{ fontSize: 11, color: "#94a3b8", textAlign: "center", padding: 12 }}>
+                <div style={{ fontSize: 11, color: "var(--ink-faint)", textAlign: "center", padding: 12 }}>
                   아직 올린 사진이 없습니다
                 </div>
               ) : (
@@ -479,15 +479,15 @@ export default function PhotoAvatar({
                             borderRadius: 8,
                             cursor: isCurrent ? "default" : "pointer",
                             border: isCurrent
-                              ? "3px solid #6366f1"
-                              : "1px solid #e2e8f0",
+                              ? "3px solid var(--accent)"
+                              : "1px solid var(--hairline)",
                             opacity: isDeleting ? 0.4 : 1,
                           }}
                         />
                         {isCurrent && (
                           <div style={{
                             position: "absolute", top: 4, left: 4,
-                            background: "#6366f1", color: "#fff",
+                            background: "var(--accent)", color: "#fff",
                             fontSize: 9, fontWeight: 800,
                             padding: "2px 6px", borderRadius: 6,
                           }}>현재</div>
@@ -502,7 +502,7 @@ export default function PhotoAvatar({
                           style={{
                             position: "absolute", top: 2, right: 2,
                             width: 22, height: 22, borderRadius: "50%",
-                            background: "rgba(15, 23, 42, 0.75)", color: "#fff",
+                            background: "rgba(43, 39, 34, 0.75)", color: "#fff",
                             border: "none", cursor: "pointer",
                             fontSize: 11, fontWeight: 800,
                             display: "flex", alignItems: "center", justifyContent: "center",
@@ -523,7 +523,7 @@ export default function PhotoAvatar({
                 style={{
                   ...btnPrimaryStyle,
                   ...(gallery.length >= MAX_GALLERY
-                    ? { background: "#cbd5e1", boxShadow: "none", cursor: "not-allowed" }
+                    ? { background: "var(--hairline-strong)", boxShadow: "none", cursor: "not-allowed" }
                     : {}),
                 }}
                 title={gallery.length >= MAX_GALLERY ? "사진 슬롯이 가득 찼습니다" : ""}
@@ -540,7 +540,7 @@ export default function PhotoAvatar({
               </button>
             )}
 
-            <div style={{ fontSize: 10, color: "#94a3b8", textAlign: "center", marginTop: 12 }}>
+            <div style={{ fontSize: 10, color: "var(--ink-faint)", textAlign: "center", marginTop: 12 }}>
               JPG, PNG, WebP, GIF · 최대 10MB
             </div>
           </div>
@@ -552,7 +552,7 @@ export default function PhotoAvatar({
         <div style={modalOverlayStyle}>
           <div style={{ ...modalCardStyle, maxWidth: 480, padding: "20px 16px" }}>
             <div style={modalTitleStyle}>✂️ 영역 선택</div>
-            <div style={{ fontSize: 11, color: "#64748b", textAlign: "center", marginBottom: 14, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 11, color: "var(--ink-soft)", textAlign: "center", marginBottom: 14, lineHeight: 1.5 }}>
               사진을 드래그하여 위치 조정<br />
               슬라이더로 확대/축소 (얼굴이 잘 보이도록)
             </div>
@@ -581,8 +581,8 @@ export default function PhotoAvatar({
 
             <div style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>🔍 확대/축소</span>
-                <span style={{ fontSize: 11, color: "#94a3b8" }}>{zoom.toFixed(1)}x</span>
+                <span style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 600 }}>🔍 확대/축소</span>
+                <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>{zoom.toFixed(1)}x</span>
               </div>
               <input
                 type="range"
@@ -593,7 +593,7 @@ export default function PhotoAvatar({
                 onChange={(e) => setZoom(parseFloat(e.target.value))}
                 style={{
                   width: "100%",
-                  accentColor: "#6366f1",
+                  accentColor: "var(--accent)",
                 }}
               />
             </div>
@@ -614,9 +614,9 @@ export default function PhotoAvatar({
                 style={{
                   ...btnPrimaryStyle,
                   background: uploading
-                    ? "#94a3b8"
-                    : "linear-gradient(135deg, #10b981, #059669)",
-                  boxShadow: "0 6px 16px rgba(16, 185, 129, 0.3)",
+                    ? "var(--ink-faint)"
+                    : "linear-gradient(135deg, var(--success), var(--success))",
+                  boxShadow: "0 6px 16px rgba(61, 122, 78, 0.3)",
                 }}
               >
                 {uploading ? "업로드 중..." : "✓ 이렇게 사용"}
@@ -666,26 +666,26 @@ const modalCardStyle: React.CSSProperties = {
 const modalTitleStyle: React.CSSProperties = {
   fontSize: 18,
   fontWeight: 800,
-  color: "#1e293b",
+  color: "var(--ink)",
   marginBottom: 14,
   textAlign: "center",
 };
 
 const errorBoxStyle: React.CSSProperties = {
   padding: "10px 14px",
-  background: "#fef2f2",
-  border: "1px solid #fecaca",
+  background: "var(--danger-soft)",
+  border: "1px solid var(--danger-soft)",
   borderRadius: 10,
   fontSize: 12,
-  color: "#b91c1c",
+  color: "var(--danger)",
   marginBottom: 14,
 };
 
 const btnSecondaryStyle: React.CSSProperties = {
   flex: 1,
   padding: "12px",
-  background: "#f1f5f9",
-  color: "#64748b",
+  background: "var(--bg-soft)",
+  color: "var(--ink-soft)",
   border: "none",
   borderRadius: 10,
   fontSize: 14,
@@ -697,7 +697,7 @@ const btnSecondaryStyle: React.CSSProperties = {
 const btnPrimaryStyle: React.CSSProperties = {
   flex: 1.5,
   padding: "12px",
-  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   color: "#fff",
   border: "none",
   borderRadius: 10,
@@ -705,15 +705,15 @@ const btnPrimaryStyle: React.CSSProperties = {
   fontWeight: 700,
   cursor: "pointer",
   fontFamily: "inherit",
-  boxShadow: "0 6px 16px rgba(99, 102, 241, 0.3)",
+  boxShadow: "0 6px 16px rgba(62, 90, 74, 0.3)",
 };
 
 const btnFallbackStyle: React.CSSProperties = {
   width: "100%",
   padding: "11px",
   background: "#fff",
-  color: "#64748b",
-  border: "1px solid #cbd5e1",
+  color: "var(--ink-soft)",
+  border: "1px solid var(--hairline-strong)",
   borderRadius: 10,
   fontSize: 13,
   fontWeight: 700,

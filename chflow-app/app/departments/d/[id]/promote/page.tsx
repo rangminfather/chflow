@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 interface PreviewRow {
   student_id: string;
@@ -204,7 +205,7 @@ export default function PromotePage() {
   }, [staying, assignments]);
 
   if (!authChecked || loading) {
-    return <div style={loadingStyle}>로딩 중...</div>;
+    return <LoadingView full />;
   }
   if (!authorized) {
     return (
@@ -212,8 +213,8 @@ export default function PromotePage() {
         <div style={{ maxWidth: 480, margin: "60px auto", padding: 24 }}>
           <div style={{ background: "#fff", borderRadius: 16, padding: 28, textAlign: "center" }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", marginBottom: 8 }}>접근 권한이 없습니다</div>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 20 }}>진급 마법사는 등급 0~1 (전도사·교육사·부장) 만 가능합니다</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>접근 권한이 없습니다</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>진급 마법사는 등급 0~1 (전도사·교육사·부장) 만 가능합니다</div>
             <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtn}>← 부서홈</button>
           </div>
         </div>
@@ -227,8 +228,8 @@ export default function PromotePage() {
         <div style={{ maxWidth: 520, margin: "60px auto", padding: 24 }}>
           <div style={{ background: "#fff", borderRadius: 16, padding: 32, textAlign: "center" }}>
             <div style={{ fontSize: 56, marginBottom: 14 }}>🎓</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 12 }}>{year}년도 진급 완료</div>
-            <div style={{ fontSize: 13, color: "#475569", marginBottom: 18, lineHeight: 1.8 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 12 }}>{year}년도 진급 완료</div>
+            <div style={{ fontSize: 13, color: "var(--ink-mid)", marginBottom: 18, lineHeight: 1.8 }}>
               재학 → 진급: <b>{done.promoted}명</b><br />
               {nextDeptName ? `${nextDeptName}으로 전출` : "졸업 보관"}: <b>{done.graduated}명</b>
             </div>
@@ -247,7 +248,7 @@ export default function PromotePage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtn}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>🎓 진급 마법사</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>🎓 진급 마법사</div>
         <div style={{ width: 60 }} />
       </div>
 
@@ -258,8 +259,8 @@ export default function PromotePage() {
             <div key={s.n} style={{
               flex: 1, padding: "8px 10px", borderRadius: 8, textAlign: "center",
               fontSize: 11, fontWeight: 700,
-              background: step === s.n ? "#6366f1" : step > s.n ? "#dcfce7" : "#f1f5f9",
-              color: step === s.n ? "#fff" : step > s.n ? "#15803d" : "#64748b",
+              background: step === s.n ? "var(--accent)" : step > s.n ? "var(--success-soft)" : "var(--bg-soft)",
+              color: step === s.n ? "#fff" : step > s.n ? "var(--success)" : "var(--ink-soft)",
             }}>
               {step > s.n ? "✓ " : `${s.n}. `}{s.label}
             </div>
@@ -273,7 +274,7 @@ export default function PromotePage() {
         {step === 1 && (
           <div style={card}>
             <div style={sectionLabel}>1. 미리보기</div>
-            <div style={{ background: "#f8fafc", borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 12, color: "#475569", lineHeight: 1.7 }}>
+            <div style={{ background: "var(--surface)", borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 12, color: "var(--ink-mid)", lineHeight: 1.7 }}>
               <b>{year}년도 → {year + 1}년도 진급 결과</b>
               <div style={{ marginTop: 6 }}>
                 재학 진급: <b>{staying.length}명</b> · {nextDeptName ? <>전출(→ {nextDeptName}): <b>{graduating.length}명</b></> : <>졸업: <b>{graduating.length}명</b></>}
@@ -281,10 +282,10 @@ export default function PromotePage() {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-              <span style={{ fontSize: 12, color: "#64748b" }}>스냅샷 연도:</span>
+              <span style={{ fontSize: 12, color: "var(--ink-soft)" }}>스냅샷 연도:</span>
               <input type="number" value={year} onChange={(e) => setYear(parseInt(e.target.value, 10) || year)}
-                style={{ width: 80, padding: "5px 8px", fontSize: 13, border: "1.5px solid #cbd5e1", borderRadius: 6, fontFamily: "inherit" }} />
-              <span style={{ fontSize: 11, color: "#94a3b8" }}>(이력 저장 기준)</span>
+                style={{ width: 80, padding: "5px 8px", fontSize: 13, border: "1.5px solid var(--hairline-strong)", borderRadius: 6, fontFamily: "inherit" }} />
+              <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>(이력 저장 기준)</span>
             </div>
 
             {/* 현재 학년별로 묶어서 진급 카드 표시 */}
@@ -298,9 +299,9 @@ export default function PromotePage() {
                 const ng = list[0].next_grade;
                 const dest = list[0].next_dept_name;
 
-                const accent = willGrad ? "#f97316" : "#6366f1";
-                const accentBg = willGrad ? "#fff7ed" : "#eef2ff";
-                const accentBorder = willGrad ? "#fed7aa" : "#c7d2fe";
+                const accent = willGrad ? "#B97B3D" : "var(--accent)";
+                const accentBg = willGrad ? "#F8F0E3" : "var(--accent-soft)";
+                const accentBorder = willGrad ? "#fed7aa" : "var(--accent-line)";
 
                 return (
                   <div key={cg} style={{
@@ -315,7 +316,7 @@ export default function PromotePage() {
                       <div style={{
                         background: "#fff", border: `1.5px solid ${accentBorder}`,
                         borderRadius: 10, padding: "8px 14px",
-                        fontSize: 18, fontWeight: 800, color: "#1e293b",
+                        fontSize: 18, fontWeight: 800, color: "var(--ink)",
                         minWidth: 70, textAlign: "center",
                       }}>
                         {cg}학년
@@ -345,7 +346,7 @@ export default function PromotePage() {
                     <div style={{
                       background: "#fff", borderRadius: 8, padding: "8px 12px",
                       marginBottom: 10, fontSize: 12, fontWeight: 600,
-                      color: willGrad ? "#9a3412" : "#3730a3",
+                      color: willGrad ? "#8A5526" : "var(--accent-strong)",
                     }}>
                       {willGrad
                         ? (dest ? `🎓 졸업 → ${dest}으로 전출` : "🎓 졸업 보관 (다음 부서 미지정)")
@@ -358,7 +359,7 @@ export default function PromotePage() {
                         <span key={r.student_id} style={{
                           display: "inline-block", padding: "4px 10px",
                           background: "#fff", borderRadius: 999,
-                          fontSize: 12, color: "#1e293b", fontWeight: 600,
+                          fontSize: 12, color: "var(--ink)", fontWeight: 600,
                           border: `1px solid ${accentBorder}`,
                         }}>
                           {r.name}
@@ -376,8 +377,8 @@ export default function PromotePage() {
         {step === 2 && (
           <div style={card}>
             <div style={sectionLabel}>2. 반 편성</div>
-            <div style={{ fontSize: 11, color: "#64748b", marginBottom: 14, lineHeight: 1.7 }}>
-              학년별 반 개수를 정하면 자동 균등 분배됩니다. 학생 카드의 <span style={{ color: "#6366f1", fontWeight: 700 }}>반 번호</span>를 탭하면 그 반 박스로 이동합니다.
+            <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 14, lineHeight: 1.7 }}>
+              학년별 반 개수를 정하면 자동 균등 분배됩니다. 학생 카드의 <span style={{ color: "var(--accent)", fontWeight: 700 }}>반 번호</span>를 탭하면 그 반 박스로 이동합니다.
             </div>
             {Object.keys(byNextGrade).sort((a, b) => Number(a) - Number(b)).map(gKey => {
               const g = Number(gKey);
@@ -392,14 +393,14 @@ export default function PromotePage() {
                 if (c && byClass[c]) byClass[c].push(r);
               });
               return (
-                <div key={g} style={{ marginBottom: 18, paddingBottom: 14, borderBottom: "1px dashed #e2e8f0" }}>
+                <div key={g} style={{ marginBottom: 18, paddingBottom: 14, borderBottom: "1px dashed var(--hairline)" }}>
                   {/* 학년 헤더 */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b" }}>📚 {g}학년 ({list.length}명)</div>
-                    <span style={{ fontSize: 11, color: "#64748b" }}>반 수:</span>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>📚 {g}학년 ({list.length}명)</div>
+                    <span style={{ fontSize: 11, color: "var(--ink-soft)" }}>반 수:</span>
                     <input type="number" min={1} max={20} value={cnt}
                       onChange={(e) => changeClassCount(g, parseInt(e.target.value, 10) || 1)}
-                      style={{ width: 56, padding: "4px 6px", fontSize: 12, border: "1.5px solid #cbd5e1", borderRadius: 6, fontFamily: "inherit" }} />
+                      style={{ width: 56, padding: "4px 6px", fontSize: 12, border: "1.5px solid var(--hairline-strong)", borderRadius: 6, fontFamily: "inherit" }} />
                     <button onClick={() => changeClassCount(g, cnt)} style={smallBtn}>↻ 재분배</button>
                   </div>
 
@@ -410,8 +411,8 @@ export default function PromotePage() {
                       const members = byClass[c];
                       return (
                         <div key={c} style={{
-                          background: "#f8fafc",
-                          border: "1.5px solid #e2e8f0",
+                          background: "var(--surface)",
+                          border: "1.5px solid var(--hairline)",
                           borderRadius: 12,
                           padding: 12,
                         }}>
@@ -420,22 +421,22 @@ export default function PromotePage() {
                               <span style={{
                                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                                 width: 28, height: 28, borderRadius: 8,
-                                background: "#6366f1", color: "#fff",
+                                background: "var(--accent)", color: "#fff",
                                 fontSize: 13, fontWeight: 800,
                               }}>{classNum}</span>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
                                 {classNum}반
                               </span>
                             </div>
                             <span style={{
                               padding: "3px 10px", borderRadius: 999,
-                              background: members.length === 0 ? "#fee2e2" : "#eef2ff",
-                              color: members.length === 0 ? "#b91c1c" : "#4338ca",
+                              background: members.length === 0 ? "var(--danger-soft)" : "var(--accent-soft)",
+                              color: members.length === 0 ? "var(--danger)" : "var(--accent-strong)",
                               fontSize: 11, fontWeight: 700,
                             }}>{members.length}명</span>
                           </div>
                           {members.length === 0 ? (
-                            <div style={{ padding: "14px 8px", textAlign: "center", color: "#94a3b8", fontSize: 11 }}>
+                            <div style={{ padding: "14px 8px", textAlign: "center", color: "var(--ink-faint)", fontSize: 11 }}>
                               비어 있음
                             </div>
                           ) : (
@@ -448,7 +449,7 @@ export default function PromotePage() {
                                   padding: "7px 10px",
                                   boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
                                 }}>
-                                  <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#1e293b", minWidth: 0 }}>
+                                  <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--ink)", minWidth: 0 }}>
                                     {r.name}
                                   </div>
                                   <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -462,8 +463,8 @@ export default function PromotePage() {
                                           disabled={active}
                                           style={{
                                             minWidth: 30, padding: "5px 8px",
-                                            background: active ? "#6366f1" : "#f1f5f9",
-                                            color: active ? "#fff" : "#64748b",
+                                            background: active ? "var(--accent)" : "var(--bg-soft)",
+                                            color: active ? "#fff" : "var(--ink-soft)",
                                             border: "none", borderRadius: 6,
                                             fontSize: 11, fontWeight: 700,
                                             cursor: active ? "default" : "pointer",
@@ -492,15 +493,15 @@ export default function PromotePage() {
         {step === 3 && (
           <div style={card}>
             <div style={sectionLabel}>3. 담임 배정</div>
-            <div style={{ fontSize: 11, color: "#64748b", marginBottom: 14, lineHeight: 1.7 }}>
+            <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 14, lineHeight: 1.7 }}>
               반 ↔ 선생님 매칭. 선생님 목록은 부서 교사진(edu_teachers) 기준입니다.
-              새 선생님은 <a href={`/departments/d/${deptId}/members-grade`} style={{ color: "#6366f1", fontWeight: 600 }}>임명 메뉴</a>에서 추가 후 다시 들어오세요.
+              새 선생님은 <a href={`/departments/d/${deptId}/members-grade`} style={{ color: "var(--accent)", fontWeight: 600 }}>임명 메뉴</a>에서 추가 후 다시 들어오세요.
             </div>
             {allClasses.map(({ classNo, count, currentTeacherId }) => (
-              <div key={classNo} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: 8, marginBottom: 6 }}>
+              <div key={classNo} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--hairline)", borderRadius: 8, marginBottom: 6 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{classNo}반</div>
-                  <div style={{ fontSize: 10, color: "#94a3b8" }}>{count}명</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{classNo}반</div>
+                  <div style={{ fontSize: 10, color: "var(--ink-faint)" }}>{count}명</div>
                 </div>
                 <select value={currentTeacherId || ""} onChange={(e) => changeClassTeacher(classNo, e.target.value)} style={{ ...selectStyle, minWidth: 140 }}>
                   <option value="">담임 미정</option>
@@ -517,7 +518,7 @@ export default function PromotePage() {
         {step === 4 && (
           <div style={card}>
             <div style={sectionLabel}>4. 확정</div>
-            <div style={{ background: "#fef3c7", borderRadius: 8, padding: 14, fontSize: 12, color: "#92400e", lineHeight: 1.7, marginBottom: 14 }}>
+            <div style={{ background: "var(--warning-soft)", borderRadius: 8, padding: 14, fontSize: 12, color: "var(--warning)", lineHeight: 1.7, marginBottom: 14 }}>
               <b>⚠️ 확정 시 일어나는 일</b>
               <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
                 <li>모든 학생 학년 +1</li>
@@ -527,7 +528,7 @@ export default function PromotePage() {
                 <li>되돌리기 어려움 (수동 보정 가능)</li>
               </ul>
             </div>
-            <div style={{ background: "#f8fafc", borderRadius: 8, padding: 14, marginBottom: 14, fontSize: 13, color: "#475569" }}>
+            <div style={{ background: "var(--surface)", borderRadius: 8, padding: 14, marginBottom: 14, fontSize: 13, color: "var(--ink-mid)" }}>
               <b>요약</b>
               <div style={{ marginTop: 8, lineHeight: 1.8 }}>
                 재학 진급: <b>{staying.length}명</b><br />
@@ -537,7 +538,7 @@ export default function PromotePage() {
               </div>
             </div>
             <button onClick={handleFinalize} disabled={finalizing} style={{
-              width: "100%", padding: "12px", background: finalizing ? "#94a3b8" : "linear-gradient(135deg, #dc2626, #b91c1c)",
+              width: "100%", padding: "12px", background: finalizing ? "var(--ink-faint)" : "linear-gradient(135deg, var(--danger), var(--danger))",
               color: "#fff", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 800,
               cursor: finalizing ? "wait" : "pointer", fontFamily: "inherit",
             }}>
@@ -549,7 +550,7 @@ export default function PromotePage() {
         {/* 단계 이동 버튼 */}
         <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
           <button disabled={step === 1} onClick={() => setStep(step - 1)} style={{ ...navBtn, opacity: step === 1 ? 0.4 : 1 }}>← 이전</button>
-          {step < 4 && <button onClick={() => setStep(step + 1)} style={{ ...navBtn, background: "#6366f1", color: "#fff" }}>다음 →</button>}
+          {step < 4 && <button onClick={() => setStep(step + 1)} style={{ ...navBtn, background: "var(--accent)", color: "#fff" }}>다음 →</button>}
         </div>
       </div>
 
@@ -558,16 +559,15 @@ export default function PromotePage() {
   );
 }
 
-const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" };
-const loadingStyle: React.CSSProperties = { ...pageStyle, display: "flex", alignItems: "center", justifyContent: "center" };
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
+const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const card: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 18, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
-const sectionLabel: React.CSSProperties = { fontSize: 12, fontWeight: 800, color: "#475569", letterSpacing: 0.5, marginBottom: 12 };
-const summaryStyle: React.CSSProperties = { cursor: "pointer", padding: "8px 12px", background: "#f1f5f9", borderRadius: 6, fontSize: 12, fontWeight: 700, color: "#1e293b" };
-const chip: React.CSSProperties = { display: "inline-block", padding: "2px 8px", margin: "2px", background: "#eef2ff", borderRadius: 12, fontSize: 11, color: "#4338ca" };
-const selectStyle: React.CSSProperties = { padding: "5px 8px", fontSize: 12, border: "1.5px solid #cbd5e1", borderRadius: 6, fontFamily: "inherit", background: "#fff" };
-const smallBtn: React.CSSProperties = { padding: "4px 10px", background: "#f1f5f9", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
-const navBtn: React.CSSProperties = { flex: 1, padding: "12px", background: "#f1f5f9", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
-const backBtn: React.CSSProperties = { padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
-const primaryBtn: React.CSSProperties = { padding: "10px 20px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(15,23,42,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap" };
+const sectionLabel: React.CSSProperties = { fontSize: 12, fontWeight: 800, color: "var(--ink-mid)", letterSpacing: 0.5, marginBottom: 12 };
+const summaryStyle: React.CSSProperties = { cursor: "pointer", padding: "8px 12px", background: "var(--bg-soft)", borderRadius: 6, fontSize: 12, fontWeight: 700, color: "var(--ink)" };
+const chip: React.CSSProperties = { display: "inline-block", padding: "2px 8px", margin: "2px", background: "var(--accent-soft)", borderRadius: 12, fontSize: 11, color: "var(--accent-strong)" };
+const selectStyle: React.CSSProperties = { padding: "5px 8px", fontSize: 12, border: "1.5px solid var(--hairline-strong)", borderRadius: 6, fontFamily: "inherit", background: "#fff" };
+const smallBtn: React.CSSProperties = { padding: "4px 10px", background: "var(--bg-soft)", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
+const navBtn: React.CSSProperties = { flex: 1, padding: "12px", background: "var(--bg-soft)", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
+const backBtn: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
+const primaryBtn: React.CSSProperties = { padding: "10px 20px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap" };

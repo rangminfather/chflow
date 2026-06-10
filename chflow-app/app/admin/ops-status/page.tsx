@@ -139,7 +139,7 @@ export default function AdminOpsStatusPage() {
             <section style={heroStyle}>
               <div>
                 <div style={stateLabelStyle}>전체 상태</div>
-                <div style={{ ...stateTextStyle, color: riskTotal === 0 ? "#15803d" : "#b45309" }}>
+                <div style={{ ...stateTextStyle, color: riskTotal === 0 ? "var(--success)" : "var(--warning)" }}>
                   {riskTotal === 0 ? "정상" : "확인 필요"}
                 </div>
                 <div style={subTitleStyle}>
@@ -204,7 +204,7 @@ export default function AdminOpsStatusPage() {
 }
 
 function Metric({ label, value, tone = "base" }: { label: string; value: number; tone?: "base" | "good" | "warn" }) {
-  const color = tone === "good" ? "#15803d" : tone === "warn" ? "#b45309" : "#0f172a";
+  const color = tone === "good" ? "var(--success)" : tone === "warn" ? "var(--warning)" : "var(--ink)";
   return (
     <div style={metricStyle}>
       <div style={metricLabelStyle}>{label}</div>
@@ -227,7 +227,7 @@ function StatusRow({ label, value }: { label: string; value: number }) {
   return (
     <div style={rowStyle}>
       <span style={rowLabelStyle}>{label}</span>
-      <span style={{ ...badgeStyle, background: ok ? "#dcfce7" : "#fef3c7", color: ok ? "#15803d" : "#b45309" }}>
+      <span style={{ ...badgeStyle, background: ok ? "var(--success-soft)" : "var(--warning-soft)", color: ok ? "var(--success)" : "var(--warning)" }}>
         {value.toLocaleString()}
       </span>
     </div>
@@ -245,13 +245,13 @@ const loadingPageStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "#f1f5f9",
+  background: "var(--bg-soft)",
   fontFamily: "'Noto Sans KR', sans-serif",
 };
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "#f1f5f9",
+  background: "var(--bg-soft)",
   fontFamily: "'Noto Sans KR', sans-serif",
   padding: 16,
 };
@@ -263,7 +263,7 @@ const wrapStyle: React.CSSProperties = {
 
 const headerStyle: React.CSSProperties = {
   background: "#fff",
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: "16px 18px",
   display: "flex",
@@ -277,19 +277,19 @@ const headerStyle: React.CSSProperties = {
 const titleStyle: React.CSSProperties = {
   margin: 0,
   fontSize: 20,
-  fontWeight: 900,
-  color: "#0f172a",
+  fontWeight: 800,
+  color: "var(--ink)",
 };
 
 const subTitleStyle: React.CSSProperties = {
   fontSize: 12,
-  color: "#64748b",
+  color: "var(--ink-soft)",
   marginTop: 3,
 };
 
 const buttonStyle: React.CSSProperties = {
   padding: "9px 13px",
-  background: "#2563eb",
+  background: "var(--accent)",
   color: "#fff",
   border: 0,
   borderRadius: 6,
@@ -301,15 +301,15 @@ const buttonStyle: React.CSSProperties = {
 
 const ghostButtonStyle: React.CSSProperties = {
   ...buttonStyle,
-  background: "#f8fafc",
-  color: "#334155",
-  border: "1px solid #cbd5e1",
+  background: "var(--surface)",
+  color: "var(--ink-mid)",
+  border: "1px solid var(--hairline-strong)",
 };
 
 const errorStyle: React.CSSProperties = {
-  background: "#fef2f2",
-  border: "1px solid #fecaca",
-  color: "#b91c1c",
+  background: "var(--danger-soft)",
+  border: "1px solid var(--danger-soft)",
+  color: "var(--danger)",
   borderRadius: 8,
   padding: 12,
   marginBottom: 14,
@@ -318,16 +318,16 @@ const errorStyle: React.CSSProperties = {
 
 const emptyStyle: React.CSSProperties = {
   background: "#fff",
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: 28,
   textAlign: "center",
-  color: "#64748b",
+  color: "var(--ink-soft)",
 };
 
 const heroStyle: React.CSSProperties = {
   background: "#fff",
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: 18,
   display: "flex",
@@ -341,12 +341,12 @@ const heroStyle: React.CSSProperties = {
 const stateLabelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 800,
-  color: "#64748b",
+  color: "var(--ink-soft)",
 };
 
 const stateTextStyle: React.CSSProperties = {
   fontSize: 34,
-  fontWeight: 900,
+  fontWeight: 800,
   lineHeight: 1.1,
   marginTop: 4,
 };
@@ -360,22 +360,22 @@ const heroStatsStyle: React.CSSProperties = {
 };
 
 const metricStyle: React.CSSProperties = {
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
+  background: "var(--surface)",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: 12,
 };
 
 const metricLabelStyle: React.CSSProperties = {
   fontSize: 11,
-  color: "#64748b",
+  color: "var(--ink-soft)",
   fontWeight: 800,
 };
 
 const metricValueStyle: React.CSSProperties = {
   fontSize: 24,
   lineHeight: 1.15,
-  fontWeight: 900,
+  fontWeight: 800,
   marginTop: 5,
 };
 
@@ -388,7 +388,7 @@ const gridStyle: React.CSSProperties = {
 
 const panelStyle: React.CSSProperties = {
   background: "#fff",
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: 16,
 };
@@ -396,8 +396,8 @@ const panelStyle: React.CSSProperties = {
 const panelTitleStyle: React.CSSProperties = {
   margin: "0 0 12px",
   fontSize: 15,
-  fontWeight: 900,
-  color: "#0f172a",
+  fontWeight: 800,
+  color: "var(--ink)",
 };
 
 const rowStyle: React.CSSProperties = {
@@ -406,12 +406,12 @@ const rowStyle: React.CSSProperties = {
   justifyContent: "space-between",
   gap: 10,
   padding: "8px 0",
-  borderBottom: "1px solid #f1f5f9",
+  borderBottom: "1px solid var(--bg-soft)",
 };
 
 const rowLabelStyle: React.CSSProperties = {
   fontSize: 13,
-  color: "#334155",
+  color: "var(--ink-mid)",
   fontWeight: 700,
 };
 
@@ -421,5 +421,5 @@ const badgeStyle: React.CSSProperties = {
   borderRadius: 999,
   padding: "3px 9px",
   fontSize: 12,
-  fontWeight: 900,
+  fontWeight: 800,
 };

@@ -11,6 +11,7 @@ import {
   Landmark, Bus, CalendarClock, Menu, LogOut, X, Folder, Home,
   Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid,
 } from "lucide-react";
+import { LoadingView } from "@/components/StatusViews";
 import {
   T, PageShell, PageContent,
   Section, SectionHeader,
@@ -68,16 +69,16 @@ const COMMON_MENUS: CommonMenu[] = [
   { id: "bulletin",  label: "주보 보기",      icon: BookOpen,  color: "#2F6B4F", bg: "#EAF3ED", desc: "이번 주 주보",  href: "/bulletin" },
   { id: "directory", label: "성도 요람",      icon: Users,     color: "#336F8F", bg: "#E9F2F7", desc: "성도 검색",     href: "/directory" },
   { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "#B45D3B", bg: "#F8ECE6", desc: "건의사항 접수", href: "/feedback" },
-  { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "#4B5563", bg: "#F3F4F6", desc: "앱 사용 안내",   href: "/manual" },
+  { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "var(--ink-mid)", bg: "var(--bg-soft)", desc: "앱 사용 안내",   href: "/manual" },
 ];
 
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [
-  { id: "vote",     label: "투표",        icon: Vote,          color: "#4F46E5", bg: "#EEF2FF", desc: "전자투표", href: "/vote" },
-  { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "#0F766E", bg: "#E6F4F1", desc: "공지사항" },
-  { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "#2563EB", bg: "#EAF1FF", desc: "월간 일정" },
-  { id: "facility", label: "시설 신청",   icon: Landmark,      color: "#B45309", bg: "#FFF2DE", desc: "교육관/예배실" },
-  { id: "vehicle",  label: "차량 신청",   icon: Bus,           color: "#7C3AED", bg: "#F1EBFF", desc: "교회 차량" },
-  { id: "booking",  label: "예약 캘린더", icon: CalendarClock, color: "#BE123C", bg: "#FDECEF", desc: "예약 현황" },
+  { id: "vote",     label: "투표",        icon: Vote,          color: "var(--accent)", bg: "var(--accent-soft)", desc: "전자투표", href: "/vote" },
+  { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "#3E7D74", bg: "#E6F4F1", desc: "공지사항" },
+  { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "var(--accent)", bg: "#EAF1FF", desc: "월간 일정" },
+  { id: "facility", label: "시설 신청",   icon: Landmark,      color: "var(--warning)", bg: "#FFF2DE", desc: "교육관/예배실" },
+  { id: "vehicle",  label: "차량 신청",   icon: Bus,           color: "#6B4F8C", bg: "#F1EBFF", desc: "교회 차량" },
+  { id: "booking",  label: "예약 캘린더", icon: CalendarClock, color: "var(--danger)", bg: "#FDECEF", desc: "예약 현황" },
 ];
 
 // =============================================================
@@ -170,7 +171,7 @@ export default function HomePage() {
       <PageShell style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ textAlign: "center" }}>
           <img src="/brand-mark-192.png" style={{ width: 64, height: 64, borderRadius: 14, marginBottom: 12, opacity: 0.85 }} />
-          <div style={{ fontSize: 13, color: T.textMuted }}>로딩 중...</div>
+          <LoadingView />
         </div>
       </PageShell>
     );
@@ -432,7 +433,7 @@ function CommandButton({ label, onClick }: { label: string; onClick: () => void 
         background: "rgba(255,255,255,0.92)",
         color: "#2F4638",
         fontSize: 13,
-        fontWeight: 900,
+        fontWeight: 800,
         cursor: "pointer",
         fontFamily: "inherit",
       }}
@@ -456,7 +457,7 @@ function CommandStat({ label, value }: { label: string; value: string }) {
       minWidth: 0,
     }}>
       <div className="line-clamp-1 kr-keep" style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.66)" }}>{label}</div>
-      <div className="line-clamp-1 kr-keep" style={{ fontSize: 20, fontWeight: 900, color: "#FFFDF7" }}>{value}</div>
+      <div className="line-clamp-1 kr-keep" style={{ fontSize: 20, fontWeight: 800, color: "#FFFDF7" }}>{value}</div>
     </div>
   );
 }
@@ -491,7 +492,7 @@ function UserSummary({ user, photoUrl, userImage, router }: {
               position: "absolute", top: 0, right: 0,
               width: SIZE, height: SIZE, borderRadius: "50%",
               objectFit: "cover", objectPosition: "top center",
-              background: "#f1f5f9",
+              background: "var(--bg-soft)",
               border: `2px solid ${T.bgCard}`,
               boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
               zIndex: 1,
@@ -515,7 +516,7 @@ function UserSummary({ user, photoUrl, userImage, router }: {
             <div style={{
               position: "absolute", top: 0, left: 0,
               width: SIZE, height: SIZE, borderRadius: "50%",
-              background: "#cbd5e1",
+              background: "var(--hairline-strong)",
               border: `2px solid ${T.bgCard}`,
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 24, zIndex: 2,
@@ -610,7 +611,7 @@ function MinistryCard({ dept, status, onClick }: {
           <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
             {dept.category}
           </div>
-          <div className="line-clamp-1 kr-keep" style={{ fontSize: 15, fontWeight: 850, color: T.text, marginTop: 1 }}>
+          <div className="line-clamp-1 kr-keep" style={{ fontSize: 15, fontWeight: 800, color: T.text, marginTop: 1 }}>
             {dept.name}
           </div>
         </SafeGrow>
@@ -672,7 +673,7 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
               color: T.mokjangPoint,
               borderRadius: 999,
               fontSize: 11,
-              fontWeight: 900,
+              fontWeight: 800,
               whiteSpace: "nowrap",
               maxWidth: "100%",
             }}>목장 보기</span>
@@ -685,7 +686,7 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
               <Home size={21} strokeWidth={1.75} color="var(--accent)" />
             </IconBox>
             <SafeGrow>
-              <div className="kr-keep" style={{ fontSize: 15, fontWeight: 850, color: T.text, lineHeight: 1.35 }}>
+              <div className="kr-keep" style={{ fontSize: 15, fontWeight: 800, color: T.text, lineHeight: 1.35 }}>
                 아직 소속된 목장이 없습니다
               </div>
               <div className="kr-keep" style={{ fontSize: 13, color: T.textMuted, marginTop: 4, lineHeight: 1.5 }}>
@@ -757,7 +758,7 @@ function MenuCard({ menu, router, compact }: { menu: CommonMenu; router: RouterT
       onMouseOver={(e) => {
         e.currentTarget.style.borderColor = menu.color;
         e.currentTarget.style.transform = "translateY(-1px)";
-        e.currentTarget.style.boxShadow = `0 12px 24px ${menu.color}1F`;
+        e.currentTarget.style.boxShadow = `0 12px 24px color-mix(in srgb, ${menu.color} 12%, transparent)`;
       }}
       onMouseOut={(e) => {
         e.currentTarget.style.borderColor = T.border;
@@ -773,7 +774,7 @@ function MenuCard({ menu, router, compact }: { menu: CommonMenu; router: RouterT
           {/* 긴 메뉴명("불편신고/건의") 보호: kr-break 로 어디서든 줄바꿈 + leading-snug */}
           <div className="kr-break" style={{
             fontSize: compact ? 13 : 14,
-            fontWeight: 850,
+            fontWeight: 800,
             color: T.text,
             lineHeight: 1.25,
           }}>{menu.label}</div>
@@ -855,7 +856,7 @@ function MobileSidebar({ open, onClose, user, myDepartments, router, onLogout }:
   if (!open) return null;
   return (
     <div onClick={onClose} style={{
-      position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.5)",
+      position: "fixed", inset: 0, background: "rgba(43, 39, 34, 0.5)",
       zIndex: 50, display: "flex", justifyContent: "flex-end",
     }}>
       <div onClick={(e) => e.stopPropagation()} style={{
@@ -1011,7 +1012,7 @@ const compactSolidButtonStyle: React.CSSProperties = {
   padding: "0 16px",
   borderRadius: 9,
   fontSize: 13,
-  fontWeight: 850,
+  fontWeight: 800,
   boxShadow: "0 10px 20px rgba(62, 90, 74, 0.16)",
 };
 
@@ -1022,7 +1023,7 @@ const compactOutlineButtonStyle: React.CSSProperties = {
   borderRadius: 9,
   borderWidth: 1,
   fontSize: 13,
-  fontWeight: 850,
+  fontWeight: 800,
   background: "rgba(251,248,241,0.9)",
 };
 
@@ -1032,14 +1033,14 @@ const compactOutlineButtonStyle: React.CSSProperties = {
 function ExitModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
   return (
     <div onClick={onCancel} style={{
-      position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.5)",
+      position: "fixed", inset: 0, background: "rgba(43, 39, 34, 0.5)",
       display: "flex", alignItems: "center", justifyContent: "center",
       zIndex: 300, padding: 20,
     }}>
       <div onClick={(e) => e.stopPropagation()} style={{
         background: "#fff", borderRadius: 20,
         padding: "28px 24px", maxWidth: 360, width: "100%",
-        boxShadow: "0 20px 60px rgba(15, 23, 42, 0.25)",
+        boxShadow: "0 20px 60px rgba(43, 39, 34, 0.25)",
         textAlign: "center", boxSizing: "border-box",
       }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>🙏</div>
@@ -1075,7 +1076,7 @@ function ExitToast() {
     <div style={{
       position: "fixed", left: "50%", bottom: 80,
       transform: "translateX(-50%)",
-      background: "rgba(15, 23, 42, 0.92)", color: "#fff",
+      background: "rgba(43, 39, 34, 0.92)", color: "#fff",
       padding: "12px 20px", borderRadius: 999,
       fontSize: 13, fontWeight: 600,
       boxShadow: "0 10px 30px rgba(0,0,0,0.3)",

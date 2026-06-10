@@ -137,5 +137,5 @@ const openButtonStyle: React.CSSProperties = {
   justifyContent: "center",
   gap: 7,
   fontSize: 13,
-  fontWeight: 850,
+  fontWeight: 800,
 };

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
+import { LoadingView } from "@/components/StatusViews";
 
 interface ReviewFile {
   path: string;
@@ -115,17 +116,17 @@ export default function ReviewUploadPage() {
     }
   }
 
-  if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
+  if (!authChecked) return <LoadingView full />;
 
   if (grade === null || grade > 2) {
     return (
       <div style={pageStyle}>
         <PageHeader deptId={deptId} router={router} />
         <main className="mx-auto max-w-lg px-4 py-14">
-          <div className="rounded-lg border border-slate-200 bg-white px-6 py-10 text-center">
+          <div className="rounded-lg border border-hairline bg-white px-6 py-10 text-center">
             <div className="text-[48px]">🔒</div>
-            <div className="mt-4 text-[18px] font-extrabold text-slate-800">복습문제 관리 권한이 없습니다</div>
-            <div className="mt-2 text-[15px] leading-6 text-slate-500">교육사 / 전도사 이상 권한이 필요합니다.</div>
+            <div className="mt-4 text-[18px] font-extrabold text-ink">복습문제 관리 권한이 없습니다</div>
+            <div className="mt-2 text-[15px] leading-6 text-ink-soft">교육사 / 전도사 이상 권한이 필요합니다.</div>
           </div>
         </main>
       </div>
@@ -142,10 +143,10 @@ export default function ReviewUploadPage() {
       <main className="mx-auto w-full max-w-4xl px-4 py-5 flex flex-col gap-4">
 
         {/* 업로드 섹션 */}
-        <section className="rounded-lg border border-slate-200 bg-white">
-          <div className="border-b border-slate-200 px-5 py-4">
-            <div className="text-[20px] font-extrabold text-slate-900">복습문제 업로드</div>
-            <div className="mt-1 text-[14px] text-slate-500 leading-5">
+        <section className="rounded-lg border border-hairline bg-white">
+          <div className="border-b border-hairline px-5 py-4">
+            <div className="text-[20px] font-extrabold text-ink">복습문제 업로드</div>
+            <div className="mt-1 text-[14px] text-ink-soft leading-5">
               공과 PPTX 파일을 업로드하면 주보 만들기에서 해당 주차에 자동 매칭됩니다.<br />
               파일명에 <b>과 번호</b>가 포함되어야 합니다 (예: <code>복습 문제 14과.pptx</code>).
             </div>
@@ -153,14 +154,14 @@ export default function ReviewUploadPage() {
           <div className="p-5">
             <label className={`
               flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed
-              ${uploading ? "border-slate-300 bg-slate-50 cursor-default" : "border-blue-300 bg-blue-50 hover:bg-blue-100 cursor-pointer"}
+              ${uploading ? "border-hairline-strong bg-surface cursor-default" : "border-accent-line bg-accent-soft hover:bg-accent-soft cursor-pointer"}
               p-8 text-center transition-colors
             `}>
               <div className="text-[32px]">{uploading ? "⏳" : "📁"}</div>
-              <div className="text-[15px] font-extrabold text-blue-800">
+              <div className="text-[15px] font-extrabold text-accent-strong">
                 {uploading ? "업로드 중..." : "PPTX 파일 선택 (복수 가능)"}
               </div>
-              <div className="text-[13px] text-blue-600">.pptx 파일만 허용</div>
+              <div className="text-[13px] text-accent">.pptx 파일만 허용</div>
               <input
                 type="file"
                 accept=".pptx"
@@ -181,55 +182,55 @@ export default function ReviewUploadPage() {
         )}
 
         {/* 목록 */}
-        <section className="rounded-lg border border-slate-200 bg-white">
-          <div className="border-b border-slate-200 px-5 py-4 flex justify-between items-center">
+        <section className="rounded-lg border border-hairline bg-white">
+          <div className="border-b border-hairline px-5 py-4 flex justify-between items-center">
             <div>
-              <div className="text-[18px] font-extrabold text-slate-900">
+              <div className="text-[18px] font-extrabold text-ink">
                 등록된 복습문제 ({files.length}개)
               </div>
-              <div className="text-[13px] text-slate-500 mt-0.5">
+              <div className="text-[13px] text-ink-soft mt-0.5">
                 공과 {lessonFiles.length}개 · 절기특별 {specialFiles.length}개
               </div>
             </div>
             <button
               onClick={loadFiles}
               disabled={loading}
-              className="rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-[13px] font-bold text-slate-600 disabled:opacity-50"
+              className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-[13px] font-bold text-ink-mid disabled:opacity-50"
             >
               {loading ? "로딩..." : "새로고침"}
             </button>
           </div>
 
           {loading ? (
-            <div className="py-12 text-center text-[14px] text-slate-400">불러오는 중...</div>
+            <div className="py-12 text-center text-[14px] text-ink-faint">불러오는 중...</div>
           ) : files.length === 0 ? (
             <div className="py-12 text-center">
               <div className="text-[36px]">📭</div>
-              <div className="mt-3 text-[15px] font-bold text-slate-500">등록된 복습문제가 없습니다</div>
-              <div className="mt-1 text-[13px] text-slate-400">위에서 PPTX 파일을 업로드하세요</div>
+              <div className="mt-3 text-[15px] font-bold text-ink-soft">등록된 복습문제가 없습니다</div>
+              <div className="mt-1 text-[13px] text-ink-faint">위에서 PPTX 파일을 업로드하세요</div>
             </div>
           ) : (
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-hairline">
               {files.map((file) => (
                 <li key={file.path} className="flex items-center gap-3 px-5 py-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-[18px]">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-accent-soft flex items-center justify-center text-[18px]">
                     📄
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       {file.lessonNum && (
-                        <span className="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-extrabold text-blue-800">
+                        <span className="inline-block rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-extrabold text-accent-strong">
                           {file.lessonNum}과
                         </span>
                       )}
                       {file.specialTitle && (
-                        <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-extrabold text-purple-800">
+                        <span className="inline-block rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-extrabold text-accent-strong">
                           절기
                         </span>
                       )}
-                      <span className="text-[14px] font-bold text-slate-800 truncate">{file.title}</span>
+                      <span className="text-[14px] font-bold text-ink truncate">{file.title}</span>
                     </div>
-                    <div className="mt-0.5 text-[12px] text-slate-400">
+                    <div className="mt-0.5 text-[12px] text-ink-faint">
                       {file.quizCount}문제
                       {file.created_at && ` · ${new Date(file.created_at).toLocaleDateString("ko-KR")}`}
                       {file.size && ` · ${(file.size / 1024).toFixed(0)}KB`}
@@ -266,8 +267,7 @@ function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typ
   );
 }
 
-const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" };
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
-const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "#1e293b" };
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 14, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
-const loadingStyle: React.CSSProperties = { minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif", display: "flex", alignItems: "center", justifyContent: "center" };
+const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
+const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)" };
+const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };

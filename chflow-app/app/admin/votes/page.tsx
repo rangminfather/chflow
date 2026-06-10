@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
 
 interface Vote {
   id: string;
@@ -338,7 +339,7 @@ export default function AdminVotesPage() {
   if (!authOk) {
     return (
       <div style={centerStyle}>
-        <div style={{ color: "#64748b", fontSize: 14 }}>로딩 중...</div>
+        <LoadingView />
       </div>
     );
   }
@@ -346,18 +347,18 @@ export default function AdminVotesPage() {
   const now = new Date();
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
 
       {/* 헤더 */}
       <div style={{
-        background: "#fff", borderBottom: "1px solid #e2e8f0",
+        background: "#fff", borderBottom: "1px solid var(--hairline)",
         padding: "14px 24px", display: "flex", alignItems: "center", gap: 12,
       }}>
         <button onClick={() => router.push("/home")} style={iconBtnStyle}>←</button>
         <HeaderLogo />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>🗳️ 투표 관리</div>
-          <div style={{ fontSize: 11, color: "#94a3b8" }}>전자투표</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>🗳️ 투표 관리</div>
+          <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>전자투표</div>
         </div>
         <button onClick={openCreate} style={primaryBtnStyle}>
           + 새 투표 만들기
@@ -367,16 +368,16 @@ export default function AdminVotesPage() {
       {/* 투표 목록 */}
       <div style={{ maxWidth: 900, margin: "24px auto", padding: "0 16px" }}>
         {loading ? (
-          <div style={{ textAlign: "center", padding: 48, color: "#94a3b8" }}>불러오는 중...</div>
+          <LoadingView padding={48} label="불러오는 중..." />
         ) : votes.length === 0 ? (
           <div style={{
             textAlign: "center", padding: 48, background: "#fff",
-            borderRadius: 16, border: "1px solid #e2e8f0", color: "#94a3b8",
+            borderRadius: 16, border: "1px solid var(--hairline)", color: "var(--ink-faint)",
           }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>🗳️</div>
             <div style={{ fontWeight: 700 }}>등록된 투표가 없습니다</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>상단 <b style={{ color: "#6366f1" }}>+ 새 투표 만들기</b> 버튼으로 먼저 투표를 생성해 주세요.</div>
-            <div style={{ fontSize: 12, marginTop: 6, color: "#64748b" }}>후보자 등록은 투표 만들기 후 등록 가능합니다.</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>상단 <b style={{ color: "var(--accent)" }}>+ 새 투표 만들기</b> 버튼으로 먼저 투표를 생성해 주세요.</div>
+            <div style={{ fontSize: 12, marginTop: 6, color: "var(--ink-soft)" }}>후보자 등록은 투표 만들기 후 등록 가능합니다.</div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -386,29 +387,29 @@ export default function AdminVotesPage() {
               const running = started && !ended && vote.is_active;
 
               let statusLabel = "대기";
-              let statusColor = "#94a3b8";
-              let statusBg = "#f1f5f9";
+              let statusColor = "var(--ink-faint)";
+              let statusBg = "var(--bg-soft)";
               if (!vote.is_active) {
                 statusLabel = "비활성";
-                statusColor = "#94a3b8";
-                statusBg = "#f1f5f9";
+                statusColor = "var(--ink-faint)";
+                statusBg = "var(--bg-soft)";
               } else if (ended) {
                 statusLabel = "종료";
-                statusColor = "#6b7280";
-                statusBg = "#f3f4f6";
+                statusColor = "var(--ink-soft)";
+                statusBg = "var(--bg-soft)";
               } else if (running) {
                 statusLabel = "진행 중";
-                statusColor = "#059669";
-                statusBg = "#d1fae5";
+                statusColor = "var(--success)";
+                statusBg = "var(--success-soft)";
               } else if (vote.is_active && !started) {
                 statusLabel = "예정";
-                statusColor = "#d97706";
-                statusBg = "#fef3c7";
+                statusColor = "var(--warning)";
+                statusBg = "var(--warning-soft)";
               }
 
               return (
                 <div key={vote.id} style={{
-                  background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0",
+                  background: "#fff", borderRadius: 16, border: "1px solid var(--hairline)",
                   padding: "20px 24px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
                 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
@@ -418,12 +419,12 @@ export default function AdminVotesPage() {
                           fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99,
                           color: statusColor, background: statusBg,
                         }}>{statusLabel}</span>
-                        <span style={{ fontSize: 17, fontWeight: 800, color: "#1e293b" }}>{vote.title}</span>
+                        <span style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)" }}>{vote.title}</span>
                       </div>
                       {vote.description && (
-                        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>{vote.description}</div>
+                        <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 6 }}>{vote.description}</div>
                       )}
-                      <div style={{ fontSize: 11, color: "#94a3b8", display: "flex", gap: 12, flexWrap: "wrap" }}>
+                      <div style={{ fontSize: 11, color: "var(--ink-faint)", display: "flex", gap: 12, flexWrap: "wrap" }}>
                         <span>📅 {fmtKST(vote.start_at)} ~ {fmtKST(vote.end_at)}</span>
                         <span>👤 후보 {vote.candidate_count}명</span>
                         <span>🗳️ 투표 {vote.ballot_count}표</span>
@@ -435,9 +436,9 @@ export default function AdminVotesPage() {
                         onClick={() => handleToggleActive(vote)}
                         style={{
                           ...smallBtnStyle,
-                          background: vote.is_active ? "#fef2f2" : "#f0fdf4",
-                          color: vote.is_active ? "#b91c1c" : "#15803d",
-                          border: `1px solid ${vote.is_active ? "#fecaca" : "#bbf7d0"}`,
+                          background: vote.is_active ? "var(--danger-soft)" : "var(--success-soft)",
+                          color: vote.is_active ? "var(--danger)" : "var(--success)",
+                          border: `1px solid ${vote.is_active ? "var(--danger-soft)" : "var(--success-soft)"}`,
                         }}
                       >
                         {vote.is_active ? "⏸ 비활성" : "▶ 활성화"}
@@ -448,13 +449,13 @@ export default function AdminVotesPage() {
                       <button onClick={() => openManageCandidates(vote)} style={smallBtnStyle}>
                         👤 후보 관리
                       </button>
-                      <button onClick={() => openResults(vote)} style={{ ...smallBtnStyle, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe" }}>
+                      <button onClick={() => openResults(vote)} style={{ ...smallBtnStyle, background: "var(--accent-soft)", color: "var(--accent-strong)", border: "1px solid var(--accent-line)" }}>
                         📊 결과보기
                       </button>
                       {running && (
                         <button
                           onClick={() => router.push(`/vote/${vote.id}`)}
-                          style={{ ...smallBtnStyle, background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0" }}
+                          style={{ ...smallBtnStyle, background: "var(--success-soft)", color: "var(--success)", border: "1px solid var(--success-soft)" }}
                           title="투표 페이지로 이동하여 직접 참여"
                         >
                           🗳 참여
@@ -463,7 +464,7 @@ export default function AdminVotesPage() {
                       <button onClick={() => openEdit(vote)} style={smallBtnStyle}>
                         ✏️ 투표제목수정
                       </button>
-                      <button onClick={() => handleDeleteVote(vote)} style={{ ...smallBtnStyle, background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca" }}>
+                      <button onClick={() => handleDeleteVote(vote)} style={{ ...smallBtnStyle, background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid var(--danger-soft)" }}>
                         🗑 삭제
                       </button>
                     </div>
@@ -478,7 +479,7 @@ export default function AdminVotesPage() {
       {/* 투표 생성/투표제목수정 모달 */}
       {(modal?.type === "create" || modal?.type === "edit") && (
         <ModalOverlay onClose={() => setModal(null)}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 20 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 20 }}>
             {modal.type === "create" ? "새 투표 만들기" : "투표제목수정"}
           </div>
 
@@ -500,8 +501,8 @@ export default function AdminVotesPage() {
           />
           {modal.type === "create" && (
             <div style={{
-              fontSize: 12, color: "#64748b",
-              background: "#f8fafc", border: "1px solid #e2e8f0",
+              fontSize: 12, color: "var(--ink-soft)",
+              background: "var(--surface)", border: "1px solid var(--hairline)",
               borderRadius: 8, padding: "10px 12px",
               marginTop: -4, marginBottom: 12,
             }}>
@@ -520,7 +521,7 @@ export default function AdminVotesPage() {
             </div>
           </div>
 
-          {formError && <div style={{ color: "#b91c1c", fontSize: 12, marginBottom: 8 }}>{formError}</div>}
+          {formError && <div style={{ color: "var(--danger)", fontSize: 12, marginBottom: 8 }}>{formError}</div>}
 
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
             <button onClick={() => setModal(null)} style={cancelBtnStyle}>취소</button>
@@ -534,10 +535,10 @@ export default function AdminVotesPage() {
       {/* 후보 등록 모달 */}
       {modal?.type === "add_candidate" && (
         <ModalOverlay onClose={() => setModal(null)}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 4 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
             ➕ 후보 등록
           </div>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 16 }}>
             {modal.vote.title} · 현재 {candidates.length}명 등록됨
           </div>
 
@@ -546,16 +547,16 @@ export default function AdminVotesPage() {
             <div style={{
               display: "flex", flexWrap: "wrap", gap: 6,
               marginBottom: 16, padding: "10px 12px",
-              background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10,
+              background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: 10,
             }}>
               {candidates.map((c, i) => (
                 <span key={c.id} style={{
                   display: "inline-flex", alignItems: "center", gap: 4,
-                  fontSize: 12, fontWeight: 600, color: "#475569",
-                  background: "#fff", border: "1px solid #e2e8f0",
+                  fontSize: 12, fontWeight: 600, color: "var(--ink-mid)",
+                  background: "#fff", border: "1px solid var(--hairline)",
                   borderRadius: 99, padding: "3px 10px",
                 }}>
-                  <span style={{ color: "#6366f1", fontWeight: 800 }}>{i + 1}</span>
+                  <span style={{ color: "var(--accent)", fontWeight: 800 }}>{i + 1}</span>
                   {c.name}
                 </span>
               ))}
@@ -563,8 +564,8 @@ export default function AdminVotesPage() {
           )}
 
           {/* 후보 추가 폼 */}
-          <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginBottom: 10 }}>새 후보 추가</div>
+          <div style={{ borderTop: "1px solid var(--hairline)", paddingTop: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 10 }}>새 후보 추가</div>
             <label style={labelStyle}>이름 *</label>
             <input
               value={candName}
@@ -578,10 +579,10 @@ export default function AdminVotesPage() {
             {candName.trim() && (
               <div style={{ marginBottom: 12 }}>
                 {memberSearching ? (
-                  <div style={{ fontSize: 11, color: "#94a3b8", padding: "6px 4px" }}>검색 중...</div>
+                  <div style={{ fontSize: 11, color: "var(--ink-faint)", padding: "6px 4px" }}>검색 중...</div>
                 ) : memberResults.length > 0 ? (
                   <div style={{
-                    border: "1px solid #e2e8f0", borderRadius: 10,
+                    border: "1px solid var(--hairline)", borderRadius: 10,
                     maxHeight: 240, overflowY: "auto", background: "#fff",
                   }}>
                     {memberResults.map(m => (
@@ -593,24 +594,24 @@ export default function AdminVotesPage() {
                           display: "flex", width: "100%", textAlign: "left",
                           alignItems: "center", gap: 10,
                           padding: "8px 12px", background: "transparent",
-                          border: "none", borderBottom: "1px solid #f1f5f9",
+                          border: "none", borderBottom: "1px solid var(--bg-soft)",
                           cursor: "pointer", fontFamily: "inherit",
                         }}
                       >
                         <Avatar url={m.photo_url} name={m.name} size={34} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                             {m.name}
                             {m.sub_role && (
                               <span style={{
-                                fontSize: 10, fontWeight: 700, color: "#6366f1",
-                                background: "#eef2ff", border: "1px solid #c7d2fe",
+                                fontSize: 10, fontWeight: 700, color: "var(--accent)",
+                                background: "var(--accent-soft)", border: "1px solid var(--accent-line)",
                                 borderRadius: 99, padding: "1px 7px",
                               }}>{m.sub_role}</span>
                             )}
-                            {m.phone && <span style={{ fontSize: 11, fontWeight: 400, color: "#94a3b8" }}>{m.phone}</span>}
+                            {m.phone && <span style={{ fontSize: 11, fontWeight: 400, color: "var(--ink-faint)" }}>{m.phone}</span>}
                           </div>
-                          <div style={{ fontSize: 11, color: "#64748b" }}>
+                          <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>
                             {[m.plain_name, m.grassland_name, m.pasture_name].filter(Boolean).join(" / ") || "-"}
                           </div>
                         </div>
@@ -619,8 +620,8 @@ export default function AdminVotesPage() {
                   </div>
                 ) : memberSearched ? (
                   <div style={{
-                    fontSize: 12, color: "#94a3b8",
-                    background: "#f8fafc", border: "1px solid #e2e8f0",
+                    fontSize: 12, color: "var(--ink-faint)",
+                    background: "var(--surface)", border: "1px solid var(--hairline)",
                     borderRadius: 8, padding: "8px 12px",
                   }}>
                     등록된 교인이 없습니다. 그래도 등록하시겠습니까?
@@ -649,17 +650,17 @@ export default function AdminVotesPage() {
       {/* 후보 관리 모달 (수정/삭제) */}
       {modal?.type === "manage_candidates" && (
         <ModalOverlay onClose={() => setModal(null)}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 4 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
             👤 후보 관리
           </div>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 16 }}>
             {modal.vote.title} · 등록된 후보 {candidates.length}명
           </div>
 
           {candidates.length === 0 ? (
             <div style={{
-              textAlign: "center", padding: 32, color: "#94a3b8", fontSize: 13,
-              background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12,
+              textAlign: "center", padding: 32, color: "var(--ink-faint)", fontSize: 13,
+              background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: 12,
             }}>
               아직 등록된 후보가 없습니다.<br />
               <span style={{ fontSize: 11 }}>상단 <b>➕ 후보 등록</b>에서 먼저 추가해주세요.</span>
@@ -668,21 +669,21 @@ export default function AdminVotesPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 420, overflowY: "auto" }}>
               {candidates.map((c, i) => (
                 <div key={c.id} style={{
-                  padding: "12px 14px", background: "#f8fafc", borderRadius: 12,
-                  border: "1px solid #e2e8f0",
+                  padding: "12px 14px", background: "var(--surface)", borderRadius: 12,
+                  border: "1px solid var(--hairline)",
                 }}>
                   {editingCandId === c.id ? (
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                         <Avatar url={editCandPhotoUrl} name={editCandName} size={40} />
-                        <div style={{ fontSize: 11, color: "#64748b" }}>
+                        <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>
                           {editCandPhotoUrl ? "등록된 사진" : "사진 없음"}
                           {editCandPhotoUrl && (
                             <button
                               onClick={() => setEditCandPhotoUrl(null)}
                               style={{
                                 marginLeft: 8, fontSize: 11, fontWeight: 600,
-                                background: "transparent", color: "#b91c1c",
+                                background: "transparent", color: "var(--danger)",
                                 border: "none", cursor: "pointer", fontFamily: "inherit",
                               }}
                             >사진 제거</button>
@@ -713,11 +714,11 @@ export default function AdminVotesPage() {
                     </div>
                   ) : (
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: "#6366f1", width: 20, textAlign: "center" }}>{i + 1}</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "var(--accent)", width: 20, textAlign: "center" }}>{i + 1}</span>
                       <Avatar url={c.photo_url} name={c.name} size={40} />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>{c.name}</div>
-                        {c.description && <div style={{ fontSize: 11, color: "#64748b" }}>{c.description}</div>}
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>{c.name}</div>
+                        {c.description && <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>{c.description}</div>}
                       </div>
                       <button
                         onClick={() => startEditCandidate(c)}
@@ -725,7 +726,7 @@ export default function AdminVotesPage() {
                       >✏️ 수정</button>
                       <button
                         onClick={() => handleDeleteCandidate(c)}
-                        style={{ ...smallBtnStyle, background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca", padding: "4px 10px" }}
+                        style={{ ...smallBtnStyle, background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid var(--danger-soft)", padding: "4px 10px" }}
                       >삭제</button>
                     </div>
                   )}
@@ -743,38 +744,38 @@ export default function AdminVotesPage() {
       {/* 결과 모달 */}
       {modal?.type === "results" && (
         <ModalOverlay onClose={() => setModal(null)}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", marginBottom: 4 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
             📊 투표 결과
           </div>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>{modal.vote.title}</div>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 16 }}>{modal.vote.title}</div>
 
           {resultsLoading ? (
-            <div style={{ textAlign: "center", padding: 32, color: "#94a3b8" }}>집계 중...</div>
+            <div style={{ textAlign: "center", padding: 32, color: "var(--ink-faint)" }}>집계 중...</div>
           ) : results.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 32, color: "#94a3b8" }}>집계할 후보 또는 투표 기록이 없습니다.</div>
+            <EmptyState padding={32} message="집계할 후보 또는 투표 기록이 없습니다" />
           ) : (
             <>
-              <div style={{ fontSize: 12, color: "#64748b", marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 12 }}>
                 총 {results[0]?.total_ballots ?? 0}명 참여
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {results.map((r, i) => (
                   <div key={r.candidate_id} style={{
-                    padding: "12px 14px", background: i === 0 ? "#eff6ff" : "#f8fafc",
-                    borderRadius: 10, border: `1px solid ${i === 0 ? "#bfdbfe" : "#e2e8f0"}`,
+                    padding: "12px 14px", background: i === 0 ? "var(--accent-soft)" : "var(--surface)",
+                    borderRadius: 10, border: `1px solid ${i === 0 ? "var(--accent-line)" : "var(--hairline)"}`,
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: i === 0 ? "#1d4ed8" : "#374151" }}>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: i === 0 ? "var(--accent-strong)" : "var(--ink-mid)" }}>
                         {i + 1}위 {r.candidate_name}
                       </span>
-                      <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 700, color: "#6366f1" }}>
+                      <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>
                         {r.vote_count}표 ({r.vote_rate_pct}%)
                       </span>
                     </div>
-                    <div style={{ height: 8, background: "#e2e8f0", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ height: 8, background: "var(--hairline)", borderRadius: 4, overflow: "hidden" }}>
                       <div style={{
                         height: "100%", borderRadius: 4,
-                        background: i === 0 ? "#3b82f6" : "#a5b4fc",
+                        background: i === 0 ? "var(--accent)" : "var(--accent-line)",
                         width: `${r.vote_rate_pct}%`,
                         transition: "width 0.6s ease",
                       }} />
@@ -803,8 +804,8 @@ function Avatar({ url, name, size = 36 }: { url: string | null; name: string; si
         alt={name}
         style={{
           width: size, height: size, borderRadius: "50%",
-          objectFit: "cover", border: "1px solid #e2e8f0",
-          flexShrink: 0, background: "#f1f5f9",
+          objectFit: "cover", border: "1px solid var(--hairline)",
+          flexShrink: 0, background: "var(--bg-soft)",
         }}
       />
     );
@@ -812,8 +813,8 @@ function Avatar({ url, name, size = 36 }: { url: string | null; name: string; si
   return (
     <div style={{
       width: size, height: size, borderRadius: "50%",
-      background: "linear-gradient(135deg, #c7d2fe, #a5b4fc)",
-      color: "#3730a3", fontWeight: 800, fontSize: size * 0.42,
+      background: "linear-gradient(135deg, var(--accent-line), var(--accent-line))",
+      color: "var(--accent-strong)", fontWeight: 800, fontSize: size * 0.42,
       display: "flex", alignItems: "center", justifyContent: "center",
       flexShrink: 0,
     }}>{initial}</div>
@@ -848,14 +849,14 @@ function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClos
 // ─── 스타일 상수 ───────────────────────────────────────
 const centerStyle: React.CSSProperties = {
   minHeight: "100vh", display: "flex", alignItems: "center",
-  justifyContent: "center", background: "#f1f5f9",
+  justifyContent: "center", background: "var(--bg-soft)",
   fontFamily: "'Noto Sans KR', sans-serif",
 };
 
 const primaryBtnStyle: React.CSSProperties = {
   display: "flex", alignItems: "center", gap: 6,
   padding: "10px 18px", borderRadius: 10,
-  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   color: "#fff", border: "none", cursor: "pointer",
   fontSize: 13, fontWeight: 700, fontFamily: "inherit",
   whiteSpace: "nowrap",
@@ -863,34 +864,34 @@ const primaryBtnStyle: React.CSSProperties = {
 
 const cancelBtnStyle: React.CSSProperties = {
   padding: "10px 18px", borderRadius: 10,
-  background: "#f1f5f9", color: "#374151",
-  border: "1px solid #e2e8f0", cursor: "pointer",
+  background: "var(--bg-soft)", color: "var(--ink-mid)",
+  border: "1px solid var(--hairline)", cursor: "pointer",
   fontSize: 13, fontWeight: 600, fontFamily: "inherit",
 };
 
 const smallBtnStyle: React.CSSProperties = {
   padding: "6px 12px", borderRadius: 8,
-  background: "#f8fafc", color: "#374151",
-  border: "1px solid #e2e8f0", cursor: "pointer",
+  background: "var(--surface)", color: "var(--ink-mid)",
+  border: "1px solid var(--hairline)", cursor: "pointer",
   fontSize: 12, fontWeight: 600, fontFamily: "inherit",
   whiteSpace: "nowrap",
 };
 
 const iconBtnStyle: React.CSSProperties = {
   width: 36, height: 36, borderRadius: 9,
-  background: "#f1f5f9", border: "none",
-  cursor: "pointer", fontSize: 16, color: "#475569",
+  background: "var(--bg-soft)", border: "none",
+  cursor: "pointer", fontSize: 16, color: "var(--ink-mid)",
   display: "flex", alignItems: "center", justifyContent: "center",
 };
 
 const labelStyle: React.CSSProperties = {
   display: "block", fontSize: 12, fontWeight: 700,
-  color: "#374151", marginBottom: 4,
+  color: "var(--ink-mid)", marginBottom: 4,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 12px", borderRadius: 10,
-  border: "1.5px solid #e2e8f0", fontSize: 13,
+  border: "1.5px solid var(--hairline)", fontSize: 13,
   fontFamily: "inherit", outline: "none", marginBottom: 12,
   boxSizing: "border-box",
 };

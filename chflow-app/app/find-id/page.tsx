@@ -88,14 +88,14 @@ export default function FindIdPage() {
         </form>
 
         {results !== null && (
-          <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #e2e8f0" }}>
+          <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--hairline)" }}>
             {results.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "20px 0", fontSize: 13, color: "#94a3b8" }}>
+              <div style={{ textAlign: "center", padding: "20px 0", fontSize: 13, color: "var(--ink-faint)" }}>
                 일치하는 회원 정보가 없습니다.
               </div>
             ) : (
               <>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 12 }}>
                   조회된 아이디 ({results.length}개)
                 </div>
                 {results.map((r, i) => (
@@ -135,7 +135,7 @@ export default function FindIdPage() {
   );
 }
 
-const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 750, color: "var(--ink)", letterSpacing: 0 };
+const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: "var(--ink)", letterSpacing: 0 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -149,7 +149,7 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "inherit",
   boxSizing: "border-box",
   color: "var(--ink)",
-  fontWeight: 650,
+  fontWeight: 600,
 };
 
 const primaryBtnStyle: React.CSSProperties = {
@@ -173,7 +173,7 @@ const errorStyle: React.CSSProperties = {
   border: "1px solid #f2c9c1",
   borderRadius: 8,
   fontSize: 13,
-  fontWeight: 650,
+  fontWeight: 600,
   color: "#8f2d2d",
   marginBottom: 12,
 };

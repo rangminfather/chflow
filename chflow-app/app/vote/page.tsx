@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 interface ActiveVote {
   id: string;
@@ -56,24 +57,24 @@ export default function VoteListPage() {
   if (!authOk) {
     return (
       <div style={centerStyle}>
-        <div style={{ color: "#64748b", fontSize: 14 }}>로딩 중...</div>
+        <LoadingView />
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
 
       {/* 헤더 */}
       <div style={{
-        background: "#fff", borderBottom: "1px solid #e2e8f0",
+        background: "#fff", borderBottom: "1px solid var(--hairline)",
         padding: "14px 24px", display: "flex", alignItems: "center", gap: 12,
       }}>
         <button onClick={() => router.push("/home")} style={iconBtnStyle}>←</button>
         <HeaderLogo />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>🗳️ 투표</div>
-          <div style={{ fontSize: 11, color: "#94a3b8" }}>진행 중인 투표에 참여하세요</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>🗳️ 투표</div>
+          <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>진행 중인 투표에 참여하세요</div>
         </div>
         {canManageVotes && (
           <button onClick={() => router.push("/admin/votes")} style={manageBtnStyle}>
@@ -84,15 +85,15 @@ export default function VoteListPage() {
 
       <div style={{ maxWidth: 600, margin: "24px auto", padding: "0 16px" }}>
         {loading ? (
-          <div style={{ textAlign: "center", padding: 48, color: "#94a3b8" }}>불러오는 중...</div>
+          <LoadingView padding={48} label="불러오는 중..." />
         ) : votes.length === 0 ? (
           <div style={{
             textAlign: "center", padding: 56, background: "#fff",
-            borderRadius: 20, border: "1px solid #e2e8f0",
+            borderRadius: 20, border: "1px solid var(--hairline)",
           }}>
             <div style={{ fontSize: 40, marginBottom: 10 }}>🗳️</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", marginBottom: 6 }}>진행 중인 투표가 없습니다</div>
-            <div style={{ fontSize: 13, color: "#94a3b8" }}>투표가 시작되면 여기에 표시됩니다.</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>진행 중인 투표가 없습니다</div>
+            <div style={{ fontSize: 13, color: "var(--ink-faint)" }}>투표가 시작되면 여기에 표시됩니다.</div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -102,7 +103,7 @@ export default function VoteListPage() {
                 onClick={() => !vote.already_voted && router.push(`/vote/${vote.id}`)}
                 style={{
                   background: "#fff", borderRadius: 16,
-                  border: `1.5px solid ${vote.already_voted ? "#bbf7d0" : "#c7d2fe"}`,
+                  border: `1.5px solid ${vote.already_voted ? "var(--success-soft)" : "var(--accent-line)"}`,
                   padding: "20px 22px",
                   cursor: vote.already_voted ? "default" : "pointer",
                   transition: "box-shadow 0.2s",
@@ -112,24 +113,24 @@ export default function VoteListPage() {
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                   <div style={{
                     width: 48, height: 48, borderRadius: 14, flexShrink: 0,
-                    background: vote.already_voted ? "#d1fae5" : "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                    background: vote.already_voted ? "var(--success-soft)" : "linear-gradient(135deg, var(--accent), var(--accent-muted))",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 22,
                   }}>
                     {vote.already_voted ? "✅" : "🗳️"}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", marginBottom: 4 }}>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
                       {vote.title}
                     </div>
                     {vote.description && (
-                      <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>{vote.description}</div>
+                      <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 6 }}>{vote.description}</div>
                     )}
-                    <div style={{ fontSize: 11, color: "#94a3b8", display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 11, color: "var(--ink-faint)", display: "flex", gap: 12, flexWrap: "wrap" }}>
                       <span>~{fmtKST(vote.end_at)}</span>
                       <span style={{
                         fontWeight: 700,
-                        color: vote.already_voted ? "#059669" : "#d97706",
+                        color: vote.already_voted ? "var(--success)" : "var(--warning)",
                       }}>
                         {vote.already_voted ? "투표 완료" : daysLeft(vote.end_at)}
                       </span>
@@ -138,7 +139,7 @@ export default function VoteListPage() {
                   {!vote.already_voted && (
                     <div style={{
                       padding: "8px 16px", borderRadius: 10,
-                      background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                      background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
                       color: "#fff", fontSize: 12, fontWeight: 700,
                       alignSelf: "center", whiteSpace: "nowrap",
                     }}>
@@ -157,21 +158,21 @@ export default function VoteListPage() {
 
 const centerStyle: React.CSSProperties = {
   minHeight: "100vh", display: "flex", alignItems: "center",
-  justifyContent: "center", background: "#f1f5f9",
+  justifyContent: "center", background: "var(--bg-soft)",
   fontFamily: "'Noto Sans KR', sans-serif",
 };
 
 const iconBtnStyle: React.CSSProperties = {
   width: 36, height: 36, borderRadius: 9,
-  background: "#f1f5f9", border: "none",
-  cursor: "pointer", fontSize: 16, color: "#475569",
+  background: "var(--bg-soft)", border: "none",
+  cursor: "pointer", fontSize: 16, color: "var(--ink-mid)",
   display: "flex", alignItems: "center", justifyContent: "center",
 };
 
 const manageBtnStyle: React.CSSProperties = {
   border: "none",
   borderRadius: 10,
-  background: "#4f46e5",
+  background: "var(--accent)",
   color: "#fff",
   cursor: "pointer",
   fontFamily: "inherit",

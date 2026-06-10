@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase, formatPhone } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 interface FriendSummary {
   id: string;
@@ -155,12 +156,12 @@ export default function NewFriendPage() {
     fr.name.includes(search) || (fr.guide_name ?? "").includes(search)
   );
 
-  if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
+  if (!authChecked) return <LoadingView full />;
 
   const showForm = isNew || selected;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
 
       {/* Header */}
       <div style={headerStyle}>
@@ -168,7 +169,7 @@ export default function NewFriendPage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>🌟 새친구 등록카드</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>🌟 새친구 등록카드</div>
         <button onClick={newFriend} style={addBtnStyle}>+ 새 등록</button>
       </div>
 
@@ -183,13 +184,13 @@ export default function NewFriendPage() {
               placeholder="이름 / 인도자 검색"
               style={{ ...inputStyle, width: "100%", marginBottom: 12, boxSizing: "border-box" }}
             />
-            <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 8 }}>
+            <div style={{ fontSize: 10, color: "var(--ink-faint)", marginBottom: 8 }}>
               총 {filtered.length}명
             </div>
             {loading ? (
-              <div style={{ color: "#94a3b8", fontSize: 12, padding: 12 }}>불러오는 중...</div>
+              <LoadingView padding={12} label="불러오는 중..." />
             ) : filtered.length === 0 ? (
-              <div style={{ color: "#94a3b8", fontSize: 12, padding: 12 }}>등록된 새친구가 없습니다</div>
+              <div style={{ color: "var(--ink-faint)", fontSize: 12, padding: 12 }}>등록된 새친구가 없습니다</div>
             ) : (
               filtered.map((fr) => (
                 <div
@@ -200,27 +201,27 @@ export default function NewFriendPage() {
                     borderRadius: 10,
                     marginBottom: 6,
                     cursor: "pointer",
-                    background: selected?.id === fr.id ? "#eef2ff" : "#f8fafc",
-                    border: selected?.id === fr.id ? "1.5px solid #6366f1" : "1.5px solid transparent",
+                    background: selected?.id === fr.id ? "var(--accent-soft)" : "var(--surface)",
+                    border: selected?.id === fr.id ? "1.5px solid var(--accent)" : "1.5px solid transparent",
                     transition: "all 0.15s",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div style={{
                       width: 36, height: 36, borderRadius: "50%",
-                      background: fr.gender === "남" ? "#dbeafe" : fr.gender === "여" ? "#fce7f3" : "#f1f5f9",
+                      background: fr.gender === "남" ? "var(--accent-soft)" : fr.gender === "여" ? "#F5E5EB" : "var(--bg-soft)",
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 18, flexShrink: 0,
                     }}>
                       {fr.gender === "남" ? "👦" : fr.gender === "여" ? "👧" : "👤"}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{fr.name}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{fr.name}</div>
                       {fr.guide_name && (
-                        <div style={{ fontSize: 10, color: "#94a3b8" }}>인도자: {fr.guide_name}</div>
+                        <div style={{ fontSize: 10, color: "var(--ink-faint)" }}>인도자: {fr.guide_name}</div>
                       )}
                       {fr.join_date && (
-                        <div style={{ fontSize: 10, color: "#94a3b8" }}>{fr.join_date.slice(0, 7)}</div>
+                        <div style={{ fontSize: 10, color: "var(--ink-faint)" }}>{fr.join_date.slice(0, 7)}</div>
                       )}
                     </div>
                   </div>
@@ -233,7 +234,7 @@ export default function NewFriendPage() {
         {/* 등록카드 폼 */}
         <div style={{ flex: 1 }}>
           {!showForm ? (
-            <div style={{ ...cardStyle, textAlign: "center", padding: 60, color: "#94a3b8" }}>
+            <div style={{ ...cardStyle, textAlign: "center", padding: 60, color: "var(--ink-faint)" }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>🌟</div>
               <div style={{ fontSize: 14 }}>왼쪽에서 새친구를 선택하거나<br />새 등록 버튼을 눌러 카드를 작성하세요</div>
             </div>
@@ -241,7 +242,7 @@ export default function NewFriendPage() {
             <div style={cardStyle}>
               {/* 카드 헤더 */}
               <div style={{
-                background: "linear-gradient(135deg, #ec4899, #8b5cf6)",
+                background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
                 borderRadius: 12,
                 padding: "20px 24px",
                 marginBottom: 20,
@@ -252,7 +253,7 @@ export default function NewFriendPage() {
               }}>
                 <div>
                   <div style={{ fontSize: 10, opacity: 0.8, marginBottom: 4 }}>새친구 등록카드</div>
-                  <div style={{ fontSize: 20, fontWeight: 900 }}>
+                  <div style={{ fontSize: 20, fontWeight: 800 }}>
                     {form.name || "이름 미입력"}
                   </div>
                   {form.gender && (
@@ -283,9 +284,9 @@ export default function NewFriendPage() {
                         onClick={() => set("gender", form.gender === g ? null : g)}
                         style={{
                           flex: 1, padding: "9px", borderRadius: 8, border: "1.5px solid",
-                          borderColor: form.gender === g ? "#6366f1" : "#e2e8f0",
-                          background: form.gender === g ? "#eef2ff" : "#fff",
-                          color: form.gender === g ? "#6366f1" : "#64748b",
+                          borderColor: form.gender === g ? "var(--accent)" : "var(--hairline)",
+                          background: form.gender === g ? "var(--accent-soft)" : "#fff",
+                          color: form.gender === g ? "var(--accent)" : "var(--ink-soft)",
                           fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
                         }}
                       >{g}</button>
@@ -319,7 +320,7 @@ export default function NewFriendPage() {
 
                 {/* 소속 */}
                 <div style={{ gridColumn: "1 / -1" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 8 }}>소속</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 8 }}>소속</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
                     {[
                       { key: "group_pa",   label: "파" },
@@ -328,7 +329,7 @@ export default function NewFriendPage() {
                       { key: "group_cheo", label: "처" },
                     ].map(({ key, label }) => (
                       <div key={key}>
-                        <div style={{ fontSize: 10, color: "#94a3b8", marginBottom: 3 }}>{label}</div>
+                        <div style={{ fontSize: 10, color: "var(--ink-faint)", marginBottom: 3 }}>{label}</div>
                         <input type="text" value={f(key as keyof typeof form)} onChange={(e) => set(key as keyof typeof form, e.target.value)} style={inputStyle} />
                       </div>
                     ))}
@@ -368,18 +369,17 @@ export default function NewFriendPage() {
 function FormField({ label, children, fullWidth }: { label: string; children: React.ReactNode; fullWidth?: boolean }) {
   return (
     <div style={{ gridColumn: fullWidth ? "1 / -1" : undefined }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 4 }}>{label}</div>
       {children}
     </div>
   );
 }
 
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const cardStyle: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
-const inputStyle: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
-const addBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "linear-gradient(135deg, #ec4899, #8b5cf6)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const inputStyle: React.CSSProperties = { width: "100%", padding: "9px 12px", border: "1.5px solid var(--hairline)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
+const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
+const addBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const saveBtnStyle: React.CSSProperties = { padding: "8px 16px", background: "rgba(255,255,255,0.2)", color: "#fff", border: "1.5px solid rgba(255,255,255,0.5)", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const deleteBtnStyle: React.CSSProperties = { padding: "8px 12px", background: "rgba(239,68,68,0.2)", color: "#fff", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(15,23,42,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap" };
-const loadingStyle: React.CSSProperties = { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" };
+const deleteBtnStyle: React.CSSProperties = { padding: "8px 12px", background: "rgba(168, 68, 60,0.2)", color: "#fff", border: "1px solid rgba(168, 68, 60,0.4)", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap" };

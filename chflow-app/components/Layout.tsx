@@ -36,12 +36,12 @@ export const T = {
   commonBg:      "var(--accent-soft)",
   commonPoint:   "var(--accent)",
 
-  warn:     "#F59E0B",
-  warnSoft: "#FFFBEB",
-  success:  "#10B981",
-  successSoft: "#ECFDF5",
-  danger:   "#EF4444",
-  dangerSoft:"#FEF2F2",
+  warn:     "var(--warning)",
+  warnSoft: "var(--warning-soft)",
+  success:  "var(--success)",
+  successSoft: "var(--success-soft)",
+  danger:   "var(--danger)",
+  dangerSoft:"var(--danger-soft)",
 };
 
 // =============================================================

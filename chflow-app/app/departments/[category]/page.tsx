@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { T, PageShell, PageContent } from "@/components/Layout";
+import { LoadingView } from "@/components/StatusViews";
 
 interface Department {
   id: string;
@@ -120,16 +121,16 @@ export default function CategoryPage() {
   };
 
   const statusBadge = (status: string | null) => {
-    if (status === "approved") return { label: "✓ 가입됨",   bg: "#dcfce7", color: "#15803d" };
-    if (status === "pending")  return { label: "⏳ 승인 대기", bg: "#fef3c7", color: "#92400e" };
-    if (status === "rejected") return { label: "거절됨",      bg: "#fee2e2", color: "#b91c1c" };
+    if (status === "approved") return { label: "✓ 가입됨",   bg: "var(--success-soft)", color: "var(--success)" };
+    if (status === "pending")  return { label: "⏳ 승인 대기", bg: "var(--warning-soft)", color: "var(--warning)" };
+    if (status === "rejected") return { label: "거절됨",      bg: "var(--danger-soft)", color: "var(--danger)" };
     return null;
   };
 
   if (!authChecked) {
     return (
       <PageShell style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontSize: 13, color: T.textMuted }}>로딩 중...</div>
+        <LoadingView />
       </PageShell>
     );
   }
@@ -157,7 +158,7 @@ export default function CategoryPage() {
 
       <PageContent maxWidth={860}>
         {loading ? (
-          <div style={{ textAlign: "center", padding: 40, color: T.textMuted }}>로딩 중...</div>
+          <LoadingView padding={40} />
         ) : (
           <div style={{
             display: "grid",
@@ -169,7 +170,7 @@ export default function CategoryPage() {
               const disabled = d.my_status === "approved" || d.my_status === "pending";
               const borderColor =
                 d.my_status === "approved" ? "#4ade80"
-                : d.my_status === "pending" ? "#fbbf24"
+                : d.my_status === "pending" ? "#E0C893"
                 : T.border;
               const slots = keyMembers[d.id] ?? null;
 
@@ -252,9 +253,9 @@ export default function CategoryPage() {
                       ) : (
                         <div key={key} style={{
                           width: 32, height: 32, borderRadius: "50%",
-                          background: "#e2e8f0",
+                          background: "var(--hairline)",
                           display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 14, color: "#94a3b8",
+                          fontSize: 14, color: "var(--ink-faint)",
                           border: `1.5px solid ${T.border}`,
                         }}>👤</div>
                       );
@@ -290,7 +291,7 @@ export default function CategoryPage() {
               fontSize: 36, margin: "0 auto 16px",
             }}>{confirmDept.icon || "🏢"}</div>
             <div style={{ fontSize: 11, color: T.ministryPoint, fontWeight: 700, marginBottom: 4 }}>{confirmDept.category}</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: T.text, marginBottom: 6 }}>{confirmDept.name}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 6 }}>{confirmDept.name}</div>
             {confirmDept.description && (
               <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 16, lineHeight: 1.5 }}>{confirmDept.description}</div>
             )}
@@ -326,7 +327,7 @@ export default function CategoryPage() {
               }}>취소</button>
               <button onClick={handleRequest} disabled={requesting || !selectedRole} style={{
                 flex: 1, padding: "12px",
-                background: selectedRole ? T.ministryPoint : "#cbd5e1",
+                background: selectedRole ? T.ministryPoint : "var(--hairline-strong)",
                 color: "#fff",
                 border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700,
                 cursor: selectedRole ? "pointer" : "not-allowed", fontFamily: "inherit",

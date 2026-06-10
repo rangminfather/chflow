@@ -139,43 +139,43 @@ export default function TeacherAssignPage() {
   }
 
   if (!authChecked) {
-    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9" }}>권한 확인 중...</div>;
+    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-soft)" }}>권한 확인 중...</div>;
   }
 
   const placeholders = teachers.filter((t) => t.is_placeholder && t.is_active);
   const linkedTeachers = teachers.filter((t) => !t.is_placeholder && t.is_active);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", paddingBottom: 60, fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-soft)", paddingBottom: 60, fontFamily: "'Noto Sans KR', sans-serif" }}>
       <HeaderLogo />
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={btnGhost}>←</button>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", margin: 0 }}>👩‍🏫 담임선생님 지정</h1>
-            <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{deptName}</div>
+            <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0 }}>👩‍🏫 담임선생님 지정</h1>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{deptName}</div>
           </div>
         </div>
 
-        <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: 12, fontSize: 12, color: "#78350f", marginBottom: 16, lineHeight: 1.6 }}>
+        <div style={{ background: "var(--warning-soft)", border: "1px solid #E0C893", borderRadius: 8, padding: 12, fontSize: 12, color: "var(--warning)", marginBottom: 16, lineHeight: 1.6 }}>
           ⚠️ 모든 변경은 <strong>이력으로 기록</strong>됩니다. 매년 학기 초 또는 특별 사유 발생 시 변경하세요.
         </div>
 
         {/* 반별 담임 */}
         <div style={card}>
           <div style={sectionTitle}>📚 반별 담임 ({classes.length}반)</div>
-          {loading ? <div style={{ padding: 20, textAlign: "center", color: "#94a3b8" }}>로딩...</div> : (
+          {loading ? <div style={{ padding: 20, textAlign: "center", color: "var(--ink-faint)" }}>로딩...</div> : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
               {classes.map((c) => (
-                <div key={c.class_no} style={{ padding: 12, background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", marginBottom: 4 }}>
-                    {c.class_no} <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 12 }}>({c.student_count}명)</span>
+                <div key={c.class_no} style={{ padding: 12, background: "var(--surface)", borderRadius: 8, border: "1px solid var(--hairline)" }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
+                    {c.class_no} <span style={{ color: "var(--ink-faint)", fontWeight: 400, fontSize: 12 }}>({c.student_count}명)</span>
                   </div>
-                  <div style={{ fontSize: 12, color: "#475569", marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, color: "var(--ink-mid)", marginBottom: 8 }}>
                     담임: <strong>{c.teacher_name || "(없음)"}</strong>
-                    {c.is_placeholder && <span style={{ color: "#d97706", marginLeft: 4, fontSize: 10 }}>⚪ placeholder</span>}
-                    {!c.is_placeholder && c.teacher_id && <span style={{ color: "#059669", marginLeft: 4, fontSize: 10 }}>✅ 가입회원</span>}
+                    {c.is_placeholder && <span style={{ color: "var(--warning)", marginLeft: 4, fontSize: 10 }}>⚪ placeholder</span>}
+                    {!c.is_placeholder && c.teacher_id && <span style={{ color: "var(--success)", marginLeft: 4, fontSize: 10 }}>✅ 가입회원</span>}
                   </div>
                   <button onClick={() => { setEditingClass(c); setPickedTeacherId(c.teacher_id || ""); }} style={btnSm}>담임 변경</button>
                 </div>
@@ -188,7 +188,7 @@ export default function TeacherAssignPage() {
         {placeholders.length > 0 && (
           <div style={card}>
             <div style={sectionTitle}>⚪ placeholder ↔ 가입 회원 연결 ({placeholders.length})</div>
-            <div style={{ fontSize: 11, color: "#64748b", marginBottom: 8 }}>
+            <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 8 }}>
               담임 선생님이 회원가입 + 부서원이 되었으면 연결 → 학생들 자동 인계
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -208,18 +208,18 @@ export default function TeacherAssignPage() {
             {linkedTeachers.map((t) => (
               <span key={t.id} style={chipGreen}>{t.name}</span>
             ))}
-            {linkedTeachers.length === 0 && <span style={{ fontSize: 12, color: "#94a3b8" }}>아직 가입회원으로 매칭된 담임 없음</span>}
+            {linkedTeachers.length === 0 && <span style={{ fontSize: 12, color: "var(--ink-faint)" }}>아직 가입회원으로 매칭된 담임 없음</span>}
           </div>
         </div>
 
         {/* 이력 */}
         <div style={card}>
           <div style={sectionTitle}>📋 변경 이력 (최근 20)</div>
-          {logs.length === 0 ? <div style={{ fontSize: 12, color: "#94a3b8", padding: 8 }}>이력 없음</div> : (
+          {logs.length === 0 ? <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: 8 }}>이력 없음</div> : (
             <div>
               {logs.map((l) => (
-                <div key={l.id} style={{ padding: "6px 0", borderBottom: "1px solid #f1f5f9", fontSize: 12, color: "#475569" }}>
-                  <span style={{ color: "#94a3b8" }}>{new Date(l.changed_at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}</span>
+                <div key={l.id} style={{ padding: "6px 0", borderBottom: "1px solid var(--bg-soft)", fontSize: 12, color: "var(--ink-mid)" }}>
+                  <span style={{ color: "var(--ink-faint)" }}>{new Date(l.changed_at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}</span>
                   {" · "}
                   <strong>{l.changed_by_name}</strong>
                   {l.action_type === "bulk_assign" && (
@@ -228,7 +228,7 @@ export default function TeacherAssignPage() {
                   {l.action_type === "merge_placeholder" && (
                     <> · placeholder <strong>{l.new_teacher_name}</strong> ↔ 회원 연결</>
                   )}
-                  {l.reason && <span style={{ color: "#94a3b8" }}> ({l.reason})</span>}
+                  {l.reason && <span style={{ color: "var(--ink-faint)" }}> ({l.reason})</span>}
                 </div>
               ))}
             </div>
@@ -243,7 +243,7 @@ export default function TeacherAssignPage() {
             <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>
               {editingClass.class_no} 반 담임 변경
             </div>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 8 }}>
               현재 담임: <strong>{editingClass.teacher_name || "없음"}</strong> · 학생 {editingClass.student_count}명
             </div>
             <select value={pickedTeacherId} onChange={(e) => setPickedTeacherId(e.target.value)} style={inp}>
@@ -272,7 +272,7 @@ export default function TeacherAssignPage() {
             <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>
               ⚪ {mergeTarget.name} ↔ 가입회원 연결
             </div>
-            <div style={{ fontSize: 11, color: "#64748b", marginBottom: 12, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 12, lineHeight: 1.5 }}>
               연결하면 placeholder 가 가입회원 정보로 갱신되고, 이 담임이 맡고 있는 학생들의 담임 정보가 자동 인계됩니다 (학생 정보 변경 X).
             </div>
             <select value={pickedUserId} onChange={(e) => setPickedUserId(e.target.value)} style={inp}>
@@ -295,7 +295,7 @@ export default function TeacherAssignPage() {
       )}
 
       {toast && (
-        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1e293b", color: "#fff", padding: "10px 18px", borderRadius: 12, fontSize: 13, zIndex: 9999 }}>
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "var(--ink)", color: "#fff", padding: "10px 18px", borderRadius: 12, fontSize: 13, zIndex: 9999 }}>
           {toast}
         </div>
       )}
@@ -304,11 +304,11 @@ export default function TeacherAssignPage() {
 }
 
 const card: React.CSSProperties = { background: "#fff", borderRadius: 12, padding: 16, marginBottom: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
-const sectionTitle: React.CSSProperties = { fontSize: 14, fontWeight: 700, color: "#1e293b", marginBottom: 12 };
-const inp: React.CSSProperties = { width: "100%", padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" };
-const btnPrimary: React.CSSProperties = { padding: "10px 18px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const btnGhost: React.CSSProperties = { padding: "10px 16px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const btnSm: React.CSSProperties = { padding: "6px 10px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
-const chipGhost: React.CSSProperties = { padding: "6px 12px", background: "#fef3c7", color: "#78350f", border: "1px solid #fde68a", borderRadius: 999, fontSize: 11, cursor: "pointer", fontFamily: "inherit" };
-const chipGreen: React.CSSProperties = { padding: "6px 12px", background: "#dcfce7", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 999, fontSize: 11, fontFamily: "inherit" };
+const sectionTitle: React.CSSProperties = { fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 12 };
+const inp: React.CSSProperties = { width: "100%", padding: "10px 12px", border: "1px solid var(--hairline-strong)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff" };
+const btnPrimary: React.CSSProperties = { padding: "10px 18px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const btnGhost: React.CSSProperties = { padding: "10px 16px", background: "var(--bg-soft)", color: "var(--ink-mid)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const btnSm: React.CSSProperties = { padding: "6px 10px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
+const chipGhost: React.CSSProperties = { padding: "6px 12px", background: "var(--warning-soft)", color: "var(--warning)", border: "1px solid #E0C893", borderRadius: 999, fontSize: 11, cursor: "pointer", fontFamily: "inherit" };
+const chipGreen: React.CSSProperties = { padding: "6px 12px", background: "var(--success-soft)", color: "var(--success)", border: "1px solid var(--success-soft)", borderRadius: 999, fontSize: 11, fontFamily: "inherit" };
 const modalCard: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 20, maxWidth: 420, width: "calc(100vw - 32px)", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" };

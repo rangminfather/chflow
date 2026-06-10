@@ -110,15 +110,15 @@ export default function PasswordResetPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
       <HeaderLogo />
       <div style={{ maxWidth: 800, margin: "0 auto", padding: "20px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button onClick={() => router.push("/home")} style={btnGhost}>←</button>
-          <h1 style={{ fontSize: 18, fontWeight: 800, color: "#1e293b", margin: 0 }}>🔐 비밀번호 초기화 (관리자)</h1>
+          <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0 }}>🔐 비밀번호 초기화 (관리자)</h1>
         </div>
 
-        <div style={{ background: "#fef3c7", border: "1px solid #fde68a", borderRadius: 8, padding: 12, fontSize: 12, color: "#78350f", marginBottom: 16, lineHeight: 1.6 }}>
+        <div style={{ background: "var(--warning-soft)", border: "1px solid #E0C893", borderRadius: 8, padding: 12, fontSize: 12, color: "var(--warning)", marginBottom: 16, lineHeight: 1.6 }}>
           ⚠️ 사용자 비밀번호 초기화는 <strong>모두 audit log 에 기록</strong>됩니다 (누가/언제/누구). 임시 비밀번호 발급 후 사용자가 첫 로그인 시 새 비밀번호로 변경하도록 강제됩니다.
         </div>
 
@@ -136,7 +136,7 @@ export default function PasswordResetPage() {
               {searching ? "..." : "검색"}
             </button>
           </div>
-          {error && <div style={{ color: "#b91c1c", fontSize: 12, marginTop: 8 }}>{error}</div>}
+          {error && <div style={{ color: "var(--danger)", fontSize: 12, marginTop: 8 }}>{error}</div>}
         </div>
 
         {results.length > 0 && (
@@ -148,18 +148,18 @@ export default function PasswordResetPage() {
                 onClick={() => setSelectedUser(u)}
                 style={{
                   padding: "10px 12px", marginBottom: 4, borderRadius: 8, cursor: "pointer",
-                  background: selectedUser?.id === u.id ? "#dbeafe" : "#f8fafc",
-                  border: selectedUser?.id === u.id ? "2px solid #3b82f6" : "1px solid #e2e8f0",
+                  background: selectedUser?.id === u.id ? "var(--accent-soft)" : "var(--surface)",
+                  border: selectedUser?.id === u.id ? "2px solid var(--accent)" : "1px solid var(--hairline)",
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
-                      {u.name} <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 11 }}>({u.username})</span>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
+                      {u.name} <span style={{ color: "var(--ink-faint)", fontWeight: 400, fontSize: 11 }}>({u.username})</span>
                     </div>
-                    <div style={{ fontSize: 11, color: "#64748b" }}>
+                    <div style={{ fontSize: 11, color: "var(--ink-soft)" }}>
                       {u.phone || "전화번호 없음"} · {u.role === "admin" ? "관리자" : "회원"}
-                      {u.must_change_password && <span style={{ color: "#d97706", marginLeft: 6 }}>· 비번 변경 필요</span>}
+                      {u.must_change_password && <span style={{ color: "var(--warning)", marginLeft: 6 }}>· 비번 변경 필요</span>}
                     </div>
                   </div>
                 </div>
@@ -187,15 +187,15 @@ export default function PasswordResetPage() {
         )}
 
         {resetResult && (
-          <div style={{ ...card, background: "#f0fdf4", border: "2px solid #22c55e" }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: "#15803d", marginBottom: 8 }}>✅ 임시 비밀번호 발급 완료</div>
-            <div style={{ fontSize: 13, color: "#1e293b", marginBottom: 4 }}>
+          <div style={{ ...card, background: "var(--success-soft)", border: "2px solid var(--success)" }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--success)", marginBottom: 8 }}>✅ 임시 비밀번호 발급 완료</div>
+            <div style={{ fontSize: 13, color: "var(--ink)", marginBottom: 4 }}>
               사용자: <strong>{resetResult.name}</strong> ({resetResult.username})
             </div>
-            <div style={{ fontSize: 11, color: "#64748b", marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 12 }}>
               임시 비밀번호를 사용자에게 안전한 채널 (SMS/카카오톡 등) 로 전달하세요.
             </div>
-            <div style={{ background: "#fff", border: "1px solid #d1d5db", borderRadius: 8, padding: "10px 12px", fontFamily: "ui-monospace, monospace", fontSize: 18, fontWeight: 800, color: "#1e293b", textAlign: "center", marginBottom: 8, letterSpacing: 2 }}>
+            <div style={{ background: "#fff", border: "1px solid var(--hairline-strong)", borderRadius: 8, padding: "10px 12px", fontFamily: "ui-monospace, monospace", fontSize: 18, fontWeight: 800, color: "var(--ink)", textAlign: "center", marginBottom: 8, letterSpacing: 2 }}>
               {resetResult.tempPw}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -208,17 +208,17 @@ export default function PasswordResetPage() {
         <div style={card}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>📋 최근 초기화 이력</div>
           {logs.length === 0 ? (
-            <div style={{ fontSize: 12, color: "#94a3b8", padding: 12 }}>이력 없음</div>
+            <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: 12 }}>이력 없음</div>
           ) : (
-            <div style={{ fontSize: 12, color: "#475569" }}>
+            <div style={{ fontSize: 12, color: "var(--ink-mid)" }}>
               {logs.map((log) => (
-                <div key={log.id} style={{ padding: "6px 0", borderBottom: "1px solid #f1f5f9" }}>
-                  <span style={{ color: "#94a3b8" }}>{new Date(log.reset_at).toLocaleString("ko-KR")}</span>
+                <div key={log.id} style={{ padding: "6px 0", borderBottom: "1px solid var(--bg-soft)" }}>
+                  <span style={{ color: "var(--ink-faint)" }}>{new Date(log.reset_at).toLocaleString("ko-KR")}</span>
                   {" · "}
                   <strong>{log.admin_username}</strong>
                   {" → "}
                   <strong>{log.target_name || log.target_username}</strong>
-                  {log.reason && <span style={{ color: "#94a3b8" }}> ({log.reason})</span>}
+                  {log.reason && <span style={{ color: "var(--ink-faint)" }}> ({log.reason})</span>}
                 </div>
               ))}
             </div>
@@ -230,7 +230,7 @@ export default function PasswordResetPage() {
 }
 
 const card: React.CSSProperties = { background: "#fff", borderRadius: 12, padding: 16, marginBottom: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" };
-const input: React.CSSProperties = { flex: 1, padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, fontSize: 13, fontFamily: "inherit" };
-const btnPrimary: React.CSSProperties = { padding: "10px 16px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const btnDanger: React.CSSProperties = { padding: "10px 16px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const btnGhost: React.CSSProperties = { padding: "10px 16px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const input: React.CSSProperties = { flex: 1, padding: "10px 12px", border: "1px solid var(--hairline-strong)", borderRadius: 8, fontSize: 13, fontFamily: "inherit" };
+const btnPrimary: React.CSSProperties = { padding: "10px 16px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const btnDanger: React.CSSProperties = { padding: "10px 16px", background: "var(--danger)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const btnGhost: React.CSSProperties = { padding: "10px 16px", background: "var(--bg-soft)", color: "var(--ink-mid)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };

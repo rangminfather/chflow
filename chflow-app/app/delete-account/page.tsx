@@ -10,13 +10,13 @@ export default function DeleteAccountPage() {
       <div style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button onClick={() => router.back()} style={{
-            width: 36, height: 36, borderRadius: 10, background: "#f1f5f9",
-            border: "none", fontSize: 16, cursor: "pointer", color: "#475569",
+            width: 36, height: 36, borderRadius: 10, background: "var(--bg-soft)",
+            border: "none", fontSize: 16, cursor: "pointer", color: "var(--ink-mid)",
           }}>←</button>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>계정 및 데이터 삭제 요청</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>계정 및 데이터 삭제 요청</div>
         </div>
 
-        <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.75 }}>
+        <div style={{ fontSize: 13, color: "var(--ink-mid)", lineHeight: 1.75 }}>
           <p style={pStyle}>
             <strong>스마트명성</strong>은 이용자가 언제든지 본인의 계정과 관련된 개인정보의 삭제를 요청할 수 있도록 합니다.
             아래 안내에 따라 신청하시면 처리해 드립니다.
@@ -50,7 +50,7 @@ export default function DeleteAccountPage() {
           <ul style={ulStyle}>
             <li>
               <strong>이메일</strong>: <a href="mailto:sunsetrome@naver.com" style={linkStyle}>sunsetrome@naver.com</a>
-              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
+              <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 4 }}>
                 제목에 "[탈퇴 요청]" 또는 "[데이터 삭제 요청]"을 적어주세요.
               </div>
             </li>
@@ -80,7 +80,7 @@ export default function DeleteAccountPage() {
             아동 본인이 신청한 경우 보호자 확인 절차가 추가됩니다.
           </p>
 
-          <p style={{ ...pStyle, marginTop: 24, fontSize: 11, color: "#94a3b8" }}>
+          <p style={{ ...pStyle, marginTop: 24, fontSize: 11, color: "var(--ink-faint)" }}>
             본 안내는 2026년 4월 27일부터 적용됩니다. 자세한 개인정보 처리 사항은{" "}
             <a href="/privacy" style={linkStyle}>개인정보 처리방침</a>을 참고하세요.
           </p>
@@ -95,7 +95,7 @@ export default function DeleteAccountPage() {
             fontSize: 14,
             fontWeight: 700,
             color: "#fff",
-            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
             border: "none",
             borderRadius: 12,
             cursor: "pointer",
@@ -111,7 +111,7 @@ export default function DeleteAccountPage() {
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(135deg, #f0f9ff 0%, #fef3c7 100%)",
+  background: "linear-gradient(135deg, #EFF5F7 0%, var(--warning-soft) 100%)",
   display: "flex",
   alignItems: "flex-start",
   justifyContent: "center",
@@ -134,7 +134,7 @@ const cardStyle: React.CSSProperties = {
 const h3Style: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 800,
-  color: "#1e293b",
+  color: "var(--ink)",
   marginTop: 18,
   marginBottom: 8,
 };
@@ -149,7 +149,7 @@ const ulStyle: React.CSSProperties = {
 };
 
 const linkStyle: React.CSSProperties = {
-  color: "#6366f1",
+  color: "var(--accent)",
   textDecoration: "underline",
   fontWeight: 600,
 };

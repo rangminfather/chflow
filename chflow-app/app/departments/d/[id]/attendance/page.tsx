@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 interface Student {
   id: string;
@@ -44,7 +45,7 @@ const CHECKS = [
 
 const STATUS_LIST = ["출", "빠", "결", "인"];
 const STATUS_COLOR: Record<string, string> = {
-  출: "#10b981", 빠: "#f59e0b", 결: "#ef4444", 인: "#6366f1",
+  출: "var(--success)", 빠: "var(--warning)", 결: "var(--danger)", 인: "var(--accent)",
 };
 
 export default function AttendancePage() {
@@ -220,14 +221,14 @@ export default function AttendancePage() {
     setTimeout(() => setToast(""), 2500);
   };
 
-  if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
+  if (!authChecked) return <LoadingView full />;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
 
       <style>{`
         .att-table { border-collapse: collapse; }
-        .att-table th, .att-table td { border: 1px solid #e2e8f0; }
+        .att-table th, .att-table td { border: 1px solid var(--hairline); }
         .check-btn { transition: all 0.1s; }
         .check-btn:hover { filter: brightness(0.9); }
       `}</style>
@@ -238,7 +239,7 @@ export default function AttendancePage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>📋 출결 (학생출석부)</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>📋 출결 (학생출석부)</div>
         <button onClick={() => setShowAddForm(!showAddForm)} style={addBtnStyle}>+ 학생 추가</button>
       </div>
 
@@ -265,11 +266,11 @@ export default function AttendancePage() {
         {/* 월 선택 */}
         <div style={{ ...cardStyle, marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", minWidth: 120, textAlign: "center" }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", minWidth: 120, textAlign: "center" }}>
             {year}년 {month}월
           </div>
           <button onClick={() => nextMonth(year, month, setYear, setMonth)} style={navBtnStyle}>▶</button>
-          <div style={{ marginLeft: "auto", fontSize: 11, color: "#94a3b8" }}>
+          <div style={{ marginLeft: "auto", fontSize: 11, color: "var(--ink-faint)" }}>
             주일: {sundays.length}주 · 기=기도, 교=교회학교, 예=예배, 공=공과, 성=성경읽기
           </div>
         </div>
@@ -277,14 +278,14 @@ export default function AttendancePage() {
         {/* 그리드 */}
         <div style={{ ...cardStyle, overflowX: "auto", padding: 0 }}>
           {loading ? (
-            <div style={{ color: "#94a3b8", textAlign: "center", padding: 60 }}>불러오는 중...</div>
+            <LoadingView padding={60} label="불러오는 중..." />
           ) : students.length === 0 ? (
-            <div style={{ color: "#94a3b8", textAlign: "center", padding: 60 }}>
+            <div style={{ color: "var(--ink-faint)", textAlign: "center", padding: 60 }}>
               학생이 없습니다. 상단 &quot;학생 추가&quot;를 눌러 추가하세요.
             </div>
           ) : (
             <table className="att-table" style={{ width: "100%", minWidth: 800, fontSize: 11 }}>
-              <thead style={{ background: "#f8fafc" }}>
+              <thead style={{ background: "var(--surface)" }}>
                 <tr>
                   <th rowSpan={2} style={thStyle2(50)}>번호</th>
                   <th rowSpan={2} style={thStyle2(80)}>이름</th>
@@ -340,29 +341,29 @@ export default function AttendancePage() {
                       rows.push(
                         <tr key={`g-${group}`}>
                           <td colSpan={colSpan} style={{
-                            background: "linear-gradient(90deg, #eef2ff 0%, #f5f3ff 100%)",
+                            background: "linear-gradient(90deg, var(--accent-soft) 0%, #F2EDF6 100%)",
                             padding: "10px 14px",
                             fontWeight: 800,
                             fontSize: 12,
-                            color: "#1e293b",
-                            borderTop: "2px solid #c7d2fe",
-                            borderBottom: "1px solid #c7d2fe",
+                            color: "var(--ink)",
+                            borderTop: "2px solid var(--accent-line)",
+                            borderBottom: "1px solid var(--accent-line)",
                           }}>
-                            📚 {className}반 <span style={{ color: "#64748b", fontWeight: 600, fontSize: 11, marginLeft: 8 }}>· 담임 {teacherName} · {count}명</span>
+                            📚 {className}반 <span style={{ color: "var(--ink-soft)", fontWeight: 600, fontSize: 11, marginLeft: 8 }}>· 담임 {teacherName} · {count}명</span>
                           </td>
                         </tr>
                       );
                     }
                     const summary = monthlySummary(s.id);
                     rows.push(
-                      <tr key={s.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                      <tr key={s.id} style={{ borderBottom: "1px solid var(--bg-soft)" }}>
                       <td style={{ textAlign: "center", padding: 4, fontWeight: 700 }}>{s.student_no ?? ""}</td>
                       <td style={{ padding: "4px 8px", fontWeight: 700, whiteSpace: "nowrap" }}>{s.name}</td>
                       <td style={{ textAlign: "center", padding: 4 }}>
                         <span style={{
                           fontSize: 10, padding: "1px 5px", borderRadius: 4,
-                          background: s.student_type === "정" ? "#eef2ff" : s.student_type === "체험" ? "#fef3c7" : "#f0fdf4",
-                          color: s.student_type === "정" ? "#6366f1" : s.student_type === "체험" ? "#92400e" : "#15803d",
+                          background: s.student_type === "정" ? "var(--accent-soft)" : s.student_type === "체험" ? "var(--warning-soft)" : "var(--success-soft)",
+                          color: s.student_type === "정" ? "var(--accent)" : s.student_type === "체험" ? "var(--warning)" : "var(--success)",
                           fontWeight: 700,
                         }}>
                           {s.student_type}
@@ -384,8 +385,8 @@ export default function AttendancePage() {
                                     disabled={saving === key}
                                     style={{
                                       width: 24, height: 24, borderRadius: 4, border: "none",
-                                      background: val ? "#6366f1" : "#f1f5f9",
-                                      color: val ? "#fff" : "#cbd5e1",
+                                      background: val ? "var(--accent)" : "var(--bg-soft)",
+                                      color: val ? "#fff" : "var(--hairline-strong)",
                                       fontSize: 12, cursor: "pointer",
                                       display: "flex", alignItems: "center", justifyContent: "center",
                                       margin: "0 auto",
@@ -402,7 +403,7 @@ export default function AttendancePage() {
                                 onChange={(e) => setStatus(s.id, d, e.target.value)}
                                 style={{
                                   fontSize: 10, padding: "2px 2px", borderRadius: 4,
-                                  border: "1px solid #e2e8f0",
+                                  border: "1px solid var(--hairline)",
                                   background: STATUS_COLOR[cell?.attend_status ?? "출"] + "22",
                                   color: STATUS_COLOR[cell?.attend_status ?? "출"],
                                   fontWeight: 700, width: 36, fontFamily: "inherit",
@@ -418,11 +419,11 @@ export default function AttendancePage() {
                       })}
 
                       {/* 월합계 */}
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "#64748b" }}>{summary.total}</td>
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "#10b981" }}>{summary.attend}</td>
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "#f59e0b" }}>{summary.skip}</td>
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "#ef4444" }}>{summary.absent}</td>
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "#6366f1" }}>{summary.excused}</td>
+                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "var(--ink-soft)" }}>{summary.total}</td>
+                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "var(--success)" }}>{summary.attend}</td>
+                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "var(--warning)" }}>{summary.skip}</td>
+                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "var(--danger)" }}>{summary.absent}</td>
+                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "var(--accent)" }}>{summary.excused}</td>
 
                       {/* MEMO (첫 주 데이터 기준) */}
                       <td style={{ padding: 4 }}>
@@ -431,13 +432,13 @@ export default function AttendancePage() {
                           defaultValue={attData.find((a) => a.student_id === s.id)?.memo ?? ""}
                           placeholder="메모"
                           onChange={(e) => setEditMemo((m) => ({ ...m, [`${s.id}-memo`]: e.target.value }))}
-                          style={{ width: "100%", fontSize: 10, border: "1px solid #e2e8f0", borderRadius: 4, padding: "2px 4px", boxSizing: "border-box", fontFamily: "inherit" }}
+                          style={{ width: "100%", fontSize: 10, border: "1px solid var(--hairline)", borderRadius: 4, padding: "2px 4px", boxSizing: "border-box", fontFamily: "inherit" }}
                         />
                       </td>
                       <td style={{ textAlign: "center", padding: 4 }}>
                         <button
                           onClick={() => deleteStudent(s.id, s.name)}
-                          style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14 }}
+                          style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", fontSize: 14 }}
                         >🗑</button>
                       </td>
                     </tr>
@@ -482,15 +483,14 @@ function nextMonth(year: number, month: number, setYear: (y: number) => void, se
   else setMonth(month + 1);
 }
 
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const cardStyle: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
-const inputStyle: React.CSSProperties = { padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
-const sectionLabel: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: 0.5, marginBottom: 10 };
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
-const addBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const saveBtnStyle: React.CSSProperties = { padding: "9px 18px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const cancelBtnStyle: React.CSSProperties = { padding: "9px 14px", background: "#f1f5f9", color: "#64748b", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "inherit" };
-const navBtnStyle: React.CSSProperties = { padding: "6px 12px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "inherit", color: "#475569" };
-const thStyle2 = (minWidth: number): React.CSSProperties => ({ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 700, color: "#64748b", background: "#f8fafc", whiteSpace: "nowrap", minWidth });
-const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(15,23,42,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap" };
-const loadingStyle: React.CSSProperties = { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" };
+const inputStyle: React.CSSProperties = { padding: "9px 12px", border: "1.5px solid var(--hairline)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
+const sectionLabel: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.5, marginBottom: 10 };
+const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
+const addBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const saveBtnStyle: React.CSSProperties = { padding: "9px 18px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const cancelBtnStyle: React.CSSProperties = { padding: "9px 14px", background: "var(--bg-soft)", color: "var(--ink-soft)", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "inherit" };
+const navBtnStyle: React.CSSProperties = { padding: "6px 12px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "inherit", color: "var(--ink-mid)" };
+const thStyle2 = (minWidth: number): React.CSSProperties => ({ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 700, color: "var(--ink-soft)", background: "var(--surface)", whiteSpace: "nowrap", minWidth });
+const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap" };

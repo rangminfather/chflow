@@ -6,6 +6,7 @@ import { supabase, formatPhone, usernameToEmail } from "@/lib/supabase";
 import { getRoleImageByLabel, ROLES, type Role } from "@/lib/roles";
 import HeaderLogo from "@/components/HeaderLogo";
 import PhotoAvatar from "@/components/PhotoAvatar";
+import { LoadingView } from "@/components/StatusViews";
 
 interface Profile {
   user_id: string;
@@ -181,18 +182,18 @@ export default function MyInfoPage() {
   };
 
   if (!authChecked || !profile) {
-    return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9" }}>로딩 중...</div>;
+    return <LoadingView full />;
   }
 
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif", paddingBottom: 48 }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif", paddingBottom: 48 }}>
 
       {/* Header */}
-      <div style={{ background: "#fff", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #e2e8f0" }}>
+      <div style={{ background: "#fff", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--hairline)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <HeaderLogo />
-          <div style={{ fontSize: 17, fontWeight: 800, color: "#1e293b" }}>내 정보</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)" }}>내 정보</div>
         </div>
         <button onClick={() => router.push("/home")} style={btnGhost}>← 홈</button>
       </div>
@@ -221,7 +222,7 @@ export default function MyInfoPage() {
               <div style={{ position: "relative" }}>
                 <div style={{
                   width: 80, height: 80, borderRadius: "50%",
-                  background: "#f1f5f9", border: "2px solid #e2e8f0",
+                  background: "var(--bg-soft)", border: "2px solid var(--hairline)",
                   overflow: "hidden",
                 }}>
                   <img
@@ -235,7 +236,7 @@ export default function MyInfoPage() {
                   style={{
                     position: "absolute", bottom: 0, right: 0,
                     width: 26, height: 26, borderRadius: "50%",
-                    background: "#475569", border: "2px solid #fff",
+                    background: "var(--ink-mid)", border: "2px solid #fff",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     cursor: "pointer", color: "#fff", fontSize: 13, lineHeight: 1,
                   }}
@@ -289,11 +290,11 @@ export default function MyInfoPage() {
                   </div>
                 ) : (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ ...infoValue, color: "#ef4444", fontWeight: 600 }}>(미등록)</span>
+                    <span style={{ ...infoValue, color: "var(--danger)", fontWeight: 600 }}>(미등록)</span>
                     <button onClick={() => setEditEmail(true)} style={btnSm}>이메일 등록하기</button>
                   </div>
                 )}
-                <span style={{ fontSize: 11, color: "#94a3b8" }}>이메일 등록 시 비밀번호 찾기에서 재설정 링크를 이메일로 받을 수 있습니다</span>
+                <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>이메일 등록 시 비밀번호 찾기에서 재설정 링크를 이메일로 받을 수 있습니다</span>
               </div>
             ) : (
               <InfoItem label="이메일" value={email} />
@@ -339,7 +340,7 @@ export default function MyInfoPage() {
                     placeholder="도로명 주소" rows={2}
                     style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }} />
                   <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 11, color: "#94a3b8" }}>가구(같은 주소) 전체에 적용됩니다</span>
+                    <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>가구(같은 주소) 전체에 적용됩니다</span>
                     <div style={{ display: "flex", gap: 6 }}>
                       <button onClick={() => setEditAddress(false)} style={btnGhost}>취소</button>
                       <button onClick={() => saveContact("address")} disabled={savingContact} style={btnPrimary}>저장</button>
@@ -348,7 +349,7 @@ export default function MyInfoPage() {
                 </div>
               ) : (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
-                  <span style={{ ...infoValue, color: profile.address ? "#1e293b" : "#94a3b8" }}>{profile.address || "(미등록)"}</span>
+                  <span style={{ ...infoValue, color: profile.address ? "var(--ink)" : "var(--ink-faint)" }}>{profile.address || "(미등록)"}</span>
                   <button onClick={startEditAddress} disabled={!profile.household_id}
                     title={!profile.household_id ? "가구 미배정 — 관리자 문의" : ""} style={btnSm}>변경</button>
                 </div>
@@ -365,7 +366,7 @@ export default function MyInfoPage() {
               <input type="password" value={curPw} onChange={(e) => setCurPw(e.target.value)} placeholder="현재 비밀번호" style={inputStyle} autoFocus />
               <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="새 비밀번호 (6자 이상)" style={inputStyle} />
               <input type="password" value={newPw2} onChange={(e) => setNewPw2(e.target.value)} placeholder="새 비밀번호 확인" style={inputStyle} />
-              {pwMsg && <div style={{ fontSize: 12, color: "#dc2626" }}>{pwMsg}</div>}
+              {pwMsg && <div style={{ fontSize: 12, color: "var(--danger)" }}>{pwMsg}</div>}
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 <button onClick={() => { setPwOpen(false); setCurPw(""); setNewPw(""); setNewPw2(""); setPwMsg(""); }} style={btnGhost}>취소</button>
                 <button onClick={changePassword} disabled={pwSubmitting} style={btnPrimary}>{pwSubmitting ? "변경 중..." : "변경"}</button>
@@ -377,14 +378,14 @@ export default function MyInfoPage() {
         </div>
 
         {/* 5. 계정 */}
-        <div style={{ ...card, borderColor: "#fecaca" }}>
+        <div style={{ ...card, borderColor: "var(--danger-soft)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>계정</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>계정</span>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={async () => { await supabase.auth.signOut(); router.replace("/login?notice=logout"); }}
                 style={btnGhost}>로그아웃</button>
               <button onClick={() => router.push("/delete-account")}
-                style={{ ...btnGhost, background: "transparent", color: "#b91c1c", borderColor: "#e2e8f0" }}>탈퇴 신청</button>
+                style={{ ...btnGhost, background: "transparent", color: "var(--danger)", borderColor: "var(--hairline)" }}>탈퇴 신청</button>
             </div>
           </div>
         </div>
@@ -393,7 +394,7 @@ export default function MyInfoPage() {
       {toast && (
         <div style={{
           position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
-          background: "#1e293b", color: "#fff", padding: "10px 20px", borderRadius: 999,
+          background: "var(--ink)", color: "#fff", padding: "10px 20px", borderRadius: 999,
           fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
           whiteSpace: "nowrap",
         }}>{toast}</div>
@@ -437,14 +438,14 @@ function RolePicker({ value, parentRole, onSelect }: {
   };
 
   return (
-    <div style={{ background: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0", overflow: "hidden" }}>
+    <div style={{ background: "var(--surface)", borderRadius: 12, border: "1px solid var(--hairline)", overflow: "hidden" }}>
       {/* 그룹 탭 */}
-      <div style={{ display: "flex", borderBottom: "1px solid #e2e8f0", background: "#fff" }}>
+      <div style={{ display: "flex", borderBottom: "1px solid var(--hairline)", background: "#fff" }}>
         {ROLE_GROUPS.map(g => (
           <button key={g.label} onClick={() => setActiveGroup(g.label)} style={{
             flex: 1, padding: "9px 4px", border: "none", background: "none", cursor: "pointer",
             fontSize: 11, fontWeight: 700, fontFamily: "inherit",
-            color: activeGroup === g.label ? "#3E5A4A" : "#94a3b8",
+            color: activeGroup === g.label ? "#3E5A4A" : "var(--ink-faint)",
             borderBottom: activeGroup === g.label ? "2px solid #3E5A4A" : "2px solid transparent",
           }}>{g.label}</button>
         ))}
@@ -456,7 +457,7 @@ function RolePicker({ value, parentRole, onSelect }: {
           return (
             <div key={role.id} onClick={() => handleRoleClick(role)} style={{
               cursor: "pointer", borderRadius: 10, overflow: "hidden",
-              background: "#fff", border: `2px solid ${isSelected ? "#3E5A4A" : "#e2e8f0"}`,
+              background: "#fff", border: `2px solid ${isSelected ? "#3E5A4A" : "var(--hairline)"}`,
               aspectRatio: "0.65", position: "relative",
             }}>
               <img src={role.image} alt={role.label} style={{
@@ -472,7 +473,7 @@ function RolePicker({ value, parentRole, onSelect }: {
       {/* 서브직분 모달 */}
       {showSubPicker && (
         <div onClick={() => setShowSubPicker(null)} style={{
-          position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)",
+          position: "fixed", inset: 0, background: "rgba(43, 39, 34,0.5)",
           display: "flex", alignItems: "center", justifyContent: "center",
           zIndex: 200, padding: 20,
         }}>
@@ -480,7 +481,7 @@ function RolePicker({ value, parentRole, onSelect }: {
             background: "#fff", borderRadius: 16, padding: "20px 16px",
             width: "100%", maxWidth: 360,
           }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", marginBottom: 14, textAlign: "center" }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", marginBottom: 14, textAlign: "center" }}>
               {showSubPicker.label} 세부 직분
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
@@ -488,7 +489,7 @@ function RolePicker({ value, parentRole, onSelect }: {
                 const isSelected = sub.label === value;
                 return (
                   <div key={sub.label} onClick={() => { onSelect(sub.label, showSubPicker); setShowSubPicker(null); }} style={{
-                    cursor: "pointer", borderRadius: 10, border: `2px solid ${isSelected ? "#3E5A4A" : "#e2e8f0"}`,
+                    cursor: "pointer", borderRadius: 10, border: `2px solid ${isSelected ? "#3E5A4A" : "var(--hairline)"}`,
                     background: "#fafafa", aspectRatio: "0.65", overflow: "hidden", position: "relative",
                   }}>
                     <img src={sub.image} alt={sub.label} style={{
@@ -511,8 +512,8 @@ function RolePicker({ value, parentRole, onSelect }: {
 function CardHeader({ title, sub }: { title: string; sub: string }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 800, color: "#1e293b", letterSpacing: 0.2 }}>{title}</div>
-      {sub && <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{sub}</div>}
+      <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ink)", letterSpacing: 0.2 }}>{title}</div>
+      {sub && <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 2 }}>{sub}</div>}
     </div>
   );
 }
@@ -521,7 +522,7 @@ function InfoItem({ label, value }: { label: string; value: string | null | unde
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
       <span style={infoLabel}>{label}</span>
-      <span style={{ ...infoValue, color: value ? "#1e293b" : "#cbd5e1" }}>{value || "—"}</span>
+      <span style={{ ...infoValue, color: value ? "var(--ink)" : "var(--hairline-strong)" }}>{value || "—"}</span>
     </div>
   );
 }
@@ -529,37 +530,37 @@ function InfoItem({ label, value }: { label: string; value: string | null | unde
 // ===== Styles =====
 const card: React.CSSProperties = {
   background: "#fff", borderRadius: 16, padding: "20px 20px",
-  border: "1px solid #e2e8f0", boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+  border: "1px solid var(--hairline)", boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
 };
 const infoGrid: React.CSSProperties = {
   display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 20px",
 };
 const infoLabel: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: 0.3,
+  fontSize: 11, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.3,
 };
 const infoValue: React.CSSProperties = {
-  fontSize: 14, fontWeight: 600, color: "#1e293b",
+  fontSize: 14, fontWeight: 600, color: "var(--ink)",
 };
 const avatarLabel: React.CSSProperties = {
-  fontSize: 12, fontWeight: 700, color: "#64748b",
+  fontSize: 12, fontWeight: 700, color: "var(--ink-soft)",
 };
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", border: "1px solid #cbd5e1", borderRadius: 8,
+  width: "100%", padding: "9px 12px", border: "1px solid var(--hairline-strong)", borderRadius: 8,
   fontSize: 13, fontFamily: "inherit", background: "#fff", outline: "none", boxSizing: "border-box" as const,
 };
 const btnPrimary: React.CSSProperties = {
-  padding: "9px 16px", border: 0, borderRadius: 8, background: "#6366f1", color: "#fff",
+  padding: "9px 16px", border: 0, borderRadius: 8, background: "var(--accent)", color: "#fff",
   fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const,
 };
 const btnGhost: React.CSSProperties = {
-  padding: "9px 14px", border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff",
-  color: "#475569", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" as const,
+  padding: "9px 14px", border: "1px solid var(--hairline)", borderRadius: 8, background: "#fff",
+  color: "var(--ink-mid)", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" as const,
 };
 const btnSm: React.CSSProperties = {
-  padding: "5px 12px", border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc",
-  color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" as const,
+  padding: "5px 12px", border: "1px solid var(--hairline)", borderRadius: 6, background: "var(--surface)",
+  color: "var(--ink-soft)", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" as const,
 };
 const btnOutline: React.CSSProperties = {
-  padding: "9px 16px", border: "1px solid #cbd5e1", borderRadius: 8, background: "#fff",
-  color: "#1e293b", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const,
+  padding: "9px 16px", border: "1px solid var(--hairline-strong)", borderRadius: 8, background: "#fff",
+  color: "var(--ink)", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" as const,
 };

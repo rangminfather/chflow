@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 interface Teacher {
   id: string;
@@ -129,10 +130,10 @@ export default function TeacherAttendancePage() {
 
   const monthLabel = `${year}년 ${month}월`;
 
-  if (!authChecked) return <div style={loadingStyle}>로딩 중...</div>;
+  if (!authChecked) return <LoadingView full />;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
 
       {/* Header */}
       <div style={headerStyle}>
@@ -140,7 +141,7 @@ export default function TeacherAttendancePage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>👨‍🏫 선생임 (교사출석부)</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>👨‍🏫 선생임 (교사출석부)</div>
         <button onClick={() => setShowAddForm(!showAddForm)} style={addBtnStyle}>+ 교사 추가</button>
       </div>
 
@@ -173,11 +174,11 @@ export default function TeacherAttendancePage() {
         {/* 월 선택 */}
         <div style={{ ...cardStyle, marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", minWidth: 120, textAlign: "center" }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", minWidth: 120, textAlign: "center" }}>
             {monthLabel}
           </div>
           <button onClick={() => nextMonth(year, month, setYear, setMonth)} style={navBtnStyle}>▶</button>
-          <div style={{ marginLeft: "auto", fontSize: 11, color: "#94a3b8" }}>
+          <div style={{ marginLeft: "auto", fontSize: 11, color: "var(--ink-faint)" }}>
             일요일: {sundays.length}주
           </div>
         </div>
@@ -185,9 +186,9 @@ export default function TeacherAttendancePage() {
         {/* 출석 그리드 */}
         <div style={{ ...cardStyle, overflowX: "auto" }}>
           {loading ? (
-            <div style={{ color: "#94a3b8", textAlign: "center", padding: 40 }}>불러오는 중...</div>
+            <LoadingView padding={40} label="불러오는 중..." />
           ) : teachers.length === 0 ? (
-            <div style={{ color: "#94a3b8", textAlign: "center", padding: 40 }}>
+            <div style={{ color: "var(--ink-faint)", textAlign: "center", padding: 40 }}>
               교사가 없습니다. 상단 &quot;교사 추가&quot;를 눌러 추가하세요.
             </div>
           ) : (
@@ -198,7 +199,7 @@ export default function TeacherAttendancePage() {
                   {sundays.map((d) => (
                     <th key={d} style={thStyle("center", 70)}>
                       <div style={{ fontSize: 11, fontWeight: 700 }}>{formatMD(d)}</div>
-                      <div style={{ fontSize: 9, color: "#94a3b8", fontWeight: 400 }}>{weekNo(d, sundays)}주</div>
+                      <div style={{ fontSize: 9, color: "var(--ink-faint)", fontWeight: 400 }}>{weekNo(d, sundays)}주</div>
                     </th>
                   ))}
                   <th style={thStyle("center", 60)}>출석수</th>
@@ -210,11 +211,11 @@ export default function TeacherAttendancePage() {
                   const tMap = attMap[t.id] || {};
                   const presentCount = sundays.filter((d) => tMap[d]).length;
                   return (
-                    <tr key={t.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <tr key={t.id} style={{ borderBottom: "1px solid var(--bg-soft)" }}>
                       <td style={{ padding: "10px 12px" }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{t.name}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{t.name}</div>
                         {t.teacher_role && (
-                          <div style={{ fontSize: 10, color: "#6366f1", fontWeight: 600 }}>{t.teacher_role}</div>
+                          <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>{t.teacher_role}</div>
                         )}
                       </td>
                       {sundays.map((d) => {
@@ -229,8 +230,8 @@ export default function TeacherAttendancePage() {
                                 width: 32, height: 32,
                                 borderRadius: "50%",
                                 border: "none",
-                                background: saving === key ? "#e2e8f0" : present ? "#6366f1" : "#f1f5f9",
-                                color: present ? "#fff" : "#cbd5e1",
+                                background: saving === key ? "var(--hairline)" : present ? "var(--accent)" : "var(--bg-soft)",
+                                color: present ? "#fff" : "var(--hairline-strong)",
                                 fontSize: 16, cursor: "pointer",
                                 display: "flex", alignItems: "center", justifyContent: "center",
                                 margin: "0 auto",
@@ -245,7 +246,7 @@ export default function TeacherAttendancePage() {
                       <td style={{ textAlign: "center", padding: "6px 4px" }}>
                         <span style={{
                           fontSize: 13, fontWeight: 800,
-                          color: presentCount === sundays.length ? "#10b981" : presentCount > 0 ? "#6366f1" : "#94a3b8",
+                          color: presentCount === sundays.length ? "var(--success)" : presentCount > 0 ? "var(--accent)" : "var(--ink-faint)",
                         }}>
                           {presentCount}/{sundays.length}
                         </span>
@@ -253,7 +254,7 @@ export default function TeacherAttendancePage() {
                       <td style={{ textAlign: "center", padding: "6px 4px" }}>
                         <button
                           onClick={() => deleteTeacher(t.id, t.name)}
-                          style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14 }}
+                          style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", fontSize: 14 }}
                         >🗑</button>
                       </td>
                     </tr>
@@ -303,7 +304,7 @@ function nextMonth(year: number, month: number, setYear: (y: number) => void, se
 
 const headerStyle: React.CSSProperties = {
   background: "#fff",
-  borderBottom: "1px solid #e2e8f0",
+  borderBottom: "1px solid var(--hairline)",
   padding: "12px 24px",
   display: "flex",
   alignItems: "center",
@@ -319,7 +320,7 @@ const cardStyle: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   padding: "9px 12px",
-  border: "1.5px solid #e2e8f0",
+  border: "1.5px solid var(--hairline)",
   borderRadius: 8,
   fontSize: 13,
   fontFamily: "inherit",
@@ -330,25 +331,25 @@ const inputStyle: React.CSSProperties = {
 const sectionLabel: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
-  color: "#94a3b8",
+  color: "var(--ink-faint)",
   letterSpacing: 0.5,
   marginBottom: 10,
 };
 
 const backBtnStyle: React.CSSProperties = {
   padding: "8px 14px",
-  background: "#f1f5f9",
+  background: "var(--bg-soft)",
   border: "none",
   borderRadius: 8,
   fontSize: 12,
-  color: "#475569",
+  color: "var(--ink-mid)",
   cursor: "pointer",
   fontFamily: "inherit",
 };
 
 const addBtnStyle: React.CSSProperties = {
   padding: "8px 14px",
-  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   color: "#fff",
   border: "none",
   borderRadius: 8,
@@ -360,7 +361,7 @@ const addBtnStyle: React.CSSProperties = {
 
 const saveBtnStyle: React.CSSProperties = {
   padding: "9px 18px",
-  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   color: "#fff",
   border: "none",
   borderRadius: 8,
@@ -372,8 +373,8 @@ const saveBtnStyle: React.CSSProperties = {
 
 const cancelBtnStyle: React.CSSProperties = {
   padding: "9px 14px",
-  background: "#f1f5f9",
-  color: "#64748b",
+  background: "var(--bg-soft)",
+  color: "var(--ink-soft)",
   border: "none",
   borderRadius: 8,
   fontSize: 13,
@@ -383,13 +384,13 @@ const cancelBtnStyle: React.CSSProperties = {
 
 const navBtnStyle: React.CSSProperties = {
   padding: "6px 12px",
-  background: "#f1f5f9",
+  background: "var(--bg-soft)",
   border: "none",
   borderRadius: 8,
   fontSize: 13,
   cursor: "pointer",
   fontFamily: "inherit",
-  color: "#475569",
+  color: "var(--ink-mid)",
 };
 
 const thStyle = (align: "left" | "center", minWidth?: number): React.CSSProperties => ({
@@ -397,9 +398,9 @@ const thStyle = (align: "left" | "center", minWidth?: number): React.CSSProperti
   textAlign: align,
   fontSize: 11,
   fontWeight: 700,
-  color: "#64748b",
-  borderBottom: "2px solid #e2e8f0",
-  background: "#f8fafc",
+  color: "var(--ink-soft)",
+  borderBottom: "2px solid var(--hairline)",
+  background: "var(--surface)",
   whiteSpace: "nowrap",
   minWidth: minWidth,
 });
@@ -409,7 +410,7 @@ const toastStyle: React.CSSProperties = {
   bottom: 40,
   left: "50%",
   transform: "translateX(-50%)",
-  background: "rgba(15,23,42,0.88)",
+  background: "rgba(43, 39, 34,0.88)",
   color: "#fff",
   padding: "12px 24px",
   borderRadius: 999,
@@ -420,11 +421,3 @@ const toastStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const loadingStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background: "#f1f5f9",
-  fontFamily: "'Noto Sans KR', sans-serif",
-};

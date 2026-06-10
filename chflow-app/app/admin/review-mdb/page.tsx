@@ -25,7 +25,7 @@ export default function AdminReviewMdbPage() {
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "#f8fafc",
+  background: "var(--surface)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -37,24 +37,24 @@ const cardStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: 520,
   background: "#fff",
-  border: "1px solid #e2e8f0",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: 28,
-  boxShadow: "0 12px 30px rgba(15,23,42,0.08)",
+  boxShadow: "0 12px 30px rgba(43, 39, 34,0.08)",
 };
 
 const titleStyle: React.CSSProperties = {
   marginTop: 18,
   fontSize: 22,
-  fontWeight: 900,
-  color: "#0f172a",
+  fontWeight: 800,
+  color: "var(--ink)",
 };
 
 const bodyStyle: React.CSSProperties = {
   marginTop: 10,
   fontSize: 14,
   lineHeight: 1.7,
-  color: "#475569",
+  color: "var(--ink-mid)",
 };
 
 const buttonStyle: React.CSSProperties = {
@@ -62,7 +62,7 @@ const buttonStyle: React.CSSProperties = {
   padding: "10px 14px",
   border: 0,
   borderRadius: 6,
-  background: "#2563eb",
+  background: "var(--accent)",
   color: "#fff",
   fontSize: 13,
   fontWeight: 800,

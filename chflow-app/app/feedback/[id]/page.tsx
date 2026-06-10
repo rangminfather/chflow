@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { LoadingView } from "@/components/StatusViews";
 
 type FeedbackStatus = "submitted" | "received" | "reviewing" | "resolved" | "rejected";
 
@@ -43,11 +44,11 @@ type PostDetail = {
 };
 
 const STATUS_META: Record<FeedbackStatus, { label: string; bg: string; fg: string }> = {
-  submitted: { label: "미접수", bg: "#fee2e2", fg: "#b91c1c" },
-  received:  { label: "접수",   bg: "#fef3c7", fg: "#92400e" },
-  reviewing: { label: "검토중", bg: "#dbeafe", fg: "#1e40af" },
-  resolved:  { label: "처리완료", bg: "#dcfce7", fg: "#166534" },
-  rejected:  { label: "처리불가", bg: "#e2e8f0", fg: "#475569" },
+  submitted: { label: "미접수", bg: "var(--danger-soft)", fg: "var(--danger)" },
+  received:  { label: "접수",   bg: "var(--warning-soft)", fg: "var(--warning)" },
+  reviewing: { label: "검토중", bg: "var(--accent-soft)", fg: "var(--accent-strong)" },
+  resolved:  { label: "처리완료", bg: "var(--success-soft)", fg: "var(--success)" },
+  rejected:  { label: "처리불가", bg: "var(--hairline)", fg: "var(--ink-mid)" },
 };
 
 const STATUSES: FeedbackStatus[] = ["submitted", "received", "reviewing", "resolved", "rejected"];
@@ -234,7 +235,7 @@ export default function FeedbackDetailPage() {
     await load();
   }
 
-  if (loading) return <div style={loadingStyle}>로딩 중...</div>;
+  if (loading) return <LoadingView full />;
   if (!post) return (
     <div style={loadingStyle}>
       <div>{error || "게시글을 찾을 수 없습니다"}</div>
@@ -250,7 +251,7 @@ export default function FeedbackDetailPage() {
       <div style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
           <button onClick={() => router.replace("/feedback")} style={backBtnStyle}>←</button>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#475569" }}>불편신고 / 건의</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink-mid)" }}>불편신고 / 건의</div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
@@ -286,7 +287,7 @@ export default function FeedbackDetailPage() {
         {/* 관리자 상태 변경 */}
         {post.is_admin && (
           <div style={statusBoxStyle}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 8 }}>처리 상태 변경 (관리자)</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 8 }}>처리 상태 변경 (관리자)</div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {STATUSES.map((s) => {
                 const sm = STATUS_META[s];
@@ -301,7 +302,7 @@ export default function FeedbackDetailPage() {
                       cursor: active ? "default" : "pointer",
                       border: active ? `1.5px solid ${sm.fg}` : "1.5px solid transparent",
                       background: active ? sm.bg : "#fff",
-                      color: active ? sm.fg : "#64748b",
+                      color: active ? sm.fg : "var(--ink-soft)",
                       opacity: updatingStatus ? 0.5 : 1,
                       fontFamily: "inherit",
                     }}
@@ -314,11 +315,11 @@ export default function FeedbackDetailPage() {
 
         {/* 댓글 목록 */}
         <div style={{ marginTop: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: "#475569", marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--ink-mid)", marginBottom: 10 }}>
             💬 댓글 {post.comments.length}개
           </div>
           {post.comments.length === 0 && (
-            <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+            <div style={{ padding: 20, textAlign: "center", color: "var(--ink-faint)", fontSize: 13 }}>
               아직 댓글이 없습니다
             </div>
           )}
@@ -327,15 +328,15 @@ export default function FeedbackDetailPage() {
               <div key={c.id} style={{
                 padding: 12,
                 borderRadius: 12,
-                background: c.is_admin_reply ? "#eff6ff" : "#f8fafc",
-                border: c.is_admin_reply ? "1px solid #bfdbfe" : "1px solid #e2e8f0",
+                background: c.is_admin_reply ? "var(--accent-soft)" : "var(--surface)",
+                border: c.is_admin_reply ? "1px solid var(--accent-line)" : "1px solid var(--hairline)",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
-                  {c.is_admin_reply && <span style={{ padding: "2px 6px", borderRadius: 6, background: "#3b82f6", color: "#fff", fontSize: 10, fontWeight: 800 }}>관리자</span>}
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#1e293b" }}>{c.author?.name || "익명"}</span>
-                  <span style={{ fontSize: 11, color: "#94a3b8" }}>· {formatDate(c.created_at)}</span>
+                  {c.is_admin_reply && <span style={{ padding: "2px 6px", borderRadius: 6, background: "var(--accent)", color: "#fff", fontSize: 10, fontWeight: 800 }}>관리자</span>}
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>{c.author?.name || "익명"}</span>
+                  <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>· {formatDate(c.created_at)}</span>
                 </div>
-                <div style={{ fontSize: 13, color: "#1e293b", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{c.body}</div>
+                <div style={{ fontSize: 13, color: "var(--ink)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{c.body}</div>
                 {c.attachments.length > 0 && (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 6, marginTop: 8 }}>
                     {c.attachments.map((a) => {
@@ -355,7 +356,7 @@ export default function FeedbackDetailPage() {
 
         {/* 댓글 입력 (작성자 or 관리자) */}
         {(post.is_mine || post.is_admin) && (
-          <form onSubmit={submitComment} style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid #e2e8f0" }}>
+          <form onSubmit={submitComment} style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid var(--hairline)" }}>
             <label style={labelStyle}>{post.is_admin && !post.is_mine ? "관리자 답변" : "댓글"}</label>
             <textarea
               value={commentBody}
@@ -370,7 +371,7 @@ export default function FeedbackDetailPage() {
                 <div key={att.localId} style={thumbWrap}>
                   <img src={att.previewUrl} alt="" style={thumbImg} />
                   {att.uploading && <div style={thumbOverlay}>업로드중...</div>}
-                  {att.error && <div style={{ ...thumbOverlay, background: "rgba(220, 38, 38, 0.8)" }}>{att.error}</div>}
+                  {att.error && <div style={{ ...thumbOverlay, background: "rgba(168, 68, 60, 0.8)" }}>{att.error}</div>}
                   <button type="button" onClick={() => removeCommentAtt(att)} style={thumbRemove}>×</button>
                 </div>
               ))}
@@ -414,7 +415,7 @@ function formatDate(iso: string): string {
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(135deg, #f0f9ff 0%, #fef3c7 100%)",
+  background: "linear-gradient(135deg, #EFF5F7 0%, var(--warning-soft) 100%)",
   padding: "20px 16px 60px",
   fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
 };
@@ -425,62 +426,62 @@ const cardStyle: React.CSSProperties = {
   boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
 };
 const titleStyle: React.CSSProperties = {
-  fontSize: 20, fontWeight: 900, color: "#1e293b", margin: "4px 0 4px",
+  fontSize: 20, fontWeight: 800, color: "var(--ink)", margin: "4px 0 4px",
 };
 const metaRowStyle: React.CSSProperties = {
-  fontSize: 11, color: "#94a3b8", marginBottom: 14, display: "flex", flexWrap: "wrap",
+  fontSize: 11, color: "var(--ink-faint)", marginBottom: 14, display: "flex", flexWrap: "wrap",
 };
 const bodyStyle: React.CSSProperties = {
-  fontSize: 14, color: "#1e293b", lineHeight: 1.7, whiteSpace: "pre-wrap",
-  padding: "14px 16px", background: "#f8fafc", borderRadius: 12,
+  fontSize: 14, color: "var(--ink)", lineHeight: 1.7, whiteSpace: "pre-wrap",
+  padding: "14px 16px", background: "var(--surface)", borderRadius: 12,
 };
 const backBtnStyle: React.CSSProperties = {
-  width: 36, height: 36, borderRadius: 10, background: "#f1f5f9",
-  border: "none", fontSize: 16, cursor: "pointer", color: "#475569",
+  width: 36, height: 36, borderRadius: 10, background: "var(--bg-soft)",
+  border: "none", fontSize: 16, cursor: "pointer", color: "var(--ink-mid)",
 };
 const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, color: "#475569", letterSpacing: 0.3,
+  fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", letterSpacing: 0.3,
 };
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "12px 14px", fontSize: 14,
-  background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 10,
+  background: "#fff", border: "1.5px solid var(--hairline)", borderRadius: 10,
   outline: "none", fontFamily: "inherit", boxSizing: "border-box",
-  color: "#0f172a", fontWeight: 500,
+  color: "var(--ink)", fontWeight: 500,
 };
 const primaryBtn: React.CSSProperties = {
   width: "100%", padding: "12px 16px", fontSize: 14, fontWeight: 800,
-  color: "#fff", background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  color: "#fff", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   border: "none", borderRadius: 12, cursor: "pointer",
-  boxShadow: "0 6px 16px rgba(99,102,241,0.25)", fontFamily: "inherit",
+  boxShadow: "0 6px 16px rgba(62, 90, 74,0.25)", fontFamily: "inherit",
 };
 const errorStyle: React.CSSProperties = {
-  padding: "10px 14px", background: "#fef2f2", border: "1px solid #fecaca",
-  borderRadius: 10, fontSize: 12, color: "#b91c1c", marginTop: 10,
+  padding: "10px 14px", background: "var(--danger-soft)", border: "1px solid var(--danger-soft)",
+  borderRadius: 10, fontSize: 12, color: "var(--danger)", marginTop: 10,
 };
 const loadingStyle: React.CSSProperties = {
   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-  minHeight: "100vh", color: "#64748b", padding: 20, textAlign: "center",
+  minHeight: "100vh", color: "var(--ink-soft)", padding: 20, textAlign: "center",
 };
 const attBtn: React.CSSProperties = {
-  aspectRatio: "1", border: "1px solid #e2e8f0", borderRadius: 10,
+  aspectRatio: "1", border: "1px solid var(--hairline)", borderRadius: 10,
   overflow: "hidden", padding: 0, cursor: "pointer", background: "#fff",
 };
 const attImg: React.CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
 const statusBoxStyle: React.CSSProperties = {
-  marginTop: 16, padding: 14, background: "#fefce8",
-  border: "1px solid #fde047", borderRadius: 12,
+  marginTop: 16, padding: 14, background: "var(--warning-soft)",
+  border: "1px solid #E0C893", borderRadius: 12,
 };
 const lockBadge: React.CSSProperties = {
-  padding: "2px 8px", borderRadius: 6, background: "#fef3c7",
-  color: "#92400e", fontSize: 11, fontWeight: 700,
+  padding: "2px 8px", borderRadius: 6, background: "var(--warning-soft)",
+  color: "var(--warning)", fontSize: 11, fontWeight: 700,
 };
 const seqBadge: React.CSSProperties = {
-  padding: "2px 8px", borderRadius: 6, background: "#f1f5f9",
-  color: "#475569", fontSize: 11, fontWeight: 800,
+  padding: "2px 8px", borderRadius: 6, background: "var(--bg-soft)",
+  color: "var(--ink-mid)", fontSize: 11, fontWeight: 800,
 };
 const thumbWrap: React.CSSProperties = {
   position: "relative", aspectRatio: "1", borderRadius: 10,
-  overflow: "hidden", border: "1.5px solid #e2e8f0", background: "#f8fafc",
+  overflow: "hidden", border: "1.5px solid var(--hairline)", background: "var(--surface)",
 };
 const thumbImg: React.CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
 const thumbOverlay: React.CSSProperties = {
@@ -490,12 +491,12 @@ const thumbOverlay: React.CSSProperties = {
 };
 const thumbRemove: React.CSSProperties = {
   position: "absolute", top: 4, right: 4, width: 22, height: 22,
-  borderRadius: "50%", border: "none", background: "rgba(15,23,42,0.7)",
+  borderRadius: "50%", border: "none", background: "rgba(43, 39, 34,0.7)",
   color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", lineHeight: 1,
 };
 const addThumbBtn: React.CSSProperties = {
-  aspectRatio: "1", border: "2px dashed #cbd5e1", background: "#f8fafc",
-  borderRadius: 10, fontSize: 11, fontWeight: 700, color: "#64748b",
+  aspectRatio: "1", border: "2px dashed var(--hairline-strong)", background: "var(--surface)",
+  borderRadius: 10, fontSize: 11, fontWeight: 700, color: "var(--ink-soft)",
   cursor: "pointer", fontFamily: "inherit",
 };
 const viewerStyle: React.CSSProperties = {

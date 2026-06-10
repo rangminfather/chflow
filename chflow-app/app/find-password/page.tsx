@@ -77,7 +77,7 @@ export default function FindPasswordPage() {
                 }}
               />
               {error && (
-                <div style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}>{error}</div>
+                <div style={{ fontSize: 12, color: "var(--danger)", fontWeight: 600 }}>{error}</div>
               )}
             </div>
 
@@ -123,7 +123,7 @@ export default function FindPasswordPage() {
         {step === "sent" && (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>📬</div>
-            <div style={{ fontSize: 17, fontWeight: 850, color: "var(--ink)", marginBottom: 12 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)", marginBottom: 12 }}>
               재설정 링크 발송 완료
             </div>
             <div className="auth-copy" style={{ marginBottom: 24 }}>
@@ -152,7 +152,7 @@ export default function FindPasswordPage() {
         {step === "no-email" && (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>📭</div>
-            <div style={{ fontSize: 17, fontWeight: 850, color: "var(--ink)", marginBottom: 12 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)", marginBottom: 12 }}>
               등록된 이메일이 없습니다
             </div>
             <div className="auth-copy" style={{ marginBottom: 24 }}>
@@ -168,14 +168,14 @@ export default function FindPasswordPage() {
                 <span style={{ fontSize: 24 }}>📞</span>
                 <div>
                   <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 800 }}>관리자 연락처</div>
-                  <div style={{ fontSize: 16, fontWeight: 850, color: "var(--ink)" }}>010-2527-2064</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>010-2527-2064</div>
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <span style={{ fontSize: 24 }}>✉️</span>
                 <div>
                   <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 800 }}>이메일</div>
-                  <div style={{ fontSize: 14, fontWeight: 750, color: "var(--ink)" }}>sunsetrome@naver.com</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>sunsetrome@naver.com</div>
                 </div>
               </div>
             </div>

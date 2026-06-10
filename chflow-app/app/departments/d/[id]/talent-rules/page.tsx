@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 interface Rule {
   id: string;
@@ -121,7 +122,7 @@ export default function TalentRulesPage() {
     await load();
   }
 
-  if (!authChecked || loading) return <div style={loadingStyle}>로딩 중...</div>;
+  if (!authChecked || loading) return <LoadingView full />;
 
   if (!canEdit && rules.length === 0) {
     return (
@@ -129,8 +130,8 @@ export default function TalentRulesPage() {
         <div style={{ maxWidth: 480, margin: "60px auto", padding: 24 }}>
           <div style={{ background: "#fff", borderRadius: 16, padding: 28, textAlign: "center" }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>🏅</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", marginBottom: 8 }}>달란트 규칙 미설정</div>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 20 }}>부장(grade 0~1) 만 규칙을 등록·수정할 수 있습니다</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>달란트 규칙 미설정</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>부장(grade 0~1) 만 규칙을 등록·수정할 수 있습니다</div>
             <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtn}>← 부서홈</button>
           </div>
         </div>
@@ -148,7 +149,7 @@ export default function TalentRulesPage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtn}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>🏅 달란트 규칙</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>🏅 달란트 규칙</div>
         <div style={{ width: 60 }} />
       </div>
 
@@ -159,16 +160,16 @@ export default function TalentRulesPage() {
           {KIND_TABS.map(t => (
             <button key={t.value} onClick={() => setTab(t.value)} style={{
               flex: 1, padding: "10px 6px", borderRadius: 10,
-              background: tab === t.value ? "#6366f1" : "#fff",
-              color: tab === t.value ? "#fff" : "#475569",
-              border: tab === t.value ? "none" : "1.5px solid #e2e8f0",
+              background: tab === t.value ? "var(--accent)" : "#fff",
+              color: tab === t.value ? "#fff" : "var(--ink-mid)",
+              border: tab === t.value ? "none" : "1.5px solid var(--hairline)",
               fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
             }}>{t.label}</button>
           ))}
         </div>
 
         {/* 안내 */}
-        <div style={{ background: "#fff", borderRadius: 10, padding: "10px 14px", marginBottom: 12, fontSize: 11, color: "#64748b", lineHeight: 1.7 }}>
+        <div style={{ background: "#fff", borderRadius: 10, padding: "10px 14px", marginBottom: 12, fontSize: 11, color: "var(--ink-soft)", lineHeight: 1.7 }}>
           {KIND_TABS.find(t => t.value === tab)?.desc}
         </div>
 
@@ -182,7 +183,7 @@ export default function TalentRulesPage() {
           </div>
 
           {filtered.length === 0 ? (
-            <div style={{ padding: 30, textAlign: "center", color: "#94a3b8", fontSize: 12 }}>
+            <div style={{ padding: 30, textAlign: "center", color: "var(--ink-faint)", fontSize: 12 }}>
               아직 항목이 없습니다.{canEdit ? " 우측 상단 [+ 항목 추가] 로 등록하세요." : ""}
             </div>
           ) : (
@@ -191,24 +192,24 @@ export default function TalentRulesPage() {
                 <div key={r.id} style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 12px", borderRadius: 10,
-                  background: r.is_active ? "#f8fafc" : "#fff",
-                  border: r.is_active ? "1px solid #e2e8f0" : "1.5px dashed #cbd5e1",
+                  background: r.is_active ? "var(--surface)" : "#fff",
+                  border: r.is_active ? "1px solid var(--hairline)" : "1.5px dashed var(--hairline-strong)",
                   opacity: r.is_active ? 1 : 0.6,
                 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
                       {r.label}
-                      {!r.is_active && <span style={{ marginLeft: 6, fontSize: 10, color: "#94a3b8" }}>비활성</span>}
+                      {!r.is_active && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--ink-faint)" }}>비활성</span>}
                     </div>
-                    {r.notes && <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{r.notes}</div>}
-                    <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2, fontFamily: "monospace" }}>
+                    {r.notes && <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>{r.notes}</div>}
+                    <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 2, fontFamily: "monospace" }}>
                       {r.rule_key}
                     </div>
                   </div>
                   <div style={{
                     minWidth: 56, textAlign: "center",
                     padding: "6px 10px", borderRadius: 8,
-                    background: "#eef2ff", color: "#4338ca",
+                    background: "var(--accent-soft)", color: "var(--accent-strong)",
                     fontSize: 14, fontWeight: 800,
                   }}>
                     {r.points}
@@ -216,7 +217,7 @@ export default function TalentRulesPage() {
                   {canEdit && (
                     <div style={{ display: "flex", gap: 4 }}>
                       <button onClick={() => openEdit(r)} style={smallBtn}>수정</button>
-                      <button onClick={() => handleDelete(r)} style={{ ...smallBtn, color: "#b91c1c", background: "#fee2e2" }}>삭제</button>
+                      <button onClick={() => handleDelete(r)} style={{ ...smallBtn, color: "var(--danger)", background: "var(--danger-soft)" }}>삭제</button>
                     </div>
                   )}
                 </div>
@@ -226,7 +227,7 @@ export default function TalentRulesPage() {
         </div>
 
         {!canEdit && (
-          <div style={{ marginTop: 14, fontSize: 11, color: "#94a3b8", textAlign: "center" }}>
+          <div style={{ marginTop: 14, fontSize: 11, color: "var(--ink-faint)", textAlign: "center" }}>
             🔒 규칙 편집은 부장(등급 0~1) 권한이 필요합니다.
           </div>
         )}
@@ -237,10 +238,10 @@ export default function TalentRulesPage() {
         <div style={modalBackdrop} onClick={() => !saving && setEditing(null)}>
           <div style={modalBox} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b" }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>
                 {editing.id ? "규칙 수정" : "규칙 추가"} · {KIND_TABS.find(t => t.value === editing.rule_kind)?.label}
               </div>
-              <button onClick={() => !saving && setEditing(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8" }}>×</button>
+              <button onClick={() => !saving && setEditing(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--ink-faint)" }}>×</button>
             </div>
 
             <label style={lbl}>이름 (화면 표시)</label>
@@ -267,7 +268,7 @@ export default function TalentRulesPage() {
                 style={input}
               />
             )}
-            <div style={{ fontSize: 10, color: "#94a3b8", marginTop: -6, marginBottom: 8 }}>
+            <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: -6, marginBottom: 8 }}>
               {editing.rule_kind === "weekly"
                 ? "자동계산 키를 고르거나 직접 입력. 직접 입력은 출석부에 별도 체크박스로 표시됩니다."
                 : "이 부서 안에서만 유니크하면 됩니다."}
@@ -288,14 +289,14 @@ export default function TalentRulesPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
               <input type="checkbox" id="active" checked={editing.is_active ?? true}
                 onChange={(e) => setEditing(s => ({ ...s!, is_active: e.target.checked }))} />
-              <label htmlFor="active" style={{ fontSize: 12, color: "#475569", cursor: "pointer" }}>활성</label>
+              <label htmlFor="active" style={{ fontSize: 12, color: "var(--ink-mid)", cursor: "pointer" }}>활성</label>
             </div>
 
             <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
               <button onClick={() => !saving && setEditing(null)} disabled={saving}
-                style={{ flex: 1, padding: "10px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#475569", cursor: "pointer", fontFamily: "inherit" }}>취소</button>
+                style={{ flex: 1, padding: "10px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" }}>취소</button>
               <button onClick={handleSave} disabled={saving}
-                style={{ flex: 2, padding: "10px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#fff", cursor: saving ? "wait" : "pointer", fontFamily: "inherit" }}>
+                style={{ flex: 2, padding: "10px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#fff", cursor: saving ? "wait" : "pointer", fontFamily: "inherit" }}>
                 {saving ? "저장 중..." : "저장"}
               </button>
             </div>
@@ -308,17 +309,16 @@ export default function TalentRulesPage() {
   );
 }
 
-const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif" };
-const loadingStyle: React.CSSProperties = { ...pageStyle, display: "flex", alignItems: "center", justifyContent: "center" };
-const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
+const headerStyle: React.CSSProperties = { background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const card: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
-const sectionLabel: React.CSSProperties = { fontSize: 12, fontWeight: 800, color: "#475569", letterSpacing: 0.5 };
-const backBtn: React.CSSProperties = { padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit" };
-const primaryBtn: React.CSSProperties = { padding: "10px 20px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const addBtn: React.CSSProperties = { padding: "6px 12px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "#fff", border: "none", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const smallBtn: React.CSSProperties = { padding: "5px 10px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
-const lbl: React.CSSProperties = { display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginTop: 8, marginBottom: 4 };
-const input: React.CSSProperties = { width: "100%", padding: "8px 10px", fontSize: 13, border: "1.5px solid #cbd5e1", borderRadius: 8, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 8 };
-const modalBackdrop: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 };
+const sectionLabel: React.CSSProperties = { fontSize: 12, fontWeight: 800, color: "var(--ink-mid)", letterSpacing: 0.5 };
+const backBtn: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
+const primaryBtn: React.CSSProperties = { padding: "10px 20px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const addBtn: React.CSSProperties = { padding: "6px 12px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const smallBtn: React.CSSProperties = { padding: "5px 10px", background: "var(--bg-soft)", color: "var(--ink-mid)", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
+const lbl: React.CSSProperties = { display: "block", fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", marginTop: 8, marginBottom: 4 };
+const input: React.CSSProperties = { width: "100%", padding: "8px 10px", fontSize: 13, border: "1.5px solid var(--hairline-strong)", borderRadius: 8, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 8 };
+const modalBackdrop: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(43, 39, 34,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 };
 const modalBox: React.CSSProperties = { background: "#fff", borderRadius: 14, padding: 20, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto", fontFamily: "inherit" };
-const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(15,23,42,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 1100, fontFamily: "inherit", whiteSpace: "nowrap" };
+const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 1100, fontFamily: "inherit", whiteSpace: "nowrap" };

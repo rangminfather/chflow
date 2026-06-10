@@ -57,7 +57,7 @@ export default function ResetPasswordPage() {
       <main className="login-screen">
         <section className="login-panel" style={{ textAlign: "center" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>⏰</div>
-          <div style={{ fontSize: 17, fontWeight: 850, color: "var(--ink)", marginBottom: 12 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)", marginBottom: 12 }}>
             링크가 만료되었습니다
           </div>
           <div className="auth-copy" style={{ marginBottom: 24 }}>
@@ -81,7 +81,7 @@ export default function ResetPasswordPage() {
       <main className="login-screen">
         <section className="login-panel" style={{ textAlign: "center" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
-          <div style={{ fontSize: 17, fontWeight: 850, color: "var(--ink)", marginBottom: 12 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)", marginBottom: 12 }}>
             비밀번호가 변경되었습니다
           </div>
           <div className="auth-copy">잠시 후 로그인 화면으로 이동합니다...</div>
@@ -106,7 +106,7 @@ export default function ResetPasswordPage() {
       <section className="login-panel">
         <div style={{ textAlign: "center", padding: "16px 0 20px" }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-          <div style={{ fontSize: 17, fontWeight: 850, color: "var(--ink)" }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: "var(--ink)" }}>
             새 비밀번호 설정
           </div>
         </div>
@@ -138,7 +138,7 @@ export default function ResetPasswordPage() {
               outline: "none", boxSizing: "border-box",
             }}
           />
-          {msg && <div style={{ fontSize: 12, color: "#dc2626", fontWeight: 600 }}>{msg}</div>}
+          {msg && <div style={{ fontSize: 12, color: "var(--danger)", fontWeight: 600 }}>{msg}</div>}
         </div>
 
         <button

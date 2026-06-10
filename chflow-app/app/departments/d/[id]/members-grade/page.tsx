@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import { LoadingView } from "@/components/StatusViews";
 
 interface DeptMember {
   teacher_id: string | null;
@@ -49,11 +50,11 @@ const ROLE_OPTIONS: { grade: number; role: string; label: string }[] = [
 ];
 
 const GRADE_BG: Record<number, string> = {
-  0: "#ecfdf5",
-  1: "#fef3c7",
-  2: "#dbeafe",
-  3: "#f1f5f9",
-  4: "#fef2f2",
+  0: "var(--success-soft)",
+  1: "var(--warning-soft)",
+  2: "var(--accent-soft)",
+  3: "var(--bg-soft)",
+  4: "var(--danger-soft)",
 };
 
 function memberKey(m: DeptMember) {
@@ -189,7 +190,7 @@ export default function MembersGradePage() {
     await load();
   }
 
-  if (!authChecked || loading) return <div style={loadingStyle}>로딩 중...</div>;
+  if (!authChecked || loading) return <LoadingView full />;
 
   if (myGrade === null || myGrade > 1) {
     return (
@@ -197,10 +198,10 @@ export default function MembersGradePage() {
         <div style={{ maxWidth: 480, margin: "60px auto", padding: 24 }}>
           <div style={{ background: "#fff", borderRadius: 16, padding: 28, textAlign: "center" }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", marginBottom: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>
               접근 권한이 없습니다
             </div>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 20 }}>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>
               부서원 등급 관리는 등급 0~1 (전도사/교육사 또는 부장) 만 가능합니다.
             </div>
             <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtnStyle}>
@@ -219,13 +220,13 @@ export default function MembersGradePage() {
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>🎖️ 부서원 등급 관리</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>🎖️ 부서원 등급 관리</div>
         <div style={{ width: 60 }} />
       </div>
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: 16 }}>
         <div style={{ ...cardStyle, marginBottom: 14 }}>
-          <div style={{ fontSize: 12, color: "#64748b", lineHeight: 1.7 }}>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)", lineHeight: 1.7 }}>
             <b>등급 정책</b>:
             <br />• <b>0</b> 전도사·교육사 — 모든 메뉴
             <br />• <b>1</b> 부장 — 공지·학생·행정·부서
@@ -254,14 +255,14 @@ export default function MembersGradePage() {
                       style={{
                         display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
                         padding: "10px 12px",
-                        border: "1px solid #c7d2fe",
+                        border: "1px solid var(--accent-line)",
                         borderRadius: 10,
                         background: GRADE_BG[m.grade] || "#fff",
                       }}
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{m.name}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{m.name}</span>
                           {m.role_label && <span style={roleBadgeStyle}>{m.role_label}</span>}
                           {!m.has_dm && <span style={noDmBadgeStyle}>미승인</span>}
                         </div>
@@ -272,7 +273,7 @@ export default function MembersGradePage() {
                         disabled={savingId === key}
                         style={{
                           padding: "6px 10px", fontSize: 12, fontFamily: "inherit",
-                          border: "1.5px solid #a5b4fc", borderRadius: 8, background: "#fff",
+                          border: "1.5px solid var(--accent-line)", borderRadius: 8, background: "#fff",
                           cursor: savingId === key ? "not-allowed" : "pointer", minWidth: 180,
                         }}
                       >
@@ -300,20 +301,20 @@ export default function MembersGradePage() {
                       style={{
                         display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
                         padding: "10px 12px",
-                        border: "1px solid #e2e8f0",
+                        border: "1px solid var(--hairline)",
                         borderRadius: 10,
-                        background: "#f8fafc",
+                        background: "var(--surface)",
                         opacity: 0.72,
                       }}
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>{m.name}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{m.name}</span>
                           {m.role_label && <span style={roleBadgeStyle}>{m.role_label}</span>}
                           <span style={noAppBadgeStyle}>앱 미가입</span>
                         </div>
                       </div>
-                      <div style={{ fontSize: 11, color: "#94a3b8", minWidth: 120, textAlign: "right" }}>
+                      <div style={{ fontSize: 11, color: "var(--ink-faint)", minWidth: 120, textAlign: "right" }}>
                         앱 가입 후 조정 가능
                       </div>
                     </div>
@@ -324,7 +325,7 @@ export default function MembersGradePage() {
           )}
 
           {members.length === 0 && (
-              <div style={{ textAlign: "center", padding: 30, color: "#94a3b8", fontSize: 12 }}>
+              <div style={{ textAlign: "center", padding: 30, color: "var(--ink-faint)", fontSize: 12 }}>
                 부서원이 없습니다
               </div>
             )}
@@ -337,13 +338,13 @@ export default function MembersGradePage() {
         <div style={modalBackdrop} onClick={() => !appointing && setAppointOpen(false)}>
           <div style={modalBox} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>🎖️ 부서원 임명</div>
-              <button onClick={() => !appointing && setAppointOpen(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#94a3b8" }}>×</button>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>🎖️ 부서원 임명</div>
+              <button onClick={() => !appointing && setAppointOpen(false)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--ink-faint)" }}>×</button>
             </div>
 
             {!picked ? (
               <>
-                <div style={{ fontSize: 11, color: "#64748b", marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 8 }}>
                   앱 가입한 회원 중에서 검색합니다. (이름 또는 전화번호)
                 </div>
                 <input
@@ -354,14 +355,14 @@ export default function MembersGradePage() {
                   placeholder="이름 또는 전화번호"
                   style={{
                     width: "100%", padding: "10px 12px", fontSize: 14,
-                    border: "1.5px solid #cbd5e1", borderRadius: 8,
+                    border: "1.5px solid var(--hairline-strong)", borderRadius: 8,
                     fontFamily: "inherit", boxSizing: "border-box",
                   }}
                 />
                 <div style={{ marginTop: 10, maxHeight: 320, overflowY: "auto" }}>
-                  {searching && <div style={{ padding: 12, textAlign: "center", color: "#94a3b8", fontSize: 12 }}>검색 중...</div>}
+                  {searching && <div style={{ padding: 12, textAlign: "center", color: "var(--ink-faint)", fontSize: 12 }}>검색 중...</div>}
                   {!searching && searched && searchResults.length === 0 && (
-                    <div style={{ padding: 16, textAlign: "center", color: "#94a3b8", fontSize: 12 }}>
+                    <div style={{ padding: 16, textAlign: "center", color: "var(--ink-faint)", fontSize: 12 }}>
                       검색 결과가 없습니다. (앱 가입한 회원만 검색됩니다)
                     </div>
                   )}
@@ -372,9 +373,9 @@ export default function MembersGradePage() {
                         key={r.member_id}
                         onClick={() => pickResult(r)}
                         style={{
-                          padding: "10px 12px", border: "1px solid #e2e8f0",
+                          padding: "10px 12px", border: "1px solid var(--hairline)",
                           borderRadius: 8, marginBottom: 6,
-                          background: r.already_member ? "#f8fafc" : "#fff",
+                          background: r.already_member ? "var(--surface)" : "#fff",
                           cursor: r.already_member ? "not-allowed" : "pointer",
                           opacity: r.already_member ? 0.5 : 1,
                           display: "flex", alignItems: "center", gap: 10,
@@ -384,14 +385,14 @@ export default function MembersGradePage() {
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={r.photo_url} alt="" style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
                         ) : (
-                          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#94a3b8", flexShrink: 0 }}>?</div>
+                          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--hairline)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "var(--ink-faint)", flexShrink: 0 }}>?</div>
                         )}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
                             {r.name}
-                            {r.already_member && <span style={{ marginLeft: 6, fontSize: 10, color: "#f59e0b", fontWeight: 600 }}>· 이미 부서원</span>}
+                            {r.already_member && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--warning)", fontWeight: 600 }}>· 이미 부서원</span>}
                           </div>
-                          <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
+                          <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 2 }}>
                             {[r.sub_role, scope, r.phone].filter(Boolean).join(" · ") || "-"}
                           </div>
                         </div>
@@ -402,31 +403,31 @@ export default function MembersGradePage() {
               </>
             ) : (
               <>
-                <div style={{ background: "#f8fafc", borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ background: "var(--surface)", borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
                   {picked.photo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={picked.photo_url} alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover" }} />
                   ) : (
-                    <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "#94a3b8" }}>?</div>
+                    <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--hairline)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "var(--ink-faint)" }}>?</div>
                   )}
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b" }}>{picked.name}</div>
-                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>{picked.name}</div>
+                    <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 3 }}>
                       {[picked.sub_role, picked.gender, picked.phone].filter(Boolean).join(" · ") || "-"}
                     </div>
-                    <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
+                    <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 2 }}>
                       {[picked.plain_name, picked.grassland_name, picked.pasture_name].filter(Boolean).join(" / ") || "-"}
                     </div>
                   </div>
                 </div>
 
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 8 }}>이 분이 맞으면, 직분을 선택하세요</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 8 }}>이 분이 맞으면, 직분을 선택하세요</div>
                 <select
                   value={pickedRoleIdx}
                   onChange={(e) => setPickedRoleIdx(parseInt(e.target.value, 10))}
                   style={{
                     width: "100%", padding: "10px 12px", fontSize: 14,
-                    border: "1.5px solid #cbd5e1", borderRadius: 8,
+                    border: "1.5px solid var(--hairline-strong)", borderRadius: 8,
                     fontFamily: "inherit", background: "#fff", boxSizing: "border-box",
                   }}
                 >
@@ -441,14 +442,14 @@ export default function MembersGradePage() {
                   <button
                     onClick={() => setPicked(null)}
                     disabled={appointing}
-                    style={{ flex: 1, padding: "10px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#475569", cursor: "pointer", fontFamily: "inherit" }}
+                    style={{ flex: 1, padding: "10px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" }}
                   >
                     ← 다시 검색
                   </button>
                   <button
                     onClick={handleAppoint}
                     disabled={appointing}
-                    style={{ flex: 2, padding: "10px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#fff", cursor: appointing ? "wait" : "pointer", fontFamily: "inherit" }}
+                    style={{ flex: 2, padding: "10px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#fff", cursor: appointing ? "wait" : "pointer", fontFamily: "inherit" }}
                   >
                     {appointing ? "임명 중..." : "임명하기"}
                   </button>
@@ -464,44 +465,40 @@ export default function MembersGradePage() {
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "#f1f5f9",
+  background: "var(--bg-soft)",
   fontFamily: "'Noto Sans KR', sans-serif",
 };
-const loadingStyle: React.CSSProperties = {
-  minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-  background: "#f1f5f9", fontFamily: "'Noto Sans KR', sans-serif",
-};
 const headerStyle: React.CSSProperties = {
-  background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 24px",
+  background: "#fff", borderBottom: "1px solid var(--hairline)", padding: "12px 24px",
   display: "flex", alignItems: "center", justifyContent: "space-between",
 };
 const cardStyle: React.CSSProperties = {
   background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
 };
 const sectionLabel: React.CSSProperties = {
-  fontSize: 12, fontWeight: 700, color: "#94a3b8", letterSpacing: 0.5, marginBottom: 12,
+  fontSize: 12, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.5, marginBottom: 12,
 };
 const backBtnStyle: React.CSSProperties = {
-  padding: "8px 14px", background: "#f1f5f9", border: "none", borderRadius: 8,
-  fontSize: 12, color: "#475569", cursor: "pointer", fontFamily: "inherit",
+  padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8,
+  fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit",
 };
 const primaryBtnStyle: React.CSSProperties = {
-  padding: "10px 20px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  padding: "10px 20px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
 };
 const toastStyle: React.CSSProperties = {
   position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)",
-  background: "rgba(15,23,42,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999,
+  background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999,
   fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap",
 };
 const appointBtnStyle: React.CSSProperties = {
-  padding: "7px 14px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  padding: "7px 14px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
 };
 const modalBackdrop: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)",
+  position: "fixed", inset: 0, background: "rgba(43, 39, 34,0.5)",
   display: "flex", alignItems: "center", justifyContent: "center",
   zIndex: 1000, padding: 16,
 };
@@ -511,18 +508,18 @@ const modalBox: React.CSSProperties = {
   fontFamily: "inherit",
 };
 const groupLabelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, color: "#6366f1", letterSpacing: 0.4,
-  marginBottom: 8, paddingBottom: 4, borderBottom: "1px solid #e0e7ff",
+  fontSize: 11, fontWeight: 700, color: "var(--accent)", letterSpacing: 0.4,
+  marginBottom: 8, paddingBottom: 4, borderBottom: "1px solid var(--accent-soft)",
 };
 const roleBadgeStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, color: "#6366f1",
-  background: "#eef2ff", borderRadius: 6, padding: "1px 6px",
+  fontSize: 10, fontWeight: 700, color: "var(--accent)",
+  background: "var(--accent-soft)", borderRadius: 6, padding: "1px 6px",
 };
 const noAppBadgeStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, color: "#b45309",
-  background: "#fef3c7", borderRadius: 6, padding: "1px 6px",
+  fontSize: 10, fontWeight: 700, color: "var(--warning)",
+  background: "var(--warning-soft)", borderRadius: 6, padding: "1px 6px",
 };
 const noDmBadgeStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, color: "#64748b",
-  background: "#f1f5f9", borderRadius: 6, padding: "1px 6px",
+  fontSize: 10, fontWeight: 700, color: "var(--ink-soft)",
+  background: "var(--bg-soft)", borderRadius: 6, padding: "1px 6px",
 };

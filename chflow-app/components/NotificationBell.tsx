@@ -225,7 +225,7 @@ export default function NotificationBell({
                 height: 18,
                 padding: "0 5px",
                 borderRadius: 9,
-                background: "#ef4444",
+                background: "var(--danger)",
                 color: "#fff",
                 fontSize: 10,
                 fontWeight: 800,
@@ -354,7 +354,7 @@ export default function NotificationBell({
                             width: 6,
                             height: 6,
                             borderRadius: 999,
-                            background: "#ef4444",
+                            background: "var(--danger)",
                             flexShrink: 0,
                           }} />
                         )}
@@ -434,7 +434,7 @@ function PanelTabButton({
         cursor: "pointer",
         fontFamily: "inherit",
         fontSize: 12,
-        fontWeight: 850,
+        fontWeight: 800,
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
@@ -452,7 +452,7 @@ function PanelTabButton({
         justifyContent: "center",
         background: active ? "rgba(62, 90, 74, 0.14)" : "rgba(43, 39, 34, 0.07)",
         fontSize: 10,
-        fontWeight: 900,
+        fontWeight: 800,
       }}>
         {count > 99 ? "99+" : count}
       </span>
@@ -497,7 +497,7 @@ function ToastCard({
         justifyContent: "center",
         background: "rgba(255,255,255,0.2)",
         fontSize: 12,
-        fontWeight: 900,
+        fontWeight: 800,
         lineHeight: 1,
       }}>
         {meta.shortLabel}
@@ -549,7 +549,7 @@ function TypeChip({ type }: { type: string }) {
       background: meta.soft,
       color: meta.color,
       fontSize: 10,
-      fontWeight: 850,
+      fontWeight: 800,
       lineHeight: 1,
       whiteSpace: "nowrap",
     }}>
@@ -563,45 +563,45 @@ function getNotificationTypeMeta(type: string) {
     return {
       label: "회원",
       shortLabel: "회원",
-      color: "#047857",
-      soft: "#d1fae5",
-      gradient: "linear-gradient(135deg, #10b981, #059669)",
+      color: "var(--success)",
+      soft: "var(--success-soft)",
+      gradient: "linear-gradient(135deg, var(--success), var(--success))",
     };
   }
   if (type.startsWith("dept_")) {
     return {
       label: "부서",
       shortLabel: "부서",
-      color: "#1d4ed8",
-      soft: "#dbeafe",
-      gradient: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+      color: "var(--info)",
+      soft: "var(--info-soft)",
+      gradient: "linear-gradient(135deg, var(--info), var(--info))",
     };
   }
   if (type.startsWith("feedback_")) {
     return {
       label: "문의",
       shortLabel: "문의",
-      color: "#7c3aed",
-      soft: "#ede9fe",
-      gradient: "linear-gradient(135deg, #7c3aed, #5b21b6)",
+      color: "#6B4F8C",
+      soft: "#EDE7F2",
+      gradient: "linear-gradient(135deg, #6B4F8C, #57407A)",
     };
   }
   if (type.startsWith("notice_") || type === "notice") {
     return {
       label: "공지",
       shortLabel: "공지",
-      color: "#b45309",
-      soft: "#fef3c7",
-      gradient: "linear-gradient(135deg, #f59e0b, #b45309)",
+      color: "var(--warning)",
+      soft: "var(--warning-soft)",
+      gradient: "linear-gradient(135deg, var(--warning), var(--warning))",
     };
   }
   if (type.startsWith("message_") || type === "message") {
     return {
       label: "메시지",
       shortLabel: "톡",
-      color: "#be123c",
-      soft: "#ffe4e6",
-      gradient: "linear-gradient(135deg, #e11d48, #be123c)",
+      color: "var(--danger)",
+      soft: "var(--danger-soft)",
+      gradient: "linear-gradient(135deg, var(--danger), var(--danger))",
     };
   }
   return {

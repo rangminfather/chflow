@@ -28,14 +28,14 @@ export default function InstallPage() {
         <img src="/apple-icon.png" alt="스마트명성" className="w-20 h-20 rounded-2xl shadow-lg" />
       </div>
 
-      <h1 className="text-2xl font-bold text-gray-800 mb-1">스마트명성</h1>
-      <p className="text-sm text-gray-500 mb-8">홈 화면에 추가하면 앱처럼 사용할 수 있어요</p>
+      <h1 className="text-2xl font-bold text-ink mb-1">스마트명성</h1>
+      <p className="text-sm text-ink-soft mb-8">홈 화면에 추가하면 앱처럼 사용할 수 있어요</p>
 
       {isIOS ? (
         <div className="bg-white rounded-2xl shadow-md p-6 w-full max-w-sm">
-          <p className="text-sm font-semibold text-gray-700 mb-4">📲 홈 화면 추가 방법</p>
+          <p className="text-sm font-semibold text-ink-mid mb-4">📲 홈 화면 추가 방법</p>
 
-          <ol className="space-y-4 text-sm text-gray-600">
+          <ol className="space-y-4 text-sm text-ink-mid">
             <li className="flex items-start gap-3">
               <span className="flex-shrink-0 w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
               <div>
@@ -71,12 +71,12 @@ export default function InstallPage() {
           {/* 화살표 애니메이션 - 공유버튼 위치 안내 */}
           <div className="mt-6 flex flex-col items-center">
             <div className="animate-bounce text-orange-400 text-3xl">↓</div>
-            <p className="text-xs text-gray-400 mt-1">Safari 하단 가운데 공유 버튼</p>
+            <p className="text-xs text-ink-faint mt-1">Safari 하단 가운데 공유 버튼</p>
           </div>
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-md p-6 w-full max-w-sm text-center">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-ink-mid">
             이 페이지는 <span className="font-semibold text-orange-500">iPhone Safari</span>에서 열어주세요
           </p>
         </div>
@@ -89,7 +89,7 @@ export default function InstallPage() {
         그냥 로그인하러 가기
       </button>
 
-      <p className="mt-4 text-xs text-gray-400">홈 화면 추가 없이도 이용 가능합니다</p>
+      <p className="mt-4 text-xs text-ink-faint">홈 화면 추가 없이도 이용 가능합니다</p>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { T, PageShell, PageContent } from "@/components/Layout";
+import { LoadingView } from "@/components/StatusViews";
 
 interface Category {
   category: string;
@@ -22,11 +23,11 @@ const CATEGORY_ICONS: Record<string, string> = {
 
 const CATEGORY_COLORS: Record<string, { bg: string; point: string }> = {
   교육사역국: { bg: "rgba(234,239,232,0.72)", point: "#3E5A4A" },
-  예배사역국: { bg: "rgba(234,241,255,0.72)", point: "#2563EB" },
-  선교사역국: { bg: "rgba(240,253,244,0.72)", point: "#16a34a" },
-  봉사사역국: { bg: "rgba(255,247,237,0.72)", point: "#c2410c" },
-  재정부:     { bg: "rgba(254,252,232,0.72)", point: "#b45309" },
-  사무국:     { bg: "rgba(241,245,249,0.72)", point: "#475569" },
+  예배사역국: { bg: "rgba(234,241,255,0.72)", point: "var(--accent)" },
+  선교사역국: { bg: "rgba(240,253,244,0.72)", point: "var(--success)" },
+  봉사사역국: { bg: "rgba(255,247,237,0.72)", point: "#9C6230" },
+  재정부:     { bg: "rgba(254,252,232,0.72)", point: "var(--warning)" },
+  사무국:     { bg: "rgba(240, 235, 223,0.72)", point: "var(--ink-mid)" },
 };
 
 export default function DepartmentsPage() {
@@ -60,7 +61,7 @@ export default function DepartmentsPage() {
   if (!authChecked) {
     return (
       <PageShell style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontSize: 13, color: T.textMuted }}>로딩 중...</div>
+        <LoadingView />
       </PageShell>
     );
   }
@@ -89,14 +90,14 @@ export default function DepartmentsPage() {
 
       <PageContent maxWidth={860}>
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 18, fontWeight: 900, color: T.text }}>사역국 · 부서</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: T.text }}>사역국 · 부서</div>
           <div style={{ fontSize: 12, color: T.textMuted, marginTop: 3 }}>
             대분류를 선택하면 세부 부서가 표시됩니다
           </div>
         </div>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: 40, color: T.textMuted }}>로딩 중...</div>
+          <LoadingView padding={40} />
         ) : categories.length === 0 ? (
           <div style={{ textAlign: "center", padding: 40, color: T.textMuted }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>📭</div>

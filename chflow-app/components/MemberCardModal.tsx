@@ -210,26 +210,26 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
 
   const m = data.member;
   const photoUrl = m.photo_url;
-  const genderColor = m.gender === "M" ? "#3b82f6" : m.gender === "F" ? "#ec4899" : "#64748b";
+  const genderColor = m.gender === "M" ? "var(--male)" : m.gender === "F" ? "var(--female)" : "var(--ink-soft)";
 
   return (
     <ModalBackdrop onClose={onClose} style={bgStyle}>
       <div onClick={(e) => e.stopPropagation()} style={cardStyle}>
         {/* 헤더 */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid #e2e8f0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid var(--hairline)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {stack.length > 1 && (
               <button onClick={goBack} title="이전 카드"
-                style={{ width: 28, height: 28, borderRadius: 8, background: "#f1f5f9", border: "none", fontSize: 14, cursor: "pointer", color: "#475569", fontFamily: "inherit" }}>←</button>
+                style={{ width: 28, height: 28, borderRadius: 8, background: "var(--bg-soft)", border: "none", fontSize: 14, cursor: "pointer", color: "var(--ink-mid)", fontFamily: "inherit" }}>←</button>
             )}
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>성도 카드</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>성도 카드</div>
             {stack.length > 1 && (
-              <span style={{ fontSize: 10, color: "#94a3b8", padding: "2px 8px", background: "#f1f5f9", borderRadius: 10 }}>
+              <span style={{ fontSize: 10, color: "var(--ink-faint)", padding: "2px 8px", background: "var(--bg-soft)", borderRadius: 10 }}>
                 {stack.length}단계 깊이
               </span>
             )}
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#64748b" }}>×</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--ink-soft)" }}>×</button>
         </div>
 
         <div style={{ padding: 20, overflowY: "auto", flex: 1 }}>
@@ -238,22 +238,22 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
             <div style={{ position: "relative" }}>
               <div style={{
                 width: 140, height: 140, borderRadius: 18, overflow: "hidden",
-                background: "#f1f5f9", border: `3px solid ${genderColor}`,
+                background: "var(--bg-soft)", border: `3px solid ${genderColor}`,
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>
                 {photoUrl
                   ? <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  : <div style={{ fontSize: 56, color: "#cbd5e1" }}>{m.gender === "F" ? "👩" : "👨"}</div>}
+                  : <div style={{ fontSize: 56, color: "var(--hairline-strong)" }}>{m.gender === "F" ? "👩" : "👨"}</div>}
               </div>
               <button onClick={() => fileRef.current?.click()} disabled={uploading || deletingPhoto} style={{
                 position: "absolute", bottom: -6, right: -6, width: 38, height: 38, borderRadius: "50%",
-                background: "#6366f1", color: "#fff", border: "3px solid #fff", fontSize: 14,
+                background: "var(--accent)", color: "#fff", border: "3px solid #fff", fontSize: 14,
                 cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
               }} title="사진 변경">{uploading ? "…" : "📷"}</button>
               {photoUrl && (
                 <button onClick={handlePhotoDelete} disabled={uploading || deletingPhoto} style={{
                   position: "absolute", bottom: -6, left: -6, width: 32, height: 32, borderRadius: "50%",
-                  background: "#dc2626", color: "#fff", border: "3px solid #fff", fontSize: 12,
+                  background: "var(--danger)", color: "#fff", border: "3px solid #fff", fontSize: 12,
                   cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
                 }} title="사진 삭제">{deletingPhoto ? "…" : "🗑️"}</button>
               )}
@@ -279,7 +279,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                         <option value="">미지정</option><option value="M">남</option><option value="F">여</option>
                       </select>
                     </div>
-                    <label style={{ display: "flex", alignItems: "flex-end", gap: 4, fontSize: 12, color: "#475569", paddingBottom: 8, fontWeight: 600 }}>
+                    <label style={{ display: "flex", alignItems: "flex-end", gap: 4, fontSize: 12, color: "var(--ink-mid)", paddingBottom: 8, fontWeight: 600 }}>
                       <input type="checkbox" checked={!!edit.is_child} onChange={(e) => setEdit({ ...edit, is_child: e.target.checked })} />
                       자녀
                     </label>
@@ -299,28 +299,28 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                 </>
               ) : (
                 <>
-                  <div style={{ fontSize: 24, fontWeight: 800, color: "#1e293b", marginBottom: 4 }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
                     {m.name}
                     {m.gender && <span style={{ fontSize: 12, color: genderColor, marginLeft: 8 }}>{m.gender === "M" ? "♂ 남" : "♀ 여"}</span>}
-                    {m.is_child && <span style={{ fontSize: 12, color: "#f59e0b", marginLeft: 8 }}>👶 자녀</span>}
+                    {m.is_child && <span style={{ fontSize: 12, color: "var(--warning)", marginLeft: 8 }}>👶 자녀</span>}
                   </div>
-                  <div style={{ fontSize: 13, color: "#64748b", marginBottom: 4 }}>
+                  <div style={{ fontSize: 13, color: "var(--ink-soft)", marginBottom: 4 }}>
                     {m.sub_role || "직분 미지정"} · {m.family_church || "목원"}
                     {m.spouse_name && ` · 배우자 ${m.spouse_name}`}
                   </div>
-                  <div style={{ fontSize: 13, color: "#475569", marginBottom: 2 }}>📞 {m.phone || "연락처 없음"}</div>
+                  <div style={{ fontSize: 13, color: "var(--ink-mid)", marginBottom: 2 }}>📞 {m.phone || "연락처 없음"}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>
+                    <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
                       📍 {m.plain_name ? `${m.plain_name}평원 · ${m.grassland_name}초원 · ` : ""}<strong>{m.pasture_name || "소속 없음"}</strong> 목장
                     </div>
                     {m.pasture_name && (
                       <button onClick={goToPasture} title="이 목장 전체 회원 보기"
-                        style={{ fontSize: 10, padding: "2px 8px", background: "#e0e7ff", color: "#4338ca", border: "none", borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontWeight: 700 }}>
+                        style={{ fontSize: 10, padding: "2px 8px", background: "var(--accent-soft)", color: "var(--accent-strong)", border: "none", borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontWeight: 700 }}>
                         목장 전체 →
                       </button>
                     )}
                   </div>
-                  {m.address && <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>🏠 {m.address}</div>}
+                  {m.address && <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 4 }}>🏠 {m.address}</div>}
                 </>
               )}
             </div>
@@ -357,7 +357,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                 ))}
               </div>
               {data.household_members.some((hm) => hm.is_child) && (
-                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 6 }}>
+                <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 6 }}>
                   💡 자녀를 클릭하면 같은 이름의 성인 성도가 있을 경우 그 성도 카드로 이동합니다.
                 </div>
               )}
@@ -381,7 +381,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                     ))}
                   </div>
                 ) : (
-                  <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>등록된 부모·조부모가 없습니다</div>
+                  <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: "8px 0" }}>등록된 부모·조부모가 없습니다</div>
                 )}
               </Section>
             );
@@ -404,7 +404,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                     ))}
                   </div>
                 ) : (
-                  <div style={{ fontSize: 12, color: "#94a3b8", padding: "8px 0" }}>등록된 자녀·손주가 없습니다</div>
+                  <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: "8px 0" }}>등록된 자녀·손주가 없습니다</div>
                 )}
               </Section>
             );
@@ -427,9 +427,9 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
 // ============ Subcomponents ============
 function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div style={{ background: "#f8fafc", borderRadius: 12, padding: 14, marginBottom: 12 }}>
+    <div style={{ background: "var(--surface)", borderRadius: 12, padding: 14, marginBottom: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#334155" }}>{title}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-mid)" }}>{title}</div>
         {action}
       </div>
       {children}
@@ -442,18 +442,18 @@ function MemberChip({ name, photoUrl, subtitle, onClick }: { name: string; photo
     <div onClick={onClick}
       style={{
         display: "flex", alignItems: "center", gap: 6, padding: "4px 10px 4px 4px",
-        background: "#fff", borderRadius: 20, border: "1px solid #e2e8f0",
+        background: "#fff", borderRadius: 20, border: "1px solid var(--hairline)",
         cursor: onClick ? "pointer" : "default",
         transition: "all 0.15s",
       }}
-      onMouseOver={(e) => { if (onClick) { e.currentTarget.style.borderColor = "#6366f1"; e.currentTarget.style.background = "#eef2ff"; } }}
-      onMouseOut={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "#fff"; }}>
-      <div style={{ width: 28, height: 28, borderRadius: "50%", overflow: "hidden", background: "#e2e8f0", flexShrink: 0 }}>
+      onMouseOver={(e) => { if (onClick) { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--accent-soft)"; } }}
+      onMouseOut={(e) => { e.currentTarget.style.borderColor = "var(--hairline)"; e.currentTarget.style.background = "#fff"; }}>
+      <div style={{ width: 28, height: 28, borderRadius: "50%", overflow: "hidden", background: "var(--hairline)", flexShrink: 0 }}>
         {photoUrl && <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
       </div>
       <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "#1e293b" }}>{name}</div>
-        {subtitle && <div style={{ fontSize: 9, color: "#94a3b8" }}>{subtitle}</div>}
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>{name}</div>
+        {subtitle && <div style={{ fontSize: 9, color: "var(--ink-faint)" }}>{subtitle}</div>}
       </div>
     </div>
   );
@@ -465,28 +465,28 @@ function RelationRow({ relation, reversed, onRemove, onClick }: { relation: Rela
     <div onClick={onClick}
       style={{
         display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
-        background: "#fff", borderRadius: 10, border: "1px solid #e2e8f0",
+        background: "#fff", borderRadius: 10, border: "1px solid var(--hairline)",
         cursor: onClick ? "pointer" : "default",
         transition: "all 0.15s",
       }}
-      onMouseOver={(e) => { if (onClick) { e.currentTarget.style.borderColor = "#6366f1"; e.currentTarget.style.background = "#eef2ff"; } }}
-      onMouseOut={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "#fff"; }}>
-      <div style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", background: "#e2e8f0", flexShrink: 0 }}>
+      onMouseOver={(e) => { if (onClick) { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--accent-soft)"; } }}
+      onMouseOut={(e) => { e.currentTarget.style.borderColor = "var(--hairline)"; e.currentTarget.style.background = "#fff"; }}>
+      <div style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", background: "var(--hairline)", flexShrink: 0 }}>
         {relation.photo_url && <img src={relation.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
           {relation.name}
-          <span style={{ fontSize: 10, marginLeft: 6, padding: "1px 6px", background: reversed ? "#fef3c7" : "#dbeafe", color: reversed ? "#92400e" : "#1e40af", borderRadius: 4 }}>
+          <span style={{ fontSize: 10, marginLeft: 6, padding: "1px 6px", background: reversed ? "var(--warning-soft)" : "var(--accent-soft)", color: reversed ? "var(--warning)" : "var(--accent-strong)", borderRadius: 4 }}>
             {reversed ? `나의 ${kindReverseLabel(relation.kind, relation.role)}` : roleLabel}
           </span>
         </div>
-        <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>
+        <div style={{ fontSize: 10, color: "var(--ink-soft)", marginTop: 2 }}>
           {relation.phone || "연락처 없음"} · {relation.plain_name ? `${relation.plain_name}평원 · ` : ""}{relation.pasture_name || "소속 없음"} 목장
         </div>
       </div>
       <button onClick={(e) => { e.stopPropagation(); onRemove(); }}
-        style={{ padding: "4px 8px", background: "#fee2e2", color: "#b91c1c", border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>제거</button>
+        style={{ padding: "4px 8px", background: "var(--danger-soft)", color: "var(--danger)", border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>제거</button>
     </div>
   );
 }
@@ -596,14 +596,14 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
   return (
     <ModalBackdrop onClose={onClose} style={{ ...bgStyle, zIndex: 110 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...cardStyle, maxWidth: 520 }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--hairline)", display: "flex", justifyContent: "space-between" }}>
           <div style={{ fontSize: 15, fontWeight: 800 }}>가족 관계 추가</div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#64748b" }}>×</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--ink-soft)" }}>×</button>
         </div>
         <div style={{ padding: 20, overflowY: "auto", flex: 1 }}>
           {!selected ? (
             <>
-              <div style={{ fontSize: 12, color: "#475569", marginBottom: 10 }}>
+              <div style={{ fontSize: 12, color: "var(--ink-mid)", marginBottom: 10 }}>
                 관계를 맺을 사람의 이름을 입력하고 검색하세요.
               </div>
               <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
@@ -620,54 +620,54 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
                   {candidates.map(c => (
                     <div key={c.id} onClick={() => setSelected(c)} style={{
                       display: "flex", alignItems: "center", gap: 10, padding: 10,
-                      background: "#f8fafc", borderRadius: 10, border: "1px solid #e2e8f0", cursor: "pointer",
+                      background: "var(--surface)", borderRadius: 10, border: "1px solid var(--hairline)", cursor: "pointer",
                     }}>
-                      <div style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", background: "#e2e8f0", flexShrink: 0 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", background: "var(--hairline)", flexShrink: 0 }}>
                         {c.photo_url && <img src={c.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
-                          {c.name} {c.phone && <span style={{ color: "#64748b", fontWeight: 400, fontSize: 11 }}>({c.phone})</span>}
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
+                          {c.name} {c.phone && <span style={{ color: "var(--ink-soft)", fontWeight: 400, fontSize: 11 }}>({c.phone})</span>}
                         </div>
-                        <div style={{ fontSize: 10, color: "#64748b" }}>
+                        <div style={{ fontSize: 10, color: "var(--ink-soft)" }}>
                           {c.plain_name ? `${c.plain_name}평원 · ` : ""}{c.pasture_name || "-"} 목장 · {c.sub_role || c.family_church}
                         </div>
                       </div>
-                      <div style={{ fontSize: 10, color: "#6366f1", fontWeight: 700 }}>선택 →</div>
+                      <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 700 }}>선택 →</div>
                     </div>
                   ))}
                 </div>
               )}
               {candidates.length === 0 && !searching && name && (
-                <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center", padding: 16 }}>검색 결과 없음</div>
+                <div style={{ fontSize: 12, color: "var(--ink-faint)", textAlign: "center", padding: 16 }}>검색 결과 없음</div>
               )}
             </>
           ) : (
             <>
-              <div style={{ padding: 12, background: "#eff6ff", borderRadius: 10, marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 44, height: 44, borderRadius: "50%", overflow: "hidden", background: "#dbeafe" }}>
+              <div style={{ padding: 12, background: "var(--accent-soft)", borderRadius: 10, marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 44, height: 44, borderRadius: "50%", overflow: "hidden", background: "var(--accent-soft)" }}>
                   {selected.photo_url && <img src={selected.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>{selected.name} {selected.phone && <span style={{ color: "#64748b", fontWeight: 400, fontSize: 11 }}>({selected.phone})</span>}</div>
-                  <div style={{ fontSize: 10, color: "#64748b" }}>{selected.pasture_name} 목장</div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{selected.name} {selected.phone && <span style={{ color: "var(--ink-soft)", fontWeight: 400, fontSize: 11 }}>({selected.phone})</span>}</div>
+                  <div style={{ fontSize: 10, color: "var(--ink-soft)" }}>{selected.pasture_name} 목장</div>
                 </div>
-                <button onClick={() => setSelected(null)} style={{ fontSize: 11, padding: "4px 10px", background: "#fff", border: "1px solid #cbd5e1", borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>다시</button>
+                <button onClick={() => setSelected(null)} style={{ fontSize: 11, padding: "4px 10px", background: "#fff", border: "1px solid var(--hairline-strong)", borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>다시</button>
               </div>
 
               <div style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>관계 유형</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 4 }}>관계 유형</div>
                 <select value={kind} onChange={(e) => { setKind(e.target.value); setRole(ROLE_OPTIONS[e.target.value]?.[0]?.value || ""); }} style={editInput}>
                   {KIND_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
               {kind === "child" ? (
-                <div style={{ marginBottom: 14, padding: 10, background: "#fefce8", border: "1px solid #fde047", borderRadius: 8, fontSize: 11, color: "#854d0e" }}>
+                <div style={{ marginBottom: 14, padding: 10, background: "var(--warning-soft)", border: "1px solid #E0C893", borderRadius: 8, fontSize: 11, color: "var(--warning)" }}>
                   자녀로 등록 — 현재 회원이 {subjectGender === "M" ? "아버지" : subjectGender === "F" ? "어머니" : "부모(성별 미지정)"} 로 자동 설정됩니다.
                 </div>
               ) : (
                 <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>세부 역할</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 4 }}>세부 역할</div>
                   <select value={role} onChange={(e) => setRole(e.target.value)} style={editInput}>
                     {(ROLE_OPTIONS[kind] || []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
@@ -689,7 +689,7 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
 
 // ============ Styles ============
 const bgStyle: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)",
+  position: "fixed", inset: 0, background: "rgba(43, 39, 34,0.6)",
   display: "flex", alignItems: "center", justifyContent: "center",
   zIndex: 100, padding: 16,
 };
@@ -700,33 +700,33 @@ const cardStyle: React.CSSProperties = {
 };
 const editInput: React.CSSProperties = {
   width: "100%", padding: "8px 10px", fontSize: 13,
-  border: "1.5px solid #e2e8f0", borderRadius: 8, outline: "none",
-  color: "#0f172a", fontWeight: 500, boxSizing: "border-box",
+  border: "1.5px solid var(--hairline)", borderRadius: 8, outline: "none",
+  color: "var(--ink)", fontWeight: 500, boxSizing: "border-box",
   fontFamily: "inherit", marginBottom: 6, background: "#fff",
 };
 const editInputLg: React.CSSProperties = { ...editInput, fontSize: 18, fontWeight: 700 };
 const editLbl: React.CSSProperties = {
-  fontSize: 11, color: "#475569", fontWeight: 700, marginBottom: 3, display: "block",
+  fontSize: 11, color: "var(--ink-mid)", fontWeight: 700, marginBottom: 3, display: "block",
 };
 const editFieldWrap: React.CSSProperties = { marginBottom: 8 };
 const btnPrimary: React.CSSProperties = {
-  padding: "8px 16px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+  padding: "8px 16px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",
   color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
 };
 const btnGhost: React.CSSProperties = {
-  padding: "8px 16px", background: "#f1f5f9", border: "none",
-  borderRadius: 8, fontSize: 12, color: "#475569", cursor: "pointer",
+  padding: "8px 16px", background: "var(--bg-soft)", border: "none",
+  borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer",
   fontFamily: "inherit", fontWeight: 600,
 };
 const btnMiniPrimary: React.CSSProperties = {
-  padding: "4px 10px", background: "#6366f1", color: "#fff",
+  padding: "4px 10px", background: "var(--accent)", color: "#fff",
   border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700,
   cursor: "pointer", fontFamily: "inherit",
 };
 const toggleStyle: React.CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 4,
-  padding: "6px 10px", background: "#f1f5f9", borderRadius: 8,
-  fontSize: 11, fontWeight: 600, color: "#475569", cursor: "pointer",
+  padding: "6px 10px", background: "var(--bg-soft)", borderRadius: 8,
+  fontSize: 11, fontWeight: 600, color: "var(--ink-mid)", cursor: "pointer",
   userSelect: "none",
 };
