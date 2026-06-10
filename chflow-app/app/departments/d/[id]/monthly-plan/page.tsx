@@ -60,10 +60,8 @@ export default function MonthlyPlanPage() {
     <div style={pageStyle}>
 
       <div style={headerStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
-          <HeaderLogo />
-        </div>
+        <HeaderLogo />
+        <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}><CalendarDays size={18} strokeWidth={1.8} /> 월간 교육계획서</div>
         <div style={{ width: 80 }} />
       </div>
@@ -111,6 +109,12 @@ export default function MonthlyPlanPage() {
 }
 
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
-const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
-const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)" };
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)",
+  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+  flex: 1,
+  minWidth: 0,
+};
+const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit",
+  whiteSpace: "nowrap", flexShrink: 0,
+};

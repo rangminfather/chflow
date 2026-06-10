@@ -138,10 +138,8 @@ export default function TeacherAttendancePage() {
 
       {/* Header */}
       <div style={headerStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
-          <HeaderLogo />
-        </div>
+        <HeaderLogo />
+        <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><UserCheck size={18} strokeWidth={1.8} /> 선생임 (교사출석부)</div>
         <button onClick={() => setShowAddForm(!showAddForm)} style={addBtnStyle}>+ 교사 추가</button>
       </div>
@@ -306,7 +304,7 @@ function nextMonth(year: number, month: number, setYear: (y: number) => void, se
 const headerStyle: React.CSSProperties = {
   background: "var(--card)",
   borderBottom: "1px solid var(--hairline)",
-  padding: "12px 24px",
+  padding: "10px clamp(12px,4vw,20px)",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
@@ -346,6 +344,7 @@ const backBtnStyle: React.CSSProperties = {
   color: "var(--ink-mid)",
   cursor: "pointer",
   fontFamily: "inherit",
+  whiteSpace: "nowrap" as const, flexShrink: 0,
 };
 
 const addBtnStyle: React.CSSProperties = {

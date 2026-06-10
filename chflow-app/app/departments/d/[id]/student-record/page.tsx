@@ -95,10 +95,8 @@ export default function StudentRecordPage() {
 
       {/* Header */}
       <div style={headerStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
-          <HeaderLogo />
-        </div>
+        <HeaderLogo />
+        <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><FileSearch size={18} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 학생출결 이력</div>
         <div />
       </div>
@@ -254,10 +252,12 @@ function formatDate(d: string) {
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
 }
 
-const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const cardStyle: React.CSSProperties = { background: "var(--card)", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
 const inputStyle: React.CSSProperties = { padding: "9px 12px", border: "1.5px solid var(--hairline)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
 const fieldLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 4 };
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
+const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit",
+  whiteSpace: "nowrap", flexShrink: 0,
+};
 const searchBtnStyle: React.CSSProperties = { padding: "10px 20px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const thStyle = (align: "left" | "center"): React.CSSProperties => ({ padding: "10px 12px", textAlign: align, fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", borderBottom: "2px solid var(--hairline)", background: "var(--surface)", whiteSpace: "nowrap" });

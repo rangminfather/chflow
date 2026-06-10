@@ -167,10 +167,8 @@ export default function MonthlyPlanUploadPage() {
 function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typeof useRouter> }) {
   return (
     <div style={headerStyle}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
-        <HeaderLogo />
-      </div>
+      <HeaderLogo />
+      <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
       <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}><CalendarDays size={18} strokeWidth={1.8} /> 월간교육등록</div>
       <div style={{ width: 80 }} />
     </div>
@@ -179,6 +177,12 @@ function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typ
 
 const inputClass = "min-h-11 w-full rounded-md border border-hairline-strong bg-white px-3 py-2 text-[16px] font-bold text-ink outline-none focus:border-accent-muted";
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
-const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" };
-const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)" };
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)",
+  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+  flex: 1,
+  minWidth: 0,
+};
+const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit",
+  whiteSpace: "nowrap", flexShrink: 0,
+};

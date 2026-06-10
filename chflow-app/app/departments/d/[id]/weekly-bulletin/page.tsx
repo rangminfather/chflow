@@ -1442,10 +1442,8 @@ export default function WeeklyBulletinPage() {
     <div style={pageStyle}>
 
       <div style={headerStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
-          <HeaderLogo />
-        </div>
+        <HeaderLogo />
+        <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Newspaper size={18} strokeWidth={1.8} /> 주보 만들기</div>
         <div style={{ display: "flex", gap: 6 }}>
           {!isDesktop && (
@@ -3289,6 +3287,7 @@ const hintStyle: React.CSSProperties = {
 const backBtnStyle: React.CSSProperties = {
   padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8,
   fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit",
+  whiteSpace: "nowrap" as const, flexShrink: 0,
 };
 const primaryBtnStyle: React.CSSProperties = {
   padding: "10px 22px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",

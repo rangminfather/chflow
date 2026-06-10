@@ -217,10 +217,8 @@ export default function MembersGradePage() {
   return (
     <div style={pageStyle}>
       <div style={headerStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
-          <HeaderLogo />
-        </div>
+        <HeaderLogo />
+        <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Medal size={18} strokeWidth={1.8} /> 부서원 등급 관리</div>
         <div style={{ width: 60 }} />
       </div>
@@ -470,7 +468,7 @@ const pageStyle: React.CSSProperties = {
   fontFamily: "'Noto Sans KR', sans-serif",
 };
 const headerStyle: React.CSSProperties = {
-  background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "12px 24px",
+  background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)",
   display: "flex", alignItems: "center", justifyContent: "space-between",
 };
 const cardStyle: React.CSSProperties = {
@@ -482,6 +480,7 @@ const sectionLabel: React.CSSProperties = {
 const backBtnStyle: React.CSSProperties = {
   padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8,
   fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit",
+  whiteSpace: "nowrap" as const, flexShrink: 0,
 };
 const primaryBtnStyle: React.CSSProperties = {
   padding: "10px 20px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))",

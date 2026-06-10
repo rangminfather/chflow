@@ -356,10 +356,8 @@ export default function JournalPage() {
 
       {/* Header */}
       <div className="journal-header" style={headerStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <HeaderLogo />
-        </div>
+          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><NotebookPen size={18} strokeWidth={1.8} /> 일지작성</div>
         <button onClick={newJournal} style={addBtnStyle}>+ 새 일지</button>
       </div>
@@ -720,7 +718,7 @@ function formatDate(d: string) {
 const headerStyle: React.CSSProperties = {
   background: "var(--card)",
   borderBottom: "1px solid var(--hairline)",
-  padding: "12px 24px",
+  padding: "10px clamp(12px,4vw,20px)",
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
@@ -816,6 +814,7 @@ const backBtnStyle: React.CSSProperties = {
   color: "var(--ink-mid)",
   cursor: "pointer",
   fontFamily: "inherit",
+  whiteSpace: "nowrap" as const, flexShrink: 0,
 };
 
 const toastStyle: React.CSSProperties = {
