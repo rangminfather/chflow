@@ -24,6 +24,7 @@ interface PendingJoin {
   dept_name: string;
   dept_icon: string | null;
   requested_at: string;
+  children_desc: string | null;
 }
 
 // 임원진(grade 0~2)이 승인 시 부여할 수 있는 등급: 교사·학부모만
@@ -165,6 +166,11 @@ export default function DeptApprovalPage() {
                   <div style={{ fontSize: 11, color: "var(--ink-mid)", marginTop: 2, display: "inline-flex", alignItems: "center", gap: 6 }}>
                     <Phone size={12} strokeWidth={1.8} /> {j.user_phone || "-"} · 신청 {new Date(j.requested_at).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
                   </div>
+                  {j.children_desc && (
+                    <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 3 }}>
+                      자녀: {j.children_desc}
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button onClick={() => doReject(j)} disabled={processing === j.id} style={btnDanger}>거절</button>
