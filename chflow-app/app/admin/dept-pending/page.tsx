@@ -272,33 +272,35 @@ export default function AdminDeptPage() {
                 {members.length === 0 ? (
                   <EmptyState padding={40} icon={<Users size={24} strokeWidth={1.6} />} message="이 부서에 가입된 회원이 없습니다" />
                 ) : (
-                  <div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, padding: 16 }}>
                     {members.map((m) => (
-                      <div key={m.id} style={{ padding: "12px 20px", borderBottom: "1px solid var(--bg-soft)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                        {/* 아바타 */}
-                        {m.user_avatar_url ? (
-                          <img src={m.user_avatar_url} alt={m.user_name} style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", objectPosition: "center top", flexShrink: 0 }} />
-                        ) : (
-                          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--bg-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink-faint)", flexShrink: 0 }}><User size={22} strokeWidth={1.8} /></div>
-                        )}
-                        {/* 이름/직책 */}
-                        <div style={{ flex: 1, minWidth: 150 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>{m.user_name}</div>
-                            {m.member_role && m.member_role !== "member" && (
-                              <span style={{ padding: "1px 8px", background: "var(--accent-soft)", color: "var(--accent)", borderRadius: 6, fontSize: 10, fontWeight: 700 }}>
-                                {m.member_role}
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>
-                            {m.user_sub_role || "-"} {m.user_phone && `· ${m.user_phone}`}
+                      <div key={m.id} style={{ background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: 14, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                        {/* 아바타 + 이름 */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          {m.user_avatar_url ? (
+                            <img src={m.user_avatar_url} alt={m.user_name} style={{ width: 42, height: 42, borderRadius: "50%", objectFit: "cover", objectPosition: "center top", flexShrink: 0 }} />
+                          ) : (
+                            <div style={{ width: 42, height: 42, borderRadius: "50%", background: "var(--bg-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink-faint)", flexShrink: 0 }}><User size={20} strokeWidth={1.8} /></div>
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.user_name}</div>
+                            <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 1 }}>{m.user_sub_role || "-"}</div>
                           </div>
                         </div>
-                        {/* 액션 */}
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <button onClick={() => setEditingMember(m)} style={smallBtnStyle("var(--accent-soft)", "var(--accent)")}>임명</button>
-                          <button onClick={() => handleRemoveMember(m)} style={smallBtnStyle("var(--danger-soft)", "var(--danger)")}>탈퇴</button>
+                        {/* 직책 배지 */}
+                        {m.member_role && m.member_role !== "member" && (
+                          <span style={{ display: "inline-block", padding: "2px 8px", background: "var(--accent-soft)", color: "var(--accent)", borderRadius: 6, fontSize: 10, fontWeight: 700, alignSelf: "flex-start" }}>
+                            {m.member_role}
+                          </span>
+                        )}
+                        {/* 전화번호 */}
+                        {m.user_phone && (
+                          <div style={{ fontSize: 11, color: "var(--ink-mid)" }}>{m.user_phone}</div>
+                        )}
+                        {/* 액션 버튼 */}
+                        <div style={{ display: "flex", gap: 6, marginTop: "auto" }}>
+                          <button onClick={() => setEditingMember(m)} style={{ ...smallBtnStyle("var(--accent-soft)", "var(--accent)"), flex: 1 }}>임명</button>
+                          <button onClick={() => handleRemoveMember(m)} style={{ ...smallBtnStyle("var(--danger-soft)", "var(--danger)"), flex: 1 }}>탈퇴</button>
                         </div>
                       </div>
                     ))}
