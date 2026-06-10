@@ -593,7 +593,7 @@ function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartmen
       )}
 
       <OutlineButton
-        label="+ 다른 사역 · 부서"
+        label="사역 · 부서 가입"
         color={T.ministryPoint}
         onClick={() => router.push("/departments")}
         style={compactOutlineButtonStyle}
