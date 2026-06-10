@@ -82,7 +82,8 @@ export default function AdminDeptPage() {
 
   const loadMembers = useCallback(async (deptId: string) => {
     const { data, error } = await supabase.rpc("admin_list_dept_members", { p_dept_id: deptId });
-    if (!error) setMembers(data || []);
+    if (error) { alert(`회원 조회 실패: ${error.message}`); return; }
+    setMembers(data || []);
   }, []);
 
   useEffect(() => {
@@ -189,7 +190,7 @@ export default function AdminDeptPage() {
             <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>가입 승인 + 회원 관리</div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
           <button onClick={() => router.push("/admin/pending")} style={subBtnStyle("var(--warning-soft)", "var(--warning)")}><Hourglass size={14} strokeWidth={1.8} /> 회원가입</button>
           <button onClick={() => router.push("/admin/members")} style={subBtnStyle("var(--accent-soft)", "var(--accent)")}><Users size={14} strokeWidth={1.8} /> 회원관리</button>
           <button onClick={() => router.push("/home")} style={subBtnStyle("var(--bg-soft)", "var(--ink-mid)")}>← 홈</button>
@@ -306,7 +307,7 @@ export default function AdminDeptPage() {
               </div>
             ) : (
               <div style={{ background: "var(--card)", borderRadius: 12 }}>
-                <EmptyState padding={40} icon={<MousePointerClick size={24} strokeWidth={1.6} />} message="좌측 사이드바에서 사역/부서를 선택하세요" />
+                <EmptyState padding={40} icon={<MousePointerClick size={24} strokeWidth={1.6} />} message="부서를 선택하면 회원 목록이 표시됩니다" />
               </div>
             )}
           </div>

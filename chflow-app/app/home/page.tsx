@@ -474,10 +474,22 @@ function UserSummary({ user, photoUrl, userImage, router }: {
 
   return (
     <SafeCard onClick={() => router.push("/myinfo")} padding={16} style={{ marginBottom: 18, borderRadius: 20, background: "#FFFFFF", border: "1px solid #E8E3DA", boxShadow: "0 2px 16px rgba(26,22,18,0.06)", cursor: "pointer", position: "relative", overflow: "hidden" }}>
-      {/* 골드 포인트 데코 — 우측 상단 */}
-      <div style={{ position: "absolute", top: -28, right: -28, width: 110, height: 110, borderRadius: "50%", background: "radial-gradient(circle, rgba(184,150,62,0.13) 0%, transparent 68%)", pointerEvents: "none" }} />
-      <div style={{ position: "absolute", top: 8, right: 8, width: 52, height: 52, borderRadius: "50%", border: "1px solid rgba(184,150,62,0.18)", pointerEvents: "none" }} />
-      <div style={{ position: "absolute", top: 18, right: 18, width: 32, height: 32, borderRadius: "50%", border: "1px solid rgba(184,150,62,0.12)", pointerEvents: "none" }} />
+      {/* 보태니컬 데코 — 우측 하단 */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/leaf-deco.webp"
+        alt=""
+        aria-hidden="true"
+        style={{
+          position: "absolute", right: -14, bottom: -14,
+          width: 130, height: 130,
+          opacity: 0.65,
+          mixBlendMode: "multiply",
+          pointerEvents: "none",
+          userSelect: "none",
+          draggable: false,
+        } as React.CSSProperties}
+      />
       <SafeRow gap={14}>
         {/* 겹친 사진 + 직분 아바타 (좌우 겹침) */}
         <div style={{ position: "relative", width: SIZE + (SIZE - OVERLAP), height: SIZE, flexShrink: 0 }}>
