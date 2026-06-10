@@ -11,7 +11,7 @@ import {
   BookOpen, BookText, Users, User, Lightbulb, Vote, Megaphone, CalendarDays,
   Landmark, Bus, CalendarClock, Menu, LogOut, X, Folder, Home,
   Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid,
-  Sparkles, HeartHandshake,
+  Sparkles, HeartHandshake, ChevronDown,
 } from "lucide-react";
 import { LoadingView } from "@/components/StatusViews";
 import {
@@ -285,15 +285,7 @@ function AppBar({ isAdmin, router, onMenu }: {
       </div>
 
       <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto", minWidth: 0 }}>
-        {isAdmin && (
-          <>
-            <AdminPill icon={<UserPlus size={14} strokeWidth={1.75} />} label="가입자" onClick={() => router.push("/admin/pending")} />
-            <AdminPill icon={<Building2 size={14} strokeWidth={1.75} />} label="사역·부서" onClick={() => router.push("/admin/dept-pending")} />
-            <AdminPill icon={<Users size={14} strokeWidth={1.75} />} label="회원관리" onClick={() => router.push("/admin/members")} />
-            <AdminPill icon={<KeyRound size={14} strokeWidth={1.75} />} label="비번초기화" onClick={() => router.push("/admin/password-reset")} />
-            <AdminPill icon={<Shuffle size={14} strokeWidth={1.75} />} label="재편성" onClick={() => router.push("/admin/rearrange")} />
-          </>
-        )}
+        {isAdmin && <AdminDropdown router={router} />}
         <button
           className="sidebar-mobile-trigger"
           onClick={onMenu}
@@ -311,24 +303,75 @@ function AppBar({ isAdmin, router, onMenu }: {
   );
 }
 
-function AdminPill({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+function AdminDropdown({ router }: { router: RouterType }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const items = [
+    { icon: <UserPlus size={14} strokeWidth={1.75} />, label: "가입자 승인", href: "/admin/pending" },
+    { icon: <Building2 size={14} strokeWidth={1.75} />, label: "사역·부서 승인", href: "/admin/dept-pending" },
+    { icon: <Users size={14} strokeWidth={1.75} />, label: "회원 관리", href: "/admin/members" },
+    { icon: <KeyRound size={14} strokeWidth={1.75} />, label: "비밀번호 초기화", href: "/admin/password-reset" },
+    { icon: <Shuffle size={14} strokeWidth={1.75} />, label: "재편성", href: "/admin/rearrange" },
+  ];
+
   return (
-    <button
-      onClick={onClick}
-      title={label}
-      style={{
-        display: "flex", alignItems: "center", gap: 4,
-        padding: "8px 10px", borderRadius: 10,
-        background: T.ministryBg, color: T.ministryPoint,
-        border: "none", cursor: "pointer",
-        fontSize: 12, fontWeight: 600, fontFamily: "inherit",
-        whiteSpace: "nowrap",
-        flexShrink: 0,
-      }}
-    >
-      <span style={{ display: "inline-flex", alignItems: "center" }}>{icon}</span>
-      <span className="admin-btn-label">{label}</span>
-    </button>
+    <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: "flex", alignItems: "center", gap: 5,
+          padding: "8px 12px", borderRadius: 10,
+          background: open ? T.ministryBg : T.bgPage,
+          border: `1px solid ${open ? T.ministryPoint : T.border}`,
+          color: T.ministryPoint, cursor: "pointer",
+          fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <KeyRound size={13} strokeWidth={1.75} />
+        관리자
+        <ChevronDown size={12} strokeWidth={2} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.18s" }} />
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", right: 0,
+          background: T.bgCard, border: `1px solid ${T.border}`,
+          borderRadius: 14, boxShadow: "0 8px 28px rgba(0,0,0,0.12)",
+          overflow: "hidden", zIndex: 200, minWidth: 168,
+        }}>
+          {items.map((item) => (
+            <button
+              key={item.href}
+              onClick={() => { router.push(item.href); setOpen(false); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                width: "100%", padding: "11px 14px",
+                background: "transparent", border: "none",
+                cursor: "pointer", fontFamily: "inherit",
+                fontSize: 13, fontWeight: 600, color: T.text,
+                textAlign: "left",
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.background = T.ministryBg; }}
+              onMouseOut={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              <span style={{ color: T.ministryPoint, display: "inline-flex" }}>{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -482,7 +525,19 @@ function UserSummary({ user, photoUrl, userImage, router }: {
   const OVERLAP = Math.round(SIZE / 3); // 1/3 가려짐 → 2/3 노출
 
   return (
-    <SafeCard onClick={() => router.push("/myinfo")} padding={16} style={{ marginBottom: 18, borderRadius: 20, background: "#FFFFFF", border: "1px solid #E8E3DA", boxShadow: "0 2px 16px rgba(26,22,18,0.06)", cursor: "pointer" }}>
+    <SafeCard onClick={() => router.push("/myinfo")} padding={16} style={{ marginBottom: 18, borderRadius: 20, background: "#FFFFFF", border: "1px solid #E8E3DA", boxShadow: "0 2px 16px rgba(26,22,18,0.06)", cursor: "pointer", position: "relative", overflow: "hidden" }}>
+      {/* 골드 풀잎 데코 */}
+      <div style={{ position: "absolute", top: 6, right: 10, opacity: 0.55, pointerEvents: "none" }}>
+        <svg width="64" height="60" fill="none" viewBox="0 0 64 60">
+          <path d="M52 4 C52 4 36 9 33 28" stroke="#B8963E" strokeWidth="1.3" strokeLinecap="round" opacity="0.55"/>
+          <path d="M52 4 C47 16 40 16 33 28" stroke="#B8963E" strokeWidth="1" strokeLinecap="round" opacity="0.35"/>
+          <ellipse cx="43" cy="14" rx="7" ry="4.5" transform="rotate(-30 43 14)" fill="#B8963E" opacity="0.13"/>
+          <path d="M33 28 C28 38 26 50 28 58" stroke="#B8963E" strokeWidth="1.3" strokeLinecap="round" opacity="0.45"/>
+          <ellipse cx="23" cy="43" rx="6" ry="4" transform="rotate(-50 23 43)" fill="#B8963E" opacity="0.11"/>
+          <path d="M33 28 C38 33 46 36 51 44" stroke="#B8963E" strokeWidth="1" strokeLinecap="round" opacity="0.32"/>
+          <ellipse cx="48" cy="36" rx="5" ry="3.5" transform="rotate(20 48 36)" fill="#B8963E" opacity="0.10"/>
+        </svg>
+      </div>
       <SafeRow gap={14}>
         {/* 겹친 사진 + 직분 아바타 (좌우 겹침) */}
         <div style={{ position: "relative", width: SIZE + (SIZE - OVERLAP), height: SIZE, flexShrink: 0 }}>
