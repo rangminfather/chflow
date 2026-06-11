@@ -153,9 +153,79 @@ function quizTypeFromChoices(count: number): QuizType {
   return "mc4";
 }
 
+// 객관식 정답 인덱스 추출:
+//   - 클릭 시 나타나는 큰 그림(picture) shape이 정답 선택지 위에 위치
+//   - visibility-reveal 애니메이션 대상 pic의 center ↔ 선택지 번호 TextBox center 최근접
+function findMcAnswerIndex(slideXml: string): number | undefined {
+  // 1. visibility-revealed shape IDs (animation: style.visibility → "visible")
+  const revealedIds = new Set<string>();
+  for (const m of slideXml.matchAll(/<p:set\b[\s\S]*?<\/p:set>/g)) {
+    if (!m[0].includes("style.visibility") || !m[0].includes('"visible"')) continue;
+    const spid = m[0].match(/spid="(\d+)"/)?.[1];
+    if (spid) revealedIds.add(spid);
+  }
+  if (revealedIds.size === 0) return undefined;
+
+  // 2. 큰 revealed picture = 정답 표시 그림 (threshold: cx > 1,000,000 EMU ≈ 79pt)
+  let picCx = 0, picCy = 0, foundPic = false;
+  for (const m of slideXml.matchAll(/<p:pic\b[\s\S]*?<\/p:pic>/g)) {
+    const id = m[0].match(/<p:cNvPr[^>]+id="(\d+)"/)?.[1];
+    if (!id || !revealedIds.has(id)) continue;
+    const pos = m[0].match(/<a:off x="(\d+)" y="(\d+)"/);
+    const ext = m[0].match(/<a:ext cx="(\d+)" cy="(\d+)"/);
+    if (!pos || !ext) continue;
+    const w = Number(ext[1]);
+    if (w < 1_000_000) continue;
+    picCx = Number(pos[1]) + w / 2;
+    picCy = Number(pos[2]) + Number(ext[2]) / 2;
+    foundPic = true;
+    break;
+  }
+  if (!foundPic) return undefined;
+
+  // 3. 문제번호 shape 제외: revealed이고, 단일 숫자이고, y < 1,000,000 EMU (≈79pt)
+  const questionNumIds = new Set<string>();
+  for (const m of slideXml.matchAll(/<p:sp\b[\s\S]*?<\/p:sp>/g)) {
+    const id = m[0].match(/<p:cNvPr[^>]+id="(\d+)"/)?.[1];
+    if (!id || !revealedIds.has(id)) continue;
+    const texts = Array.from(m[0].matchAll(/<a:t[^>]*>([\s\S]*?)<\/a:t>/g))
+      .map((x) => x[1].trim()).filter(Boolean).join("");
+    const pos = m[0].match(/<a:off x="(\d+)" y="(\d+)"/);
+    if (pos && /^[1-4]$/.test(texts) && Number(pos[2]) < 1_000_000) questionNumIds.add(id);
+  }
+
+  // 4. 선택지 번호 TextBox → center 좌표
+  const choices: { idx: number; cx: number; cy: number }[] = [];
+  for (const m of slideXml.matchAll(/<p:sp\b[\s\S]*?<\/p:sp>/g)) {
+    const id = m[0].match(/<p:cNvPr[^>]+id="(\d+)"/)?.[1];
+    if (!id || questionNumIds.has(id)) continue;
+    const texts = Array.from(m[0].matchAll(/<a:t[^>]*>([\s\S]*?)<\/a:t>/g))
+      .map((x) => x[1].trim()).filter(Boolean).join("");
+    if (!/^[1-4]$/.test(texts)) continue;
+    const pos = m[0].match(/<a:off x="(\d+)" y="(\d+)"/);
+    const ext = m[0].match(/<a:ext cx="(\d+)" cy="(\d+)"/);
+    if (!pos) continue;
+    choices.push({
+      idx: Number(texts) - 1,
+      cx: Number(pos[1]) + (ext ? Number(ext[1]) / 2 : 0),
+      cy: Number(pos[2]) + (ext ? Number(ext[2]) / 2 : 0),
+    });
+  }
+  if (choices.length === 0) return undefined;
+
+  // 5. 가장 가까운 선택지
+  let best = choices[0];
+  let minDist = (best.cx - picCx) ** 2 + (best.cy - picCy) ** 2;
+  for (const c of choices.slice(1)) {
+    const d = (c.cx - picCx) ** 2 + (c.cy - picCy) ** 2;
+    if (d < minDist) { minDist = d; best = c; }
+  }
+  return best.idx;
+}
+
 // Q4 주관식 정답 감지: digit 필터 후 content = [질문, ...rest]
 //   rest가 1개 → 주관식 (rest[0] = 정답 텍스트)
-//   rest가 3개+ → 객관식 (정답 정보 없음)
+//   rest가 3개+ → 객관식 (answerIndex는 findMcAnswerIndex로 별도 처리)
 function parseQuizSlide(texts: string[]): ParsedQuiz | null {
   const tokens = texts.map(cleanText).filter(Boolean);
   const content = tokens.filter((t) => !/^\d+$/.test(t));
@@ -179,6 +249,7 @@ async function parseReviewPptx(buffer: Buffer, id: string, path: string, name: s
     .sort((a, b) => numericSlideName(a) - numericSlideName(b));
 
   const slides: string[][] = [];
+  const slideXmls: string[] = [];
   for (const slideFile of slideFiles) {
     const xml = await zip.file(slideFile)?.async("string");
     if (!xml) continue;
@@ -187,15 +258,25 @@ async function parseReviewPptx(buffer: Buffer, id: string, path: string, name: s
       .map((match) => extractTextsFromShape(match[0]))
       .filter(Boolean);
     slides.push(shapes);
+    slideXmls.push(xml);
   }
 
   const title = postprocessText(cleanText((slides[0] || []).join(" ")) || name);
-  const quizzes = slides.slice(1).map(parseQuizSlide).filter((quiz): quiz is ParsedQuiz => Boolean(quiz)).map((quiz) => ({
-    ...quiz,
-    question: postprocessText(quiz.question),
-    choices: quiz.choices.map(postprocessText),
-    answerText: quiz.answerText ? postprocessText(quiz.answerText) : undefined,
-  }));
+  const quizSlideXmls = slideXmls.slice(1);
+  const quizzes = slides.slice(1)
+    .map((shapes, i) => {
+      const quiz = parseQuizSlide(shapes);
+      if (!quiz) return null;
+      const answerIndex = quiz.type !== "subjective" ? findMcAnswerIndex(quizSlideXmls[i] || "") : undefined;
+      return {
+        ...quiz,
+        question: postprocessText(quiz.question),
+        choices: quiz.choices.map(postprocessText),
+        answerText: quiz.answerText ? postprocessText(quiz.answerText) : undefined,
+        answerIndex,
+      };
+    })
+    .filter((quiz): quiz is NonNullable<typeof quiz> => quiz !== null) as ParsedQuiz[];
   const lessonNum = lessonFromTitle(`${title} ${name}`);
   const specialTitle = specialFromText(`${title} ${name}`);
 
