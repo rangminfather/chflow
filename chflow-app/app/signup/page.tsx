@@ -426,6 +426,7 @@ export default function SignupPage() {
           setPhone(""); // 자녀는 핸드폰 없음
           setBirthDate("");
           setGender("");
+          setRoleGroup("nextgen"); // 자녀 가입은 다음세대 탭부터
           setStep("role");
         }
         setLoading(false);
@@ -472,6 +473,7 @@ export default function SignupPage() {
         setAddressZonecode("");
         setPastureId("");
         setPastureSearch("");
+        setRoleGroup("members");
         setStep("role");
       }
     } catch (e: unknown) {
@@ -485,19 +487,21 @@ export default function SignupPage() {
     if (!matched) return;
     // 매칭된 정보로 자동 채움
     fillMemberFields(matched);
-    // 요람 직분 자동 매칭 (별칭 + 성별 보정: "은퇴권사"→은퇴시무권사, "성도"+여→성도(여))
+    setIsRoleLocked(false);
+    // 요람 직분이 있으면 해당 직분이 속한 분류 탭으로 미리 이동 + 직분 미리 선택
+    // (별칭 + 성별 보정: "은퇴권사"→은퇴시무권사, "성도"+여→성도(여))
     const r = resolveRoleFromMemberSubRole(matched.sub_role, matched.gender);
     if (r) {
       setSelectedRole(r.role);
       setSelectedSubRole(r.subRole || null);
-      setIsRoleLocked(true);
-      setStep("info");
+      const group = ROLE_GROUPS.find((g) => g.roleIds.includes(r.role.id));
+      if (group) setRoleGroup(group.id);
     } else {
-      setIsRoleLocked(false);
       setSelectedRole(null);
       setSelectedSubRole(null);
-      setStep("role");
+      setRoleGroup("members");
     }
+    setStep("role");
   };
 
   const handleConfirmNo = () => {
@@ -506,9 +510,9 @@ export default function SignupPage() {
     if (matched) {
       fillMemberFields(matched);
     }
-    // 직분은 성도(남/여)로만 선택하도록 — 스텝3에서 선택
     setSelectedRole(null);
     setSelectedSubRole(null);
+    setRoleGroup("members");
     setStep("role");
   };
 
@@ -736,7 +740,7 @@ export default function SignupPage() {
           </div>
 
           <div style={{ marginTop: 16, fontSize: 11, color: "var(--ink-soft)", textAlign: "center", lineHeight: 1.6 }}>
-            네 선택 시 등록된 정보가 자동으로 입력되며 직분이 자동 설정됩니다.<br />
+            네 선택 시 등록된 정보가 자동으로 입력되며 직분 선택으로 이동합니다.<br />
             아닙니다 선택 시 처음부터 입력하실 수 있습니다.
           </div>
         </div>
@@ -744,74 +748,107 @@ export default function SignupPage() {
     );
   }
 
-  // ============ Step 3: 직분 선택 (성도 남/여 + 다음세대) ============
+  // ============ Step 3: 직분 선택 ============
+  const visibleRoles = ROLES.filter((role) =>
+    ROLE_GROUPS.find((group) => group.id === roleGroup)?.roleIds.includes(role.id)
+  );
+
+  const handleRoleSelect = (role: Role) => {
+    setSelectedRole(role);
+    setSelectedSubRole(null);
+    if (role.subRoles && role.subRoles.length > 0) {
+      setShowSubRoleModal(role);
+    } else {
+      setStep("info");
+    }
+  };
+
+  const handleSubRoleSelect = (subLabel: string) => {
+    setSelectedSubRole(subLabel);
+    setShowSubRoleModal(null);
+    setStep("info");
+  };
+
   if (step === "role") {
-    const memberRoles = ROLES.filter((r) => r.id === "member_male" || r.id === "member_female");
-    const nextgenRoles = ROLES.filter((r) =>
-      ["youth_male", "youth_female", "teen_male", "teen_female",
-        "child_male", "child_female", "toddler_male", "toddler_female"].includes(r.id)
-    );
-    const selectRole = (role: Role) => { setSelectedRole(role); setSelectedSubRole(null); setStep("info"); };
-    const roleCard = (role: Role, fontSize: number) => {
-      const isSelected = selectedRole?.id === role.id;
-      return (
-        <div
-          key={role.id}
-          onClick={() => selectRole(role)}
-          style={{
-            cursor: "pointer", borderRadius: 14, overflow: "hidden",
-            border: `2.5px solid ${isSelected ? "#3E5A4A" : "var(--hairline)"}`,
-            background: isSelected ? "var(--accent-soft)" : "var(--card)",
-            aspectRatio: "0.65", position: "relative",
-            boxShadow: isSelected ? "0 2px 12px rgba(62,90,74,0.15)" : "none",
-          }}
-        >
-          <img src={role.image} alt={role.label} style={{
-            width: "100%", height: "100%",
-            objectFit: "contain", objectPosition: "top center",
-          }} />
-          <div style={{
-            position: "absolute", bottom: 0, left: 0, right: 0,
-            background: isSelected ? "rgba(62,90,74,0.9)" : "rgba(0,0,0,0.45)",
-            color: "#fff", textAlign: "center", fontSize, fontWeight: 800, padding: "6px 2px",
-          }}>{role.label}</div>
-        </div>
-      );
-    };
     return (
       <div style={pageStyle}>
-        <div style={{ ...cardStyle, maxWidth: 480 }}>
+        <div style={{ ...cardStyle, maxWidth: 720 }}>
           <BackBar onBack={() => setStep(matched ? "confirm" : "lookup")} title="직분 선택" />
 
-          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--accent)", marginBottom: 10 }}>
-            성도 (성인)
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
-            {memberRoles.map((role) => roleCard(role, 13))}
-          </div>
-
-          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--accent)", marginBottom: 10 }}>
-            다음세대 (청년·학생·어린이)
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 20 }}>
-            {nextgenRoles.map((role) => roleCard(role, 10))}
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--accent)", marginTop: 4, letterSpacing: 0 }}>
+              † 직분을 선택하세요 †
+            </div>
           </div>
 
-          <div style={{
-            padding: "12px 14px",
-            background: "var(--warning-soft)",
-            border: "1px solid #E0C893",
-            borderRadius: 10,
-            fontSize: 12,
-            color: "var(--ink-mid)",
-            lineHeight: 1.7,
+          <div className="role-tabs" style={{
+            display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginBottom: 14,
           }}>
-            <strong style={{ color: "var(--warning)" }}>직분 안내</strong><br />
-            새로 가입하시는 성인은 <strong>성도(남/여)</strong>로 가입되며,<br />
-            청년·학생·어린이는 해당하는 항목을 선택해주세요.<br />
-            직분 관련 문의는 <strong>관리자에게 문의해주시기 바랍니다.</strong>
+            {ROLE_GROUPS.map((group) => {
+              const active = group.id === roleGroup;
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => setRoleGroup(group.id)}
+                  style={{
+                    height: 38,
+                    border: active ? "1px solid var(--accent)" : "1px solid rgba(43, 39, 34, 0.12)",
+                    background: active ? "var(--accent-soft)" : "rgba(255,255,255,0.86)",
+                    color: active ? "var(--accent)" : "var(--ink-soft)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {group.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="role-grid" style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gap: 10,
+            maxHeight: "none",
+            overflowY: "visible",
+            padding: "2px 2px 8px",
+          }}>
+            {visibleRoles.map((role) => (
+              <RoleCard key={role.id} role={role} onClick={() => handleRoleSelect(role)} />
+            ))}
+          </div>
+
+          <div style={{ marginTop: 12, display: "flex", justifyContent: "center" }}>
+            <div style={{
+              padding: "4px 10px",
+              borderRadius: 999,
+              background: "var(--surface)",
+              color: "var(--ink-faint)",
+              fontSize: 11,
+              fontWeight: 700,
+            }}>
+              {`${visibleRoles.length}개`}
+            </div>
           </div>
         </div>
+
+        {showSubRoleModal && (
+          <SubRoleModal role={showSubRoleModal} onSelect={handleSubRoleSelect} onClose={() => setShowSubRoleModal(null)} />
+        )}
+
+        <style jsx global>{`
+          @media (max-width: 560px) {
+            .role-tabs { grid-template-columns: repeat(3, 1fr) !important; }
+            .role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; max-height: none !important; overflow: visible !important; }
+          }
+          @media (max-width: 480px) {
+            .subrole-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          }
+        `}</style>
       </div>
     );
   }
