@@ -24,6 +24,7 @@ interface Quiz {
   question: string;
   choices: string[];
   answerIndex?: number;
+  answerText?: string;
 }
 
 interface ReviewDetail {
@@ -327,8 +328,19 @@ export default function ReviewProblemsPage() {
                         </div>
                       )}
                       {quiz.choices.length === 0 && (
-                        <div style={{ paddingLeft: 30, fontSize: 12, color: "var(--ink-faint)", fontWeight: 600 }}>
-                          주관식
+                        <div style={{ paddingLeft: 30, fontSize: 13 }}>
+                          {quiz.answerText ? (
+                            <span style={{
+                              display: "inline-flex", alignItems: "center", gap: 6,
+                              background: "rgba(234,88,12,0.08)", borderRadius: 6,
+                              padding: "4px 10px",
+                            }}>
+                              <span style={{ fontSize: 10, fontWeight: 800, color: "#ea580c", background: "rgba(234,88,12,0.12)", borderRadius: 4, padding: "1px 6px" }}>정답</span>
+                              <span style={{ fontWeight: 800, color: "#ea580c" }}>{quiz.answerText}</span>
+                            </span>
+                          ) : (
+                            <span style={{ color: "var(--ink-faint)", fontWeight: 600 }}>주관식</span>
+                          )}
                         </div>
                       )}
                     </div>

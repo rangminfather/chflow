@@ -19,7 +19,8 @@ interface ParsedQuiz {
   type: QuizType;
   question: string;
   choices: string[];
-  answerIndex?: number; // 0-based, undefined = 정답 정보 없음
+  answerIndex?: number; // 0-based, undefined = 정답 정보 없음 (mc4 불가)
+  answerText?: string;  // 주관식 정답 텍스트 (색상 기반 감지)
 }
 
 interface ParsedReviewProblem {
@@ -128,6 +129,7 @@ function extractTextsFromShape(shapeXml: string) {
   return cleanText(texts.join(" "));
 }
 
+
 function numericSlideName(name: string) {
   const match = name.match(/slide(\d+)\.xml$/);
   return match ? Number(match[1]) : 0;
@@ -151,44 +153,22 @@ function quizTypeFromChoices(count: number): QuizType {
   return "mc4";
 }
 
-// 원형숫자 → 0-based 인덱스
-const CIRCLE_MAP: Record<string, number> = { "①": 0, "②": 1, "③": 2, "④": 3, "⑤": 4 };
-
-function extractAnswerIndex(text: string): number | null {
-  // "정답: ②", "정답 3번", "답: ①" 등 패턴
-  const m = text.match(/^[정답답][:\s]*([①②③④⑤]|\d+)/u);
-  if (!m) return null;
-  const indicator = m[1];
-  if (CIRCLE_MAP[indicator] !== undefined) return CIRCLE_MAP[indicator];
-  const n = Number(indicator);
-  return Number.isFinite(n) && n >= 1 ? n - 1 : null;
-}
-
+// Q4 주관식 정답 감지: digit 필터 후 content = [질문, ...rest]
+//   rest가 1개 → 주관식 (rest[0] = 정답 텍스트)
+//   rest가 3개+ → 객관식 (정답 정보 없음)
 function parseQuizSlide(texts: string[]): ParsedQuiz | null {
   const tokens = texts.map(cleanText).filter(Boolean);
-  const content = tokens.filter((token) => !/^\d+$/.test(token));
+  const content = tokens.filter((t) => !/^\d+$/.test(t));
   if (content.length === 0) return null;
 
   const question = content[0];
-  let answerIndex: number | undefined;
-  const choiceTexts: string[] = [];
-
-  for (const text of content.slice(1)) {
-    const idx = extractAnswerIndex(text);
-    if (idx !== null) {
-      answerIndex = idx;
-    } else {
-      choiceTexts.push(text);
-    }
-  }
-
-  const choices = choiceTexts.slice(0, 5);
-  const type = quizTypeFromChoices(choices.length >= 3 ? choices.length : 0);
+  const rest = content.slice(1);
+  const type = quizTypeFromChoices(rest.length >= 3 ? rest.length : 0);
   return {
     type,
     question,
-    choices: type === "subjective" ? [] : choices.slice(0, type === "mc3" ? 3 : type === "mc4" ? 4 : 5),
-    answerIndex,
+    choices: type === "subjective" ? [] : rest.slice(0, type === "mc3" ? 3 : type === "mc4" ? 4 : 5),
+    answerText: type === "subjective" && rest.length === 1 ? rest[0] : undefined,
   };
 }
 
@@ -202,7 +182,8 @@ async function parseReviewPptx(buffer: Buffer, id: string, path: string, name: s
   for (const slideFile of slideFiles) {
     const xml = await zip.file(slideFile)?.async("string");
     if (!xml) continue;
-    const shapes = Array.from(xml.matchAll(/<p:sp[\s\S]*?<\/p:sp>/g))
+    // \b prevents matching <p:spPr> (shape property tags) inside connector shapes
+    const shapes = Array.from(xml.matchAll(/<p:sp\b[\s\S]*?<\/p:sp>/g))
       .map((match) => extractTextsFromShape(match[0]))
       .filter(Boolean);
     slides.push(shapes);
@@ -213,6 +194,7 @@ async function parseReviewPptx(buffer: Buffer, id: string, path: string, name: s
     ...quiz,
     question: postprocessText(quiz.question),
     choices: quiz.choices.map(postprocessText),
+    answerText: quiz.answerText ? postprocessText(quiz.answerText) : undefined,
   }));
   const lessonNum = lessonFromTitle(`${title} ${name}`);
   const specialTitle = specialFromText(`${title} ${name}`);
