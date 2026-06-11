@@ -259,8 +259,7 @@ export default function PhotoAvatar({
     fileInputRef.current?.click();
   };
 
-  const isShowingFallback =
-    !!fallbackUrl && currentUrl?.split("?")[0] === fallbackUrl.split("?")[0];
+  const isShowingFallback = !!fallbackUrl && currentUrl === fallbackUrl;
   const canRevertToFallback = !!fallbackUrl && !isShowingFallback;
 
   return (
