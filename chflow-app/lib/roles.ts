@@ -100,13 +100,14 @@ const LABEL_ALIASES: Record<string, string> = {
   "교인(남)": "성도 (남)",
   "교인(여)": "성도 (여)",
   // 요람(members.sub_role) 표기 → 시스템 라벨
-  "집사": "시무집사",
-  "명예집사": "명예시무집사",
-  "은퇴집사": "은퇴시무집사",
-  "협동시무집사": "시무집사",
+  // 관례: 권사 = 시무권사, 집사 = 서리집사, 장로 = 시무장로
+  "권사": "시무권사",
   "명예권사": "명예시무권사",
   "은퇴권사": "은퇴시무권사",
-  "협동권사": "권사",
+  "협동권사": "시무권사",
+  "장로": "시무장로",
+  "집사": "서리집사",
+  "협동시무집사": "시무집사",
   "초등학생": "어린이",
 };
 
@@ -148,6 +149,9 @@ export function resolveRoleFromMemberSubRole(
     const sub = role.subRoles?.find((s) => s.label.replace(/\s+/g, "") === stripped);
     if (sub) return { role, subRole: sub.label };
   }
+  // 접두어 제거 fallback: "명예집사" → "집사"(=서리집사) 기준으로 재시도
+  const prefixed = label.match(/^(명예|은퇴|원로|협동)(.+)$/);
+  if (prefixed) return resolveRoleFromMemberSubRole(prefixed[2], gender);
   return null;
 }
 
@@ -176,6 +180,10 @@ export function getRoleImageByLabel(label: string | null | undefined): string {
       if (sub) return sub.image;
     }
   }
+
+  // 4. 접두어 제거 fallback: "명예집사" → "집사"(=서리집사) 이미지
+  const prefixed = normalized.match(/^(명예|은퇴|원로|협동)(.+)$/);
+  if (prefixed) return getRoleImageByLabel(prefixed[2]);
 
   return "/roles/default.png";
 }
@@ -209,6 +217,9 @@ export function getLockedGroupLabels(membersSubRole: string | null | undefined):
       return [role.label, ...role.subRoles!.map((s) => s.label)];
     }
   }
+  // 접두어 제거 fallback: "명예집사" → "집사"(=서리집사) 그룹으로 제한
+  const prefixed = normalized.match(/^(명예|은퇴|원로|협동)(.+)$/);
+  if (prefixed) return getLockedGroupLabels(prefixed[2]);
   return null;
 }
 
