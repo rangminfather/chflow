@@ -529,6 +529,238 @@ export default function SignupPage() {
     return null;
   };
 
+  // ============ Render ============
+
+  // 가입 완료
+  if (step === "done") {
+    return (
+      <div style={pageStyle}>
+        <div style={cardStyle}>
+          <div style={{ marginBottom: 20, textAlign: "center", color: "var(--success)" }}><CheckCircle2 size={44} strokeWidth={1.5} /></div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)", marginBottom: 12, textAlign: "center" }}>
+            가입 신청 완료!
+          </div>
+          <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.6, textAlign: "center", marginBottom: 28 }}>
+            가입 신청이 완료되었습니다.<br />
+            <strong>관리자 승인</strong> 후 이용하실 수 있습니다.
+          </div>
+          <button onClick={() => router.push("/login?notice=signup")} style={primaryBtnStyle}>
+            로그인 화면으로
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ Step 1: 이름+휴대폰 lookup (+ 자녀 가입 분기) ============
+  if (step === "lookup") {
+    return (
+      <div style={pageStyle}>
+        <div style={cardStyle}>
+          <BackBar onBack={() => router.push("/login")} title="회원가입" />
+
+          <div style={{ textAlign: "center", marginBottom: 24 }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)", letterSpacing: -0.5 }}>
+              스마트명성 <span style={{ color: "var(--ink-soft)", fontSize: 14, fontWeight: 600 }}>회원가입</span>
+            </div>
+            <div className="auth-copy" style={{ marginTop: 14 }}>
+              먼저 명성교회 등록 여부를 확인합니다<br />
+              <strong>이름</strong>과 <strong>휴대폰 번호</strong>를 입력해주세요
+            </div>
+          </div>
+
+          <form onSubmit={handleLookup}>
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>이름 *</label>
+              <input
+                type="text"
+                value={lookupName}
+                onChange={(e) => setLookupName(e.target.value)}
+                placeholder="실명을 입력해주세요"
+                style={{ ...inputStyle, marginTop: 6 }}
+                autoFocus
+              />
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>휴대폰 번호 {noPhone ? "" : "*"}</label>
+              <input
+                type="tel"
+                value={lookupPhone}
+                onChange={(e) => setLookupPhone(formatPhone(e.target.value))}
+                placeholder="010-0000-0000"
+                disabled={noPhone}
+                style={{
+                  ...inputStyle,
+                  marginTop: 6,
+                  background: noPhone ? "var(--bg-soft)" : "#fff",
+                  color: noPhone ? "var(--ink-faint)" : "var(--ink)",
+                }}
+              />
+              <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontWeight: 600 }}>
+                <input
+                  type="checkbox"
+                  checked={noPhone}
+                  onChange={(e) => { setNoPhone(e.target.checked); if (e.target.checked) setLookupPhone(""); }}
+                  style={{ width: 16, height: 16, accentColor: "var(--accent)" }}
+                />
+                휴대폰 없음 (어린이/유아)
+              </label>
+            </div>
+
+            {noPhone && (
+              <div style={{ padding: "14px", background: "var(--warning-soft)", border: "1.5px dashed #E0C893", borderRadius: 12, marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", marginBottom: 10, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <Users size={14} strokeWidth={1.8} /> 보호자 정보 (어린이 가입 시)
+                </div>
+                <div style={{ marginBottom: 10 }}>
+                  <label style={labelStyle}>보호자 이름 *</label>
+                  <input
+                    type="text"
+                    value={parentName}
+                    onChange={(e) => setParentName(e.target.value)}
+                    placeholder="부 또는 모의 이름"
+                    style={{ ...inputStyle, marginTop: 6 }}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>보호자 휴대폰 *</label>
+                  <input
+                    type="tel"
+                    value={parentPhone}
+                    onChange={(e) => setParentPhone(formatPhone(e.target.value))}
+                    placeholder="010-0000-0000"
+                    style={{ ...inputStyle, marginTop: 6 }}
+                  />
+                </div>
+                <div style={{ fontSize: 10, color: "var(--warning)", marginTop: 8, lineHeight: 1.5 }}>
+                  아버지/어머니/부모님/보호자 중 명성교회에 등록된 분의 이름을 입력하세요.
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div style={{ ...errorStyle, display: "inline-flex", alignItems: "center", gap: 6, width: "100%" }}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>
+            )}
+
+            <button type="submit" disabled={loading} style={primaryBtnStyle}>
+              {loading ? "확인 중..." : "확인"}
+            </button>
+          </form>
+
+          <div className="auth-muted-panel" style={{ marginTop: 20 }}>
+            <Lightbulb size={13} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} />명성교회에 등록되지 않은 경우에도 가입할 수 있습니다.<br />
+            등록된 경우 정보가 자동으로 입력됩니다.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ Step 2: 회원 확인 ============
+  if (step === "confirm" && matched) {
+    return (
+      <div style={pageStyle}>
+        <div style={cardStyle}>
+          <BackBar onBack={() => setStep("lookup")} title="회원 확인" />
+
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--accent)" }}>등록 회원 확인!</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginTop: 8 }}>
+              본인이 맞으신가요?
+            </div>
+          </div>
+
+          <div style={{
+            background: "#f3f7f1",
+            border: "1px solid rgba(62, 90, 74, 0.16)",
+            borderRadius: 8,
+            padding: "20px 18px",
+            marginBottom: 20,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+              {matched.photo_url && (
+                <div style={{
+                  width: 64, height: 64, borderRadius: "50%",
+                  background: "var(--accent-soft)", overflow: "hidden",
+                  border: "1px solid rgba(62, 90, 74, 0.16)",
+                  flexShrink: 0,
+                  backgroundImage: cssUrl(matched.photo_url),
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }}>
+                  <span style={visuallyHiddenStyle}>{matched.name}</span>
+                </div>
+              )}
+              <div style={{
+                width: 56, height: 56, borderRadius: "50%",
+                background: "var(--accent-soft)", display: matched.photo_url ? "none" : "flex", alignItems: "center",
+                justifyContent: "center", color: "var(--ink-faint)",
+              }}><User size={28} strokeWidth={1.8} /></div>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)" }}>
+                  {matched.name} <span style={{ fontSize: 14, color: "var(--accent)", marginLeft: 6 }}>{matched.sub_role || matched.family_church}</span>
+                </div>
+                {matched.spouse_name && (
+                  <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
+                    배우자: {matched.spouse_name}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "70px 1fr", gap: 8, fontSize: 12 }}>
+              {matched.plain_name && (
+                <>
+                  <div style={infoLabel}>소속</div>
+                  <div style={infoValue}>
+                    {matched.plain_name}평 › {matched.grassland_name}목 › {matched.pasture_name}목장
+                  </div>
+                </>
+              )}
+              {matched.address && (
+                <>
+                  <div style={infoLabel}>주소</div>
+                  <div style={infoValue}>{maskAddress(matched.address)}</div>
+                </>
+              )}
+              {matched.birth_date && (
+                <>
+                  <div style={infoLabel}>생년월일</div>
+                  <div style={infoValue}>{matched.birth_date}</div>
+                </>
+              )}
+              {matched.gender && (
+                <>
+                  <div style={infoLabel}>성별</div>
+                  <div style={infoValue}>{displayGender(matched.gender)}</div>
+                </>
+              )}
+              <div style={infoLabel}>휴대폰</div>
+              <div style={infoValue}>{maskPhone(matched.phone)}</div>
+            </div>
+          </div>
+
+          {error && <div style={{ ...errorStyle, display: "inline-flex", alignItems: "center", gap: 6, width: "100%" }}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>}
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={handleConfirmNo} style={{ ...secondaryBtnStyle, flex: 1 }}>
+              아닙니다
+            </button>
+            <button onClick={handleConfirmYes} style={{ ...primaryBtnStyle, flex: 1 }}>
+              네, 맞습니다
+            </button>
+          </div>
+
+          <div style={{ marginTop: 16, fontSize: 11, color: "var(--ink-soft)", textAlign: "center", lineHeight: 1.6 }}>
+            네 선택 시 등록된 정보가 자동으로 입력되며 직분이 자동 설정됩니다.<br />
+            아닙니다 선택 시 처음부터 입력하실 수 있습니다.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ============ Step 3: 직분 선택 (성도 남/여만 선택 가능) ============
   if (step === "role") {
     const memberMale = ROLES.find(r => r.id === "member_male")!;
