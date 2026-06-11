@@ -379,7 +379,7 @@ function MenuCard({ item, onClick }: { item: MenuItem; onClick: () => void }) {
         <item.icon size={18} strokeWidth={1.8} style={{ color: dim ? "var(--ink-faint)" : item.color }} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: dim ? "var(--ink-faint)" : "var(--ink)" }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: dim ? "var(--ink-faint)" : "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {item.label}
           {dim && <span style={{ fontSize: 9, color: "var(--ink-faint)", marginLeft: 6, fontWeight: 500 }}>(준비 중)</span>}
         </div>

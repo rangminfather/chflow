@@ -9,7 +9,7 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { ClipboardCheck } from "lucide-react";
+import { BadgeCheck, CheckCircle2, ClipboardCheck, Sparkles, XCircle } from "lucide-react";
 
 interface Student {
   id: string;
@@ -214,7 +214,7 @@ export default function MyClassAttendancePage() {
         <div style={headerStyle}>
           <HeaderLogo />
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
-          <div style={{ fontSize: 19, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><ClipboardCheck size={18} strokeWidth={1.8} /> 내 반 출결</div>
+          <div style={headerTitleStyle}><ClipboardCheck size={18} strokeWidth={1.8} style={{ flexShrink: 0 }} /> 내 반 출결</div>
           <div style={{ width: 80 }} />
         </div>
         <div style={{ maxWidth: 600, margin: "60px auto", padding: 16 }}>
@@ -229,15 +229,21 @@ export default function MyClassAttendancePage() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
       <style>{`
-        .status-btn { transition: background 0.12s, border-color 0.12s, color 0.12s; }
-        .status-btn:hover { border-color: var(--ink-faint); }
+        .status-btn { transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.12s, box-shadow 0.12s; }
+        .status-btn:hover { border-color: var(--ink-faint); transform: translateY(-1px); }
+        .status-btn:active { transform: scale(0.97); }
+        .status-btn-selected { animation: attendancePop 0.18s ease-out; }
+        @keyframes attendancePop {
+          0% { transform: scale(0.96); }
+          100% { transform: scale(1); }
+        }
       `}</style>
 
       <div style={headerStyle}>
         <HeaderLogo />
         <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
-        <div style={{ fontSize: 19, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <ClipboardCheck size={18} strokeWidth={1.8} /> 내 반 출결 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
+        <div style={headerTitleStyle}>
+          <ClipboardCheck size={18} strokeWidth={1.8} style={{ flexShrink: 0 }} /> 내 반 출결 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
         </div>
         <div style={{ width: 80 }} />
       </div>
@@ -312,11 +318,18 @@ export default function MyClassAttendancePage() {
                         </div>
                         <div className="mt-1 text-[13px] font-semibold text-ink-soft">{formatMD(date)} 주일</div>
                       </div>
-                      <div className={[
-                        "rounded-md border bg-white px-2.5 py-1 text-[13px] font-extrabold",
-                        isTodayWeek ? "border-amber-200 text-amber-800" : "border-hairline text-ink-mid",
-                      ].join(" ")}>
-                        {summary.total}명
+                      <div className="flex items-center gap-2">
+                        {isTodayWeek && (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-200 bg-white text-amber-700 shadow-sm">
+                            <Sparkles size={17} strokeWidth={2} />
+                          </div>
+                        )}
+                        <div className={[
+                          "rounded-md border bg-white px-2.5 py-1 text-[13px] font-extrabold",
+                          isTodayWeek ? "border-amber-200 text-amber-800" : "border-hairline text-ink-mid",
+                        ].join(" ")}>
+                          {summary.total}명
+                        </div>
                       </div>
                     </div>
                   </header>
@@ -327,7 +340,11 @@ export default function MyClassAttendancePage() {
                       const currentStatus = normalizeStatus(cell?.attend_status);
 
                       return (
-                        <div key={student.id} className="rounded-lg border border-hairline bg-surface p-3">
+                        <div
+                          key={student.id}
+                          className="rounded-lg border border-hairline bg-surface p-3 shadow-[0_1px_0_rgba(43,39,34,0.04)]"
+                          style={{ borderLeft: `4px solid ${STATUS_COLOR[currentStatus]}` }}
+                        >
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <div className="flex min-w-0 items-baseline gap-2">
                               <div className="truncate text-[16px] font-extrabold text-ink">{student.name}</div>
@@ -349,6 +366,8 @@ export default function MyClassAttendancePage() {
                             {ATTENDANCE_OPTIONS.map((option) => {
                               const selected = currentStatus === option.value;
                               const savingKey = `${student.id}-${date}-${option.value}`;
+                              const tone = attendanceTone(option.value);
+                              const Icon = tone.Icon;
                               return (
                                 <button
                                   key={option.value}
@@ -356,17 +375,22 @@ export default function MyClassAttendancePage() {
                                   onClick={() => setStatus(student.id, date, option.value)}
                                   disabled={!isEditableWeek || saving === savingKey}
                                   className={[
-                                    "status-btn min-h-12 rounded-md border px-1 text-[15px] font-extrabold leading-tight",
+                                    "status-btn relative min-h-[58px] overflow-hidden rounded-lg border px-2 py-2 text-[14px] font-extrabold leading-tight",
+                                    selected ? "status-btn-selected" : "",
                                     !isEditableWeek
                                       ? selected
                                         ? "cursor-not-allowed border-hairline-strong bg-hairline text-ink-soft"
                                         : "cursor-not-allowed border-hairline bg-white text-ink-faint opacity-70"
                                       : selected
-                                        ? "border-ink bg-ink text-white"
-                                        : "border-hairline bg-white text-ink-mid",
+                                        ? tone.selectedClass
+                                        : tone.defaultClass,
                                   ].join(" ")}
                                 >
-                                  {option.label}
+                                  {selected && <span className="absolute inset-x-3 bottom-1 h-1 rounded-full bg-white/50" />}
+                                  <span className="relative flex flex-col items-center justify-center gap-1">
+                                    <Icon size={18} strokeWidth={2.3} />
+                                    <span className="whitespace-nowrap">{option.label}</span>
+                                  </span>
                                 </button>
                               );
                             })}
@@ -463,6 +487,28 @@ function statusLabel(status: string) {
   return labels[status] || status;
 }
 
+function attendanceTone(status: string) {
+  if (status === "출") {
+    return {
+      Icon: CheckCircle2,
+      defaultClass: "border-emerald-200 bg-emerald-50 text-emerald-800",
+      selectedClass: "border-emerald-600 bg-emerald-600 text-white shadow-[0_8px_18px_rgba(5,150,105,0.22)]",
+    };
+  }
+  if (status === "결") {
+    return {
+      Icon: XCircle,
+      defaultClass: "border-rose-200 bg-rose-50 text-rose-800",
+      selectedClass: "border-rose-500 bg-rose-500 text-white shadow-[0_8px_18px_rgba(225,29,72,0.18)]",
+    };
+  }
+  return {
+    Icon: BadgeCheck,
+    defaultClass: "border-sky-200 bg-sky-50 text-sky-800",
+    selectedClass: "border-sky-600 bg-sky-600 text-white shadow-[0_8px_18px_rgba(2,132,199,0.2)]",
+  };
+}
+
 function normalizeStatus(status: string | null | undefined) {
   if (status === "출" || status === "인") return status;
   return "결";
@@ -487,7 +533,21 @@ function SummaryBox({ label, value }: { label: string; value: number }) {
   );
 }
 
-const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between" };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0 };
+const headerTitleStyle: React.CSSProperties = {
+  flex: "1 1 auto",
+  minWidth: 0,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+  fontSize: 19,
+  fontWeight: 800,
+  color: "var(--ink)",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
 const cardStyle: React.CSSProperties = { background: "var(--card)", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
 const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit",
   whiteSpace: "nowrap", flexShrink: 0,
