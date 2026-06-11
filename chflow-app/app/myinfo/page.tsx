@@ -107,7 +107,7 @@ export default function MyInfoPage() {
       return;
     }
     setSavingSubRole(true);
-    const { error } = await supabase.from("profiles").update({ sub_role: subRoleDraft }).eq("user_id", profile.user_id);
+    const { error } = await supabase.from("profiles").update({ sub_role: subRoleDraft }).eq("id", profile.user_id);
     setSavingSubRole(false);
     if (error) { alert(`저장 실패: ${error.message}`); return; }
     setEditSubRole(false);
