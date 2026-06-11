@@ -58,6 +58,7 @@ export default function MyInfoPage() {
   // 이메일 등록
   const [editEmail, setEditEmail] = useState(false);
   const [emailDraft, setEmailDraft] = useState("");
+  const [emailPasswordDraft, setEmailPasswordDraft] = useState("");
   const [savingEmail, setSavingEmail] = useState(false);
 
   // 비밀번호 변경
@@ -69,6 +70,7 @@ export default function MyInfoPage() {
   const [pwMsg, setPwMsg] = useState("");
 
   const [toast, setToast] = useState("");
+  const hasRegisteredEmail = !!email && !email.toLowerCase().endsWith("@smartms.app");
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc("get_my_profile_full");
@@ -98,6 +100,16 @@ export default function MyInfoPage() {
   const startEditAddress = () => {
     setAddressDraft(profile?.address || "");
     setEditAddress(true);
+  };
+  const startEditEmail = () => {
+    setEmailDraft(hasRegisteredEmail ? email : "");
+    setEmailPasswordDraft("");
+    setEditEmail(true);
+  };
+  const cancelEditEmail = () => {
+    setEditEmail(false);
+    setEmailDraft("");
+    setEmailPasswordDraft("");
   };
 
   const saveSubRole = async () => {
@@ -137,6 +149,9 @@ export default function MyInfoPage() {
     if (!trimmed.includes("@") || trimmed.split("@")[1]?.indexOf(".") === -1) {
       alert("올바른 이메일 주소를 입력해주세요"); return;
     }
+    if (hasRegisteredEmail && !emailPasswordDraft) {
+      alert("이메일을 변경하려면 현재 비밀번호를 입력해주세요"); return;
+    }
     setSavingEmail(true);
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData.session?.access_token;
@@ -151,16 +166,17 @@ export default function MyInfoPage() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ email: trimmed }),
+      body: JSON.stringify({ email: trimmed, password: emailPasswordDraft }),
     });
     const data = await res.json();
     setSavingEmail(false);
     if (!res.ok) { alert(`등록 실패: ${data.error || "오류가 발생했습니다"}`); return; }
     setEditEmail(false);
     setEmailDraft("");
+    setEmailPasswordDraft("");
     setEmail(data.email || trimmed);
     await supabase.auth.refreshSession();
-    showToast("이메일이 등록되었습니다. 비밀번호 찾기에서 이 주소로 재설정 링크를 받을 수 있습니다");
+    showToast("이메일이 저장되었습니다");
   };
 
   const changePassword = async () => {
@@ -298,7 +314,7 @@ export default function MyInfoPage() {
             <InfoItem label="이름" value={profile.name} />
             <InfoItem label="아이디" value={profile.username} />
             {/* 이메일 */}
-            {email.endsWith("@smartms.app") ? (
+            {!hasRegisteredEmail ? (
               <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 6 }}>
                 <span style={infoLabel}>이메일</span>
                 {editEmail ? (
@@ -314,18 +330,50 @@ export default function MyInfoPage() {
                     <button onClick={saveEmail} disabled={savingEmail} style={btnPrimary}>
                       {savingEmail ? "저장 중..." : "저장"}
                     </button>
-                    <button onClick={() => { setEditEmail(false); setEmailDraft(""); }} style={btnGhost}>취소</button>
+                    <button onClick={cancelEditEmail} style={btnGhost}>취소</button>
                   </div>
                 ) : (
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ ...infoValue, color: "var(--danger)", fontWeight: 600 }}>(미등록)</span>
-                    <button onClick={() => setEditEmail(true)} style={btnSm}>이메일 등록하기</button>
+                    <button onClick={startEditEmail} style={btnSm}>이메일 등록하기</button>
                   </div>
                 )}
                 <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>이메일 등록 시 비밀번호 찾기에서 재설정 링크를 이메일로 받을 수 있습니다</span>
               </div>
             ) : (
-              <InfoItem label="이메일" value={email} />
+              <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={infoLabel}>이메일</span>
+                {editEmail ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <input
+                      type="email"
+                      value={emailDraft}
+                      onChange={(e) => setEmailDraft(e.target.value)}
+                      placeholder="새 이메일 주소"
+                      style={inputStyle}
+                      autoFocus
+                    />
+                    <input
+                      type="password"
+                      value={emailPasswordDraft}
+                      onChange={(e) => setEmailPasswordDraft(e.target.value)}
+                      placeholder="현재 비밀번호"
+                      style={inputStyle}
+                    />
+                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                      <button onClick={saveEmail} disabled={savingEmail} style={btnPrimary}>
+                        {savingEmail ? "저장 중..." : "저장"}
+                      </button>
+                      <button onClick={cancelEditEmail} style={btnGhost}>취소</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <span style={{ ...infoValue, minWidth: 0, overflowWrap: "anywhere" }}>{email}</span>
+                    <button onClick={startEditEmail} style={{ ...btnSm, flexShrink: 0 }}>변경</button>
+                  </div>
+                )}
+              </div>
             )}
             <InfoItem label="생년월일" value={profile.birth_date} />
             <InfoItem label="성별" value={profile.gender === "M" ? "남" : profile.gender === "F" ? "여" : null} />
@@ -424,7 +472,8 @@ export default function MyInfoPage() {
           position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
           background: "var(--ink)", color: "#fff", padding: "10px 20px", borderRadius: 999,
           fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
-          whiteSpace: "nowrap",
+          maxWidth: "calc(100vw - 32px)", textAlign: "center", lineHeight: 1.45,
+          whiteSpace: "normal", overflowWrap: "break-word",
         }}>{toast}</div>
       )}
     </div>

@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "로그인이 필요합니다" }, { status: 401 });
     }
 
-    const { email } = await req.json();
+    const { email, password } = await req.json();
     const trimmedEmail = String(email || "").trim().toLowerCase();
     if (!isUsableRecoveryEmail(trimmedEmail)) {
       return NextResponse.json({ error: "사용 가능한 실제 이메일 주소를 입력하세요" }, { status: 400 });
@@ -36,6 +36,34 @@ export async function POST(req: NextRequest) {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
+
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("email")
+      .eq("id", authData.user.id)
+      .maybeSingle();
+
+    const currentAuthEmail = authData.user.email || "";
+    const currentRegisteredEmail = isUsableRecoveryEmail(currentAuthEmail)
+      ? currentAuthEmail
+      : profile?.email || "";
+    const isChangingRegisteredEmail =
+      isUsableRecoveryEmail(currentRegisteredEmail) &&
+      currentRegisteredEmail.toLowerCase() !== trimmedEmail;
+
+    if (isChangingRegisteredEmail) {
+      if (!password) {
+        return NextResponse.json({ error: "이메일을 변경하려면 현재 비밀번호를 입력하세요" }, { status: 400 });
+      }
+
+      const { error: passwordError } = await verifier.auth.signInWithPassword({
+        email: currentAuthEmail,
+        password,
+      });
+      if (passwordError) {
+        return NextResponse.json({ error: "현재 비밀번호가 일치하지 않습니다" }, { status: 401 });
+      }
+    }
 
     const { error: updateAuthError } = await admin.auth.admin.updateUserById(authData.user.id, {
       email: trimmedEmail,
