@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { getRoleImageByLabel, getAllSubRoleOptions } from "@/lib/roles";
 import { Hourglass, CheckCircle2, CircleHelp, RefreshCw, Phone, Cake, MapPin, Info } from "lucide-react";
 
 interface PendingUser {
@@ -43,6 +44,7 @@ export default function AdminPendingPage() {
   const [pending, setPending] = useState<PendingUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState<string | null>(null);
+  const [approveModal, setApproveModal] = useState<{ user: PendingUser; subRole: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,11 +72,18 @@ export default function AdminPendingPage() {
   }, [load, router]);
 
   const handleApprove = async (user: PendingUser) => {
-    if (!confirm(`${user.name}(${user.username})님의 가입을 승인하시겠습니까?`)) return;
+    setApproveModal({ user, subRole: user.sub_role || "성도 (남)" });
+  };
+
+  const confirmApprove = async () => {
+    if (!approveModal) return;
+    const { user, subRole } = approveModal;
+    setApproveModal(null);
     setProcessing(user.id);
     const { error } = await supabase.rpc("approve_user", {
       p_user_id: user.id,
       p_approved: true,
+      p_sub_role: subRole || null,
     });
     if (error) {
       alert(`승인 실패: ${error.message}`);
@@ -268,6 +277,69 @@ export default function AdminPendingPage() {
           <strong>신규</strong>는 요람에 없는 신규 가입 신청입니다. 본인 확인 후 승인해주세요.
         </div>
       </div>
+
+      {/* 승인 모달 — 직분 확정 */}
+      {approveModal && (
+        <div onClick={() => setApproveModal(null)} style={{
+          position: "fixed", inset: 0, background: "rgba(43,39,34,0.55)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: "var(--card)", borderRadius: 16, padding: "24px 20px",
+            width: "100%", maxWidth: 400, boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
+          }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
+              ✓ 가입 승인
+            </div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>
+              {approveModal.user.name}({approveModal.user.username}) 님
+            </div>
+
+            {/* 직분 선택 */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 8 }}>
+                직분 확정 <span style={{ fontSize: 10, color: "var(--ink-faint)", fontWeight: 400 }}>(가입자 선택값: {approveModal.user.sub_role || "미설정"})</span>
+              </div>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <div style={{
+                  width: 48, height: 60, borderRadius: 8, overflow: "hidden", flexShrink: 0,
+                  background: "var(--bg-soft)",
+                }}>
+                  <img src={getRoleImageByLabel(approveModal.subRole)} alt={approveModal.subRole}
+                    style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "top center" }} />
+                </div>
+                <select
+                  value={approveModal.subRole}
+                  onChange={e => setApproveModal({ ...approveModal, subRole: e.target.value })}
+                  style={{
+                    flex: 1, padding: "10px 12px", fontSize: 13, fontWeight: 700,
+                    border: "1.5px solid var(--hairline-strong)", borderRadius: 8,
+                    fontFamily: "inherit", background: "var(--card)", color: "var(--ink)",
+                  }}
+                >
+                  {getAllSubRoleOptions().map(opt => (
+                    opt.isHeader
+                      ? <optgroup key={opt.label} label={`── ${opt.label}`} />
+                      : <option key={opt.label} value={opt.label}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setApproveModal(null)} style={{
+                padding: "10px 18px", background: "var(--bg-soft)", border: "none",
+                borderRadius: 8, fontSize: 13, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit",
+              }}>취소</button>
+              <button onClick={confirmApprove} style={{
+                padding: "10px 20px", background: "linear-gradient(135deg, var(--success), var(--success))",
+                color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit", boxShadow: "0 4px 12px rgba(61,122,78,0.3)",
+              }}>✓ 승인 확정</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

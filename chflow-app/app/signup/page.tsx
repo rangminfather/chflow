@@ -174,6 +174,7 @@ export default function SignupPage() {
   const [selectedSubRole, setSelectedSubRole] = useState<string | null>(null);
   const [showSubRoleModal, setShowSubRoleModal] = useState<Role | null>(null);
   const [roleGroup, setRoleGroup] = useState<RoleGroupId>("members");
+  const [isRoleLocked, setIsRoleLocked] = useState(false);
 
   // 정보 입력
   const [name, setName] = useState("");
@@ -496,6 +497,7 @@ export default function SignupPage() {
     }
     // 직분이 매칭됐으면 정보입력으로, 안 됐으면 직분 선택 화면으로
     if (roleMatched) {
+      setIsRoleLocked(true);
       setStep("info");
     } else {
       setStep("role");
@@ -503,15 +505,14 @@ export default function SignupPage() {
   };
 
   const handleConfirmNo = () => {
+    setIsRoleLocked(false);
     // 신규 가입이지만 매칭된 정보는 그대로 채워줌
     if (matched) {
       fillMemberFields(matched);
-      if (matched.sub_role) {
-        const r = findRoleByLabel(matched.sub_role);
-        if (r) setSelectedRole(r.role);
-        if (r?.subRole) setSelectedSubRole(r.subRole);
-      }
     }
+    // 직분은 성도(남/여)로만 선택하도록 — 스텝3에서 선택
+    setSelectedRole(null);
+    setSelectedSubRole(null);
     setStep("role");
   };
 
@@ -528,36 +529,73 @@ export default function SignupPage() {
     return null;
   };
 
-  // ============ Step 3: 직분 선택 ============
-  const visibleRoles = ROLES.filter((role) =>
-    ROLE_GROUPS.find((group) => group.id === roleGroup)?.roleIds.includes(role.id)
-  );
+  // ============ Step 3: 직분 선택 (성도 남/여만 선택 가능) ============
+  if (step === "role") {
+    const memberMale = ROLES.find(r => r.id === "member_male")!;
+    const memberFemale = ROLES.find(r => r.id === "member_female")!;
+    return (
+      <div style={pageStyle}>
+        <div style={{ ...cardStyle, maxWidth: 480 }}>
+          <BackBar onBack={() => setStep(matched ? "confirm" : "lookup")} title="직분 선택" />
 
-  const handleRoleSelect = (role: Role) => {
-    setSelectedRole(role);
-    setSelectedSubRole(null);
-    if (role.subRoles && role.subRoles.length > 0) {
-      setShowSubRoleModal(role);
-    } else {
-      setStep("info");
-    }
-  };
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--accent)", marginTop: 4 }}>
+              † 성별을 선택하세요 †
+            </div>
+          </div>
 
-  const handleSubRoleSelect = (subLabel: string) => {
-    setSelectedSubRole(subLabel);
-    setShowSubRoleModal(null);
-    setStep("info");
-  };
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
+            {[memberMale, memberFemale].map((role) => {
+              const isSelected = selectedRole?.id === role.id;
+              return (
+                <div
+                  key={role.id}
+                  onClick={() => { setSelectedRole(role); setSelectedSubRole(null); setStep("info"); }}
+                  style={{
+                    cursor: "pointer", borderRadius: 14, overflow: "hidden",
+                    border: `2.5px solid ${isSelected ? "#3E5A4A" : "var(--hairline)"}`,
+                    background: isSelected ? "var(--accent-soft)" : "var(--card)",
+                    aspectRatio: "0.65", position: "relative",
+                    boxShadow: isSelected ? "0 2px 12px rgba(62,90,74,0.15)" : "none",
+                  }}
+                >
+                  <img src={role.image} alt={role.label} style={{
+                    width: "100%", height: "100%",
+                    objectFit: "contain", objectPosition: "top center",
+                  }} />
+                  <div style={{
+                    position: "absolute", bottom: 0, left: 0, right: 0,
+                    background: isSelected ? "rgba(62,90,74,0.9)" : "rgba(0,0,0,0.45)",
+                    color: "#fff", textAlign: "center", fontSize: 13, fontWeight: 800, padding: "8px 4px",
+                  }}>{role.label}</div>
+                </div>
+              );
+            })}
+          </div>
 
-  // ============ Step 4: 정보 입력 (아이디/비밀번호) ============
+          <div style={{
+            padding: "12px 14px",
+            background: "var(--warning-soft)",
+            border: "1px solid #E0C893",
+            borderRadius: 10,
+            fontSize: 12,
+            color: "var(--ink-mid)",
+            lineHeight: 1.7,
+          }}>
+            <strong style={{ color: "var(--warning)" }}>직분 안내</strong><br />
+            새로 가입하시는 분은 <strong>성도(남/여)</strong>로 가입됩니다.<br />
+            직분 관련 문의는 <strong>관리자에게 문의해주시기 바랍니다.</strong>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ Step 4: 정보 입력 핸들러 ============
   const checkUsername = async () => {
     const lower = username.toLowerCase().trim();
     const v = validateUsername(lower);
-    if (!v.valid) {
-      setError(v.error!);
-      setUsernameStatus("idle");
-      return;
-    }
+    if (!v.valid) { setError(v.error!); setUsernameStatus("idle"); return; }
     setError("");
     setUsernameStatus("checking");
     const { data } = await supabase.rpc("check_username_available", { p_username: lower });
@@ -567,7 +605,6 @@ export default function SignupPage() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-
     const lower = username.toLowerCase().trim();
     const uv = validateUsername(lower);
     if (!uv.valid) return setError(uv.error!);
@@ -582,7 +619,6 @@ export default function SignupPage() {
     if (!selectedRole) return setError("직분을 선택하세요");
     if (!agreePrivacy) return setError("개인정보 수집·이용에 동의해주세요");
     if (noPhone && !agreeGuardian) return setError("법정대리인(보호자) 동의가 필요합니다");
-
     setLoading(true);
     try {
       const res = await fetch("/api/signup", {
@@ -612,11 +648,7 @@ export default function SignupPage() {
         }),
       });
       const result = await res.json();
-      if (!res.ok) {
-        setError(result.error || "가입에 실패했습니다");
-        setLoading(false);
-        return;
-      }
+      if (!res.ok) { setError(result.error || "가입 실패"); setLoading(false); return; }
       setStep("done");
     } catch (e: unknown) {
       setError(`오류: ${getErrorMessage(e)}`);
@@ -624,328 +656,11 @@ export default function SignupPage() {
     setLoading(false);
   };
 
-  // ============ Render ============
-
-  // 가입 완료
-  if (step === "done") {
-    return (
-      <div style={pageStyle}>
-        <div style={cardStyle}>
-          <div style={{ marginBottom: 20, textAlign: "center", color: "var(--success)" }}><CheckCircle2 size={44} strokeWidth={1.5} /></div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)", marginBottom: 12, textAlign: "center" }}>
-            가입 신청 완료!
-          </div>
-          <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.6, textAlign: "center", marginBottom: 28 }}>
-            회원가입 신청이 완료되었습니다.<br />
-            <strong>관리자 승인</strong> 후 로그인 하실 수 있습니다.
-          </div>
-          <button onClick={() => router.push("/login?notice=signup")} style={primaryBtnStyle}>
-            로그인 화면으로
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ============ Step 1: lookup ============
-  if (step === "lookup") {
-    return (
-      <div style={pageStyle}>
-        <div style={cardStyle}>
-          <BackBar onBack={() => router.push("/login")} title="회원가입" />
-
-          <div style={{ textAlign: "center", marginBottom: 24 }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)", letterSpacing: -0.5 }}>
-              스마트명성 <span style={{ color: "var(--ink-soft)", fontSize: 14, fontWeight: 600 }}>회원가입</span>
-            </div>
-            <div className="auth-copy" style={{ marginTop: 14 }}>
-              먼저 본인 확인을 위해<br />
-              <strong>이름</strong>과 <strong>휴대폰 번호</strong>를 입력해주세요
-            </div>
-          </div>
-
-          <form onSubmit={handleLookup}>
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>이름 *</label>
-              <input
-                type="text"
-                value={lookupName}
-                onChange={(e) => setLookupName(e.target.value)}
-                placeholder="실명을 입력하세요"
-                style={{ ...inputStyle, marginTop: 6 }}
-                autoFocus
-              />
-            </div>
-
-            <div style={{ marginBottom: 14 }}>
-              <label style={labelStyle}>휴대폰 번호 {noPhone ? "" : "*"}</label>
-              <input
-                type="tel"
-                value={lookupPhone}
-                onChange={(e) => setLookupPhone(formatPhone(e.target.value))}
-                placeholder="010-0000-0000"
-                disabled={noPhone}
-                style={{
-                  ...inputStyle,
-                  marginTop: 6,
-                  background: noPhone ? "var(--bg-soft)" : "#fff",
-                  color: noPhone ? "var(--ink-faint)" : "var(--ink)",
-                }}
-              />
-              <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontWeight: 600 }}>
-                <input
-                  type="checkbox"
-                  checked={noPhone}
-                  onChange={(e) => { setNoPhone(e.target.checked); if (e.target.checked) setLookupPhone(""); }}
-                  style={{ width: 16, height: 16, accentColor: "var(--accent)" }}
-                />
-                휴대폰 없음 (청소년/어린이)
-              </label>
-            </div>
-
-            {noPhone && (
-              <div style={{ padding: "14px", background: "var(--warning-soft)", border: "1.5px dashed #E0C893", borderRadius: 12, marginBottom: 14 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", marginBottom: 10, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <Users size={14} strokeWidth={1.8} /> 부모님 정보 (본인 확인용)
-                </div>
-                <div style={{ marginBottom: 10 }}>
-                  <label style={labelStyle}>부모님 이름 *</label>
-                  <input
-                    type="text"
-                    value={parentName}
-                    onChange={(e) => setParentName(e.target.value)}
-                    placeholder="부 또는 모 성함"
-                    style={{ ...inputStyle, marginTop: 6 }}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>부모님 휴대폰 *</label>
-                  <input
-                    type="tel"
-                    value={parentPhone}
-                    onChange={(e) => setParentPhone(formatPhone(e.target.value))}
-                    placeholder="010-0000-0000"
-                    style={{ ...inputStyle, marginTop: 6 }}
-                  />
-                </div>
-                <div style={{ fontSize: 10, color: "var(--warning)", marginTop: 8, lineHeight: 1.5 }}>
-                  할아버지/할머니/아버지/어머니 중 누구의 이름이든 가능합니다.
-                </div>
-              </div>
-            )}
-
-            {error && (
-              <div style={{ ...errorStyle, display: "inline-flex", alignItems: "center", gap: 6, width: "100%" }}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>
-            )}
-
-            <button type="submit" disabled={loading} style={primaryBtnStyle}>
-              {loading ? "조회 중..." : "다음"}
-            </button>
-          </form>
-
-          <div className="auth-muted-panel" style={{ marginTop: 20 }}>
-            <Lightbulb size={13} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} />명성교회 성도이신 경우 등록된 정보를 자동으로 불러옵니다.<br />
-            등록되어 있지 않으시면 신규 가입으로 진행됩니다.
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ============ Step 2: 매칭 확인 ============
-  if (step === "confirm" && matched) {
-    return (
-      <div style={pageStyle}>
-        <div style={cardStyle}>
-          <BackBar onBack={() => setStep("lookup")} title="본인 확인" />
-
-          <div style={{ textAlign: "center", marginBottom: 20 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--accent)" }}>회원 정보 발견!</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", marginTop: 8 }}>
-              아래 분이 맞으십니까?
-            </div>
-          </div>
-
-          <div style={{
-            background: "#f3f7f1",
-            border: "1px solid rgba(62, 90, 74, 0.16)",
-            borderRadius: 8,
-            padding: "20px 18px",
-            marginBottom: 20,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-              {matched.photo_url && (
-                <div style={{
-                  width: 64, height: 64, borderRadius: "50%",
-                  background: "var(--accent-soft)", overflow: "hidden",
-                  border: "1px solid rgba(62, 90, 74, 0.16)",
-                  flexShrink: 0,
-                  backgroundImage: cssUrl(matched.photo_url),
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                }}>
-                  <span style={visuallyHiddenStyle}>{matched.name}</span>
-                </div>
-              )}
-              <div style={{
-                width: 56, height: 56, borderRadius: "50%",
-                background: "var(--accent-soft)", display: matched.photo_url ? "none" : "flex", alignItems: "center",
-                justifyContent: "center", color: "var(--ink-faint)",
-              }}><User size={28} strokeWidth={1.8} /></div>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)" }}>
-                  {matched.name} <span style={{ fontSize: 14, color: "var(--accent)", marginLeft: 6 }}>{matched.sub_role || matched.family_church}</span>
-                </div>
-                {matched.spouse_name && (
-                  <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
-                    배우자: {matched.spouse_name}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "70px 1fr", gap: 8, fontSize: 12 }}>
-              {matched.plain_name && (
-                <>
-                  <div style={infoLabel}>가정교회</div>
-                  <div style={infoValue}>
-                    {matched.plain_name}평원 · {matched.grassland_name}초원 · {matched.pasture_name}목장
-                  </div>
-                </>
-              )}
-              {matched.address && (
-                <>
-                  <div style={infoLabel}>주소</div>
-                  <div style={infoValue}>{maskAddress(matched.address)}</div>
-                </>
-              )}
-              {matched.birth_date && (
-                <>
-                  <div style={infoLabel}>생년월일</div>
-                  <div style={infoValue}>{matched.birth_date}</div>
-                </>
-              )}
-              {matched.gender && (
-                <>
-                  <div style={infoLabel}>성별</div>
-                  <div style={infoValue}>{displayGender(matched.gender)}</div>
-                </>
-              )}
-              <div style={infoLabel}>휴대폰</div>
-              <div style={infoValue}>{maskPhone(matched.phone)}</div>
-            </div>
-          </div>
-
-          {error && <div style={{ ...errorStyle, display: "inline-flex", alignItems: "center", gap: 6, width: "100%" }}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>}
-
-          <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={handleConfirmNo} style={{ ...secondaryBtnStyle, flex: 1 }}>
-              아니오
-            </button>
-            <button onClick={handleConfirmYes} style={{ ...primaryBtnStyle, flex: 1 }}>
-              네, 맞습니다
-            </button>
-          </div>
-
-          <div style={{ marginTop: 16, fontSize: 11, color: "var(--ink-soft)", textAlign: "center", lineHeight: 1.6 }}>
-            네 선택 시 정보가 자동으로 채워지며 직분 등은 본인이 수정 가능합니다.<br />
-            아니오 선택 시 신규 가입으로 진행됩니다.
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ============ Step 3: 직분 선택 ============
-  if (step === "role") {
-    return (
-      <div style={pageStyle}>
-        <div style={{ ...cardStyle, maxWidth: 720 }}>
-          <BackBar onBack={() => setStep(matched ? "confirm" : "lookup")} title="직분 선택" />
-
-          <div style={{ textAlign: "center", marginBottom: 20 }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--accent)", marginTop: 4, letterSpacing: 0 }}>
-              † 직분을 선택하세요 †
-            </div>
-          </div>
-
-          <div className="role-tabs" style={{
-            display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginBottom: 14,
-          }}>
-            {ROLE_GROUPS.map((group) => {
-              const active = group.id === roleGroup;
-              return (
-                <button
-                  key={group.id}
-                  type="button"
-                  onClick={() => setRoleGroup(group.id)}
-                  style={{
-                    height: 38,
-                    border: active ? "1px solid var(--accent)" : "1px solid rgba(43, 39, 34, 0.12)",
-                    background: active ? "var(--accent-soft)" : "rgba(255,255,255,0.86)",
-                    color: active ? "var(--accent)" : "var(--ink-soft)",
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  {group.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="role-grid" style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-            gap: 10,
-            maxHeight: "none",
-            overflowY: "visible",
-            padding: "2px 2px 8px",
-          }}>
-            {visibleRoles.map((role) => (
-              <RoleCard key={role.id} role={role} onClick={() => handleRoleSelect(role)} />
-            ))}
-          </div>
-
-          <div style={{ marginTop: 12, display: "flex", justifyContent: "center" }}>
-            <div style={{
-              padding: "4px 10px",
-              borderRadius: 999,
-              background: "var(--surface)",
-              color: "var(--ink-faint)",
-              fontSize: 11,
-              fontWeight: 700,
-            }}>
-              {`${visibleRoles.length}\uAC1C`}
-            </div>
-          </div>
-        </div>
-
-        {showSubRoleModal && (
-          <SubRoleModal role={showSubRoleModal} onSelect={handleSubRoleSelect} onClose={() => setShowSubRoleModal(null)} />
-        )}
-
-        <style jsx global>{`
-          @media (max-width: 560px) {
-            .role-tabs { grid-template-columns: repeat(3, 1fr) !important; }
-            .role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; max-height: none !important; overflow: visible !important; }
-          }
-          @media (max-width: 480px) {
-            .subrole-grid { grid-template-columns: repeat(2, 1fr) !important; }
-          }
-        `}</style>
-      </div>
-    );
-  }
-
   // ============ Step 4: 정보 입력 ============
   return (
     <div style={pageStyle}>
       <div style={{ ...cardStyle, maxWidth: 480 }}>
-        <BackBar onBack={() => setStep("role")} title="가입 정보 입력" />
+        <BackBar onBack={() => setStep(isRoleLocked ? "confirm" : "role")} title="가입 정보 입력" />
 
         {selectedRole ? (
           <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", background: "var(--accent-soft)", borderRadius: 8, marginBottom: 16 }}>
@@ -970,25 +685,32 @@ export default function SignupPage() {
               <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>
                 {selectedSubRole || selectedRole.label}
               </div>
+              {isRoleLocked && (
+                <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 2 }}>
+                  직분 변경은 관리자에게 문의해주세요
+                </div>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={() => setStep("role")}
-              style={{
-                padding: "6px 12px",
-                background: "var(--card)",
-                border: "1px solid var(--accent)",
-                borderRadius: 8,
-                fontSize: 11,
-                fontWeight: 700,
-                color: "var(--accent)",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                whiteSpace: "nowrap",
-              }}
-            >
-              변경
-            </button>
+            {!isRoleLocked && (
+              <button
+                type="button"
+                onClick={() => setStep("role")}
+                style={{
+                  padding: "6px 12px",
+                  background: "var(--card)",
+                  border: "1px solid var(--accent)",
+                  borderRadius: 8,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "var(--accent)",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                변경
+              </button>
+            )}
           </div>
         ) : (
           <div

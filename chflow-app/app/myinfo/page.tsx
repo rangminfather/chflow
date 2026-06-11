@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, formatPhone, usernameToEmail } from "@/lib/supabase";
-import { getRoleImageByLabel, ROLES, type Role } from "@/lib/roles";
+import { getRoleImageByLabel, ROLES, getLockedGroupLabels, type Role } from "@/lib/roles";
 import HeaderLogo from "@/components/HeaderLogo";
 import PhotoAvatar from "@/components/PhotoAvatar";
 import { LoadingView } from "@/components/StatusViews";
@@ -33,6 +33,7 @@ interface Profile {
   plain_name: string | null;
   review_status: "unreviewed" | "verified" | "needs_check" | null;
   review_note: string | null;
+  members_sub_role: string | null;
 }
 
 export default function MyInfoPage() {
@@ -100,6 +101,11 @@ export default function MyInfoPage() {
 
   const saveSubRole = async () => {
     if (!profile) return;
+    const lockedLabels = getLockedGroupLabels(profile.members_sub_role);
+    if (lockedLabels && !lockedLabels.includes(subRoleDraft)) {
+      showToast("직분 변경을 할 수 없습니다");
+      return;
+    }
     setSavingSubRole(true);
     const { error } = await supabase.from("profiles").update({ sub_role: subRoleDraft }).eq("user_id", profile.user_id);
     setSavingSubRole(false);
@@ -253,7 +259,9 @@ export default function MyInfoPage() {
               <RolePicker
                 value={subRoleDraft}
                 parentRole={subRoleParent}
+                lockedLabels={getLockedGroupLabels(profile?.members_sub_role)}
                 onSelect={(label, parent) => { setSubRoleDraft(label); setSubRoleParent(parent); }}
+                onBlocked={() => showToast("직분 변경을 할 수 없습니다")}
               />
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
                 <button onClick={() => setEditSubRole(false)} style={btnGhost}>취소</button>
@@ -412,10 +420,12 @@ const ROLE_GROUPS = [
   { label: "다음세대", roleIds: ["youth_male", "youth_female", "teen_male", "teen_female", "child_male", "child_female", "toddler_male", "toddler_female"] },
 ];
 
-function RolePicker({ value, parentRole, onSelect }: {
+function RolePicker({ value, parentRole, lockedLabels, onSelect, onBlocked }: {
   value: string;
   parentRole: Role | null;
+  lockedLabels?: string[] | null;
   onSelect: (label: string, parent: Role | null) => void;
+  onBlocked?: () => void;
 }) {
   const [activeGroup, setActiveGroup] = useState(
     ROLE_GROUPS.find(g => g.roleIds.some(id => {
@@ -429,7 +439,14 @@ function RolePicker({ value, parentRole, onSelect }: {
     ROLE_GROUPS.find(g => g.label === activeGroup)?.roleIds.includes(r.id)
   );
 
+  const isRoleLocked = (role: Role): boolean => {
+    if (!lockedLabels) return false;
+    return !lockedLabels.includes(role.label) &&
+      !role.subRoles?.some(s => lockedLabels.includes(s.label));
+  };
+
   const handleRoleClick = (role: Role) => {
+    if (isRoleLocked(role)) { onBlocked?.(); return; }
     if (role.subRoles && role.subRoles.length > 0) {
       setShowSubPicker(role);
     } else {
@@ -450,21 +467,38 @@ function RolePicker({ value, parentRole, onSelect }: {
           }}>{g.label}</button>
         ))}
       </div>
+      {lockedLabels && (
+        <div style={{ padding: "6px 12px", background: "var(--warning-soft)", fontSize: 11, color: "var(--warning)", fontWeight: 600 }}>
+          🔒 직분은 동일 계열 내에서만 변경 가능합니다
+        </div>
+      )}
       {/* 이미지 그리드 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, padding: 12 }}>
         {visibleRoles.map(role => {
           const isSelected = role.label === value || role.subRoles?.some(s => s.label === value);
+          const locked = isRoleLocked(role);
           return (
             <div key={role.id} onClick={() => handleRoleClick(role)} style={{
-              cursor: "pointer", borderRadius: 10, overflow: "hidden",
-              background: "var(--card)", border: `2px solid ${isSelected ? "#3E5A4A" : "var(--hairline)"}`,
+              cursor: locked ? "not-allowed" : "pointer",
+              borderRadius: 10, overflow: "hidden",
+              background: "var(--card)",
+              border: `2px solid ${isSelected ? "#3E5A4A" : "var(--hairline)"}`,
               aspectRatio: "0.65", position: "relative",
+              opacity: locked ? 0.4 : 1,
             }}>
               <img src={role.image} alt={role.label} style={{
                 width: "100%", height: "100%",
                 objectFit: "contain", objectPosition: "top center",
               }} />
-              {role.subRoles && <span style={{ position: "absolute", top: 4, right: 4, fontSize: 8, background: "#3E5A4A", color: "#fff", borderRadius: 4, padding: "1px 4px" }}>▼</span>}
+              {locked && (
+                <div style={{
+                  position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                  background: "rgba(0,0,0,0.08)",
+                }}>
+                  <span style={{ fontSize: 16 }}>🔒</span>
+                </div>
+              )}
+              {!locked && role.subRoles && <span style={{ position: "absolute", top: 4, right: 4, fontSize: 8, background: "#3E5A4A", color: "#fff", borderRadius: 4, padding: "1px 4px" }}>▼</span>}
             </div>
           );
         })}
@@ -487,10 +521,16 @@ function RolePicker({ value, parentRole, onSelect }: {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
               {showSubPicker.subRoles!.map(sub => {
                 const isSelected = sub.label === value;
+                const subLocked = lockedLabels ? !lockedLabels.includes(sub.label) : false;
                 return (
-                  <div key={sub.label} onClick={() => { onSelect(sub.label, showSubPicker); setShowSubPicker(null); }} style={{
-                    cursor: "pointer", borderRadius: 10, border: `2px solid ${isSelected ? "#3E5A4A" : "var(--hairline)"}`,
+                  <div key={sub.label} onClick={() => {
+                    if (subLocked) { onBlocked?.(); return; }
+                    onSelect(sub.label, showSubPicker); setShowSubPicker(null);
+                  }} style={{
+                    cursor: subLocked ? "not-allowed" : "pointer",
+                    borderRadius: 10, border: `2px solid ${isSelected ? "#3E5A4A" : "var(--hairline)"}`,
                     background: "#fafafa", aspectRatio: "0.65", overflow: "hidden", position: "relative",
+                    opacity: subLocked ? 0.4 : 1,
                   }}>
                     <img src={sub.image} alt={sub.label} style={{
                       width: "100%", height: "100%",

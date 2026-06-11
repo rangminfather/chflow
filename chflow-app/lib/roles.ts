@@ -139,3 +139,40 @@ export function getParentRoleLabel(subLabel: string | null | undefined): string 
   }
   return null;
 }
+
+// members.sub_role(요람 원본 직분)에 기반한 허용 라벨 목록 반환
+// null이면 제한 없음, string[]이면 해당 그룹 내에서만 변경 가능
+export function getLockedGroupLabels(membersSubRole: string | null | undefined): string[] | null {
+  if (!membersSubRole) return null;
+  let normalized = membersSubRole.trim();
+  if (LABEL_ALIASES[normalized]) normalized = LABEL_ALIASES[normalized];
+  for (const role of ROLES) {
+    if (role.label === normalized) {
+      if (role.subRoles && role.subRoles.length > 0) {
+        return [role.label, ...role.subRoles.map((s) => s.label)];
+      }
+      return [role.label];
+    }
+    if (role.subRoles?.some((s) => s.label === normalized)) {
+      return [role.label, ...role.subRoles!.map((s) => s.label)];
+    }
+  }
+  return null;
+}
+
+// 승인 모달용: 전체 직분 라벨 flat 목록 (그룹 구분자 포함)
+export interface SubRoleOption { label: string; isHeader: boolean }
+export function getAllSubRoleOptions(): SubRoleOption[] {
+  const result: SubRoleOption[] = [];
+  for (const role of ROLES) {
+    if (role.subRoles && role.subRoles.length > 0) {
+      result.push({ label: role.label, isHeader: true });
+      for (const sub of role.subRoles) {
+        result.push({ label: sub.label, isHeader: false });
+      }
+    } else {
+      result.push({ label: role.label, isHeader: false });
+    }
+  }
+  return result;
+}
