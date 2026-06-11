@@ -19,6 +19,7 @@ interface ParsedQuiz {
   type: QuizType;
   question: string;
   choices: string[];
+  answerIndex?: number; // 0-based, undefined = 정답 정보 없음
 }
 
 interface ParsedReviewProblem {
@@ -149,18 +150,44 @@ function quizTypeFromChoices(count: number): QuizType {
   return "mc4";
 }
 
+// 원형숫자 → 0-based 인덱스
+const CIRCLE_MAP: Record<string, number> = { "①": 0, "②": 1, "③": 2, "④": 3, "⑤": 4 };
+
+function extractAnswerIndex(text: string): number | null {
+  // "정답: ②", "정답 3번", "답: ①" 등 패턴
+  const m = text.match(/^[정답답][:\s]*([①②③④⑤]|\d+)/u);
+  if (!m) return null;
+  const indicator = m[1];
+  if (CIRCLE_MAP[indicator] !== undefined) return CIRCLE_MAP[indicator];
+  const n = Number(indicator);
+  return Number.isFinite(n) && n >= 1 ? n - 1 : null;
+}
+
 function parseQuizSlide(texts: string[]): ParsedQuiz | null {
   const tokens = texts.map(cleanText).filter(Boolean);
   const content = tokens.filter((token) => !/^\d+$/.test(token));
   if (content.length === 0) return null;
 
   const question = content[0];
-  const choices = content.slice(1, 6);
+  let answerIndex: number | undefined;
+  const choiceTexts: string[] = [];
+
+  for (const text of content.slice(1)) {
+    const idx = extractAnswerIndex(text);
+    if (idx !== null) {
+      answerIndex = idx;
+    } else {
+      choiceTexts.push(text);
+    }
+  }
+
+  const choices = choiceTexts.slice(0, 5);
   const type = quizTypeFromChoices(choices.length >= 3 ? choices.length : 0);
   return {
     type,
     question,
     choices: type === "subjective" ? [] : choices.slice(0, type === "mc3" ? 3 : type === "mc4" ? 4 : 5),
+    answerIndex,
   };
 }
 

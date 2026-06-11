@@ -23,6 +23,7 @@ interface Quiz {
   type: "subjective" | "mc3" | "mc4" | "mc5";
   question: string;
   choices: string[];
+  answerIndex?: number;
 }
 
 interface ReviewDetail {
@@ -30,6 +31,18 @@ interface ReviewDetail {
   lessonNum: string;
   specialTitle: string;
   quizzes: Quiz[];
+}
+
+// 스토리지 slug 패턴(영문+타임스탬프) 제거하고 읽기 좋은 제목 반환
+function displayTitle(file: ReviewFile): string {
+  if (file.lessonNum) return `${file.lessonNum}과 복습문제`;
+  if (file.specialTitle) return file.specialTitle;
+  // JSON 없이 item.name이 그대로 들어온 경우 → slug 앞부분 제거
+  return file.title
+    .replace(/^[a-z0-9-]+_\d{10,}_/i, "")  // "special_1685000000_" 제거
+    .replace(/\.pptx$/i, "")
+    .replace(/-/g, " ")
+    .trim() || file.title;
 }
 
 export default function ReviewProblemsPage() {
@@ -157,7 +170,7 @@ export default function ReviewProblemsPage() {
                             특별
                           </span>
                         )}
-                        <span className="truncate text-[15px] font-extrabold text-ink">{file.title}</span>
+                        <span className="truncate text-[15px] font-extrabold text-ink">{displayTitle(file)}</span>
                       </div>
                       <div className="mt-1 text-[12px] font-semibold text-ink-faint">
                         {file.quizCount}문제
@@ -220,7 +233,7 @@ export default function ReviewProblemsPage() {
                   )}
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", lineHeight: 1.3 }}>
-                  {selected.title}
+                  {selected.specialTitle || selected.title}
                 </div>
               </div>
               <button
@@ -276,20 +289,41 @@ export default function ReviewProblemsPage() {
                       </div>
                       {quiz.choices.length > 0 && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingLeft: 30 }}>
-                          {quiz.choices.map((choice, j) => (
-                            <div key={j} style={{
-                              display: "flex", gap: 8, alignItems: "flex-start",
-                              fontSize: 13, color: "var(--ink-mid)", lineHeight: 1.4,
-                            }}>
-                              <span style={{
-                                flexShrink: 0, fontWeight: 800,
-                                color: "var(--accent-strong)", minWidth: 16,
+                          {quiz.choices.map((choice, j) => {
+                            const isAnswer = quiz.answerIndex === j;
+                            return (
+                              <div key={j} style={{
+                                display: "flex", gap: 8, alignItems: "flex-start",
+                                fontSize: 13, lineHeight: 1.4,
+                                background: isAnswer ? "rgba(234,88,12,0.08)" : "transparent",
+                                borderRadius: isAnswer ? 6 : 0,
+                                padding: isAnswer ? "4px 8px" : "0",
+                                marginLeft: isAnswer ? -8 : 0,
                               }}>
-                                {["①", "②", "③", "④", "⑤"][j]}
-                              </span>
-                              <span>{choice}</span>
-                            </div>
-                          ))}
+                                <span style={{
+                                  flexShrink: 0, fontWeight: 800, minWidth: 16,
+                                  color: isAnswer ? "#ea580c" : "var(--accent-strong)",
+                                }}>
+                                  {["①", "②", "③", "④", "⑤"][j]}
+                                </span>
+                                <span style={{
+                                  color: isAnswer ? "#ea580c" : "var(--ink-mid)",
+                                  fontWeight: isAnswer ? 800 : 400,
+                                }}>
+                                  {choice}
+                                </span>
+                                {isAnswer && (
+                                  <span style={{
+                                    marginLeft: "auto", flexShrink: 0,
+                                    fontSize: 10, fontWeight: 800,
+                                    color: "#ea580c",
+                                    background: "rgba(234,88,12,0.12)",
+                                    borderRadius: 4, padding: "1px 6px",
+                                  }}>정답</span>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                       {quiz.choices.length === 0 && (
