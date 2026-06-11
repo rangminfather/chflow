@@ -43,13 +43,14 @@ if (Test-Path $envPath) {
     Write-Host "  .env.local 이미 존재 — 덮어쓰지 않음" -ForegroundColor Gray
 } else {
 @"
-NEXT_PUBLIC_SUPABASE_URL=https://klsrjvvdwtofialqknng.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtsc3JqdnZkd3RvZmlhbHFrbm5nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MDE1NjIsImV4cCI6MjA5MTM3NzU2Mn0.ojvWXwc7xza2zpB2BtsVKoQ0tRSugqmjHKUL4Tjsk_E
-SUPABASE_SERVICE_ROLE_KEY=REDACTED_SERVICE_KEY
-UMS_USER_ID=REDACTED
-UMS_PASSWORD=REDACTED
+# 아래 값을 채워넣으세요 (기존 노트북의 chflow-app/.env.local 에서 복사)
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+UMS_USER_ID=
+UMS_PASSWORD=
 "@ | Set-Content $envPath -Encoding utf8
-    Write-Host "  .env.local 생성 완료" -ForegroundColor Green
+    Write-Host "  .env.local 템플릿 생성됨 — 값은 기존 노트북에서 직접 복사하세요" -ForegroundColor Yellow
 }
 
 # ── 5. npm install ───────────────────────────────────────────────────────────
