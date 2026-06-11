@@ -7,8 +7,12 @@ interface HeaderLogoProps {
   showText?: boolean;
 }
 
-export default function HeaderLogo({ size = 48, showText = false }: HeaderLogoProps) {
+const LOGO_FILL_RATIO = 1;
+const LOGO_RADIUS_RATIO = 0.18;
+
+export default function HeaderLogo({ size = 52, showText = false }: HeaderLogoProps) {
   const router = useRouter();
+  const imageSize = Math.round(size * LOGO_FILL_RATIO);
   return (
     <button
       onClick={() => router.push("/home")}
@@ -16,6 +20,7 @@ export default function HeaderLogo({ size = 48, showText = false }: HeaderLogoPr
       style={{
         display: "flex",
         alignItems: "center",
+        justifyContent: "center",
         gap: 8,
         background: "transparent",
         border: "none",
@@ -28,9 +33,13 @@ export default function HeaderLogo({ size = 48, showText = false }: HeaderLogoPr
         src="/brand-mark-192.png"
         alt="스마트명성"
         style={{
-          width: size,
-          height: size,
-          borderRadius: Math.round(size / 4),
+          width: imageSize,
+          height: imageSize,
+          maxWidth: size,
+          maxHeight: size,
+          borderRadius: Math.round(size * LOGO_RADIUS_RATIO),
+          objectFit: "contain",
+          display: "block",
           flexShrink: 0,
         }}
       />

@@ -100,6 +100,8 @@ const ROLE_GROUPS: { id: RoleGroupId; label: string; roleIds: string[] }[] = [
   { id: "members", label: "\uC131\uB3C4", roleIds: ["acting_deacon_male", "acting_deacon_female", "member_male", "member_female"] },
   { id: "nextgen", label: "\uB2E4\uC74C\uC138\uB300", roleIds: ["youth_male", "youth_female", "teen_male", "teen_female", "child_male", "child_female", "toddler_male", "toddler_female"] },
 ];
+const NEW_MEMBER_ROLE_IDS = ["member_male", "member_female"];
+const NEXTGEN_ROLE_IDS = ["youth_male", "youth_female", "teen_male", "teen_female", "child_male", "child_female", "toddler_male", "toddler_female"];
 
 interface MatchedMember {
   id: string;
@@ -168,6 +170,7 @@ export default function SignupPage() {
   const [parentName, setParentName] = useState("");
   const [parentPhone, setParentPhone] = useState("");
   const [matched, setMatched] = useState<MatchedMember | null>(null);
+  const [confirmedMatchedMember, setConfirmedMatchedMember] = useState(false);
 
   // 직분
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
@@ -223,6 +226,25 @@ export default function SignupPage() {
     () => pastureOptions.find((option) => option.pasture_id === pastureId) || null,
     [pastureId, pastureOptions],
   );
+
+  const roleSelectionMode = noPhone
+    ? "nextgen"
+    : confirmedMatchedMember && matched
+      ? "all"
+      : "newMember";
+
+  const allowedRoleGroups = useMemo(() => {
+    if (roleSelectionMode === "nextgen") return ROLE_GROUPS.filter((group) => group.id === "nextgen");
+    if (roleSelectionMode === "newMember") return ROLE_GROUPS.filter((group) => group.id === "members");
+    return ROLE_GROUPS;
+  }, [roleSelectionMode]);
+
+  useEffect(() => {
+    if (step !== "role") return;
+    if (!allowedRoleGroups.some((group) => group.id === roleGroup)) {
+      setRoleGroup(allowedRoleGroups[0]?.id || "members");
+    }
+  }, [allowedRoleGroups, roleGroup, step]);
 
   const fullAddress = useMemo(
     () => [address.trim(), addressDetail.trim()].filter(Boolean).join(" "),
@@ -369,6 +391,7 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
+      setConfirmedMatchedMember(false);
       // === 자녀 분기: 부모 정보로 매칭 ===
       if (noPhone) {
         const pNorm = normalizePhone(parentPhone);
@@ -422,6 +445,8 @@ export default function SignupPage() {
 
           // 부모 매칭 실패 또는 해당 가족 내 자녀 이름 없음 → 신규 자녀 가입
           setMatched(null);
+          setSelectedRole(null);
+          setSelectedSubRole(null);
           setName(lookupName.trim());
           setPhone(""); // 자녀는 핸드폰 없음
           setBirthDate("");
@@ -458,11 +483,14 @@ export default function SignupPage() {
           return;
         }
         setMatched(member);
+        setConfirmedMatchedMember(false);
         fillMemberFields(member);
         setStep("confirm");
       } else {
         // 매칭 실패 → 신규 가입
         setMatched(null);
+        setSelectedRole(null);
+        setSelectedSubRole(null);
         setParentMatch(null);
         setName(lookupName.trim());
         setPhone(lookupPhone.trim());
@@ -487,11 +515,12 @@ export default function SignupPage() {
     if (!matched) return;
     // 매칭된 정보로 자동 채움
     fillMemberFields(matched);
+    setConfirmedMatchedMember(true);
     setIsRoleLocked(false);
     // 요람 직분이 있으면 해당 직분이 속한 분류 탭으로 미리 이동 + 직분 미리 선택
     // (별칭 + 성별 보정: "은퇴권사"→은퇴시무권사, "성도"+여→성도(여))
     const r = resolveRoleFromMemberSubRole(matched.sub_role, matched.gender);
-    if (r) {
+    if (r && (!noPhone || NEXTGEN_ROLE_IDS.includes(r.role.id))) {
       setSelectedRole(r.role);
       setSelectedSubRole(r.subRole || null);
       const group = ROLE_GROUPS.find((g) => g.roleIds.includes(r.role.id));
@@ -499,12 +528,13 @@ export default function SignupPage() {
     } else {
       setSelectedRole(null);
       setSelectedSubRole(null);
-      setRoleGroup("members");
+      setRoleGroup(noPhone ? "nextgen" : "members");
     }
     setStep("role");
   };
 
   const handleConfirmNo = () => {
+    setConfirmedMatchedMember(false);
     setIsRoleLocked(false);
     // 신규 가입이지만 매칭된 정보는 그대로 채워줌
     if (matched) {
@@ -512,7 +542,7 @@ export default function SignupPage() {
     }
     setSelectedRole(null);
     setSelectedSubRole(null);
-    setRoleGroup("members");
+    setRoleGroup(noPhone ? "nextgen" : "members");
     setStep("role");
   };
 
@@ -751,6 +781,9 @@ export default function SignupPage() {
   // ============ Step 3: 직분 선택 ============
   const visibleRoles = ROLES.filter((role) =>
     ROLE_GROUPS.find((group) => group.id === roleGroup)?.roleIds.includes(role.id)
+    && (roleSelectionMode === "all"
+      || (roleSelectionMode === "nextgen" && NEXTGEN_ROLE_IDS.includes(role.id))
+      || (roleSelectionMode === "newMember" && NEW_MEMBER_ROLE_IDS.includes(role.id)))
   );
 
   const handleRoleSelect = (role: Role) => {
@@ -784,7 +817,7 @@ export default function SignupPage() {
           <div className="role-tabs" style={{
             display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginBottom: 14,
           }}>
-            {ROLE_GROUPS.map((group) => {
+            {allowedRoleGroups.map((group) => {
               const active = group.id === roleGroup;
               return (
                 <button
@@ -893,7 +926,7 @@ export default function SignupPage() {
           phone: phone ? normalizePhone(phone) : "",
           systemRole: mapToSystemRole(selectedRole.id),
           subRole: selectedSubRole || selectedRole.label,
-          matchedMemberId: matched?.id || null,
+          matchedMemberId: confirmedMatchedMember ? matched?.id || null : null,
           noPhone,
           birthDate,
           gender,

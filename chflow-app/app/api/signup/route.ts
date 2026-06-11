@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { ROLES } from "@/lib/roles";
 
 export const runtime = "nodejs";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const NEW_MEMBER_ROLE_IDS = new Set<string>(["member_male", "member_female"]);
+const NEXTGEN_ROLE_IDS = new Set<string>([
+  "youth_male",
+  "youth_female",
+  "teen_male",
+  "teen_female",
+  "child_male",
+  "child_female",
+  "toddler_male",
+  "toddler_female",
+]);
+const NEW_MEMBER_SUB_ROLES = new Set(
+  ROLES.filter((role) => NEW_MEMBER_ROLE_IDS.has(role.id)).map((role) => role.label)
+);
+const NEXTGEN_SUB_ROLES = new Set(
+  ROLES.filter((role) => NEXTGEN_ROLE_IDS.has(role.id)).map((role) => role.label)
+);
 
 interface SignupBody {
   username: string;
@@ -105,6 +123,14 @@ export async function POST(req: NextRequest) {
     }
     if (isChild && (!guardianName?.trim() || !guardianPhone?.trim())) {
       return NextResponse.json({ error: "자녀 가입은 보호자 정보를 입력해야 합니다" }, { status: 400 });
+    }
+
+    // Keep signup restrictions enforceable even if a crafted request bypasses the role picker UI.
+    if (isChild && !NEXTGEN_SUB_ROLES.has(subRole)) {
+      return NextResponse.json({ error: "\uC790\uB140 \uD68C\uC6D0\uAC00\uC785\uC740 \uB2E4\uC74C\uC138\uB300 \uC9C1\uBD84\uB9CC \uC120\uD0DD\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4" }, { status: 400 });
+    }
+    if (!isChild && !matchedMemberId && !NEW_MEMBER_SUB_ROLES.has(subRole)) {
+      return NextResponse.json({ error: "\uB4F1\uB85D\uB418\uC9C0 \uC54A\uC740 \uAD50\uC778\uC740 \uC131\uB3C4 (\uB0A8), \uC131\uB3C4 (\uC5EC)\uB9CC \uC120\uD0DD\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4" }, { status: 400 });
     }
 
     const lower = username.toLowerCase().trim();
