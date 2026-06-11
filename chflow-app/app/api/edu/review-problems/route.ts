@@ -32,6 +32,7 @@ interface ParsedReviewProblem {
   quizzes: ParsedQuiz[];
   created_at: string | null;
   size: number | null;
+  answerParsed?: boolean; // true = 새 파서로 생성된 JSON (정답 감지 포함)
 }
 
 interface PlanLesson {
@@ -226,6 +227,7 @@ async function parseReviewPptx(buffer: Buffer, id: string, path: string, name: s
     quizzes,
     created_at: createdAt,
     size,
+    answerParsed: true,
   };
 }
 
@@ -461,15 +463,21 @@ async function saveJsonSidecar(admin: ReturnType<typeof adminClient>, pptxPath: 
 }
 
 // 특정 파일의 quizzes 포함 전체 데이터 가져오기
-// JSON 사이드카 없으면 PPTX 파싱 후 사이드카 저장 (기존 파일 폴백)
+// answerParsed 플래그가 없는 구버전 JSON은 PPTX 재파싱 후 사이드카 덮어씀 (자동 마이그레이션)
 async function fetchFullProblem(admin: ReturnType<typeof adminClient>, jsonPath: string): Promise<ParsedReviewProblem | null> {
+  const pptxPath = jsonPath.replace(/\.json$/i, ".pptx");
+
   const { data: jsonData } = await admin.storage.from(REVIEW_BUCKET).download(jsonPath);
   if (jsonData) {
-    try { return JSON.parse(await jsonData.text()) as ParsedReviewProblem; } catch { /* fall through */ }
+    try {
+      const existing = JSON.parse(await jsonData.text()) as ParsedReviewProblem;
+      // 새 파서로 만든 JSON이면 그대로 반환
+      if (existing.answerParsed) return existing;
+      // 구버전 JSON → PPTX 재파싱해서 덮어쓰기 (일회성 자동 마이그레이션)
+    } catch { /* fall through to PPTX parse */ }
   }
 
-  // 폴백: PPTX 파싱 후 사이드카 자동 생성
-  const pptxPath = jsonPath.replace(/\.json$/i, ".pptx");
+  // PPTX 파싱 (JSON 없거나 구버전인 경우)
   const { data: pptxData } = await admin.storage.from(REVIEW_BUCKET).download(pptxPath);
   if (!pptxData) return null;
   try {
