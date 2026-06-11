@@ -235,7 +235,7 @@ export default function MyInfoPage() {
                   <img
                     src={getRoleImageByLabel(editSubRole ? subRoleDraft : profile.sub_role)}
                     alt={subRoleDraft || profile.sub_role || "직분"}
-                    style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center" }}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 18%" }}
                   />
                 </div>
                 <button

@@ -509,7 +509,7 @@ function UserSummary({ user, photoUrl, userImage, router }: {
             style={{
               position: "absolute", top: 0, right: 0,
               width: SIZE, height: SIZE, borderRadius: "50%",
-              objectFit: "cover", objectPosition: "top center",
+              objectFit: "cover", objectPosition: "center 18%",
               background: "var(--bg-soft)",
               border: `2px solid ${T.bgCard}`,
               boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
