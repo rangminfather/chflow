@@ -9,7 +9,7 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { BadgeCheck, CheckCircle2, ClipboardCheck, Sparkles, XCircle } from "lucide-react";
+import { BadgeCheck, CheckCircle2, ClipboardCheck, XCircle } from "lucide-react";
 
 interface Student {
   id: string;
@@ -318,18 +318,11 @@ export default function MyClassAttendancePage() {
                         </div>
                         <div className="mt-1 text-[13px] font-semibold text-ink-soft">{formatMD(date)} 주일</div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {isTodayWeek && (
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-200 bg-white text-amber-700 shadow-sm">
-                            <Sparkles size={17} strokeWidth={2} />
-                          </div>
-                        )}
-                        <div className={[
-                          "rounded-md border bg-white px-2.5 py-1 text-[13px] font-extrabold",
-                          isTodayWeek ? "border-amber-200 text-amber-800" : "border-hairline text-ink-mid",
-                        ].join(" ")}>
-                          {summary.total}명
-                        </div>
+                      <div className={[
+                        "rounded-md border bg-white px-2.5 py-1 text-[13px] font-extrabold",
+                        isTodayWeek ? "border-amber-200 text-amber-800" : "border-hairline text-ink-mid",
+                      ].join(" ")}>
+                        {summary.total}명
                       </div>
                     </div>
                   </header>
