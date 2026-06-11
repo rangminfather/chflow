@@ -1,4 +1,4 @@
-# chflow 구글드라이브 동기화 스크립트
+﻿﻿# chflow 구글드라이브 동기화 스크립트
 # 새 노트북 최초 1회: rclone 설치 + 구글 로그인 필요 (아래 SETUP 참고)
 #
 # ── 사용법 ──────────────────────────────────────────────────────────────────
@@ -15,8 +15,22 @@
 
 param([string]$mode = "bi")
 
-$local  = "C:\csh\project\chflow\자료"
-$remote = "gdrive:chflow/자료"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::InputEncoding  = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+Add-Type @"
+using System.Runtime.InteropServices;
+public class WinCP {
+    [DllImport("kernel32.dll")] public static extern bool SetConsoleCP(uint id);
+    [DllImport("kernel32.dll")] public static extern bool SetConsoleOutputCP(uint id);
+}
+"@ -ErrorAction SilentlyContinue
+[WinCP]::SetConsoleCP(65001) | Out-Null
+[WinCP]::SetConsoleOutputCP(65001) | Out-Null
+
+$local   = "C:\csh\project\chflow\자료"
+$remote  = "gdrive:chflow/자료"
+$workdir = "C:\csh\rclone-work"
 
 if (-not (Get-Command rclone -ErrorAction SilentlyContinue)) {
     Write-Host "rclone 없음. 설치 중..." -ForegroundColor Yellow
@@ -35,7 +49,8 @@ switch ($mode) {
     }
     "bi" {
         Write-Host "양방향 동기화..." -ForegroundColor Cyan
-        rclone bisync $local $remote --progress --transfers 4 --resilient
+        if (-not (Test-Path $workdir)) { New-Item -ItemType Directory -Force $workdir | Out-Null }
+        rclone bisync $local $remote --progress --transfers 4 --resilient --workdir $workdir
     }
     default {
         Write-Host "사용법: .\sync.ps1 [down|up|bi]" -ForegroundColor Yellow
