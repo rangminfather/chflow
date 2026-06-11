@@ -484,7 +484,7 @@ function RolePicker({ value, parentRole, lockedLabels, onSelect, onBlocked }: {
               background: "var(--card)",
               border: `2px solid ${isSelected ? "#3E5A4A" : "var(--hairline)"}`,
               aspectRatio: "0.65", position: "relative",
-              opacity: locked ? 0.4 : 1,
+              opacity: 1,
             }}>
               <img src={role.image} alt={role.label} style={{
                 width: "100%", height: "100%",
@@ -530,7 +530,7 @@ function RolePicker({ value, parentRole, lockedLabels, onSelect, onBlocked }: {
                     cursor: subLocked ? "not-allowed" : "pointer",
                     borderRadius: 10, border: `2px solid ${isSelected ? "#3E5A4A" : "var(--hairline)"}`,
                     background: "#fafafa", aspectRatio: "0.65", overflow: "hidden", position: "relative",
-                    opacity: subLocked ? 0.4 : 1,
+                    opacity: 1,
                   }}>
                     <img src={sub.image} alt={sub.label} style={{
                       width: "100%", height: "100%",
