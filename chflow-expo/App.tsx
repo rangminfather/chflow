@@ -1,9 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  AppState,
   BackHandler,
   Platform,
   StyleSheet,
@@ -13,6 +14,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { WebView, WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
 
 const TARGET_URL = 'https://chflow-app.vercel.app';
+const TARGET_ORIGIN = new URL(TARGET_URL).origin;
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -64,6 +66,9 @@ function AppWebView() {
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const pendingAccessTokenRef = useRef<string | null>(null);
   const registeredKeyRef = useRef<string | null>(null);
+  const pendingNotificationUrlRef = useRef<string | null>(null);
+  const webViewReadyRef = useRef(false);
+  const exitedRef = useRef(false);
   const safeAreaPadding = useSafeAreaPadding();
 
   useEffect(() => {
@@ -89,7 +94,12 @@ function AppWebView() {
           {
             text: '종료',
             style: 'destructive',
-            onPress: () => BackHandler.exitApp(),
+            onPress: () => {
+              // exitApp()은 프로세스를 죽이지 않고 태스크만 백그라운드로 보냄.
+              // 다음 포그라운드 진입 시 스플래시(/)부터 다시 시작하도록 표시.
+              exitedRef.current = true;
+              BackHandler.exitApp();
+            },
           },
         ],
         { cancelable: true }
@@ -101,9 +111,43 @@ function AppWebView() {
     return () => sub.remove();
   }, [canGoBack]);
 
+  // '종료'로 나갔다가 다시 실행하면 스플래시(/)부터 시작 (런치 모션 재생)
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && exitedRef.current) {
+        exitedRef.current = false;
+        webViewRef.current?.injectJavaScript(
+          `window.location.replace(${JSON.stringify(TARGET_URL + '/')}); true;`
+        );
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
   const handleNavStateChange = (nav: WebViewNavigation) => {
     setCanGoBack(nav.canGoBack);
   };
+
+  const loadUrlInWebView = useCallback((url: string) => {
+    const targetUrl = normalizeNotificationUrl(url);
+    if (!targetUrl) return;
+
+    if (!webViewReadyRef.current || !webViewRef.current) {
+      pendingNotificationUrlRef.current = targetUrl;
+      return;
+    }
+
+    webViewRef.current.injectJavaScript(
+      `window.location.href = ${JSON.stringify(targetUrl)}; true;`
+    );
+    pendingNotificationUrlRef.current = null;
+  }, []);
+
+  const flushPendingNotificationUrl = useCallback(() => {
+    const pendingUrl = pendingNotificationUrlRef.current;
+    if (!pendingUrl) return;
+    loadUrlInWebView(pendingUrl);
+  }, [loadUrlInWebView]);
 
   const registerPushToken = async (accessToken: string, token: string) => {
     const registerKey = `${accessToken.slice(-12)}:${token}`;
@@ -133,6 +177,37 @@ function AppWebView() {
     registerPushToken(pendingAccessTokenRef.current, expoPushToken).catch(() => {});
   }, [expoPushToken]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (!mounted || !response) return;
+        const linkUrl = getNotificationLinkUrl(response);
+        if (linkUrl) loadUrlInWebView(linkUrl);
+        Notifications.clearLastNotificationResponseAsync().catch(() => {});
+      })
+      .catch(() => {});
+
+    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const linkUrl = getNotificationLinkUrl(response);
+      if (linkUrl) loadUrlInWebView(linkUrl);
+    });
+
+    const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
+      const badgeCount = getNotificationBadgeCount(notification);
+      if (badgeCount !== null) {
+        Notifications.setBadgeCountAsync(badgeCount).catch(() => {});
+      }
+    });
+
+    return () => {
+      mounted = false;
+      responseSub.remove();
+      receivedSub.remove();
+    };
+  }, [loadUrlInWebView]);
+
   const handleWebViewMessage = (event: WebViewMessageEvent) => {
     let message: { type?: string; accessToken?: string };
     try {
@@ -148,6 +223,12 @@ function AppWebView() {
     }
   };
 
+  const handleWebViewLoadEnd = () => {
+    webViewReadyRef.current = true;
+    webViewRef.current?.injectJavaScript(SESSION_BRIDGE_SCRIPT);
+    flushPendingNotificationUrl();
+  };
+
   return (
     <View style={styles.safe}>
       <StatusBar style="dark" backgroundColor="#FBF8F1" translucent={false} />
@@ -158,7 +239,7 @@ function AppWebView() {
           onNavigationStateChange={handleNavStateChange}
           onMessage={handleWebViewMessage}
           injectedJavaScript={SESSION_BRIDGE_SCRIPT}
-          onLoadEnd={() => webViewRef.current?.injectJavaScript(SESSION_BRIDGE_SCRIPT)}
+          onLoadEnd={handleWebViewLoadEnd}
           // 쿠키/세션 유지 (로그인 지속)
           sharedCookiesEnabled={true}
           thirdPartyCookiesEnabled={true}
@@ -217,6 +298,47 @@ async function registerForPushNotifications(): Promise<string | null> {
 
   const token = await Notifications.getExpoPushTokenAsync({ projectId });
   return token.data;
+}
+
+type NotificationData = {
+  linkUrl?: unknown;
+  link_url?: unknown;
+  badge?: unknown;
+};
+
+type NotificationContentWithBadge = {
+  badge?: number | null;
+  data?: NotificationData;
+};
+
+function getNotificationLinkUrl(response: Notifications.NotificationResponse): string | null {
+  const data = response.notification.request.content.data as NotificationData;
+  const rawLink = data?.linkUrl ?? data?.link_url;
+  return typeof rawLink === 'string' ? rawLink : null;
+}
+
+function getNotificationBadgeCount(notification: Notifications.Notification): number | null {
+  const content = notification.request.content as NotificationContentWithBadge;
+  const rawBadge = content.badge ?? content.data?.badge;
+  const count = typeof rawBadge === 'number' ? rawBadge : Number(rawBadge);
+  return Number.isFinite(count) && count >= 0 ? count : null;
+}
+
+function normalizeNotificationUrl(url: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith('/')) {
+    return `${TARGET_ORIGIN}${trimmed}`;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.origin !== TARGET_ORIGIN) return null;
+    return parsed.href;
+  } catch {
+    return null;
+  }
 }
 
 function useSafeAreaPadding() {

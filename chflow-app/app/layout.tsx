@@ -72,6 +72,8 @@ export default function RootLayout({
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
         />
+        {/* 스플래시 민들레 이미지 선로딩 — JS 번들보다 먼저 다운로드 시작 */}
+        <link rel="preload" as="image" href="/launch-dandelion.webp" fetchPriority="high" />
       </head>
       <body className="min-h-full flex flex-col">
         {children}
