@@ -79,7 +79,8 @@ export default function MyInfoPage() {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/login"); return; }
-      setEmail(session.user.email || "");
+      const { data: userData } = await supabase.auth.getUser();
+      setEmail(userData.user?.email || session.user.email || "");
       await load();
       setAuthChecked(true);
     })();
@@ -137,12 +138,29 @@ export default function MyInfoPage() {
       alert("올바른 이메일 주소를 입력해주세요"); return;
     }
     setSavingEmail(true);
-    const { error } = await supabase.auth.updateUser({ email: trimmed });
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) {
+      setSavingEmail(false);
+      router.replace("/login");
+      return;
+    }
+    const res = await fetch("/api/register-email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ email: trimmed }),
+    });
+    const data = await res.json();
     setSavingEmail(false);
-    if (error) { alert(`등록 실패: ${error.message}`); return; }
+    if (!res.ok) { alert(`등록 실패: ${data.error || "오류가 발생했습니다"}`); return; }
     setEditEmail(false);
     setEmailDraft("");
-    showToast("확인 이메일을 발송했습니다. 이메일을 확인해 주세요.");
+    setEmail(data.email || trimmed);
+    await supabase.auth.refreshSession();
+    showToast("이메일이 등록되었습니다. 비밀번호 찾기에서 이 주소로 재설정 링크를 받을 수 있습니다");
   };
 
   const changePassword = async () => {
@@ -153,9 +171,10 @@ export default function MyInfoPage() {
     if (!profile?.username) { setPwMsg("프로필 로딩 실패"); return; }
     setPwSubmitting(true);
 
-    // 1) 현재 비밀번호 검증 — username으로 다시 로그인 시도
+    // 1) 현재 비밀번호 검증 - 현재 Auth 이메일로 다시 로그인 시도
+    const { data: userData } = await supabase.auth.getUser();
     const { error: signErr } = await supabase.auth.signInWithPassword({
-      email: usernameToEmail(profile.username),
+      email: userData.user?.email || usernameToEmail(profile.username),
       password: curPw,
     });
     if (signErr) {

@@ -6,13 +6,14 @@ function createSupabaseAdmin() {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !serviceKey) {
-    // Why: API route modules are imported during Vercel build page-data
-    // collection. Create the admin client only when the route is actually
-    // called so missing Preview env vars do not break unrelated builds.
+    // Why: Vercel can import route modules during build. Delay the real
+    // Supabase client creation until this API is called.
     throw new Error("Missing Supabase admin env for password reset API.");
   }
 
-  return createClient(url, serviceKey);
+  return createClient(url, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 }
 
 function maskEmail(email: string): string {
@@ -29,35 +30,63 @@ function maskEmail(email: string): string {
   return `${masked}@${maskedDomain}`;
 }
 
+function isUsableRecoveryEmail(email: string | null | undefined): email is string {
+  return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !email.toLowerCase().endsWith("@smartms.app");
+}
+
 export async function POST(req: Request) {
   try {
     const supabaseAdmin = createSupabaseAdmin();
     const { username } = await req.json();
-    if (!username?.trim()) {
+    const lowerUsername = String(username || "").toLowerCase().trim();
+
+    if (!lowerUsername) {
       return NextResponse.json({ error: "아이디를 입력해주세요" }, { status: 400 });
     }
 
-    const { data: profile } = await supabaseAdmin
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .select("user_id")
-      .eq("username", username.trim())
-      .single();
+      .select("id, email")
+      .ilike("username", lowerUsername)
+      .maybeSingle();
 
+    if (profileError) {
+      return NextResponse.json({ error: "계정 정보를 확인할 수 없습니다" }, { status: 500 });
+    }
     if (!profile) {
       return NextResponse.json({ error: "등록되지 않은 아이디입니다" }, { status: 404 });
     }
 
-    const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(profile.user_id);
+    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(profile.id);
+    if (userError || !userData.user) {
+      return NextResponse.json({ error: "계정 정보를 확인할 수 없습니다" }, { status: 500 });
+    }
 
-    if (!user?.email || user.email.endsWith("@smartms.app")) {
-      return NextResponse.json({ noEmail: true });
+    let resetEmail = userData.user.email || "";
+
+    // Older accounts started with username@smartms.app for username login.
+    // Password recovery must use the registered real email, not that alias.
+    if (!isUsableRecoveryEmail(resetEmail)) {
+      if (!isUsableRecoveryEmail(profile.email)) {
+        return NextResponse.json({ noEmail: true });
+      }
+
+      const { error: updateAuthError } = await supabaseAdmin.auth.admin.updateUserById(profile.id, {
+        email: profile.email,
+        email_confirm: true,
+      });
+      if (updateAuthError) {
+        return NextResponse.json({ error: updateAuthError.message }, { status: 500 });
+      }
+
+      resetEmail = profile.email;
     }
 
     const siteUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
       "https://chflow-app.vercel.app";
 
-    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(user.email, {
+    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(resetEmail, {
       redirectTo: `${siteUrl}/reset-password`,
     });
 
@@ -65,7 +94,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, maskedEmail: maskEmail(user.email) });
+    return NextResponse.json({ success: true, maskedEmail: maskEmail(resetEmail) });
   } catch {
     return NextResponse.json({ error: "오류가 발생했습니다" }, { status: 500 });
   }

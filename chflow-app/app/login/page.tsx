@@ -3,7 +3,7 @@
 import { useState, Suspense } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase, usernameToEmail, validateUsername } from "@/lib/supabase";
+import { supabase, validateUsername } from "@/lib/supabase";
 import { AlertCircle, Check, Eye, EyeOff, Info, LogIn } from "lucide-react";
 
 function LoginContent() {
@@ -57,12 +57,14 @@ function LoginContent() {
     }
 
     // 2. 아이디는 존재함 → 로그인 시도
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: usernameToEmail(lowerUsername),
-      password,
+    const loginRes = await fetch("/api/auth/username-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: lowerUsername, password }),
     });
+    const loginData = await loginRes.json();
 
-    if (authError) {
+    if (!loginRes.ok || !loginData.session) {
       // 아이디는 있는데 로그인 실패 = 비밀번호 오류
       setError("비밀번호가 일치하지 않습니다. 다시 입력해주세요.");
       setLoading(false);
@@ -70,6 +72,13 @@ function LoginContent() {
     }
 
     // 상태 확인
+    const { error: authError } = await supabase.auth.setSession(loginData.session);
+    if (authError) {
+      setError("로그인 세션을 설정하지 못했습니다. 다시 시도해주세요.");
+      setLoading(false);
+      return;
+    }
+
     const { data: statusData } = await supabase.rpc("get_my_status");
     const profile = statusData?.[0];
 
