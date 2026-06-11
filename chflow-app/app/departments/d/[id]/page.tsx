@@ -78,6 +78,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
       { id: "my-class-attendance", label: "내 반 출결", icon: ClipboardCheck, desc: "내 담당 반 학생 출석 체크", color: "var(--success)", implemented: true },
       { id: "talent", label: "달란트통장", icon: Medal, desc: "달란트 적립 · 누적 합계", color: "var(--accent-muted)", implemented: true },
       { id: "my-class", label: "우리반 아이 정보", icon: Users, desc: "담당 반 학생 정보", color: "var(--warning)", implemented: true },
+      { id: "review-problems", label: "복습문제 보기", icon: BookOpen, desc: "등록된 복습문제 PPT 보기", color: "#6B4F8C", implemented: true },
     ],
   },
   {

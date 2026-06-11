@@ -507,7 +507,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, problems: index, planStatus, match });
+    const problems = await Promise.all(index.map(async (entry) => {
+      const signed = await admin.storage.from(REVIEW_BUCKET).createSignedUrl(entry.path, 60 * 10);
+      return { ...entry, url: signed.data?.signedUrl || "" };
+    }));
+
+    return NextResponse.json({ ok: true, problems, planStatus, match });
   } catch (e: unknown) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
   }
