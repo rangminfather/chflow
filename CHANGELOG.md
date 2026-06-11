@@ -11,6 +11,11 @@
 
 ## 2026-06-11
 
+### Fixed
+
+- Vercel Preview 빌드에서 Supabase 환경변수가 없을 때 prerender 단계가 실패하던 문제를 방지.
+- Supabase browser/admin client 생성을 모듈 import 시점이 아니라 실제 사용 시점으로 지연.
+
 ### Added
 
 - Android Expo 알림 클릭 시 WebView를 `linkUrl`로 이동하는 처리 추가.

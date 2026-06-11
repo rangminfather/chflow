@@ -1,9 +1,38 @@
 import { createBrowserClient } from "@supabase/ssr";
 
-export const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function createSupabaseBrowserClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    // Why: Vercel Preview builds have failed repeatedly when project env vars
+    // were missing. Avoid throwing during module import/prerender; fail only
+    // when app code actually tries to use Supabase so the build error points to
+    // the environment setup instead of @supabase/ssr internals.
+    throw new Error(
+      "Missing Supabase browser env: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required."
+    );
+  }
+
+  return createBrowserClient(url, anonKey);
+}
+
+type BrowserSupabaseClient = ReturnType<typeof createSupabaseBrowserClient>;
+
+let browserClient: BrowserSupabaseClient | null = null;
+
+function getSupabaseBrowserClient(): BrowserSupabaseClient {
+  if (!browserClient) {
+    browserClient = createSupabaseBrowserClient();
+  }
+  return browserClient;
+}
+
+export const supabase = new Proxy({} as BrowserSupabaseClient, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getSupabaseBrowserClient(), prop, receiver);
+  },
+});
 
 // 🔬 UMS 자동등록 진단 — 콘솔에서 `await chflowDiag()` 1줄로 1·2단계 라이브 검증 (v3 spam-rotate)
 if (typeof window !== "undefined") {

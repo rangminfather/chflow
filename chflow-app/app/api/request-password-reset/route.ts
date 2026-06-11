@@ -1,10 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function createSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceKey) {
+    // Why: API route modules are imported during Vercel build page-data
+    // collection. Create the admin client only when the route is actually
+    // called so missing Preview env vars do not break unrelated builds.
+    throw new Error("Missing Supabase admin env for password reset API.");
+  }
+
+  return createClient(url, serviceKey);
+}
 
 function maskEmail(email: string): string {
   const [local, domain] = email.split("@");
@@ -22,6 +31,7 @@ function maskEmail(email: string): string {
 
 export async function POST(req: Request) {
   try {
+    const supabaseAdmin = createSupabaseAdmin();
     const { username } = await req.json();
     if (!username?.trim()) {
       return NextResponse.json({ error: "아이디를 입력해주세요" }, { status: 400 });
