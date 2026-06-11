@@ -159,6 +159,15 @@ export default function HomePage() {
         });
       } catch {}
     }
+    // 네이티브 앱(WebView)에서는 셸에 종료 신호 → 한 번에 즉시 종료
+    const rnWebView = (window as unknown as {
+      ReactNativeWebView?: { postMessage: (msg: string) => void };
+    }).ReactNativeWebView;
+    if (rnWebView) {
+      rnWebView.postMessage(JSON.stringify({ type: "CHFLOW_EXIT_APP" }));
+      return;
+    }
+    // 브라우저/PWA: 기존 동작 유지 (뒤로가기 한 번 더 → 종료)
     try { window.history.back(); } catch {}
     setShowExitToast(true);
   };

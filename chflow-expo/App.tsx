@@ -69,6 +69,8 @@ function AppWebView() {
   const pendingNotificationUrlRef = useRef<string | null>(null);
   const webViewReadyRef = useRef(false);
   const exitedRef = useRef(false);
+  // 종료 후 재실행 시 마지막 화면이 잠깐 보이는 것을 가리는 덮개
+  const [exitReloading, setExitReloading] = useState(false);
   const safeAreaPadding = useSafeAreaPadding();
 
   useEffect(() => {
@@ -112,10 +114,12 @@ function AppWebView() {
   }, [canGoBack]);
 
   // '종료'로 나갔다가 다시 실행하면 스플래시(/)부터 시작 (런치 모션 재생)
+  // 덮개(exitReloading)로 마지막 화면을 가려서 "옛 화면 → 민들레" 깜빡임 방지
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && exitedRef.current) {
         exitedRef.current = false;
+        setExitReloading(true);
         webViewRef.current?.injectJavaScript(
           `window.location.replace(${JSON.stringify(TARGET_URL + '/')}); true;`
         );
@@ -123,6 +127,13 @@ function AppWebView() {
     });
     return () => sub.remove();
   }, []);
+
+  // 덮개 안전장치: 로드가 끝나지 않아도 4초 후엔 걷어냄
+  useEffect(() => {
+    if (!exitReloading) return;
+    const timer = setTimeout(() => setExitReloading(false), 4000);
+    return () => clearTimeout(timer);
+  }, [exitReloading]);
 
   const handleNavStateChange = (nav: WebViewNavigation) => {
     setCanGoBack(nav.canGoBack);
@@ -216,6 +227,13 @@ function AppWebView() {
       return;
     }
 
+    // 웹 종료 모달의 '종료' 버튼 → 즉시 종료 (재실행 시 스플래시부터)
+    if (message.type === 'CHFLOW_EXIT_APP') {
+      exitedRef.current = true;
+      BackHandler.exitApp();
+      return;
+    }
+
     if (message.type !== 'CHFLOW_AUTH_TOKEN' || !message.accessToken) return;
     pendingAccessTokenRef.current = message.accessToken;
     if (expoPushToken) {
@@ -225,6 +243,7 @@ function AppWebView() {
 
   const handleWebViewLoadEnd = () => {
     webViewReadyRef.current = true;
+    setExitReloading(false);
     webViewRef.current?.injectJavaScript(SESSION_BRIDGE_SCRIPT);
     flushPendingNotificationUrl();
   };
@@ -262,6 +281,7 @@ function AppWebView() {
           applicationNameForUserAgent="SmartMyungsungApp/1.0"
           style={styles.webview}
         />
+        {exitReloading && <View style={styles.exitOverlay} pointerEvents="none" />}
       </View>
     </View>
   );
@@ -365,5 +385,9 @@ const styles = StyleSheet.create({
   errorBox: {
     flex: 1,
     backgroundColor: '#f1f5f9',
+  },
+  exitOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#FBF8F1',
   },
 });

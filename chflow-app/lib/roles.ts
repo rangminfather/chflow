@@ -93,18 +93,67 @@ export function mapToSystemRole(roleId: RoleId): string {
 // sub_role 문자열 → 이미지 경로 매핑
 // 관리자가 DB에서 sub_role을 바꾸면 자동으로 이미지도 따라감
 // =============================================================
-// 라벨 별칭 (이름 변경 전 DB값 호환)
+// 라벨 별칭 (이름 변경 전 DB값 + 요람 직분 표기 호환)
 const LABEL_ALIASES: Record<string, string> = {
   "교인 (남)": "성도 (남)",
   "교인 (여)": "성도 (여)",
   "교인(남)": "성도 (남)",
   "교인(여)": "성도 (여)",
+  // 요람(members.sub_role) 표기 → 시스템 라벨
+  "집사": "시무집사",
+  "명예집사": "명예시무집사",
+  "은퇴집사": "은퇴시무집사",
+  "협동시무집사": "시무집사",
+  "명예권사": "명예시무권사",
+  "은퇴권사": "은퇴시무권사",
+  "협동권사": "권사",
+  "초등학생": "어린이",
 };
+
+// 성별을 붙여야 완성되는 직분 (요람엔 "성도"/"청년"처럼 성별 없이 기록됨)
+const GENDERED_BASES = ["성도", "청년", "청소년", "어린이", "유아", "서리집사"];
+
+// 요람 직분 문자열 정규화: 별칭 치환 + 복수 직분("시무집사/권사")은 첫 직분 기준
+function normalizeSubRoleLabel(value: string): string {
+  let label = value.trim();
+  if (LABEL_ALIASES[label]) label = LABEL_ALIASES[label];
+  if (label.includes("/")) {
+    label = label.split("/")[0].trim();
+    if (LABEL_ALIASES[label]) label = LABEL_ALIASES[label];
+  }
+  return label;
+}
+
+// members.sub_role + 성별 → ROLES 매칭 (회원가입 직분 자동 고정용)
+export function resolveRoleFromMemberSubRole(
+  memberSubRole: string | null | undefined,
+  gender?: string | null,
+): { role: Role; subRole?: string } | null {
+  if (!memberSubRole) return null;
+  let label = normalizeSubRoleLabel(memberSubRole);
+
+  const g = gender === "M" || gender === "남" ? "남"
+    : gender === "F" || gender === "여" ? "여" : null;
+  if (GENDERED_BASES.includes(label) && g) label = `${label} (${g})`;
+
+  for (const role of ROLES) {
+    if (role.label === label) return { role };
+    const sub = role.subRoles?.find((s) => s.label === label);
+    if (sub) return { role, subRole: sub.label };
+  }
+  // 띄어쓰기 차이 무시 재시도
+  const stripped = label.replace(/\s+/g, "");
+  for (const role of ROLES) {
+    if (role.label.replace(/\s+/g, "") === stripped) return { role };
+    const sub = role.subRoles?.find((s) => s.label.replace(/\s+/g, "") === stripped);
+    if (sub) return { role, subRole: sub.label };
+  }
+  return null;
+}
 
 export function getRoleImageByLabel(label: string | null | undefined): string {
   if (!label) return "/roles/default.png";
-  let normalized = label.trim();
-  if (LABEL_ALIASES[normalized]) normalized = LABEL_ALIASES[normalized];
+  const normalized = normalizeSubRoleLabel(label);
 
   // 1. 서브직분 먼저 매칭 (담임목사, 시무장로 등)
   for (const role of ROLES) {
@@ -144,8 +193,11 @@ export function getParentRoleLabel(subLabel: string | null | undefined): string 
 // null이면 제한 없음, string[]이면 해당 그룹 내에서만 변경 가능
 export function getLockedGroupLabels(membersSubRole: string | null | undefined): string[] | null {
   if (!membersSubRole) return null;
-  let normalized = membersSubRole.trim();
-  if (LABEL_ALIASES[normalized]) normalized = LABEL_ALIASES[normalized];
+  const normalized = normalizeSubRoleLabel(membersSubRole);
+  // 성별 구분 직분(성도, 청년 등)은 남/여 한 쌍 내에서만 변경 가능
+  if (GENDERED_BASES.includes(normalized)) {
+    return [`${normalized} (남)`, `${normalized} (여)`];
+  }
   for (const role of ROLES) {
     if (role.label === normalized) {
       if (role.subRoles && role.subRoles.length > 0) {
