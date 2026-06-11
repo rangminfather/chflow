@@ -216,6 +216,7 @@ export default function MyInfoPage() {
                 userId={profile.user_id}
                 photoUrl={profile.avatar_url || profile.photo_url}
                 fallbackUrl={profile.photo_url}
+                hasCustomPhoto={!!profile.avatar_url}
                 size={80}
                 label="내 사진"
                 onUpdate={(url) => setProfile({ ...profile, avatar_url: url === profile.photo_url ? null : url })}

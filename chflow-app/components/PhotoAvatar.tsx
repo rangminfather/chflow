@@ -9,6 +9,7 @@ interface PhotoAvatarProps {
   userId: string;
   photoUrl: string | null;
   fallbackUrl?: string | null;
+  hasCustomPhoto?: boolean;
   size?: number;
   label?: string;
   onUpdate?: (newUrl: string | null) => void;
@@ -30,6 +31,7 @@ export default function PhotoAvatar({
   userId,
   photoUrl,
   fallbackUrl = null,
+  hasCustomPhoto,
   size = 80,
   label = "요람 사진",
   onUpdate,
@@ -259,8 +261,8 @@ export default function PhotoAvatar({
     fileInputRef.current?.click();
   };
 
-  const isShowingFallback = !!fallbackUrl && currentUrl === fallbackUrl;
-  const canRevertToFallback = !!fallbackUrl && !isShowingFallback;
+  const isShowingFallback = !!fallbackUrl && !hasCustomPhoto && currentUrl === fallbackUrl;
+  const canRevertToFallback = !!fallbackUrl && (hasCustomPhoto ?? !isShowingFallback);
 
   return (
     <>
