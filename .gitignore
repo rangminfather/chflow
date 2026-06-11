@@ -121,6 +121,9 @@ archive/mobile-legacy/**/twa-manifest.json
 archive/mobile-legacy/play-store-assets/*.js
 archive/mobile-legacy/play-store-assets/package*.json
 
+# Agent 임시 조사 파일 (Claude/Codex 공동 규칙)
+_scratch/
+
 # Play Store local helpers and binary release outputs.
 play-store-assets/node_modules/
 play-store-assets/*.aab
