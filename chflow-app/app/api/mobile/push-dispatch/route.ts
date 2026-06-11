@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
@@ -44,7 +44,7 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
-function buildExpoMessage(row: DeliveryRow) {
+function buildExpoMessage(row: DeliveryRow, badgeCount: number) {
   const notification = row.notifications;
   return {
     to: row.expo_push_token,
@@ -53,14 +53,34 @@ function buildExpoMessage(row: DeliveryRow) {
     sound: "default",
     priority: "high",
     channelId: "default",
+    badge: badgeCount,
     data: {
       notificationId: row.notification_id,
       deliveryId: row.id,
       type: notification?.type || "notification",
       linkUrl: notification?.link_url || "/home",
+      badge: badgeCount,
       metadata: notification?.metadata || {},
     },
   };
+}
+
+async function getUnreadCounts(
+  admin: SupabaseClient,
+  userIds: string[]
+): Promise<Map<string, number>> {
+  const uniqueUserIds = Array.from(new Set(userIds));
+  const entries = await Promise.all(uniqueUserIds.map(async (userId) => {
+    const { count } = await admin
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("is_read", false);
+
+    return [userId, count || 0] as const;
+  }));
+
+  return new Map(entries);
 }
 
 export async function GET(req: NextRequest) {
@@ -119,9 +139,10 @@ async function dispatchPush(req: NextRequest) {
 
   let sent = 0;
   let failed = 0;
+  const unreadCounts = await getUnreadCounts(admin, rows.map((row) => row.user_id));
 
   for (const batch of chunk(rows, MAX_BATCH)) {
-    const messages = batch.map(buildExpoMessage);
+    const messages = batch.map((row) => buildExpoMessage(row, unreadCounts.get(row.user_id) || 0));
     let tickets: ExpoTicket[];
 
     try {

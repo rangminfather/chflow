@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# chflow-app
 
-## Getting Started
+스마트명성의 Next.js 웹/PWA 애플리케이션입니다. 운영 배포 기준 프로젝트는 Vercel `chflow-app`이며 운영 URL은 `https://chflow-app.vercel.app`입니다.
 
-First, run the development server:
+## 실행
 
-```bash
+```powershell
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+운영 빌드:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```powershell
+npm run build
+npm run start
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 주요 디렉터리
 
-## Learn More
+- `app/`: App Router 페이지와 API Route
+- `components/`: 공용 컴포넌트
+- `lib/`: Supabase client, 알림 유틸, 공용 로직
+- `docs/`: 앱 기능별 기록
+- `public/`: 정적 파일
 
-To learn more about Next.js, take a look at the following resources:
+## 환경변수
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+루트 `.env.example`과 `docs/ENVIRONMENT.md`를 기준으로 설정합니다. 로컬 개발은 `chflow-app/.env.local`을 사용하고, 운영은 Vercel Environment Variables를 사용합니다.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 알림 관련 API
 
-## Deploy on Vercel
+- `POST /api/mobile/push-token`: Expo push token 등록
+- `GET|POST /api/mobile/push-dispatch`: queued push delivery 발송
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+상세 명세는 루트 `docs/API.md`를 참조합니다.

@@ -181,11 +181,47 @@ npx tsc --noEmit
 
 ### 5. Mobile Badge, Tap Routing, Real Device Verification
 
+Implemented in code on 2026-06-11.
+
 Goal:
 
 - badge count follows unread count
 - tapping an OS notification opens the app and moves WebView to `link_url`
 - verify on a real Android device with an EAS APK
+
+Current implementation:
+
+- `chflow-expo/App.tsx` handles `getLastNotificationResponseAsync()` for cold-start notification taps
+- `chflow-expo/App.tsx` handles `addNotificationResponseReceivedListener()` for active/background taps
+- notification payload `data.linkUrl` is normalized and only the production app origin is allowed
+- `/api/mobile/push-dispatch` includes unread badge count in Expo payload
+- Expo receives badge values and applies them with `Notifications.setBadgeCountAsync()`
+
+### 6. Supabase-triggered Immediate Push Dispatch
+
+Implemented in code on 2026-06-11.
+
+Goal:
+
+- make push dispatch start immediately when Supabase creates queued delivery rows
+- keep notification rows and delivery rows as the source of truth
+- avoid hardcoding secrets in SQL migrations
+
+Current implementation:
+
+- Added migration `20260611300000_push_dispatch_webhook.sql`
+- Trigger: `trg_dispatch_notification_push_deliveries`
+- Trigger source table: `public.notification_push_deliveries`
+- The trigger calls `/api/mobile/push-dispatch` through `pg_net`
+- Dispatch URL and bearer secret are read from Supabase Vault:
+  - `chflow_push_dispatch_url`
+  - `chflow_push_dispatch_secret`
+
+Operational requirement:
+
+- Set `PUSH_DISPATCH_SECRET` in Vercel
+- Store the same value in Supabase Vault as `chflow_push_dispatch_secret`
+- Store `https://chflow-app.vercel.app/api/mobile/push-dispatch` as `chflow_push_dispatch_url`
 
 Verification requirements:
 
