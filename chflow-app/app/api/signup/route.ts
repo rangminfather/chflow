@@ -6,6 +6,9 @@ export const runtime = "nodejs";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// 가입으로 부여 가능한 권한(role)은 mapToSystemRole 의 출력값으로 한정한다.
+// 'admin'/'office' 등 관리자 권한은 가입으로 절대 생성될 수 없어야 한다.
+const ALLOWED_SIGNUP_SYSTEM_ROLES = new Set<string>(["pastor", "leader", "member"]);
 const NEW_MEMBER_ROLE_IDS = new Set<string>(["member_male", "member_female"]);
 const NEXTGEN_ROLE_IDS = new Set<string>([
   "youth_male",
@@ -102,6 +105,10 @@ export async function POST(req: NextRequest) {
     }
     const v = validateUsername(username);
     if (!v.valid) return NextResponse.json({ error: v.error }, { status: 400 });
+    // 권한 주입 방지: UI 를 우회한 요청이 systemRole 에 admin/office 등을 넣지 못하게 한다.
+    if (!ALLOWED_SIGNUP_SYSTEM_ROLES.has(systemRole)) {
+      return NextResponse.json({ error: "허용되지 않은 가입 권한입니다" }, { status: 400 });
+    }
     if (password.length < 8) {
       return NextResponse.json({ error: "비밀번호는 최소 8자 이상이어야 합니다" }, { status: 400 });
     }

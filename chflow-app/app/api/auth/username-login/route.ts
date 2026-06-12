@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
     const { data: profile, error: profileError } = await admin
       .from("profiles")
-      .select("id, username")
+      .select("id, username, status")
       .ilike("username", lowerUsername)
       .maybeSingle();
 
@@ -50,6 +50,15 @@ export async function POST(req: NextRequest) {
 
     if (authError || loginError || !loginData.session) {
       return NextResponse.json({ error: "비밀번호가 일치하지 않습니다" }, { status: 401 });
+    }
+
+    // 비밀번호가 맞더라도 활성(active) 상태가 아니면 토큰을 발급하지 않는다.
+    // (승인 대기/거절/비활성 계정이 유효 세션을 획득하지 못하도록 서버에서 차단)
+    if (profile.status !== "active") {
+      return NextResponse.json(
+        { error: "계정이 활성화되지 않았습니다", status: profile.status },
+        { status: 403 }
+      );
     }
 
     return NextResponse.json({
