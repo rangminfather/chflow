@@ -64,6 +64,18 @@ function LoginContent() {
     });
     const loginData = await loginRes.json();
 
+    // 비밀번호는 맞지만 계정이 활성 상태가 아닌 경우 (서버가 토큰 미발급)
+    if (loginRes.status === 403 && loginData.status) {
+      const statusMessage: Record<string, string> = {
+        pending: "관리자 승인 대기 중입니다",
+        rejected: "가입이 거절되었습니다. 관리자에게 문의하세요",
+        inactive: "비활성화된 계정입니다. 관리자에게 문의하세요",
+      };
+      setError(statusMessage[loginData.status as string] || "계정이 활성화되지 않았습니다");
+      setLoading(false);
+      return;
+    }
+
     if (!loginRes.ok || !loginData.session) {
       // 아이디는 있는데 로그인 실패 = 비밀번호 오류
       setError("비밀번호가 일치하지 않습니다. 다시 입력해주세요.");
