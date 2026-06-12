@@ -1,202 +1,322 @@
-[
-  {
-    "chapterId": "ch01",
-    "chapterTitle": "1장. 회원가입",
-    "stepId": "signup-01",
-    "title": "로그인 화면 진입",
-    "desc": "앱(chflow-app.vercel.app)에 접속하면 로그인 화면이 나타납니다. 처음 사용하시는 분은 하단 '회원가입' 버튼을 누릅니다.",
-    "shot": "signup-01.png"
-  },
-  {
-    "chapterId": "ch01",
-    "chapterTitle": "1장. 회원가입",
-    "stepId": "signup-02",
-    "title": "이름·전화번호 조회",
-    "desc": "가입된 성도 명단에서 본인을 찾습니다. 이름과 휴대폰 번호를 입력하고 '다음' 버튼을 누릅니다.",
-    "shot": "signup-02.png"
-  },
-  {
-    "chapterId": "ch01",
-    "chapterTitle": "1장. 회원가입",
-    "stepId": "signup-03",
-    "title": "정보 확인 단계",
-    "desc": "조회된 본인 정보를 확인합니다. 이름, 연락처 등이 일치하면 '네, 맞습니다' 버튼을 누릅니다.",
-    "shot": "signup-03.png"
-  },
-  {
-    "chapterId": "ch01",
-    "chapterTitle": "1장. 회원가입",
-    "stepId": "signup-04",
-    "title": "직분 선택",
-    "desc": "본인의 직분을 선택합니다. 상단 탭으로 분류를 선택한 뒤 해당 직분 카드를 누릅니다.",
-    "shot": "signup-04.png"
-  },
-  {
-    "chapterId": "ch01",
-    "chapterTitle": "1장. 회원가입",
-    "stepId": "signup-05",
-    "title": "아이디·비밀번호 설정",
-    "desc": "사용할 아이디(영문 소문자·숫자·_, 4~20자)와 비밀번호(8자 이상)를 입력합니다. 아이디 중복 확인 후 '가입 완료' 버튼을 누릅니다.",
-    "shot": "signup-05.png"
-  },
-  {
-    "chapterId": "ch01",
-    "chapterTitle": "1장. 회원가입",
-    "stepId": "signup-06",
-    "title": "가입 완료 — 승인 대기",
-    "desc": "가입 신청이 완료되었습니다. 관리자의 승인 후 로그인이 가능합니다.",
-    "shot": "signup-06.png"
-  },
-  {
-    "chapterId": "ch01",
-    "chapterTitle": "1장. 회원가입",
-    "stepId": "signup-07",
-    "title": "승인 대기 안내 화면",
-    "desc": "가입 완료 후 로그인 화면으로 돌아오면 승인 대기 안내가 표시됩니다. 관리자 승인 후 로그인이 가능합니다.",
-    "shot": "signup-07.png"
-  },
-  {
-    "chapterId": "ch02",
-    "chapterTitle": "2장. 로그인 및 홈 화면",
-    "stepId": "login-01",
-    "title": "로그인",
-    "desc": "아이디와 비밀번호를 입력하고 '로그인' 버튼을 누릅니다. '로그인 유지'를 체크하면 다음에 자동 로그인됩니다.",
-    "shot": "login-01.png"
-  },
-  {
-    "chapterId": "ch02",
-    "chapterTitle": "2장. 로그인 및 홈 화면",
-    "stepId": "login-02",
-    "title": "홈 화면",
-    "desc": "로그인 후 홈 화면이 나타납니다. 상단에 내 이름과 소속이 표시되고, 아래에 자주 사용하는 메뉴가 나열됩니다.",
-    "shot": "login-02.png"
-  },
-  {
-    "chapterId": "ch02",
-    "chapterTitle": "2장. 로그인 및 홈 화면",
-    "stepId": "login-03",
-    "title": "내 정보 확인",
-    "desc": "홈 화면에서 '내 정보'를 누르면 등록된 정보를 확인하고 수정할 수 있습니다.",
-    "shot": "login-03.png"
-  },
-  {
-    "chapterId": "ch03",
-    "chapterTitle": "3장. 초등1부 부서원 메뉴",
-    "stepId": "dept-member-01",
-    "title": "교육사역국 진입",
-    "desc": "홈 화면 또는 사이드바에서 '교육사역국'을 선택합니다.",
-    "shot": "dept-member-01.png"
-  },
-  {
-    "chapterId": "ch03",
-    "chapterTitle": "3장. 초등1부 부서원 메뉴",
-    "stepId": "dept-member-02",
-    "title": "초등1부 부서 메인",
-    "desc": "초등1부 부서 페이지입니다. 가입된 역할에 따라 볼 수 있는 메뉴가 다릅니다.",
-    "shot": "dept-member-02.png"
-  },
-  {
-    "chapterId": "ch03",
-    "chapterTitle": "3장. 초등1부 부서원 메뉴",
-    "stepId": "dept-member-03",
-    "title": "내 반 확인",
-    "desc": "부서원은 자신이 소속된 반의 학생 명단을 확인할 수 있습니다.",
-    "shot": "dept-member-03.png"
-  },
-  {
-    "chapterId": "ch03",
-    "chapterTitle": "3장. 초등1부 부서원 메뉴",
-    "stepId": "dept-member-04",
-    "title": "출석 체크",
-    "desc": "주일마다 학생 출석을 기록합니다. 이름 옆 체크박스를 눌러 출석/결석을 표시합니다.",
-    "shot": "dept-member-04.png"
-  },
-  {
-    "chapterId": "ch03",
-    "chapterTitle": "3장. 초등1부 부서원 메뉴",
-    "stepId": "dept-member-05",
-    "title": "새 친구 등록",
-    "desc": "새로 나온 친구의 정보를 등록합니다.",
-    "shot": "dept-member-05.png"
-  },
-  {
-    "chapterId": "ch04",
-    "chapterTitle": "4장. 초등1부 담임 메뉴",
-    "stepId": "teacher-01",
-    "title": "담임 홈",
-    "desc": "담임 교사는 부서원보다 더 많은 메뉴를 사용할 수 있습니다.",
-    "shot": "teacher-01.png"
-  },
-  {
-    "chapterId": "ch04",
-    "chapterTitle": "4장. 초등1부 담임 메뉴",
-    "stepId": "teacher-02",
-    "title": "전체 출석 현황",
-    "desc": "반 전체 출석 현황을 한눈에 볼 수 있습니다.",
-    "shot": "teacher-02.png"
-  },
-  {
-    "chapterId": "ch04",
-    "chapterTitle": "4장. 초등1부 담임 메뉴",
-    "stepId": "teacher-03",
-    "title": "교사 출석",
-    "desc": "교사 출석을 기록하고 조회합니다.",
-    "shot": "teacher-03.png"
-  },
-  {
-    "chapterId": "ch04",
-    "chapterTitle": "4장. 초등1부 담임 메뉴",
-    "stepId": "teacher-04",
-    "title": "주간 주보",
-    "desc": "주간 주보를 열람합니다.",
-    "shot": "teacher-04.png"
-  },
-  {
-    "chapterId": "ch04",
-    "chapterTitle": "4장. 초등1부 담임 메뉴",
-    "stepId": "teacher-05",
-    "title": "공지사항",
-    "desc": "부서 공지사항을 확인합니다.",
-    "shot": "teacher-05.png"
-  },
-  {
-    "chapterId": "ch04",
-    "chapterTitle": "4장. 초등1부 담임 메뉴",
-    "stepId": "teacher-06",
-    "title": "월간계획",
-    "desc": "이달의 교육 계획을 열람합니다.",
-    "shot": "teacher-06.png"
-  },
-  {
-    "chapterId": "ch04",
-    "chapterTitle": "4장. 초등1부 담임 메뉴",
-    "stepId": "teacher-07",
-    "title": "교육일지 작성",
-    "desc": "매주 수업 후 교육일지를 작성합니다.",
-    "shot": "teacher-07.png"
-  },
-  {
-    "chapterId": "ch05",
-    "chapterTitle": "5장. 공통 기능",
-    "stepId": "common-01",
-    "title": "성도 요람 검색",
-    "desc": "이름, 전화번호, 배우자 이름으로 성도를 검색할 수 있습니다.",
-    "shot": "common-01.png"
-  },
-  {
-    "chapterId": "ch05",
-    "chapterTitle": "5장. 공통 기능",
-    "stepId": "common-02",
-    "title": "주보 보기",
-    "desc": "이번 주 교회 주보를 PDF로 열람합니다.",
-    "shot": "common-02.png"
-  },
-  {
-    "chapterId": "ch05",
-    "chapterTitle": "5장. 공통 기능",
-    "stepId": "common-03",
-    "title": "불편신고/건의",
-    "desc": "앱 사용 중 불편한 점이나 건의사항을 제출합니다.",
-    "shot": "common-03.png"
-  }
-]
+{
+  "generatedAt": "2026-06-12T00:24:51.711Z",
+  "chapters": [
+    {
+      "id": "ch01",
+      "title": "1장. 접속하기",
+      "intro": "스마트명성은 따로 설치하는 앱이 아니라 인터넷 주소로 접속하는 웹 앱입니다. 스마트폰, 태블릿, 컴퓨터 어디서나 같은 주소(chflow-app.vercel.app)로 이용할 수 있습니다."
+    },
+    {
+      "id": "ch02",
+      "title": "2장. 회원가입",
+      "intro": "스마트명성은 교회에 등록된 성도 명단과 연결하여 가입합니다. 이름과 휴대폰 번호로 본인을 찾고, 직분을 고른 뒤 아이디와 비밀번호를 만들면 신청이 끝납니다. 가입 신청 후 관리자가 승인하면 로그인할 수 있습니다."
+    },
+    {
+      "id": "ch03",
+      "title": "3장. 로그인과 홈 화면",
+      "intro": "홈 화면은 세 부분으로 구성됩니다. ① 맨 위: 내 이름·직분·소속 요약, ② 가운데: 모든 성도가 쓰는 공통 메뉴(주보 보기, 성도 요람, 불편신고/건의, 사용 매뉴얼), ③ 아래: 내가 가입한 '내 사역·부서' 목록. 부서에 가입하면 이곳에 부서가 나타납니다."
+    },
+    {
+      "id": "ch04",
+      "title": "4장. 사역·부서 가입 (초등1부 예시)",
+      "intro": "자녀가 초등1부에 다니는 학부모님, 또는 초등1부에서 섬기는 교사는 부서에 '가입 신청'을 해야 부서 메뉴(출석, 달란트, 공지 등)를 사용할 수 있습니다. 신청 순서: 홈 화면 '+ 사역·부서 가입' → 교육사역국 → 초등1부 → 역할(학부모/교사) 선택 → 가입 신청. 신청 후 부서 임원진이 승인하면 가입이 완료되고, 홈 화면 '내 사역·부서'에 부서가 나타납니다."
+    },
+    {
+      "id": "ch05",
+      "title": "5장. 초등1부 부서 메뉴 — 출석·새친구",
+      "intro": "부서에 가입하면 홈 화면 '내 사역·부서'에서 초등1부를 누를 수 있습니다. 부서 화면의 메뉴는 역할(등급)에 따라 다르게 보입니다. 부장 > 부부장·총무·서기 > 교사 > 학부모 순서로, 위 등급일수록 더 많은 메뉴가 열립니다. 학부모님은 공지·월간계획 등 공통 메뉴를, 교사는 우리 반 출석·달란트 메뉴를 추가로 사용합니다."
+    },
+    {
+      "id": "ch06",
+      "title": "6장. 초등1부 담임교사 메뉴",
+      "intro": "담임교사로 승인되면 출석·달란트 입력과 부서 운영 메뉴를 사용할 수 있습니다. 매주 흐름: 주일에 ① 내 반 출석 체크 → ② 달란트통장 입력 → ③ 교육일지 작성 순서로 기록하면 됩니다."
+    },
+    {
+      "id": "ch07",
+      "title": "7장. 공통 기능",
+      "intro": "직분·부서와 관계없이 모든 성도가 사용할 수 있는 메뉴입니다. 홈 화면 가운데 공통 메뉴에서 들어갈 수 있습니다."
+    }
+  ],
+  "items": [
+    {
+      "chapterId": "ch01",
+      "chapterTitle": "1장. 접속하기",
+      "stepId": "access-01",
+      "title": "인터넷 주소창에 입력",
+      "desc": "스마트폰의 인터넷 앱(삼성 인터넷, 크롬, 사파리)을 열고 맨 위 주소창에 chflow-app.vercel.app 을 입력합니다. 이 로그인 화면이 나오면 접속 성공입니다. 즐겨찾기(북마크)에 추가해 두면 다음부터 한 번에 들어올 수 있습니다.",
+      "shot": "access-01.png"
+    },
+    {
+      "chapterId": "ch01",
+      "chapterTitle": "1장. 접속하기",
+      "stepId": "access-02",
+      "title": "홈 화면에 추가 (앱처럼 쓰기)",
+      "desc": "아이폰은 사파리 하단 가운데 '공유' 버튼 → '홈 화면에 추가'를 누르면 바탕화면에 아이콘이 생깁니다. 안드로이드는 크롬 오른쪽 위 점 세 개(⋮) 메뉴 → '홈 화면에 추가'를 누르면 됩니다. 홈 화면에 추가하지 않아도 이용에는 지장이 없습니다.",
+      "shot": "access-02.png"
+    },
+    {
+      "chapterId": "ch02",
+      "chapterTitle": "2장. 회원가입",
+      "stepId": "signup-01",
+      "title": "로그인 화면 진입",
+      "desc": "앱(chflow-app.vercel.app)에 접속하면 로그인 화면이 나타납니다. 처음 사용하시는 분은 하단 '회원가입' 버튼을 누릅니다.",
+      "shot": "signup-01.png"
+    },
+    {
+      "chapterId": "ch02",
+      "chapterTitle": "2장. 회원가입",
+      "stepId": "signup-02",
+      "title": "이름·전화번호 조회",
+      "desc": "가입된 성도 명단에서 본인을 찾습니다. 이름과 휴대폰 번호를 입력하고 '다음' 버튼을 누릅니다.",
+      "shot": "signup-02.png"
+    },
+    {
+      "chapterId": "ch02",
+      "chapterTitle": "2장. 회원가입",
+      "stepId": "signup-02b",
+      "title": "자녀(어린이) 가입 시 — 보호자 정보",
+      "desc": "휴대폰이 없는 어린이·유아(예: 초등1부 자녀)를 가입시킬 때는 '휴대폰 없음' 칸에 체크합니다. 그러면 보호자 이름과 보호자 휴대폰 입력란이 나타납니다. 명성교회에 등록된 부모님(보호자)의 이름과 휴대폰 번호를 입력하면 자녀를 명단에서 찾아 줍니다. 이후 절차는 성인 가입과 같습니다.",
+      "shot": "signup-02b.png"
+    },
+    {
+      "chapterId": "ch02",
+      "chapterTitle": "2장. 회원가입",
+      "stepId": "signup-03",
+      "title": "정보 확인 단계",
+      "desc": "조회된 본인 정보를 확인합니다. 이름, 연락처 등이 일치하면 '네, 맞습니다' 버튼을 누릅니다.",
+      "shot": "signup-03.png"
+    },
+    {
+      "chapterId": "ch02",
+      "chapterTitle": "2장. 회원가입",
+      "stepId": "signup-04",
+      "title": "직분 선택",
+      "desc": "본인의 직분을 선택합니다. 상단 탭으로 분류를 선택한 뒤 해당 직분 카드를 누릅니다.",
+      "shot": "signup-04.png"
+    },
+    {
+      "chapterId": "ch02",
+      "chapterTitle": "2장. 회원가입",
+      "stepId": "signup-05",
+      "title": "아이디·비밀번호 설정",
+      "desc": "사용할 아이디(영문 소문자·숫자·_, 4~20자)와 비밀번호(8자 이상)를 입력합니다. 아이디 중복 확인 후 '가입 완료' 버튼을 누릅니다.",
+      "shot": "signup-05.png"
+    },
+    {
+      "chapterId": "ch02",
+      "chapterTitle": "2장. 회원가입",
+      "stepId": "signup-06",
+      "title": "가입 완료 — 승인 대기",
+      "desc": "가입 신청이 완료되었습니다. 관리자의 승인 후 로그인이 가능합니다.",
+      "shot": "signup-06.png"
+    },
+    {
+      "chapterId": "ch02",
+      "chapterTitle": "2장. 회원가입",
+      "stepId": "signup-07",
+      "title": "승인 대기 안내 화면",
+      "desc": "가입 완료 후 로그인 화면으로 돌아오면 승인 대기 안내가 표시됩니다. 관리자 승인 후 로그인이 가능합니다.",
+      "shot": "signup-07.png"
+    },
+    {
+      "chapterId": "ch03",
+      "chapterTitle": "3장. 로그인과 홈 화면",
+      "stepId": "login-01",
+      "title": "로그인",
+      "desc": "회원가입 때 만든 아이디와 비밀번호를 입력하고 '로그인' 버튼을 누릅니다. '로그인 유지'를 체크해 두면 다음부터는 자동으로 로그인됩니다. 비밀번호를 잊으셨다면 화면 아래 '비밀번호 찾기'를 이용하세요.",
+      "shot": "login-01.png"
+    },
+    {
+      "chapterId": "ch03",
+      "chapterTitle": "3장. 로그인과 홈 화면",
+      "stepId": "login-02",
+      "title": "홈 화면 한눈에 보기",
+      "desc": "로그인하면 홈 화면이 나타납니다. 위에는 내 이름과 소속, 가운데에는 공통 메뉴, 아래 '내 사역·부서'에는 내가 가입한 부서가 표시됩니다. 아직 부서에 가입하지 않았다면 '+ 사역·부서 가입' 버튼이 보입니다(4장 참고).",
+      "shot": "login-02.png"
+    },
+    {
+      "chapterId": "ch03",
+      "chapterTitle": "3장. 로그인과 홈 화면",
+      "stepId": "login-03",
+      "title": "내 정보 확인·수정",
+      "desc": "홈 화면에서 '내 정보'를 누르면 등록된 내 정보를 확인할 수 있습니다. 전화번호, 주소가 바뀌었을 때 직접 수정하고, 사진도 등록할 수 있습니다.",
+      "shot": "login-03.png"
+    },
+    {
+      "chapterId": "ch04",
+      "chapterTitle": "4장. 사역·부서 가입 (초등1부 예시)",
+      "stepId": "deptjoin-01",
+      "title": "사역·부서 가입 화면",
+      "desc": "홈 화면 아래 '+ 사역·부서 가입' 버튼을 누르면 이 화면이 나옵니다. 교육사역국, 예배사역국 등 사역국 대분류가 카드로 보입니다. 초등1부는 '교육사역국' 안에 있으므로 교육사역국 카드를 누릅니다.",
+      "shot": "deptjoin-01.png"
+    },
+    {
+      "chapterId": "ch04",
+      "chapterTitle": "4장. 사역·부서 가입 (초등1부 예시)",
+      "stepId": "deptjoin-02",
+      "title": "교육사역국 부서 목록",
+      "desc": "교육사역국 안의 부서들이 카드로 나옵니다. 화면을 옆으로 밀면(스와이프) 영아부, 유치부, 초등1부 등 다른 부서가 차례로 보입니다. 카드에는 부서 이름, 대표·부장·총무·담임 사진, 활동 인원이 표시됩니다. 가입할 부서(예: 초등1부) 카드를 누릅니다. 이미 가입된 부서는 '가입됨'으로 표시됩니다.",
+      "shot": "deptjoin-02.png"
+    },
+    {
+      "chapterId": "ch04",
+      "chapterTitle": "4장. 사역·부서 가입 (초등1부 예시)",
+      "stepId": "deptjoin-03",
+      "title": "역할 선택",
+      "desc": "부서 카드를 누르면 가입 신청 창이 열립니다(화면은 예시 부서입니다). 자녀를 보내는 분은 '학부모', 부서에서 섬기는 분은 '교사' 그림을 누릅니다.",
+      "shot": "deptjoin-03.png"
+    },
+    {
+      "chapterId": "ch04",
+      "chapterTitle": "4장. 사역·부서 가입 (초등1부 예시)",
+      "stepId": "deptjoin-04",
+      "title": "자녀 선택 (학부모로 신청할 때)",
+      "desc": "학부모를 선택하면 자녀 선택 화면이 나옵니다. 교회에 등록된 정보로 자동으로 찾아진 자녀는 미리 체크되어 있고, 없으면 자녀 이름을 2자 이상 입력해 검색합니다. 자녀가 여러 명이면 모두 선택할 수 있습니다.",
+      "shot": "deptjoin-04.png"
+    },
+    {
+      "chapterId": "ch04",
+      "chapterTitle": "4장. 사역·부서 가입 (초등1부 예시)",
+      "stepId": "deptjoin-05",
+      "title": "가입 신청 — 최종 확인",
+      "desc": "마지막 확인 화면입니다. '가입 신청' 버튼을 누르면 신청이 접수됩니다. 부서 임원진이 승인하면 가입이 완료되고, 홈 화면 '내 사역·부서'에 부서가 나타납니다. 학부모로 신청한 경우에는 선택한 자녀 목록이 함께 표시됩니다.",
+      "shot": "deptjoin-05.png"
+    },
+    {
+      "chapterId": "ch05",
+      "chapterTitle": "5장. 초등1부 부서 메뉴 — 출석·새친구",
+      "stepId": "dept-member-01",
+      "title": "사역·부서 목록",
+      "desc": "홈 화면 '내 사역·부서'에서 가입된 부서를 누르거나, '+ 사역·부서 가입'에서 사역국 목록을 볼 수 있습니다.",
+      "shot": "dept-member-01.png"
+    },
+    {
+      "chapterId": "ch05",
+      "chapterTitle": "5장. 초등1부 부서 메뉴 — 출석·새친구",
+      "stepId": "dept-member-02",
+      "title": "초등1부 메뉴 화면",
+      "desc": "초등1부에 들어오면 사용할 수 있는 메뉴가 묶음별로 정리되어 있습니다. 공통(공지, 월간 교육계획, 주보), 학생관리(출석, 달란트), 행정관리, 부서관리 순서이며, 내 역할에 맞는 메뉴만 보입니다.",
+      "shot": "dept-member-02.png"
+    },
+    {
+      "chapterId": "ch05",
+      "chapterTitle": "5장. 초등1부 부서 메뉴 — 출석·새친구",
+      "stepId": "dept-member-03",
+      "title": "우리 반 아이 정보",
+      "desc": "'우리반 아이 정보'에서 내가 맡은 반 학생들의 명단과 연락처를 확인할 수 있습니다.",
+      "shot": "dept-member-03.png"
+    },
+    {
+      "chapterId": "ch05",
+      "chapterTitle": "5장. 초등1부 부서 메뉴 — 출석·새친구",
+      "stepId": "dept-member-04",
+      "title": "내 반 출석 체크",
+      "desc": "주일마다 우리 반 학생의 출석을 기록합니다. 학생 이름 옆 버튼을 눌러 출석/결석/출석인정을 표시합니다. 이번 주만 입력할 수 있고, 지난주는 '수정 마감', 다음 주는 '예정'으로 잠겨 있습니다.",
+      "shot": "dept-member-04.png"
+    },
+    {
+      "chapterId": "ch05",
+      "chapterTitle": "5장. 초등1부 부서 메뉴 — 출석·새친구",
+      "stepId": "dept-member-05",
+      "title": "새친구 등록",
+      "desc": "처음 나온 친구가 있으면 '새친구등록'에서 이름과 기본 정보를 입력해 등록합니다.",
+      "shot": "dept-member-05.png"
+    },
+    {
+      "chapterId": "ch06",
+      "chapterTitle": "6장. 초등1부 담임교사 메뉴",
+      "stepId": "teacher-01",
+      "title": "담임교사 부서 화면",
+      "desc": "담임교사는 학부모보다 더 많은 메뉴가 보입니다. 학생관리 묶음(내 반 출결, 달란트통장, 우리반 아이 정보, 복습문제)이 추가로 열립니다.",
+      "shot": "teacher-01.png"
+    },
+    {
+      "chapterId": "ch06",
+      "chapterTitle": "6장. 초등1부 담임교사 메뉴",
+      "stepId": "teacher-02",
+      "title": "달란트통장",
+      "desc": "주일마다 학생별로 성경책 지참, 요절암송, 대표기도, 전도 등 항목을 체크하면 달란트가 자동으로 적립됩니다. 출석은 '내 반 출석'에서 입력한 내용이 자동으로 연결됩니다.",
+      "shot": "teacher-02.png"
+    },
+    {
+      "chapterId": "ch06",
+      "chapterTitle": "6장. 초등1부 담임교사 메뉴",
+      "stepId": "teacher-03",
+      "title": "출결 통합 조회",
+      "desc": "반 전체의 출석 현황을 주차별로 한눈에 볼 수 있습니다.",
+      "shot": "teacher-03.png"
+    },
+    {
+      "chapterId": "ch06",
+      "chapterTitle": "6장. 초등1부 담임교사 메뉴",
+      "stepId": "teacher-04",
+      "title": "교사 출석",
+      "desc": "교사 본인의 출석을 기록하고 조회합니다.",
+      "shot": "teacher-04.png"
+    },
+    {
+      "chapterId": "ch06",
+      "chapterTitle": "6장. 초등1부 담임교사 메뉴",
+      "stepId": "teacher-05",
+      "title": "공지 게시판",
+      "desc": "부서 공지사항을 확인합니다. 새 공지가 올라오면 이곳에서 볼 수 있습니다.",
+      "shot": "teacher-05.png"
+    },
+    {
+      "chapterId": "ch06",
+      "chapterTitle": "6장. 초등1부 담임교사 메뉴",
+      "stepId": "teacher-06",
+      "title": "월간 교육계획",
+      "desc": "이달의 교육 계획서를 열람합니다.",
+      "shot": "teacher-06.png"
+    },
+    {
+      "chapterId": "ch06",
+      "chapterTitle": "6장. 초등1부 담임교사 메뉴",
+      "stepId": "teacher-07",
+      "title": "주보 만들기",
+      "desc": "부서 주보를 작성·열람합니다.",
+      "shot": "teacher-07.png"
+    },
+    {
+      "chapterId": "ch06",
+      "chapterTitle": "6장. 초등1부 담임교사 메뉴",
+      "stepId": "teacher-08",
+      "title": "교육일지 작성",
+      "desc": "매주 수업 후 교육일지(출석 통계, 헌금, 특이사항)를 작성합니다.",
+      "shot": "teacher-08.png"
+    },
+    {
+      "chapterId": "ch07",
+      "chapterTitle": "7장. 공통 기능",
+      "stepId": "common-01",
+      "title": "성도 요람 검색",
+      "desc": "이름, 전화번호, 배우자 이름으로 성도를 검색할 수 있습니다. 검색 결과에서 연락처와 소속 목장을 확인합니다.",
+      "shot": "common-01.png"
+    },
+    {
+      "chapterId": "ch07",
+      "chapterTitle": "7장. 공통 기능",
+      "stepId": "common-02",
+      "title": "주보 보기",
+      "desc": "이번 주 교회 주보를 화면으로 열람합니다.",
+      "shot": "common-02.png"
+    },
+    {
+      "chapterId": "ch07",
+      "chapterTitle": "7장. 공통 기능",
+      "stepId": "common-03",
+      "title": "불편신고/건의",
+      "desc": "앱 사용 중 불편한 점이나 건의사항이 있으면 이곳에 남겨 주세요. 처리 결과도 같은 화면에서 확인할 수 있습니다.",
+      "shot": "common-03.png"
+    },
+    {
+      "chapterId": "ch07",
+      "chapterTitle": "7장. 공통 기능",
+      "stepId": "common-04",
+      "title": "사용 매뉴얼",
+      "desc": "지금 보고 계신 이 매뉴얼입니다. 홈 화면 '사용 매뉴얼' 메뉴에서 언제든 다시 볼 수 있고, 오른쪽 위 인쇄 버튼으로 종이(A4)로 출력할 수도 있습니다.",
+      "shot": "common-04.png"
+    }
+  ]
+}
