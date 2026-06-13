@@ -59,8 +59,11 @@
 - 성인: 이름 + 본인 핸드폰 필수
 - 자녀: 이름 + (본인 핸드폰 OR "핸드폰없음" → 부모 이름·핸드폰 필수)
 
-## 보안 이슈 (미해소)
-- `xlsx` 패키지 high 취약점 → 일반 사용자 업로드 전 `exceljs` 교체 필수
+## 보안 이슈
+- **전체 현황·런북: `chflow-app/docs/SECURITY_REVIEW_2026-06.md`** (보안 검토 결과·조치 상태·적용 절차·진단 SQL·로드맵)
+- ⚠️ **DB 미적용 주의**: 마이그레이션 `20260612110000`(CR-1 권한상승 차단)·`20260612120000`(H-2)를 운영 Supabase SQL Editor에 적용해야 실제 방어막이 켜짐. `supabase db push` 금지(타 에이전트 미완성 마이그레이션 동반 적용됨) → SQL Editor 사용.
+- 코드 배포 완료: 가입 systemRole 검증, 로그인 status 게이트, 보안 헤더(next.config)
+- 미해소: H-1(edu 출석/달란트/일지 등급·반 검증), H-3(anon PII 열거), H-5(`xlsx`→`exceljs` 교체 필수), pastor 권한 구조 결정, CSP
 - postcss moderate → Next.js 16.3 stable 릴리즈 후 해소 예정
 
 ## 사용자 원칙
