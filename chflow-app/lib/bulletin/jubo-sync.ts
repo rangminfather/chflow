@@ -360,6 +360,8 @@ async function runSync(): Promise<JuboSyncResult> {
     });
     if (uploadError) throw new Error(uploadError.message);
 
+    // 주의: source_board/source_no/pdf_path/fetched_at 컬럼은 운영 DB에 적용돼 있지 않으므로
+    // (마이그레이션 20260604010000 미적용) base 컬럼만 사용한다. 추가하면 insert가 깨진다.
     const { error: upsertError } = await admin
       .from("bulletins")
       .insert({
@@ -367,10 +369,6 @@ async function runSync(): Promise<JuboSyncResult> {
         content: `명성교회 홈페이지에서 자동 수집한 주보 PDF입니다.\nUMS jubo no: ${latest.no}`,
         sunday_date: latest.issue_date,
         pdf_url: objectPath,
-        pdf_path: objectPath,
-        source_board: SOURCE,
-        source_no: latest.no,
-        fetched_at: new Date().toISOString(),
         created_at: new Date().toISOString(),
       });
 
