@@ -35,7 +35,7 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 | **H-4** | High | 보안 헤더 전무 | ✅ **배포 완료**(운영 헤더 확인) |
 | **H-1** | High | edu 출석·달란트·주간추가 RPC가 멤버십만 검사(등급·반 무관) → 위변조 | ✍️ 작성됨 `claude/sec-h1`(d790e1b) · **미머지/행동검증 대기** |
 | **H-3** | High | anon 개인정보 열거(가입 매칭) | ⏳ 미착수 |
-| **H-5** | High | xlsx 0.18.5 서버측 파싱(prototype pollution/ReDoS) | ⏳ 미착수 |
+| **H-5** | High | xlsx 0.18.5 서버측 파싱(prototype pollution/ReDoS) | ✅ **해소**(2026-06-14, SheetJS 0.20.3 패치판 업그레이드) |
 | **M-1~6** | Medium | 요람 PII 광범위, 에러원문 노출, 버킷 public, 재설정 enumeration 등 | ⏳ 미착수 |
 | **L-1~5** | Low | 진단코드 토큰노출, rate-limit 부재, document.write 등 | ⏳ 미착수 |
 
@@ -69,7 +69,7 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 
 ### 이후
 - **H-3**: anon 조회 함수(`search_member_candidates`, `find_member_for_signup` 등) anon GRANT 회수 → 서버 경유 + rate-limit. (가입 매칭 플로우 재설계)
-- **H-5**: xlsx → exceljs 교체. 서버 2개 라우트(`review-problems`, `monthly-plans/bulletin-import`) 우선.
+- ~~**H-5**: xlsx → exceljs 교체~~ → ✅ **해소(2026-06-14)**. exceljs는 `.xls`(BIFF)를 못 읽는데 운영 `monthly-plans` 버킷의 실제 파일이 `.xls`라 교체 시 edu 월별계획/복습문제 파싱이 깨짐. 대신 **SheetJS 패치판 0.20.3**(npm→`cdn.sheetjs.com` tarball)으로 업그레이드 — CVE-2023-30533(prototype pollution)·CVE-2024-22363(ReDoS) 패치, `.xls` 호환 유지, 코드 무변경. `npm audit`에서 xlsx 경고 사라짐.
 - **CSP**: 보안 헤더 중 CSP만 별도. 다음 우편번호 iframe·PDF 뷰어·Supabase 연결 화이트리스트 테스트 후 도입.
 - **M/L**: 에러원문 노출 일반화(일반 사용자 경로 우선), member-photos/feedback-attachments 버킷 private+signed URL, `window.__chflowSupabase` 진단코드 제거, find-id/password rate-limit.
 

@@ -25,7 +25,7 @@
     "react-dom": "^19.2.7",
     "react-easy-crop": "^5.5.7",
     "unpdf": "^1.6.2",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
