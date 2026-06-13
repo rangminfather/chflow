@@ -78,7 +78,7 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 ### 이후
 - **H-3**: anon 조회 함수(`search_member_candidates`, `find_member_for_signup` 등) anon GRANT 회수 → 서버 경유 + rate-limit. (가입 매칭 플로우 재설계)
 - ~~**H-5**: xlsx → exceljs 교체~~ → ✅ **해소(2026-06-14)**. exceljs는 `.xls`(BIFF)를 못 읽는데 운영 `monthly-plans` 버킷의 실제 파일이 `.xls`라 교체 시 edu 월별계획/복습문제 파싱이 깨짐. 대신 **SheetJS 패치판 0.20.3**(npm→`cdn.sheetjs.com` tarball)으로 업그레이드 — CVE-2023-30533(prototype pollution)·CVE-2024-22363(ReDoS) 패치, `.xls` 호환 유지, 코드 무변경. `npm audit`에서 xlsx 경고 사라짐.
-- **CSP**: 보안 헤더 중 CSP만 별도. 다음 우편번호 iframe·PDF 뷰어·Supabase 연결 화이트리스트 테스트 후 도입.
+- **CSP**: ✅ **Report-Only 도입 완료(2026-06-14, 배포·헤더 확인)**. `next.config.ts` `cspReportOnly` — 비차단, 위반은 브라우저 콘솔 보고. 출처: daumcdn(우편번호)·jsdelivr(폰트)·supabase(https/wss)·pdfjs(self/blob)·이미지(data/blob/supabase). ⏳ **남은 일: 며칠 콘솔/리포트 위반 수집 → enforce(`Content-Security-Policy`)로 전환 + nonce 도입으로 `unsafe-inline`/`unsafe-eval` 축소.** (enforce 전환은 실사용 화면 회귀확인 필요)
 - **M/L**: 에러원문 노출 일반화(일반 사용자 경로 우선), member-photos/feedback-attachments 버킷 private+signed URL, `window.__chflowSupabase` 진단코드 제거, find-id/password rate-limit.
 
 ---
