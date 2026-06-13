@@ -140,6 +140,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "\uB4F1\uB85D\uB418\uC9C0 \uC54A\uC740 \uAD50\uC778\uC740 \uC131\uB3C4 (\uB0A8), \uC131\uB3C4 (\uC5EC)\uB9CC \uC120\uD0DD\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4" }, { status: 400 });
     }
 
+    // A안(직분↔권한 분리): 'pastor'는 가입에서 고를 수 있는 직분이지만 권한(authz) role 은 아니다.
+    // 권한 집합(admin/office/pastor)에 드는 값은 가입으로 저장하지 않고 권한 없는 'member' 로 둔다.
+    // 직분 표시는 sub_role 로 보존되며(예: 담임목사), staff 권한은 관리자가 별도로 부여한다.
+    const AUTHZ_ROLES = new Set<string>(["admin", "office", "pastor"]);
+    const storedRole = AUTHZ_ROLES.has(systemRole) ? "member" : systemRole;
+
     const lower = username.toLowerCase().trim();
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -178,7 +184,7 @@ export async function POST(req: NextRequest) {
       username: lower,
       name: name.trim(),
       phone: phone.replace(/[^0-9]/g, ""),
-      role: systemRole,
+      role: storedRole,
       sub_role: subRole,
       status: "pending",
       member_id: matchedMemberId || null,
