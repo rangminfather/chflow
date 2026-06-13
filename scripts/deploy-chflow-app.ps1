@@ -1,10 +1,16 @@
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
+$vercelDir = Join-Path $root ".vercel"
 $projectJson = Join-Path $root ".vercel\project.json"
 
 if (!(Test-Path $projectJson)) {
-  throw "Missing .vercel\project.json at repo root."
+  New-Item -ItemType Directory -Force -Path $vercelDir | Out-Null
+  @{
+    projectId = "prj_y26PnlBpVtwQLD3mV4WR4ycyuHXv"
+    orgId = "team_3eCrL9o7VtbwBC6fpKFpwQlT"
+    projectName = "chflow-app"
+  } | ConvertTo-Json -Compress | Set-Content -Path $projectJson -Encoding UTF8
 }
 
 $project = Get-Content $projectJson -Raw | ConvertFrom-Json
@@ -14,7 +20,7 @@ if ($project.projectName -ne "chflow-app" -or $project.projectId -ne "prj_y26Pnl
 
 Push-Location $root
 try {
-  vercel --prod --yes
+  npx vercel --prod --yes
   $loginStatus = try {
     (Invoke-WebRequest -Uri "https://chflow-app.vercel.app/login" -UseBasicParsing -MaximumRedirection 0).StatusCode
   } catch {
@@ -25,7 +31,7 @@ try {
     throw "Deployment completed, but https://chflow-app.vercel.app/login returned HTTP $loginStatus."
   }
 
-  vercel inspect chflow-app.vercel.app
+  npx vercel inspect chflow-app.vercel.app
 } finally {
   Pop-Location
 }

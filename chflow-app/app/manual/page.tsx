@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Printer, Search, AlertTriangle, X } from "lucide-react";
+import { Printer, Search, AlertTriangle, X, ChevronUp, Pencil, Save, Plus, Trash2, Upload, XCircle } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 interface ManifestItem {
   chapterId: string;
@@ -11,6 +12,7 @@ interface ManifestItem {
   title: string;
   desc: string;
   shot: string | null;
+  shotDataUrl?: string | null;
   error?: string;
 }
 
@@ -48,17 +50,42 @@ export default function ManualPage() {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [activeChapter, setActiveChapter] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [editingIntroId, setEditingIntroId] = useState<string | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editSnapshot, setEditSnapshot] = useState<Manifest | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [showTop, setShowTop] = useState(false);
   const tabBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/manual/shots/manifest.json")
-      .then(r => r.json())
-      .then((data: unknown) => {
-        const m = normalizeManifest(data);
+    supabase.auth.getSession()
+      .then(({ data: authData }) => {
+        const token = authData.session?.access_token;
+        return Promise.all([
+          fetch("/manual/shots/manifest.json").then(r => r.json()),
+          fetch("/api/manual/content", token ? { headers: { Authorization: `Bearer ${token}` } } : undefined)
+            .then(r => (r.ok ? r.json() : null))
+            .catch(() => null),
+        ]);
+      })
+      .then(([staticData, saved]) => {
+        const m = normalizeManifest(saved?.content ?? staticData);
         setManifest(m);
+        setIsAdmin(!!saved?.can_edit);
         if (m.chapters.length > 0) setActiveChapter(m.chapters[0].id);
       })
       .catch(() => setManifest({ generatedAt: null, chapters: [], items: [] }));
+  }, []);
+
+  useEffect(() => {
+    function onScroll() {
+      setShowTop(window.scrollY > 520);
+    }
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   // 탭 선택 시 탭바 스크롤 중앙 정렬
@@ -67,6 +94,113 @@ export default function ManualPage() {
     if (tabBarRef.current) {
       const btn = tabBarRef.current.querySelector(`[data-ch="${id}"]`) as HTMLElement;
       if (btn) btn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }
+  }
+
+  function imageSrc(item: ManifestItem): string | null {
+    if (item.shotDataUrl) return item.shotDataUrl;
+    if (item.shot) return `/manual/shots/${item.shot}`;
+    return null;
+  }
+
+  function patchManifest(updater: (current: Manifest) => Manifest) {
+    setManifest(current => (current ? updater(current) : current));
+  }
+
+  function beginIntroEdit(chapterId: string) {
+    setEditSnapshot(manifest);
+    setEditingIntroId(chapterId);
+    setEditingItemId(null);
+  }
+
+  function beginItemEdit(stepId: string) {
+    setEditSnapshot(manifest);
+    setEditingItemId(stepId);
+    setEditingIntroId(null);
+  }
+
+  function cancelEdit() {
+    if (editSnapshot) setManifest(editSnapshot);
+    setEditSnapshot(null);
+    setEditingIntroId(null);
+    setEditingItemId(null);
+    setSaveError(null);
+  }
+
+  function updateChapterIntro(id: string, intro: string) {
+    patchManifest(current => ({
+      ...current,
+      chapters: current.chapters.map(ch => ch.id === id ? { ...ch, intro } : ch),
+    }));
+  }
+
+  function updateItem(stepId: string, patch: Partial<ManifestItem>) {
+    patchManifest(current => ({
+      ...current,
+      items: current.items.map(item => item.stepId === stepId ? { ...item, ...patch } : item),
+    }));
+  }
+
+  function addItem(item: ManifestItem, placement: "before" | "after") {
+    const stepId = `manual-${Date.now()}`;
+    patchManifest(current => {
+      const baseIndex = current.items.findIndex(i => i.stepId === item.stepId);
+      const insertAt = placement === "before" ? baseIndex : baseIndex + 1;
+      const newItem: ManifestItem = {
+        chapterId: item.chapterId,
+        chapterTitle: item.chapterTitle,
+        stepId,
+        title: "새 설명",
+        desc: "추가할 내용을 입력하세요.",
+        shot: null,
+      };
+      const nextItems = [...current.items];
+      nextItems.splice(insertAt, 0, newItem);
+      return { ...current, items: nextItems };
+    });
+    setEditingItemId(stepId);
+  }
+
+  async function deleteItem(stepId: string) {
+    if (!manifest || !confirm("이 설명 카드 전체를 삭제할까요?")) return;
+    const next = { ...manifest, items: manifest.items.filter(item => item.stepId !== stepId) };
+    setManifest(next);
+    setEditingItemId(null);
+    await saveManual(next);
+  }
+
+  function handleImageFile(item: ManifestItem, file: File | null) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      updateItem(item.stepId, { shotDataUrl: String(reader.result), shot: null, error: undefined });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function saveManual(nextManifest = manifest) {
+    if (!nextManifest) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("로그인이 필요합니다.");
+      const res = await fetch("/api/manual/content", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content: { ...nextManifest, generatedAt: new Date().toISOString() } }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) throw new Error(json.error || "저장에 실패했습니다.");
+      setManifest(json.content);
+      setEditSnapshot(null);
+      setEditingIntroId(null);
+      setEditingItemId(null);
+    } catch (e) {
+      setSaveError((e as Error).message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -150,39 +284,149 @@ export default function ManualPage() {
 
           {/* 스텝 목록 */}
           <main style={mainStyle}>
+            {saveError && <div style={errorCard}>{saveError}</div>}
             {currentChapter?.intro && (
               <div style={introCard}>
-                <div style={introLabel}>이 장에서 배우는 것</div>
-                <p style={introText}>{currentChapter.intro}</p>
+                <div style={introHead}>
+                  <div style={introLabel}>이 장에서 배우는 것</div>
+                  {isAdmin && editingIntroId !== currentChapter.id && (
+                    <button
+                      type="button"
+                      style={miniBtn}
+                      onClick={() => beginIntroEdit(currentChapter.id)}
+                    >
+                      <Pencil size={14} strokeWidth={1.8} />
+                      수정
+                    </button>
+                  )}
+                </div>
+                {editingIntroId === currentChapter.id ? (
+                  <>
+                  <textarea
+                    value={currentChapter.intro || ""}
+                    onChange={e => updateChapterIntro(currentChapter.id, e.target.value)}
+                    style={{ ...editTextarea, minHeight: 92 }}
+                    aria-label={`${currentChapter.title} 소개 수정`}
+                  />
+                  <div style={editActions}>
+                    <button type="button" onClick={() => saveManual()} style={saveMiniBtn} disabled={saving}>
+                      <Save size={14} strokeWidth={1.8} />
+                      {saving ? "저장 중" : "저장"}
+                    </button>
+                    <button type="button" onClick={cancelEdit} style={miniBtn}>
+                      <XCircle size={14} strokeWidth={1.8} />
+                      취소
+                    </button>
+                  </div>
+                  </>
+                ) : (
+                  <p style={introText}>{currentChapter.intro}</p>
+                )}
               </div>
             )}
-            {currentItems.map((item, idx) => (
+            {currentItems.map((item, idx) => {
+              const isEditing = editingItemId === item.stepId;
+              return (
               <div key={item.stepId} style={stepCard} className="step-card">
                 <div style={badgeRow}>
                   <span style={numBadge}>{idx + 1}</span>
-                  <span style={stepTitle}>{item.title}</span>
+                  {isEditing ? (
+                    <input
+                      value={item.title}
+                      onChange={e => updateItem(item.stepId, { title: e.target.value })}
+                      style={editInput}
+                      aria-label="설명 제목 수정"
+                    />
+                  ) : (
+                    <span style={stepTitle}>{item.title}</span>
+                  )}
+                  {isAdmin && !isEditing && (
+                    <button
+                      type="button"
+                      style={{ ...miniBtn, marginLeft: "auto" }}
+                      onClick={() => beginItemEdit(item.stepId)}
+                    >
+                      <Pencil size={14} strokeWidth={1.8} />
+                      수정
+                    </button>
+                  )}
                 </div>
-                <p style={stepDesc}>{item.desc}</p>
-                {item.shot ? (
+                {isEditing ? (
+                  <textarea
+                    value={item.desc}
+                    onChange={e => updateItem(item.stepId, { desc: e.target.value })}
+                    style={editTextarea}
+                    aria-label="설명 내용 수정"
+                  />
+                ) : (
+                  <p style={stepDesc}>{item.desc}</p>
+                )}
+                {imageSrc(item) ? (
                   <div
                     style={shotWrap}
-                    onClick={() => setLightbox(`/manual/shots/${item.shot}`)}
+                    onClick={() => setLightbox(imageSrc(item))}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={e => e.key === "Enter" && setLightbox(`/manual/shots/${item.shot}`)}
+                    onKeyDown={e => e.key === "Enter" && setLightbox(imageSrc(item))}
                     aria-label={`${item.title} 화면 크게 보기`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/manual/shots/${item.shot}`} alt={item.title} style={shotImg} />
+                    <img src={imageSrc(item)!} alt={item.title} style={shotImg} />
                     <div style={{ ...shotOverlay, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Search size={14} strokeWidth={1.8} /> 탭하여 크게 보기</div>
                   </div>
                 ) : (
                   <div style={noShot}>{item.error ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><AlertTriangle size={14} strokeWidth={1.8} /> {item.error}</span> : "스크린샷 준비 중"}</div>
                 )}
+                {isEditing && (
+                  <div style={editActions}>
+                    <button type="button" onClick={() => saveManual()} style={saveMiniBtn} disabled={saving}>
+                      <Save size={14} strokeWidth={1.8} />
+                      {saving ? "저장 중" : "저장"}
+                    </button>
+                    <button type="button" onClick={cancelEdit} style={miniBtn}>
+                      <XCircle size={14} strokeWidth={1.8} />
+                      취소
+                    </button>
+                    <label style={miniBtn}>
+                      <Upload size={14} strokeWidth={1.8} />
+                      사진첨부
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e => handleImageFile(item, e.currentTarget.files?.[0] || null)}
+                        style={{ display: "none" }}
+                      />
+                    </label>
+                    <button type="button" onClick={() => addItem(item, "before")} style={miniBtn}>
+                      <Plus size={14} strokeWidth={1.8} />
+                      위에 추가
+                    </button>
+                    <button type="button" onClick={() => addItem(item, "after")} style={miniBtn}>
+                      <Plus size={14} strokeWidth={1.8} />
+                      아래에 추가
+                    </button>
+                    <button type="button" onClick={() => deleteItem(item.stepId)} style={{ ...miniBtn, color: "var(--danger)" }}>
+                      <Trash2 size={14} strokeWidth={1.8} />
+                      카드 삭제
+                    </button>
+                  </div>
+                )}
               </div>
-            ))}
+            );
+            })}
           </main>
         </div>
+
+        {showTop && (
+          <button
+            type="button"
+            style={topBtn}
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            aria-label="맨 위로"
+          >
+            <ChevronUp size={22} strokeWidth={2} />
+          </button>
+        )}
 
         {/* ── 라이트박스 ── */}
         {lightbox && (
@@ -243,9 +487,9 @@ export default function ManualPage() {
                     </div>
                     <p className="print-step-desc">{item.desc}</p>
                   </div>
-                  {item.shot && (
+                  {imageSrc(item) && (
                     /* eslint-disable-next-line @next/next/no-img-element */
-                    <img className="print-step-img" src={`/manual/shots/${item.shot}`} alt={item.title} />
+                    <img className="print-step-img" src={imageSrc(item)!} alt={item.title} />
                   )}
                 </div>
               ))}
@@ -397,6 +641,15 @@ const printBtn: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
 };
+const errorCard: React.CSSProperties = {
+  background: "var(--danger-soft)",
+  border: "1px solid var(--danger)",
+  borderRadius: 8,
+  padding: "10px 12px",
+  color: "var(--danger)",
+  fontSize: 13,
+  fontWeight: 700,
+};
 
 /* 모바일 탭 바 */
 const tabBarWrap: React.CSSProperties = {
@@ -481,6 +734,13 @@ const introLabel: React.CSSProperties = {
   color: "var(--accent-strong)",
   marginBottom: 6,
 };
+const introHead: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 8,
+  marginBottom: 6,
+};
 const introText: React.CSSProperties = {
   fontSize: 14,
   color: "var(--ink-mid)",
@@ -531,6 +791,58 @@ const stepDesc: React.CSSProperties = {
   color: "var(--ink-mid)",
   lineHeight: 1.75,
   margin: "0 0 14px",
+};
+const editInput: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  border: "1px solid var(--hairline-strong)",
+  borderRadius: 8,
+  padding: "8px 10px",
+  fontSize: 15,
+  fontWeight: 700,
+  color: "var(--ink)",
+  background: "var(--surface)",
+  fontFamily: "inherit",
+};
+const editTextarea: React.CSSProperties = {
+  width: "100%",
+  minHeight: 110,
+  border: "1px solid var(--hairline-strong)",
+  borderRadius: 8,
+  padding: "10px 12px",
+  fontSize: 14,
+  color: "var(--ink-mid)",
+  lineHeight: 1.7,
+  background: "var(--surface)",
+  fontFamily: "inherit",
+  resize: "vertical",
+  marginBottom: 14,
+};
+const editActions: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 8,
+  marginTop: 12,
+};
+const miniBtn: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+  border: "1px solid var(--hairline)",
+  borderRadius: 8,
+  padding: "7px 10px",
+  background: "var(--surface)",
+  color: "var(--ink-mid)",
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+const saveMiniBtn: React.CSSProperties = {
+  ...miniBtn,
+  background: "var(--accent)",
+  borderColor: "var(--accent)",
+  color: "#fff",
 };
 
 /* 스크린샷 */
@@ -598,4 +910,21 @@ const lbClose: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+};
+const topBtn: React.CSSProperties = {
+  position: "fixed",
+  right: 18,
+  bottom: 22,
+  zIndex: 60,
+  width: 44,
+  height: 44,
+  borderRadius: "50%",
+  border: "1px solid var(--hairline)",
+  background: "var(--ink)",
+  color: "#fff",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  boxShadow: "0 12px 26px rgba(0,0,0,0.18)",
 };
