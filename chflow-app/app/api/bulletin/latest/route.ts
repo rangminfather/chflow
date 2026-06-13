@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { syncJuboBulletin } from "@/lib/bulletin/jubo-sync";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 export const preferredRegion = "icn1";
 
 type BulletinItem = {
@@ -127,6 +128,34 @@ function pickPreferredBulletin(items: BulletinItem[]) {
   );
 }
 
+// 이번 주에 "저장돼 있어야 할" 주보의 발행일(일요일자)을 달력만으로 계산한다.
+// 교회는 다가오는 주일 주보를 그 전 금요일에 올리므로, 금(5)·토(6)에는 다음 주일자,
+// 그 외 요일에는 직전 주일자를 기대 대상으로 본다. UMS를 다시 파싱하지 않는다.
+function getExpectedIssueDate(now = new Date()) {
+  const targets = getPreferredSundayTargets(now);
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const dayOfWeek = kst.getUTCDay(); // 0=일 .. 6=토
+  return dayOfWeek === 5 || dayOfWeek === 6 ? targets.nextSunday : targets.currentSunday;
+}
+
+// 조회 시 백그라운드 수집(self-heal). 같은 인스턴스에서 30분에 한 번으로 제한해
+// 클릭이 잦아도 UMS 트래픽이 늘지 않게 한다(수집 자체는 in-flight 잠금 + already_fetched 가드).
+let lastLazyTrigger = 0;
+const LAZY_TRIGGER_THROTTLE_MS = 30 * 60 * 1000;
+
+function scheduleLazyJuboSync(reason: string) {
+  const now = Date.now();
+  if (now - lastLazyTrigger < LAZY_TRIGGER_THROTTLE_MS) return;
+  lastLazyTrigger = now;
+  after(async () => {
+    try {
+      await syncJuboBulletin();
+    } catch (e) {
+      console.error(`[bulletin-latest] lazy sync failed (${reason})`, e);
+    }
+  });
+}
+
 function parseJuboList(html: string): BulletinItem[] {
   const rows: BulletinItem[] = [];
   const rowRe =
@@ -247,6 +276,11 @@ export async function GET(req: NextRequest) {
 
     const stored = await loadStoredItems();
     if (stored.length > 0) {
+      // 저장본은 있지만 이번 주에 있어야 할 주보(날짜 기반)가 아직 없으면 백그라운드 수집.
+      const expected = getExpectedIssueDate();
+      if (!stored.some((item) => item.issue_date === expected)) {
+        scheduleLazyJuboSync("stored-missing-expected");
+      }
       return NextResponse.json({
         ok: true,
         latest: pickPreferredBulletin(stored),
@@ -258,13 +292,25 @@ export async function GET(req: NextRequest) {
     }
 
     const publicItems = await loadPublicItems();
+    const targets = getPreferredSundayTargets();
+    const preferred = pickPreferredBulletin(publicItems.items);
+
+    // 저장 PDF가 하나도 없는데 UMS에는 이번/다음 주일 주보가 올라와 있으면,
+    // 응답은 원문 링크로 즉시 주고 백그라운드로 1회 수집을 트리거한다(self-heal).
+    if (
+      preferred &&
+      (preferred.issue_date === targets.nextSunday || preferred.issue_date === targets.currentSunday)
+    ) {
+      scheduleLazyJuboSync("no-stored-fresh-upstream");
+    }
+
     return NextResponse.json({
       ok: true,
-      latest: pickPreferredBulletin(publicItems.items),
+      latest: preferred,
       items: publicItems.items,
       source: publicItems.source,
       cached: true,
-      preferred_dates: getPreferredSundayTargets(),
+      preferred_dates: targets,
     });
   } catch (e) {
     return NextResponse.json(
