@@ -33,7 +33,7 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 | **CR-3** | Critical | `remove_member_relation` 권한검증 없음 (IDOR) | **DB 적용 대기** |
 | **H-2** | High | 관리자용 read RPC 7개 역할검증 누락 | **DB 적용 대기** |
 | **H-4** | High | 보안 헤더 전무 | ✅ **배포 완료**(운영 헤더 확인) |
-| **H-1** | High | edu 출석·달란트·일지 RPC가 멤버십만 검사(등급·반 무관) → 위변조 | ⏳ 미착수(구조 변경) |
+| **H-1** | High | edu 출석·달란트·주간추가 RPC가 멤버십만 검사(등급·반 무관) → 위변조 | ✍️ 작성됨 `claude/sec-h1`(d790e1b) · **미머지/행동검증 대기** |
 | **H-3** | High | anon 개인정보 열거(가입 매칭) | ⏳ 미착수 |
 | **H-5** | High | xlsx 0.18.5 서버측 파싱(prototype pollution/ReDoS) | ⏳ 미착수 |
 | **M-1~6** | Medium | 요람 PII 광범위, 에러원문 노출, 버킷 public, 재설정 enumeration 등 | ⏳ 미착수 |
@@ -52,18 +52,20 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 
 ## 3. 남은 작업 로드맵 (권장 순서)
 
-### H-1 — edu 권한 모델 구조 개선 (다음 우선)
-출석 `edu_set_student_attendance`, 달란트 `edu_save_talent`/`toggle_weekly_extra`, 일지 `edu_upsert_journal`/`edu_delete_journal`, 학생/교사/새친구 CRUD가 `is_edu_member_or_admin`(승인 멤버면 통과)만 검사 → 같은 부서면 학부모(grade4)·타반 교사도 임의 학생 위변조 가능.
-- 조치: ① 쓰기 RPC에 `get_user_grade <= 3` 등급 가드 ② 출석/달란트는 `student.teacher_id = 호출자` 반 검증(=`api/edu/my-class-student` 패턴 재사용) ③ `talent/page.tsx:199` 직접 insert를 `save_talent_rule` RPC로 교체 ④ `edu_talent_rules` RLS WITH CHECK를 `can_appoint_in_dept`로 상향.
-- **주의**: AGENTS.md 보호대상(my-class-attendance, talent) 포함 → 정상교사/학부모/타반 3시나리오 **앱 실행 수동검증** 후 머지.
+### H-1 — edu 권한 모델 구조 개선 ✍️ 작성됨 (브랜치 `claude/sec-h1`, d790e1b, 미머지)
+출석·달란트·주간추가가 `is_edu_member_or_admin`(승인 멤버면 통과)만 검사 → 학부모(grade4)·타반 교사도 임의 학생 위변조 가능.
+- **작성된 조치** (마이그레이션 `20260613120000_edu_class_grade_authz.sql`): 헬퍼 `edu_can_edit_student(dept,student)` 도입 — grade 0~2 부서 전체, 3(교사) 본인 반만(`edu_teachers→edu_students.teacher_id`, my-class-student 라우트와 동일 기준), 4(학부모)/99 불가. 출석/달란트/주간추가 3개 RPC 가드 교체.
+- **적용·검증 절차 (머지·적용 전 필수)**:
+  1. ⚠️ 적용 전 **행동 검증** — 정상교사: 내 반 출석/달란트 입력 OK / 타반 교사: 다른 반 학생 입력 시 거부 / 학부모: 입력 거부 / 부장·총무: 부서 전체 OK.
+  2. 검증 후 `claude/sec-h1`를 main 머지 + 마이그레이션을 SQL Editor 적용.
+- **후속(H-1b, 미작성)**: 교육일지 RPC grade 가드, `edu_talent_rules` RLS WITH CHECK 상향(=`talent/page.tsx:199` 직접 insert 우회 차단), 학생/교사/새친구 CRUD grade 가드.
+- **주의**: AGENTS.md 보호대상(my-class-attendance, talent) 포함 → 동작 변경(교사=내 반만)이라 위 검증 필수.
 
-### pastor 권한 구조 결정 (정책 — 사용자 판단 필요)
+### pastor 권한 구조 결정 → **A안 채택 (2026-06-13, 미구현)**
 '목사'는 가입으로 자가 선택 가능한데 동시에 권한 집합(`get_user_role() IN ('admin','office','pastor')`)에 포함 → 자가 가입한 목사가 승인되면 pastor 권한(전 교인 조회 등) 자동 획득.
-| 옵션 | 내용 | 트레이드오프 |
-|---|---|---|
-| A. 분리(권장) | 직분(표시)·권한(authz) 컬럼 분리, 권한은 승인 시 관리자가 부여 | 가장 안전. 마이그레이션+승인 UI 작업(중간) |
-| B. pastor 강등 | authz에서 'pastor' 제거, admin/office만 | 작음. 진짜 목사 권한 재배치 필요 |
-| C. 승인 검증만 | 구조 유지, 목사 승인 시 관리자 직분 확인 | 코드 최소, 사람 검증 의존(자동방어 아님) |
+- **결정: A안 — 직분(표시)과 권한(authz) 분리.** 가입은 직분만 기록, 권한은 관리자가 승인 시 별도 부여.
+- 구현 범위(예정): authz 판정을 self-assignable 'pastor' 대신 관리자 부여 컬럼/역할 기준으로 전환, `profiles_select_admin_pastor` 등 'pastor' 게이트 정비, 승인 화면에 권한 부여 단계 추가. → 별도 브랜치 + 검증.
+- 참고(미채택): B. authz에서 'pastor' 제거 / C. 승인 시 사람 검증만.
 
 ### 이후
 - **H-3**: anon 조회 함수(`search_member_candidates`, `find_member_for_signup` 등) anon GRANT 회수 → 서버 경유 + rate-limit. (가입 매칭 플로우 재설계)
