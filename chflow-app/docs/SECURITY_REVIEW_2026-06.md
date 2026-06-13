@@ -70,7 +70,7 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
   - 운영 `role IN ('pastor','office')` 프로필 status 무관 **0건** → backfill·잠김 없음.
 - ✅ **구현(브랜치 `claude/sec-pastor-authz`):**
   - `/api/signup`: authz role(admin/office/pastor)을 저장 시 `'member'` 로 중립화(직분은 sub_role 유지). 코드 배포로 적용.
-  - `20260614100000_pastor_authz_separation.sql`: CR-1 트리거 직접삽입 차단 집합에 `'pastor'` 추가(방어심화). **SQL Editor 적용 필요.**
+  - `20260614100000_pastor_authz_separation.sql`: CR-1 트리거 직접삽입 차단 집합에 `'pastor'` 추가(방어심화). ✅ **SQL Editor 적용 확인(2026-06-14)**.
   - 권한 집합 `IN ('admin','office','pastor')`은 ~60개 RLS/RPC에 그대로 두되, 'pastor' 가 role 에 들어가는 경로를 가입에서 제거 → **블라스트 반경 최소화**.
 - ⏳ **남은 follow-up(UX 결정 필요, 보안 무관):** 관리자가 의도적으로 staff 권한을 부여하는 화면(승인/회원관리에 토글) — 현재는 service_role 경로로만 부여 가능. 버튼 위치·라벨·확인 플로우는 제품 결정 필요.
 - 참고(미채택): B. authz에서 'pastor' 제거 / C. 승인 시 사람 검증만.
