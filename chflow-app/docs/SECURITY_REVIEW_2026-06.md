@@ -61,10 +61,18 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 - **후속(H-1b, 미작성)**: 교육일지 RPC grade 가드, `edu_talent_rules` RLS WITH CHECK 상향(=`talent/page.tsx:199` 직접 insert 우회 차단), 학생/교사/새친구 CRUD grade 가드.
 - **주의**: AGENTS.md 보호대상(my-class-attendance, talent) 포함 → 동작 변경(교사=내 반만)이라 위 검증 필수.
 
-### pastor 권한 구조 결정 → **A안 채택 (2026-06-13, 미구현)**
-'목사'는 가입으로 자가 선택 가능한데 동시에 권한 집합(`get_user_role() IN ('admin','office','pastor')`)에 포함 → 자가 가입한 목사가 승인되면 pastor 권한(전 교인 조회 등) 자동 획득.
-- **결정: A안 — 직분(표시)과 권한(authz) 분리.** 가입은 직분만 기록, 권한은 관리자가 승인 시 별도 부여.
-- 구현 범위(예정): authz 판정을 self-assignable 'pastor' 대신 관리자 부여 컬럼/역할 기준으로 전환, `profiles_select_admin_pastor` 등 'pastor' 게이트 정비, 승인 화면에 권한 부여 단계 추가. → 별도 브랜치 + 검증.
+### pastor 권한 구조 → **A안 채택, 핵심 구현 완료 (2026-06-14)**
+'목사'는 가입으로 자가 선택 가능한데 동시에 권한 집합(`role IN ('admin','office','pastor')`)에 포함 → 자가 가입한 목사가 승인되면 pastor 권한(전 교인 조회 등) 자동 획득.
+- **결정: A안 — 직분(표시)과 권한(authz) 분리.** 가입은 직분만 기록(sub_role), 권한은 관리자가 별도 부여.
+- **핵심 발견 (구현을 단순·안전하게 만든 사실):**
+  - myinfo는 본인 `sub_role`만 수정하고 `role`은 안 건드림 + CR-1 트리거가 authenticated의 role UPDATE 전면 차단 → 자가 권한부여 경로 없음.
+  - 직분 **표시는 sub_role 기반**(`getRoleImageByLabel(sub_role)`), role 무관. 즉 직분↔권한은 이미 데이터상 분리돼 있고 **유일한 누수는 "가입이 clergy의 role을 pastor로 저장"** 하나뿐이었음.
+  - 운영 `role IN ('pastor','office')` 프로필 status 무관 **0건** → backfill·잠김 없음.
+- ✅ **구현(브랜치 `claude/sec-pastor-authz`):**
+  - `/api/signup`: authz role(admin/office/pastor)을 저장 시 `'member'` 로 중립화(직분은 sub_role 유지). 코드 배포로 적용.
+  - `20260614100000_pastor_authz_separation.sql`: CR-1 트리거 직접삽입 차단 집합에 `'pastor'` 추가(방어심화). **SQL Editor 적용 필요.**
+  - 권한 집합 `IN ('admin','office','pastor')`은 ~60개 RLS/RPC에 그대로 두되, 'pastor' 가 role 에 들어가는 경로를 가입에서 제거 → **블라스트 반경 최소화**.
+- ⏳ **남은 follow-up(UX 결정 필요, 보안 무관):** 관리자가 의도적으로 staff 권한을 부여하는 화면(승인/회원관리에 토글) — 현재는 service_role 경로로만 부여 가능. 버튼 위치·라벨·확인 플로우는 제품 결정 필요.
 - 참고(미채택): B. authz에서 'pastor' 제거 / C. 승인 시 사람 검증만.
 
 ### 이후
