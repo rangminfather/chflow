@@ -26,10 +26,30 @@ const UMS_MARKER = "UMS samusil no:";
 const BOARD_URL = "http://www.ums.or.kr/bbs/zboard.php?id=samusil";
 const VIEW_BASE = "http://www.ums.or.kr/bbs/zboard.php";
 
+const SYNC_SOURCE = `dept:${DEPT_KEY}`;
+
 function adminClient() {
   return createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+async function logSync(
+  admin: ReturnType<typeof adminClient>,
+  status: "success" | "skipped" | "error",
+  opts: { detail?: string | null; item_no?: number | null; issue_date?: string | null } = {},
+) {
+  try {
+    await admin.rpc("log_bulletin_sync", {
+      p_source: SYNC_SOURCE,
+      p_status: status,
+      p_detail: opts.detail ?? null,
+      p_item_no: opts.item_no ?? null,
+      p_issue_date: opts.issue_date ?? null,
+    });
+  } catch (e) {
+    console.error("[dept-bulletin-sync] log_bulletin_sync failed", e);
+  }
 }
 
 function hasCronAccess(req: NextRequest) {
@@ -205,45 +225,54 @@ async function downloadPdf(no: number) {
 }
 
 async function syncDeptBulletin() {
-  const latest = await findLatestDeptBulletin();
-  const issueDate = latest.issue_date || latest.posted_at || isoTodayKst();
-
   const admin = adminClient();
-  const { data: existing, error: existingError } = await admin
-    .from("bulletins")
-    .select("id,pdf_url,content")
-    .eq("sunday_date", issueDate)
-    .ilike("content", `%${DEPT_MARKER}%`)
-    .ilike("content", `%${UMS_MARKER} ${latest.no}%`)
-    .maybeSingle();
 
-  if (existingError) throw new Error(existingError.message);
-  if (existing?.pdf_url) {
-    return { ok: true, skipped: true, reason: "already_fetched", latest };
-  }
+  try {
+    const latest = await findLatestDeptBulletin();
+    const issueDate = latest.issue_date || latest.posted_at || isoTodayKst();
 
-  const pdf = await downloadPdf(latest.no);
-  await ensureBucket(admin);
+    const { data: existing, error: existingError } = await admin
+      .from("bulletins")
+      .select("id,pdf_url,content")
+      .eq("sunday_date", issueDate)
+      .ilike("content", `%${DEPT_MARKER}%`)
+      .ilike("content", `%${UMS_MARKER} ${latest.no}%`)
+      .maybeSingle();
 
-  const objectPath = `${STORAGE_PREFIX}/${issueDate}_${latest.no}.pdf`;
-  const { error: uploadError } = await admin.storage.from(BUCKET).upload(objectPath, pdf, {
-    contentType: "application/pdf",
-    upsert: true,
-  });
-  if (uploadError) throw new Error(uploadError.message);
+    if (existingError) throw new Error(existingError.message);
+    if (existing?.pdf_url) {
+      await logSync(admin, "skipped", { detail: "already_fetched", item_no: latest.no, issue_date: issueDate });
+      return { ok: true, skipped: true, reason: "already_fetched", latest };
+    }
 
-  const { error: insertError } = await admin
-    .from("bulletins")
-    .insert({
-      title: latest.title,
-      content: `교육사역국 ${DEPT_KEY} 주보 PDF입니다.\n${DEPT_MARKER}\n${UMS_MARKER} ${latest.no}`,
-      sunday_date: issueDate,
-      pdf_url: objectPath,
-      created_at: new Date().toISOString(),
+    const pdf = await downloadPdf(latest.no);
+    await ensureBucket(admin);
+
+    const objectPath = `${STORAGE_PREFIX}/${issueDate}_${latest.no}.pdf`;
+    const { error: uploadError } = await admin.storage.from(BUCKET).upload(objectPath, pdf, {
+      contentType: "application/pdf",
+      upsert: true,
     });
+    if (uploadError) throw new Error(uploadError.message);
 
-  if (insertError) throw new Error(insertError.message);
-  return { ok: true, skipped: false, latest, pdf_path: objectPath, bytes: pdf.byteLength };
+    const { error: insertError } = await admin
+      .from("bulletins")
+      .insert({
+        title: latest.title,
+        content: `교육사역국 ${DEPT_KEY} 주보 PDF입니다.\n${DEPT_MARKER}\n${UMS_MARKER} ${latest.no}`,
+        sunday_date: issueDate,
+        pdf_url: objectPath,
+        created_at: new Date().toISOString(),
+      });
+
+    if (insertError) throw new Error(insertError.message);
+    await logSync(admin, "success", { detail: objectPath, item_no: latest.no, issue_date: issueDate });
+    return { ok: true, skipped: false, latest, pdf_path: objectPath, bytes: pdf.byteLength };
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : `${DEPT_KEY} 주보 수집 실패`;
+    await logSync(admin, "error", { detail });
+    throw e;
+  }
 }
 
 async function handler(req: NextRequest) {
