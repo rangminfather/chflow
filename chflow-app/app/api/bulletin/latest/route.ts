@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import iconv from "iconv-lite";
 import { syncJuboBulletin } from "@/lib/bulletin/jubo-sync";
+import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -198,15 +200,29 @@ async function loadPublicItems() {
     return publicListCache;
   }
 
-  const attempts = [
-    { name: "ums-fetch", url: PROXY_URL },
-    { name: "direct", url: DIRECT_URL },
+  // UMS WAF가 /bbs/zboard.php GET을 데이터센터 IP(=Vercel)에서 403 차단한다.
+  // cf-worker(umsViaCf, Cloudflare edge)가 유일하게 안정적으로 통과하므로 1순위.
+  // ums-fetch(Supabase edge)는 현재 anti-bot 페이지를 반환해 파싱 0건이 잦고,
+  // direct는 Vercel에서 403이라 폴백으로만 둔다(로컬/비차단 IP에서는 통과).
+  const attempts: { name: string; fetch: () => Promise<string> }[] = [
+    {
+      name: "cf-worker",
+      fetch: async () => {
+        const res = await umsViaCf("/bbs/zboard.php?id=jubo&page=1", {
+          referer: "http://www.ums.or.kr/",
+        });
+        if (res.status !== 200) throw new Error(`UMS response ${res.status}`);
+        return iconv.decode(res.body, "cp949");
+      },
+    },
+    { name: "ums-fetch", fetch: () => fetchEucKr(PROXY_URL) },
+    { name: "direct", fetch: () => fetchEucKr(DIRECT_URL) },
   ];
 
   let lastError = "";
   for (const attempt of attempts) {
     try {
-      const html = await fetchEucKr(attempt.url);
+      const html = await attempt.fetch();
       const items = parseJuboList(html);
       if (items.length > 0) {
         publicListCache = { items, source: attempt.name, expiresAt: Date.now() + CACHE_TTL_MS };
