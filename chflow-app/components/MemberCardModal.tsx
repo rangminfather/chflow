@@ -137,8 +137,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
       const { error: upErr } = await supabase.storage.from("member-photos")
         .upload(path, file, { upsert: true, contentType: file.type });
       if (upErr) { alert(`업로드 실패: ${upErr.message}`); return; }
-      const { data: { publicUrl } } = supabase.storage.from("member-photos").getPublicUrl(path);
-      const url = `${publicUrl}?t=${Date.now()}`;
+      const url = `/api/storage/member-photos/${path}?t=${Date.now()}`;
       const { error: rpcErr } = await supabase.rpc("admin_set_member_photo", { p_member_id: currentId, p_photo_url: url });
       if (rpcErr) { alert(`저장 실패: ${rpcErr.message}`); return; }
       await load();

@@ -133,9 +133,8 @@ export default function FeedbackDetailPage() {
     return () => window.removeEventListener("popstate", onPop);
   }, [viewerUrl, router]);
 
-  function publicUrl(path: string): string {
-    const { data } = supabase.storage.from("feedback-attachments").getPublicUrl(path);
-    return data.publicUrl;
+  function proxyUrl(path: string): string {
+    return `/api/storage/feedback-attachments/${path}`;
   }
 
   function pickFiles() { fileInputRef.current?.click(); }
@@ -275,7 +274,7 @@ export default function FeedbackDetailPage() {
         {post.attachments.length > 0 && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8, marginTop: 16 }}>
             {post.attachments.map((a) => {
-              const url = publicUrl(a.file_path);
+              const url = proxyUrl(a.file_path);
               return (
                 <button key={a.id} type="button" onClick={() => setViewerUrl(url)} style={attBtn}>
                   <img src={url} alt={a.file_name} style={attImg} />
@@ -341,7 +340,7 @@ export default function FeedbackDetailPage() {
                 {c.attachments.length > 0 && (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 6, marginTop: 8 }}>
                     {c.attachments.map((a) => {
-                      const url = publicUrl(a.file_path);
+                      const url = proxyUrl(a.file_path);
                       return (
                         <button key={a.id} type="button" onClick={() => setViewerUrl(url)} style={attBtn}>
                           <img src={url} alt={a.file_name} style={attImg} />
