@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import * as XLSX from "xlsx";
+import { Workbook, type Worksheet } from "exceljs";
 import { supabase } from "@/lib/supabase";
 import ModalBackdrop from "./ModalBackdrop";
 import { Download, Upload, Paperclip, AlertTriangle } from "lucide-react";
@@ -72,7 +72,7 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
       }
 
       setProgress("엑셀 생성 중...");
-      const wb = XLSX.utils.book_new();
+      const wb = new Workbook();
 
       // _README
       const readme = [
@@ -87,9 +87,9 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
         ["   소속 변경은 household_id 를 다른 값으로 바꿔야 반영됩니다."],
         ["4. 업로드는 회원관리 페이지의 '일괄업로드' 버튼에서 진행하세요."],
       ];
-      const wsR = XLSX.utils.aoa_to_sheet(readme);
-      wsR["!cols"] = [{ wch: 90 }];
-      XLSX.utils.book_append_sheet(wb, wsR, "_README");
+      const wsR = wb.addWorksheet("_README");
+      wsR.getColumn(1).width = 90;
+      for (const row of readme) wsR.addRow(row);
 
       // Members
       if (sel.Members) {
@@ -127,9 +127,8 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
               spouse_id: m.spouse_id,
             };
           });
-        const ws = XLSX.utils.json_to_sheet(rows);
+        const ws = addJsonSheet(wb, "Members", rows);
         markPkCols(ws, ["id", "household_id", "spouse_id"]);
-        XLSX.utils.book_append_sheet(wb, ws, "Members");
       }
 
       // Relations
@@ -146,9 +145,8 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
             role: r.role,
           }))
           .sort((a, b) => String(a.subject_name || "").localeCompare(String(b.subject_name || "")) || String(a.kind || "").localeCompare(String(b.kind || "")));
-        const ws = XLSX.utils.json_to_sheet(rows);
+        const ws = addJsonSheet(wb, "Relations", rows);
         markPkCols(ws, ["id", "subject_id", "relative_id"]);
-        XLSX.utils.book_append_sheet(wb, ws, "Relations");
       }
 
       // Ministries
@@ -162,9 +160,9 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
           role: x.role,
           notes: x.notes,
         }));
-        const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ id: "", member_id: "", member_name: "", ministry: "", role: "", notes: "" }]);
+        const placeholder = [{ id: "", member_id: "", member_name: "", ministry: "", role: "", notes: "" }];
+        const ws = addJsonSheet(wb, "Ministries", rows.length ? rows : placeholder);
         markPkCols(ws, ["id", "member_id"]);
-        XLSX.utils.book_append_sheet(wb, ws, "Ministries");
       }
 
       // Directory
@@ -191,14 +189,14 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
           || String(a.pasture_name || "").localeCompare(String(b.pasture_name || ""))
           || Number(a.order_no || 0) - Number(b.order_no || 0)
         );
-        const ws = XLSX.utils.json_to_sheet(rows);
+        const ws = addJsonSheet(wb, "Directory", rows);
         markPkCols(ws, ["household_id", "pasture_id", "grassland_id", "plain_id"]);
-        XLSX.utils.book_append_sheet(wb, ws, "Directory");
       }
 
       setProgress("다운로드 중...");
       const fileName = `members_export_${dateStamp()}.xlsx`;
-      XLSX.writeFile(wb, fileName);
+      const buf = await wb.xlsx.writeBuffer();
+      triggerDownload(buf, fileName);
       setProgress(`✓ 다운로드 완료: ${fileName}`);
       setTimeout(onClose, 1500);
     } catch (e: unknown) {
@@ -329,14 +327,15 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
     setProgress("엑셀 파싱 중...");
     try {
       const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { cellDates: true });
+      const wb = new Workbook();
+      await wb.xlsx.load(buf);
       const results: DiffResult[] = [];
 
       for (const sheetName of ["Directory", "Members", "Relations", "Ministries"]) {
-        if (!wb.SheetNames.includes(sheetName)) continue;
+        const ws = wb.getWorksheet(sheetName);
+        if (!ws) continue;
         const def = SHEET_DEFS[sheetName];
-        const ws = wb.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json<DataRow>(ws, { defval: null });
+        const rows = wsToJson(ws);
         const excelRows = rows.map(r => normalizeRow(r, def.cols)).filter((r): r is DataRow => Boolean(r));
 
         setProgress(`[${sheetName}] DB 비교 중...`);
@@ -575,16 +574,58 @@ function ModeOption({ value, cur, onClick, badge, tone, title, desc }: {
   );
 }
 
-function markPkCols(ws: XLSX.WorkSheet, cols: string[]) {
-  const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
-  for (let c = range.s.c; c <= range.e.c; c++) {
-    const cellAddr = XLSX.utils.encode_cell({ r: 0, c });
-    const header = ws[cellAddr];
-    if (header && cols.includes(String(header.v))) {
-      // 셀 코멘트 추가 — sheetjs 무료판에서는 스타일 미지원이라 코멘트만
-      header.c = [{ a: "system", t: "PK — 절대 수정/삭제 금지" }];
-    }
+function xlCellToValue(v: unknown): RowValue {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) return v;
+  if (typeof v === "object") {
+    if ("richText" in v) return (v as { richText: { text: string }[] }).richText.map(r => r.text).join("");
+    if ("formula" in v) return ((v as { result?: unknown }).result as RowValue) ?? null;
+    if ("hyperlink" in v) return (v as { text?: unknown }).text as RowValue ?? null;
+    if ("error" in v) return null;
   }
+  return v as RowValue;
+}
+
+function wsToJson(ws: Worksheet): DataRow[] {
+  const headers: string[] = [];
+  const rows: DataRow[] = [];
+  ws.eachRow({ includeEmpty: false }, (row, rowNum) => {
+    const vals = (row.values as unknown[]).slice(1);
+    if (rowNum === 1) {
+      headers.push(...vals.map(v => String(v ?? "")));
+    } else {
+      const obj: DataRow = {};
+      headers.forEach((h, i) => { obj[h] = xlCellToValue(vals[i]); });
+      rows.push(obj);
+    }
+  });
+  return rows;
+}
+
+function addJsonSheet(wb: Workbook, name: string, rows: DataRow[]): Worksheet {
+  const ws = wb.addWorksheet(name);
+  if (rows.length > 0) {
+    ws.columns = Object.keys(rows[0]).map(key => ({ header: key, key }));
+    ws.addRows(rows);
+  }
+  return ws;
+}
+
+function triggerDownload(buffer: ArrayBuffer | Buffer, fileName: string) {
+  const blob = new Blob([new Uint8Array(buffer as ArrayBuffer)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = fileName;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function markPkCols(ws: Worksheet, cols: string[]) {
+  ws.getRow(1).eachCell((cell) => {
+    if (cols.includes(String(cell.value))) {
+      cell.font = { bold: true, color: { argb: "FF8B4513" } };
+    }
+  });
 }
 
 function dateStamp() {

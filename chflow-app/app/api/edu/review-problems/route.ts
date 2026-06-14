@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import JSZip from "jszip";
-import * as XLSX from "xlsx";
+import { Workbook } from "exceljs";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -328,17 +328,30 @@ function scoreSheetForMonth(sheetName: string, month: number) {
   return 0;
 }
 
-function readLessonsFromWorkbook(buffer: Buffer, sourceFile: string, fileOrder: number, year: number) {
-  const workbook = XLSX.read(buffer, { type: "buffer" });
+function xlCellToStr(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (v instanceof Date) return v.toISOString().split("T")[0];
+  if (typeof v === "object") {
+    if ("richText" in v) return (v as { richText: { text: string }[] }).richText.map(r => r.text).join("");
+    if ("formula" in v) return String((v as { result?: unknown }).result ?? "");
+    if ("hyperlink" in v) return String((v as { text?: unknown }).text ?? "");
+    if ("error" in v) return "";
+  }
+  return String(v);
+}
+
+async function readLessonsFromWorkbook(buffer: Buffer, sourceFile: string, fileOrder: number, year: number) {
+  const wb = new Workbook();
+  // @ts-expect-error TS5.9 esnext ArrayBuffer generics vs exceljs Buffer type
+  await wb.xlsx.load(buffer);
   const lessons: PlanLesson[] = [];
 
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json<string[]>(sheet, {
-      header: 1,
-      raw: false,
-      defval: "",
-      blankrows: false,
+  for (const ws of wb.worksheets) {
+    const sheetName = ws.name;
+    const rows: string[][] = [];
+    ws.eachRow({ includeEmpty: false }, (row) => {
+      const vals = (row.values as unknown[]).slice(1);
+      rows.push(Array.from({ length: 12 }, (_, i) => xlCellToStr(vals[i])));
     });
 
     for (const rawRow of rows) {
@@ -382,7 +395,7 @@ async function loadPlanLesson(admin: ReturnType<typeof adminClient>, deptId: str
     const { data } = await admin.storage.from(PLAN_BUCKET).download(path);
     if (!data) continue;
     const buffer = Buffer.from(await data.arrayBuffer());
-    allLessons.push(...readLessonsFromWorkbook(buffer, file.name, index, year));
+    allLessons.push(...await readLessonsFromWorkbook(buffer, file.name, index, year));
   }
 
   const month = Number(date.slice(5, 7));

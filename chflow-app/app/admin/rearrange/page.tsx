@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import * as XLSX from "xlsx";
+import { Workbook } from "exceljs";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
 import { FileDown, Save, Trash2, AlertTriangle, User, Users } from "lucide-react";
@@ -270,11 +270,11 @@ export default function RearrangePage() {
   };
 
   // Excel 출력
-  const exportExcel = () => {
+  const exportExcel = async () => {
     const data = buildExportData();
     if (data.length === 0) { alert("선택된 평원에 목장이 없습니다."); return; }
     const year = new Date().getFullYear();
-    const wb = XLSX.utils.book_new();
+    const wb = new Workbook();
     data.forEach(pl => {
       const rows: (string | number)[][] = [
         [`${year}년 초원 재편성 — ${pl.plain}`],
@@ -284,13 +284,18 @@ export default function RearrangePage() {
       pl.grasslands.forEach(g => {
         rows.push([`${g.name} 초원`, g.pastures.map(n => `${n} 목장`).join(", ")]);
       });
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      ws["!cols"] = [{ wch: 16 }, { wch: 80 }];
-      ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
       const sheetName = pl.plain.replace(/[:\\/?*[\]]/g, "").slice(0, 31);
-      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      const ws = wb.addWorksheet(sheetName);
+      ws.getColumn(1).width = 16;
+      ws.getColumn(2).width = 80;
+      for (const row of rows) ws.addRow(row);
+      ws.mergeCells(1, 1, 1, 2);
     });
-    XLSX.writeFile(wb, `초원재편성_${year}.xlsx`);
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `초원재편성_${year}.xlsx`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     setExportOpen(false);
   };
 
