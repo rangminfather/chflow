@@ -45,7 +45,8 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 | **H-5** | High | xlsx 0.18.5 서버측 파싱(prototype pollution/ReDoS) | ✅ **해소**(2026-06-15, exceljs 4.4.0 전면 교체) |
 | **M-err** | Medium | API 라우트 에러 원문 노출 (error.message 반환) | ✅ **해소**(2026-06-15, 12개 파일 29곳 한국어 일반 메시지로 교체) |
 | **M-bucket** | Medium | member-photos·feedback-attachments 버킷 public → PII 사진 노출 | ✅ **해소**(2026-06-15, private 전환 + /api/storage/ 프록시, DB 마이그레이션 완료) |
-| **M-others** | Medium | find-id/password 계정 존재여부 노출 등 | ⏳ 미착수 |
+| **L-enum** | Low | 로그인·비밀번호재설정 계정 존재여부 노출 (열거 가능) | ✅ **해소**(2026-06-15, check_username_available 제거·API 응답 통일) |
+| **L-token** | Low | `window.__chflowSupabase` Supabase 클라이언트 전역 노출 | ✅ **해소**(2026-06-15, 전역 할당 제거) |
 | **L-1~5** | Low | 진단코드 토큰노출, rate-limit 부재, document.write 등 | ⏳ 미착수 |
 
 ### 적용 완료/배포된 코드 (참고)
@@ -90,7 +91,9 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 - ~~**CSP**~~ → ✅ **enforce 전환 완료(2026-06-14)**. `next.config.ts`에서 `Content-Security-Policy-Report-Only` → `Content-Security-Policy`로 전환. Playwright로 공개·인증 화면 전체 CSP 위반 0건 확인. commit 2928dbb.
 - ~~**M-err**: 에러원문 노출~~ → ✅ **해소(2026-06-15)**. API 라우트 12개 파일, 29곳 `error.message` → 한국어 일반 메시지. ums-bulletin/post-v2 스택트레이스 필드 제거.
 - ~~**M-bucket**: 버킷 public~~ → ✅ **해소(2026-06-15)**. member-photos·feedback-attachments → `public=false`. `/api/storage/[bucket]/[...path]` 프록시 라우트 (인증 확인 → signed URL 302). members.photo_url 513건 → `/api/storage/...` 형태로 DB 마이그레이션 완료. commit df3c688.
-- **남은 M/L**: find-id/password 계정 존재여부 노출(L, enumeration), `window.__chflowSupabase` 진단코드(L), postcss moderate(next 내부·16.3 릴리즈 자동해소).
+- ~~**L-enum**: find-id/password 계정 열거~~ → ✅ **해소(2026-06-15)**. 로그인 `check_username_available` 클라이언트 사전체크 제거. API 응답 통일(404→401, "아이디 또는 비밀번호가 일치하지 않습니다"). 비밀번호재설정 계정 미존재 시 `noEmail:true` 반환(200).
+- ~~**L-token**: `window.__chflowSupabase` 전역 노출~~ → ✅ **해소(2026-06-15)**. `lib/supabase.ts`에서 전역 할당 제거.
+- **남은 것**: postcss moderate(next 내부, Next.js 16.3 릴리즈 자동해소).
 
 ---
 
