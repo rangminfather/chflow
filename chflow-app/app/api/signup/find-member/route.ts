@@ -39,6 +39,6 @@ export async function POST(req: NextRequest) {
     p_name: name,
     p_phone: phone,
   });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: "조회 중 오류가 발생했습니다." }, { status: 500 });
   return NextResponse.json({ data: data ?? [] });
 }
