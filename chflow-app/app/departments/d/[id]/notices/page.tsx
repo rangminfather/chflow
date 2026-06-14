@@ -63,11 +63,15 @@ export default function NoticesPage() {
               <div className="mt-1 text-[15px] leading-6 text-ink-soft">등록된 월간 계획 파일을 조회합니다.</div>
             </button>
 
-            <div className="rounded-lg border border-hairline bg-surface p-4">
+            <button
+              type="button"
+              onClick={() => router.push(`/departments/d/${deptId}/notices/board`)}
+              className="rounded-lg border border-hairline bg-surface p-4 text-left"
+            >
               <div><Pin size={28} strokeWidth={1.8} /></div>
               <div className="mt-2 text-[18px] font-extrabold text-ink">일반 공지</div>
-              <div className="mt-1 text-[15px] leading-6 text-ink-soft">일반 공지글 작성 기능은 다음 단계에서 게시판으로 확장됩니다.</div>
-            </div>
+              <div className="mt-1 text-[15px] leading-6 text-ink-soft">부서 공지 게시판입니다. 리더·임원진이 공지를 올리고 답글로 소통합니다.</div>
+            </button>
           </div>
         </section>
       </main>
