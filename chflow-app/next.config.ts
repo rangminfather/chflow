@@ -1,18 +1,11 @@
 import type { NextConfig } from "next";
 
-// CSP (Report-Only) — 차단하지 않고 위반만 브라우저 콘솔에 보고한다.
-// 목적: 실제 로드되는 출처를 수집해, 이후 enforce(Content-Security-Policy)로
-// 전환할 때 깨지는 곳을 미리 파악한다. report-only 라 앱 동작에 영향 없음.
-//
-// 반영된 실외부 출처(2026-06-14 코드 조사 기준):
-//  - Daum 우편번호: t1.daumcdn.net(스크립트) + *.daumcdn.net(iframe)  [signup]
-//  - Pretendard 폰트: cdn.jsdelivr.net(CSS+폰트)  [layout]
-//  - Supabase: *.supabase.co (https REST/Storage) + wss(Realtime; Talk)
-//  - PDF 뷰어: pdfjs 번들 + /pdf.worker.min.mjs(자체 오리진) → worker-src 'self' blob:
-//  - 이미지: data:(매뉴얼 base64)·blob:(pdf 캔버스/미리보기)·supabase storage
-// 'unsafe-inline'/'unsafe-eval' 은 Next 하이드레이션·인라인 스타일·pdfjs 때문에
-// 우선 허용. enforce 전환 시 nonce 도입으로 좁힐 수 있음.
-const cspReportOnly = [
+// CSP (Enforced) — 2026-06-14 enforce 전환.
+// 외부 출처: Daum 우편번호(t1/*.daumcdn.net), Pretendard(cdn.jsdelivr.net),
+//   Supabase(*.supabase.co https+wss), PDF worker(self/blob:), 이미지(data:/blob:/supabase)
+// 'unsafe-inline'/'unsafe-eval': Next 하이드레이션·인라인 스타일·pdfjs 필수.
+//   향후 nonce 도입으로 축소 가능.
+const cspPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
@@ -29,8 +22,7 @@ const cspReportOnly = [
 
 // 보안 헤더 — 앱 동작을 깨뜨리지 않는 항목만 적용.
 const securityHeaders = [
-  // CSP 는 우선 report-only 로 관측만 한다(비차단). enforce 는 위반 로그 확인 후.
-  { key: "Content-Security-Policy-Report-Only", value: cspReportOnly },
+  { key: "Content-Security-Policy", value: cspPolicy },
   // HTTPS 강제 (1년). Vercel 이 HTTPS 를 제공하므로 안전.
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
   // 클릭재킹 방지: 외부 사이트의 iframe 임베드 차단. WebView 셸은 영향 없음.
