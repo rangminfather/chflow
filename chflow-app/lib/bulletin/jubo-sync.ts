@@ -51,6 +51,23 @@ async function fetchEucKr(url: string): Promise<string> {
   return new TextDecoder("euc-kr").decode(buf);
 }
 
+// 목록 페이지(`/bbs/zboard.php`)는 UMS WAF가 데이터센터 IP(=Vercel egress)에서 403 차단한다.
+// PDF 단계와 동일하게 Cloudflare Worker(umsViaCf)로 우회한다. 로컬/비차단 IP는 직접 fetch가
+// 통과하므로 우선 시도하고, 실패(403 포함) 시 워커로 폴백.
+async function fetchListHtml(): Promise<string> {
+  try {
+    return await fetchEucKr(LIST_URL);
+  } catch (directError) {
+    console.warn("[jubo-sync] direct list fetch failed, trying worker", directError);
+  }
+
+  const res = await umsViaCf("/bbs/zboard.php?id=jubo&page=1", {
+    referer: "http://www.ums.or.kr/",
+  });
+  if (res.status !== 200) throw new Error(`UMS response ${res.status}`);
+  return iconv.decode(res.body, "cp949");
+}
+
 function decodeHtml(value: string) {
   return value
     .replace(/&nbsp;/g, " ")
@@ -333,7 +350,7 @@ async function runSync(): Promise<JuboSyncResult> {
       throw new Error("UMS_JUBO_USER_ID/UMS_JUBO_PASSWORD 또는 UMS_USER_ID/UMS_PASSWORD 환경변수가 필요합니다");
     }
 
-    const html = await fetchEucKr(LIST_URL);
+    const html = await fetchListHtml();
     const latest = parseLatestJubo(html);
     if (!latest) throw new Error("최신 주보 항목을 찾지 못했습니다");
 
