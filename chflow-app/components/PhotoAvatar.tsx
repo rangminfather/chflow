@@ -73,8 +73,7 @@ export default function PhotoAvatar({
       .filter((f) => !f.name.startsWith(".") && f.name !== "profile.png")
       .map((f) => {
         const path = `${userId}/${f.name}`;
-        const { data: u } = supabase.storage.from("member-photos").getPublicUrl(path);
-        return { name: f.name, url: u.publicUrl, createdAt: f.created_at };
+        return { name: f.name, url: `/api/storage/member-photos/${path}`, createdAt: f.created_at };
       });
     setGallery(items);
     setLoadingGallery(false);
@@ -174,11 +173,7 @@ export default function PhotoAvatar({
         return;
       }
 
-      const { data: urlData } = supabase.storage
-        .from("member-photos")
-        .getPublicUrl(fileName);
-
-      const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      const publicUrl = `/api/storage/member-photos/${fileName}?t=${Date.now()}`;
 
       const { error: rpcError } = await supabase.rpc("update_my_photo", {
         p_photo_url: publicUrl,
