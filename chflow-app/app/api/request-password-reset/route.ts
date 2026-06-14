@@ -1,5 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+
+const rl = new Map<string, { n: number; reset: number }>();
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rl.get(ip);
+  if (!entry || now > entry.reset) { rl.set(ip, { n: 1, reset: now + 60_000 }); return true; }
+  if (entry.n >= 5) return false;
+  entry.n++;
+  return true;
+}
 
 function createSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -34,7 +44,11 @@ function isUsableRecoveryEmail(email: string | null | undefined): email is strin
   return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !email.toLowerCase().endsWith("@smartms.app");
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  if (!checkRateLimit(ip)) {
+    return NextResponse.json({ error: "요청이 너무 많습니다. 잠시 후 다시 시도하세요." }, { status: 429 });
+  }
   try {
     const supabaseAdmin = createSupabaseAdmin();
     const { username } = await req.json();
@@ -76,7 +90,7 @@ export async function POST(req: Request) {
         email_confirm: true,
       });
       if (updateAuthError) {
-        return NextResponse.json({ error: updateAuthError.message }, { status: 500 });
+        return NextResponse.json({ error: "계정 정보를 업데이트할 수 없습니다" }, { status: 500 });
       }
 
       resetEmail = profile.email;
@@ -91,7 +105,7 @@ export async function POST(req: Request) {
     });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: "비밀번호 재설정 메일을 발송할 수 없습니다" }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, maskedEmail: maskEmail(resetEmail) });
