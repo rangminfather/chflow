@@ -625,7 +625,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ ok: true, problems, planStatus, match });
   } catch (e: unknown) {
-    return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "처리 중 오류가 발생했습니다." }, { status: 500 });
   }
 }
 
@@ -654,7 +654,7 @@ export async function POST(req: NextRequest) {
       contentType: file.type || "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       upsert: false,
     });
-    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    if (error) return NextResponse.json({ ok: false, error: "업로드 중 오류가 발생했습니다." }, { status: 500 });
 
     const fullParsed = { ...parsed, path: pptxPath };
     await Promise.all([

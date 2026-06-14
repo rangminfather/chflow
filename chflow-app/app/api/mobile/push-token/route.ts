@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     .select("id, last_seen_at")
     .single();
 
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: "처리 중 오류가 발생했습니다." }, { status: 500 });
 
   return NextResponse.json({ ok: true, token_id: data.id, last_seen_at: data.last_seen_at });
 }

@@ -205,7 +205,7 @@ export async function POST(req: NextRequest) {
       // Rollback: delete user
       await admin.auth.admin.deleteUser(userId);
       return NextResponse.json(
-        { error: `프로필 생성 실패: ${profileError.message}` },
+        { error: "프로필 생성 실패" },
         { status: 500 }
       );
     }

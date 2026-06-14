@@ -85,6 +85,6 @@ export async function PUT(req: NextRequest) {
       updated_at: new Date().toISOString(),
     });
 
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: "처리 중 오류가 발생했습니다." }, { status: 500 });
   return NextResponse.json({ ok: true, content });
 }

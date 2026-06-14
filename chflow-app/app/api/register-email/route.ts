@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       email_confirm: true,
     });
     if (updateAuthError) {
-      return NextResponse.json({ error: updateAuthError.message }, { status: 500 });
+      return NextResponse.json({ error: "이메일 인증 정보를 업데이트할 수 없습니다." }, { status: 500 });
     }
 
     const { error: updateProfileError } = await admin
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
       .eq("id", authData.user.id);
 
     if (updateProfileError) {
-      return NextResponse.json({ error: updateProfileError.message }, { status: 500 });
+      return NextResponse.json({ error: "프로필 업데이트 중 오류가 발생했습니다." }, { status: 500 });
     }
 
     return NextResponse.json({ email: trimmedEmail });

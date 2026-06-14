@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
 
   if (updateStudentErr) {
     return NextResponse.json(
-      { ok: false, error: `학생 정보 저장 실패: ${updateStudentErr.message}` },
+      { ok: false, error: "학생 정보 저장 실패" },
       { status: 500 },
     );
   }
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
 
     if (updateMemberErr) {
       return NextResponse.json(
-        { ok: false, error: `인적사항 저장 실패: ${updateMemberErr.message}` },
+        { ok: false, error: "인적사항 저장 실패" },
         { status: 500 },
       );
     }
