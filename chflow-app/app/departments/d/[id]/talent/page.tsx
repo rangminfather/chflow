@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Medal } from "lucide-react";
+import { Check, ChevronUp, Info, Medal, PiggyBank, Plus, Star } from "lucide-react";
 
 interface Student {
   id: string;
@@ -85,6 +85,7 @@ export default function TalentPage() {
   const [rules, setRules] = useState<TalentRule[]>([]);
   const [extras, setExtras] = useState<WeeklyExtra[]>([]);
   const [others, setOthers] = useState<OtherRecord[]>([]);
+  const [cumulative, setCumulative] = useState<Record<string, number>>({}); // 학생별 전체기간 누적 잔액
   const [saving, setSaving] = useState("");
   const [toast, setToast] = useState("");
   const [otherModal, setOtherModal] = useState<{ student: Student; date: string } | null>(null);
@@ -163,7 +164,53 @@ export default function TalentPage() {
     setAttendance(((attRows || []) as AttendRow[]).filter((row) => studentIds.includes(row.student_id)));
     setExtras(((extraRows || []) as WeeklyExtra[]).filter((row) => studentIds.includes(row.student_id)));
     await loadOtherRecords(studentIds);
+    await loadCumulative(classStudents);
     setLoading(false);
+  }
+
+  // 학생별 전체기간 누적 잔액 = 자동적립(출석×규칙 + 주간적립×규칙) + 기타(pts_other)
+  async function loadCumulative(classStudents: Student[]) {
+    const ids = classStudents.map((student) => student.id);
+    if (ids.length === 0) {
+      setCumulative({});
+      return;
+    }
+
+    const wanted = new Set(["attendance", ...CHECK_RULE_KEYS]);
+
+    // 자동 적립 — 학생별 RPC(전체기간). 기존 get_student_auto_talent 사용.
+    const autoEntries = await Promise.all(
+      classStudents.map(async (student) => {
+        const { data } = await supabase.rpc("get_student_auto_talent", {
+          p_student_id: student.id,
+          p_year_from: 2000,
+          p_month_from: 1,
+          p_year_to: 2100,
+          p_month_to: 12,
+        });
+        const sum = ((data || []) as { rule_key: string; total: number }[])
+          .filter((row) => wanted.has(row.rule_key))
+          .reduce((acc, row) => acc + (row.total || 0), 0);
+        return [student.id, sum] as const;
+      })
+    );
+
+    // 기타(pts_other) 전체기간 합
+    const { data: recs } = await supabase
+      .from("edu_talent_records")
+      .select("student_id, pts_other")
+      .eq("department_id", deptId)
+      .in("student_id", ids)
+      .gt("pts_other", 0);
+
+    const otherSum: Record<string, number> = {};
+    ((recs || []) as { student_id: string; pts_other: number }[]).forEach((row) => {
+      otherSum[row.student_id] = (otherSum[row.student_id] || 0) + (row.pts_other || 0);
+    });
+
+    const map: Record<string, number> = {};
+    autoEntries.forEach(([id, sum]) => { map[id] = sum + (otherSum[id] || 0); });
+    setCumulative(map);
   }
 
   async function loadStudents(teacherId: string) {
@@ -343,6 +390,12 @@ export default function TalentPage() {
         },
       ];
     });
+
+    // 누적 잔액 실시간 반영
+    setCumulative((prev) => ({
+      ...prev,
+      [student.id]: (prev[student.id] || 0) + (checked ? rule.points : -rule.points),
+    }));
   }
 
   function openOther(student: Student, date: string) {
@@ -382,6 +435,14 @@ export default function TalentPage() {
       }
 
       await loadOtherRecords(students.map((student) => student.id));
+
+      // 총 달란트 실시간 반영 (기타 변경분)
+      const oldOther = current?.pts_other || 0;
+      setCumulative((prev) => ({
+        ...prev,
+        [otherModal.student.id]: (prev[otherModal.student.id] || 0) + (amount - oldOther),
+      }));
+
       setOtherModal(null);
       showToast("저장되었습니다");
     } catch (error) {
@@ -418,6 +479,18 @@ export default function TalentPage() {
 
   return (
     <div style={pageStyle}>
+      <style>{`
+        .coin-chip { transition: background 0.16s, color 0.16s, box-shadow 0.16s, transform 0.12s; }
+        .coin-chip:active:not(:disabled) { transform: scale(0.96); }
+        .coin-on { animation: coinPop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        @keyframes coinPop {
+          0%   { transform: scale(0.85); }
+          60%  { transform: scale(1.05); }
+          100% { transform: scale(1); }
+        }
+        .kid-avatar { transition: transform 0.16s ease; }
+        .student-card:hover .kid-avatar { transform: scale(1.06); }
+      `}</style>
 
       <div style={headerStyle}>
         <HeaderLogo />
@@ -429,7 +502,7 @@ export default function TalentPage() {
       </div>
 
       <main className="mx-auto w-full max-w-6xl px-0 py-4 md:px-4">
-        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-lg border border-hairline bg-white px-4 py-3 md:mx-0">
+        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-hairline bg-white px-4 py-3 md:mx-0">
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
           <div className="min-w-[140px] text-center text-[19px] font-extrabold text-ink">
             {year}년 {month}월
@@ -459,128 +532,185 @@ export default function TalentPage() {
                 <article
                   key={date}
                   ref={(node) => { weekCardRefs.current[date] = node; }}
-                  className={[
-                    "shrink-0 w-[84vw] snap-center overflow-hidden rounded-lg bg-white shadow-sm md:w-auto",
-                    isTodayWeek
-                      ? "border-2 border-amber-500 shadow-[0_10px_30px_rgba(165, 119, 42,0.16)]"
-                      : "border border-hairline-strong",
-                  ].join(" ")}
+                  className="shrink-0 w-[84vw] snap-center overflow-hidden rounded-3xl md:w-auto"
+                  style={{
+                    background: "var(--card)",
+                    border: isTodayWeek ? "1.5px solid color-mix(in srgb, var(--brass) 60%, transparent)" : "1px solid var(--hairline)",
+                    boxShadow: isTodayWeek
+                      ? "0 12px 30px color-mix(in srgb, var(--brass) 20%, transparent)"
+                      : "0 4px 16px rgba(43,39,34,0.06)",
+                  }}
                 >
-                  <header className={[
-                    "border-b px-4 py-3",
-                    isTodayWeek ? "border-amber-200 bg-gradient-to-r from-amber-50 to-white" : "border-hairline bg-surface",
-                  ].join(" ")}
+                  {/* 동전통장 표지 */}
+                  <header
+                    className="flex items-center justify-between gap-3 px-4 py-4 text-white"
+                    style={{ background: COIN_GRAD }}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2 text-[19px] font-extrabold text-ink">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl" style={{ background: "rgba(255,255,255,0.22)" }}>
+                        <PiggyBank size={20} strokeWidth={2} />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 text-[20px] font-extrabold leading-tight">
                           {index + 1}주차
                           {isTodayWeek && (
-                            <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[12px] font-extrabold text-amber-800">
-                              오늘 주차
+                            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-extrabold" style={{ background: "rgba(255,255,255,0.28)" }}>
+                              <Star size={11} fill="currentColor" strokeWidth={0} /> 오늘
                             </span>
                           )}
                           {!isEditableWeek && (
-                            <span
-                              className={[
-                                "rounded-full border px-2 py-0.5 text-[12px] font-extrabold",
-                                editState === "past"
-                                  ? "border-hairline bg-white text-ink-faint"
-                                  : "border-accent-line bg-accent-soft text-accent-strong",
-                              ].join(" ")}
-                            >
+                            <span className="rounded-full px-2 py-0.5 text-[11px] font-extrabold" style={{ background: "rgba(255,255,255,0.24)" }}>
                               {editState === "past" ? "수정 마감" : "예정"}
                             </span>
                           )}
                         </div>
-                        <div className="mt-1 text-[13px] font-semibold text-ink-soft">{formatMD(date)} 주일</div>
-                      </div>
-                      <div className={[
-                        "rounded-md border bg-white px-2.5 py-1 text-[13px] font-extrabold",
-                        isTodayWeek ? "border-amber-200 text-amber-800" : "border-hairline text-ink-mid",
-                      ].join(" ")}
-                      >
-                        {weekTotal(date)}개
+                        <div className="mt-0.5 text-[12px] font-semibold" style={{ opacity: 0.9 }}>{formatMD(date)} 주일</div>
                       </div>
                     </div>
+                    <div className="flex shrink-0 flex-col items-end leading-tight">
+                      <span className="text-[10px] font-bold" style={{ opacity: 0.9 }}>이번 주</span>
+                      <span className="text-[20px] font-extrabold">+{weekTotal(date)}</span>
+                    </div>
                   </header>
+                  {/* 절취선 */}
+                  <div style={{ borderTop: "2px dotted color-mix(in srgb, var(--brass) 45%, transparent)" }} />
 
-                  <section className="space-y-3 bg-white px-4 py-4">
+                  <section className="flex flex-col gap-2.5 px-3.5 py-3.5">
                     {students.map((student) => {
                       const studentTotal = studentWeekTotal(student.id, date);
                       const present = isPresent(student.id, date);
                       const other = getOther(student.id, date);
 
                       return (
-                        <div key={student.id} className="rounded-lg border border-hairline bg-surface p-3">
-                          <div className="mb-3 flex items-center justify-between gap-3">
-                            <div className="min-w-0 truncate text-[16px] font-extrabold text-ink">{student.name}</div>
-                            <span className="shrink-0 rounded-md border border-amber-200 bg-white px-2 py-1 text-[13px] font-extrabold text-amber-700">
-                              {studentTotal}개
+                        <div
+                          key={student.id}
+                          className="student-card rounded-3xl p-3.5"
+                          style={{ background: "var(--surface)", border: "1.5px solid var(--hairline)" }}
+                        >
+                          <div className="mb-2.5 flex items-center gap-2.5">
+                            <Avatar name={student.name} />
+                            <div className="min-w-0 flex-1 truncate text-[16px] font-extrabold" style={{ color: "var(--ink)" }}>{student.name}</div>
+                            <span
+                              className="flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-extrabold"
+                              style={studentTotal > 0
+                                ? { color: "var(--success)", background: "color-mix(in srgb, var(--success) 13%, #fff)", border: "1px solid color-mix(in srgb, var(--success) 32%, transparent)" }
+                                : { color: "var(--ink-faint)", background: "var(--bg-soft)", border: "1px solid var(--hairline-strong)" }}
+                            >
+                              {studentTotal > 0 && <ChevronUp size={13} strokeWidth={2.6} />} 이번 주 +{studentTotal}
                             </span>
                           </div>
 
-                          <div className="mb-2 grid grid-cols-2 gap-2">
-                            <div
-                              className={[
-                                "min-h-12 rounded-md border px-2 py-2 text-center text-[15px] font-extrabold leading-tight",
-                                present
-                                  ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                                  : "border-hairline bg-white text-ink-faint",
-                              ].join(" ")}
-                            >
-                              출석 자동 +{getRulePoints("attendance")}
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => openOther(student, date)}
-                              disabled={!isEditableWeek}
-                              className={[
-                                "min-h-12 rounded-md border px-2 py-2 text-center text-[15px] font-extrabold leading-tight",
-                                other
-                                  ? "border-accent-line bg-accent-soft text-accent-strong"
-                                  : "border-hairline bg-white text-ink-mid",
-                                !isEditableWeek ? "cursor-not-allowed opacity-60" : "",
-                              ].join(" ")}
-                            >
-                              기타 {other ? `+${other.pts_other}` : ""}
-                            </button>
+                          {/* 총 달란트 (전체기간 누적, 실시간) */}
+                          <div
+                            className="mb-3 flex items-end justify-between gap-2 rounded-2xl px-3 py-2.5"
+                            style={{
+                              border: "1.5px solid color-mix(in srgb, var(--brass) 30%, transparent)",
+                              background: "linear-gradient(135deg, color-mix(in srgb, var(--brass) 14%, #fff), color-mix(in srgb, var(--warning) 12%, #fff))",
+                            }}
+                          >
+                            <span className="flex items-center gap-1.5 text-[12px] font-extrabold" style={{ color: "var(--warning)" }}>
+                              <PiggyBank size={14} strokeWidth={2.2} /> 총 달란트
+                            </span>
+                            <span className="flex items-baseline gap-1">
+                              <span className="text-[24px] font-extrabold leading-none" style={{ color: "var(--ink)", letterSpacing: "-0.02em" }}>{fmt(cumulative[student.id] ?? 0)}</span>
+                              <span className="text-[13px] font-extrabold" style={{ color: "var(--warning)" }}>달란트</span>
+                            </span>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-2">
+                          {/* 출석 — 내반출결에서 자동 체크 */}
+                          <div
+                            className="mb-2.5 flex items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-[14px] font-extrabold leading-tight"
+                            style={present
+                              ? { background: "color-mix(in srgb, var(--success) 12%, var(--card))", border: "1.5px solid color-mix(in srgb, var(--success) 36%, transparent)", color: "var(--success)" }
+                              : { background: "var(--card)", border: "1.5px dashed var(--hairline-strong)", color: "var(--ink-faint)" }}
+                          >
+                            <span className="flex items-center gap-2">
+                              <Check size={16} strokeWidth={2.6} className="shrink-0" />
+                              <span className="flex flex-col leading-tight">
+                                <span>출석</span>
+                                <span className="text-[11px] font-semibold" style={{ opacity: 0.75 }}>출석체크 자동체크</span>
+                              </span>
+                            </span>
+                            <span className="shrink-0">{present ? `자동 +${getRulePoints("attendance")}` : "-"}</span>
+                          </div>
+
+                          <div className="mb-2 flex items-center gap-1.5 px-1 text-[11px] font-bold" style={{ color: "var(--ink-faint)" }}>
+                            <Star size={12} fill="var(--warning)" strokeWidth={0} /> 누르면 달란트가 차곡차곡 모여요
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2.5">
                             {CHECK_RULE_KEYS.map((ruleKey) => {
                               const rule = ruleMap[ruleKey];
                               const selected = rule ? isChecked(student.id, date, rule) : false;
                               const key = rule ? extraKey(student.id, date, rule.id) : `${student.id}-${date}-${ruleKey}`;
+                              const label = rule?.label || DEFAULT_WEEKLY_RULES.find((item) => item.rule_key === ruleKey)?.label;
+                              const pts = rule?.points ?? 1;
+                              const disabled = !rule || !isEditableWeek || saving === key;
 
                               return (
                                 <button
                                   key={ruleKey}
                                   type="button"
                                   onClick={() => rule && toggleWeeklyItem(student, date, rule)}
-                                  disabled={!rule || !isEditableWeek || saving === key}
+                                  disabled={disabled}
                                   className={[
-                                    "min-h-12 rounded-md border px-2 py-2 text-[15px] font-extrabold leading-tight",
-                                    selected
-                                      ? "border-ink bg-ink text-white"
-                                      : "border-hairline bg-white text-ink-mid",
-                                    (!rule || !isEditableWeek) ? "cursor-not-allowed opacity-60" : "",
+                                    "coin-chip flex min-h-[50px] items-center gap-2 rounded-full px-3 py-2 text-[14px] font-extrabold leading-tight",
+                                    selected ? "coin-on" : "",
+                                    disabled ? "cursor-not-allowed" : "cursor-pointer",
+                                    (!rule || !isEditableWeek) && !selected ? "opacity-60" : "",
                                   ].join(" ")}
+                                  style={selected
+                                    ? { background: COIN_GRAD, color: "#fff", border: "1.5px solid transparent", boxShadow: "0 6px 15px color-mix(in srgb, var(--brass) 42%, transparent)" }
+                                    : { background: "var(--card)", color: "var(--ink-soft)", border: "1.5px dashed var(--hairline-strong)" }}
                                 >
-                                  {rule?.label || DEFAULT_WEEKLY_RULES.find((item) => item.rule_key === ruleKey)?.label}
+                                  <span
+                                    className="grid h-6 w-6 shrink-0 place-items-center rounded-full"
+                                    style={selected ? { background: "rgba(255,255,255,0.3)", color: "#fff" } : { background: "var(--bg-soft)", color: "var(--ink-faint)" }}
+                                  >
+                                    {selected ? <Star size={13} fill="currentColor" strokeWidth={0} /> : <Plus size={13} strokeWidth={2.8} />}
+                                  </span>
+                                  <span className="flex-1 truncate">{label}</span>
+                                  {selected && <span className="shrink-0 text-[12px]" style={{ opacity: 0.95 }}>+{pts}</span>}
                                 </button>
                               );
                             })}
+
+                            {/* 기타(직접입력) — 동전 칩과 동일 스타일, 그리드 마지막 칸 */}
+                            <button
+                              type="button"
+                              onClick={() => openOther(student, date)}
+                              disabled={!isEditableWeek}
+                              className={[
+                                "coin-chip flex min-h-[50px] items-center gap-2 rounded-full px-3 py-2 text-[14px] font-extrabold leading-tight",
+                                other ? "coin-on" : "",
+                                !isEditableWeek ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+                              ].join(" ")}
+                              style={other
+                                ? { background: COIN_GRAD, color: "#fff", border: "1.5px solid transparent", boxShadow: "0 6px 15px color-mix(in srgb, var(--brass) 42%, transparent)" }
+                                : { background: "var(--card)", color: "var(--ink-soft)", border: "1.5px dashed var(--hairline-strong)" }}
+                            >
+                              <span
+                                className="grid h-6 w-6 shrink-0 place-items-center rounded-full"
+                                style={other ? { background: "rgba(255,255,255,0.3)", color: "#fff" } : { background: "var(--bg-soft)", color: "var(--ink-faint)" }}
+                              >
+                                <Plus size={13} strokeWidth={2.8} />
+                              </span>
+                              <span className="flex-1 truncate">기타 (직접입력)</span>
+                              {other && <span className="shrink-0 text-[12px]" style={{ opacity: 0.95 }}>+{other.pts_other}</span>}
+                            </button>
                           </div>
                         </div>
                       );
                     })}
                   </section>
 
-                  <footer className="border-t border-hairline bg-surface px-4 py-3">
-                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[15px] leading-6 text-amber-900">
-                      출석은 내반출결에서 자동 반영됩니다. 기타는 사유와 수량을 직접 입력합니다.
+                  <footer className="px-3.5 pb-4">
+                    <div
+                      className="flex gap-2 rounded-xl px-3 py-2.5 text-[13px] leading-6"
+                      style={{ border: "1px solid color-mix(in srgb, var(--warning) 26%, transparent)", background: "var(--warning-soft)", color: "var(--ink-mid)" }}
+                    >
+                      <Info size={15} strokeWidth={2.2} className="mt-0.5 shrink-0" />
+                      <span>총 달란트는 출석·주간적립·기타를 모두 합한, 지금까지 모은 달란트예요. 출석은 내반출결에서 자동 반영됩니다.</span>
                     </div>
                   </footer>
                 </article>
@@ -722,6 +852,46 @@ function nextMonth(year: number, month: number, setYear: (y: number) => void, se
 
 function extraKey(studentId: string, date: string, ruleId: string) {
   return `${studentId}_${date}_${ruleId}`;
+}
+
+function fmt(n: number) {
+  return (n || 0).toLocaleString("ko-KR");
+}
+
+// 달란트 = 금화색 (아이들 통장 동전 톤). brass/warning 토큰은 어두운 갈색이라
+// 동전 느낌을 위해 밝은 골드 그라데이션을 이 화면 전용 상수로 둔다.
+const COIN_GRAD = "linear-gradient(135deg, #E7C25A, #C9923B)";
+
+// 아이별 둥근 아바타 — 이름 해시로 톤을 고정 배정(장식용, 성별 데이터 미사용)
+const AVATAR_TONES = ["var(--accent)", "var(--info)", "var(--warning)", "var(--accent-muted)", "var(--male)", "var(--female)"];
+
+function avatarTone(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_TONES[hash % AVATAR_TONES.length];
+}
+
+function Avatar({ name }: { name: string }) {
+  const clean = (name || "").replace(/\s/g, "");
+  const label = clean.length >= 3 ? clean.slice(-2) : clean || "?";
+  const tone = avatarTone(clean || "?");
+  return (
+    <div
+      className="kid-avatar grid shrink-0 place-items-center font-extrabold text-white"
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 999,
+        fontSize: label.length >= 2 ? 14 : 17,
+        background: `linear-gradient(140deg, color-mix(in srgb, ${tone} 70%, #fff), ${tone})`,
+        border: "2.5px solid #fff",
+        boxShadow: `0 4px 10px color-mix(in srgb, ${tone} 34%, transparent), 0 0 0 1.5px color-mix(in srgb, ${tone} 30%, transparent)`,
+      }}
+      aria-hidden
+    >
+      {label}
+    </div>
+  );
 }
 
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
