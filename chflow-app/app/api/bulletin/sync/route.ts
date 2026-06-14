@@ -22,7 +22,7 @@ async function handler(req: NextRequest) {
     return NextResponse.json(result);
   } catch (e) {
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : "주보 수집 실패" },
+      { ok: false, error: "주보 수집 실패" },
       { status: 500 },
     );
   }

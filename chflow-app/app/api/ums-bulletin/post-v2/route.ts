@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     umsPassword = decryptString(credRow.ums_password_encrypted);
   } catch (e: unknown) {
     return NextResponse.json(
-      { ok: false, error: `자격증명 복호화 실패: ${(e as Error).message}` },
+      { ok: false, error: "자격증명 복호화 실패" },
       { status: 500 },
     );
   }
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
     }
   } catch (e: unknown) {
     return NextResponse.json(
-      { ok: false, error: `PDF 디코딩 실패: ${(e as Error).message}` },
+      { ok: false, error: "PDF 디코딩 실패" },
       { status: 400 },
     );
   }
@@ -169,8 +169,7 @@ export async function POST(req: NextRequest) {
     const err = e as Error;
     return NextResponse.json({
       ok: false,
-      error: `Edge function 호출 실패: ${err.message}`,
-      stack: err.stack?.split("\n").slice(0, 8).join("\n"),
+      error: "Edge function 호출 실패",
     }, { status: 500 });
   }
 

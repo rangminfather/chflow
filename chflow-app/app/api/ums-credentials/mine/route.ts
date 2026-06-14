@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     .eq("user_id", user.uid)
     .maybeSingle();
 
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: "조회 중 오류가 발생했습니다." }, { status: 500 });
 
   return NextResponse.json({
     ok: true,
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     encrypted = encryptString(umsPassword);
   } catch (e: unknown) {
     return NextResponse.json(
-      { ok: false, error: `암호화 실패: ${(e as Error).message}` },
+      { ok: false, error: "암호화 처리 중 오류가 발생했습니다." },
       { status: 500 },
     );
   }
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     });
 
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: "처리 중 오류가 발생했습니다." }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
 
@@ -100,6 +100,6 @@ export async function DELETE(req: NextRequest) {
     .delete()
     .eq("user_id", user.uid);
 
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: "처리 중 오류가 발생했습니다." }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

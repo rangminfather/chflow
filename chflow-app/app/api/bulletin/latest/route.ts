@@ -230,7 +230,7 @@ async function loadPublicItems() {
       }
       lastError = `${attempt.name}: no jubo rows`;
     } catch (e) {
-      lastError = `${attempt.name}: ${e instanceof Error ? e.message : "failed"}`;
+      lastError = `${attempt.name}: 오류`;
     }
   }
 
@@ -330,7 +330,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : "주보 목록 불러오기 실패" },
+      { ok: false, error: "주보 목록 불러오기 실패" },
       { status: 502 },
     );
   }

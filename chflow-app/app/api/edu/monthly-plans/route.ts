@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
     limit: 100,
     sortBy: { column: "created_at", order: "desc" },
   });
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: "처리 중 오류가 발생했습니다." }, { status: 500 });
 
   const files = await Promise.all((data || []).filter((item) => item.name).map(async (item) => {
     const path = `${deptId}/${item.name}`;
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
     contentType: file.type || "application/octet-stream",
     upsert: false,
   });
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ ok: false, error: "업로드 중 오류가 발생했습니다." }, { status: 500 });
 
   return NextResponse.json({ ok: true, path });
 }

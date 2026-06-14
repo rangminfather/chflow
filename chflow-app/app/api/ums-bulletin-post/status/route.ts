@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
     p_ums_user_id: cred.ums_user_id,
   });
   if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "상태 조회 중 오류가 발생했습니다." }, { status: 500 });
   }
   const row = (cdRows && cdRows[0]) || {
     remaining_seconds: 0, last_posted_at: null, last_post_no: null, last_subject: null,

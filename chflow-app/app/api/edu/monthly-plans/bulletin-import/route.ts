@@ -266,7 +266,7 @@ export async function GET(req: NextRequest) {
     limit: 100,
     sortBy: { column: "created_at", order: "desc" },
   });
-  if (listError) return NextResponse.json({ ok: false, error: listError.message }, { status: 500 });
+  if (listError) return NextResponse.json({ ok: false, error: "처리 중 오류가 발생했습니다." }, { status: 500 });
 
   const planFiles = (files || []).filter((file) => /\.(xls|xlsx|xlsm)$/i.test(file.name));
   const allEntries: PlanEntry[] = [];

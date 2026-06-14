@@ -289,7 +289,7 @@ export async function GET(req: NextRequest) {
         sample,
       });
     } catch (e) {
-      results.push({ method: t.name, url: t.url, error: (e as Error).message });
+      results.push({ method: t.name, url: t.url, error: "task 실패" });
     }
   }
 
@@ -373,7 +373,6 @@ export async function POST(req: NextRequest) {
     RESULT_CACHE.set(cacheKey, { result, expiresAt: Date.now() + CACHE_TTL_MS });
     return NextResponse.json({ ok: true, data: result });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "주보 불러오기 실패";
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "주보 불러오기 실패" }, { status: 500 });
   }
 }

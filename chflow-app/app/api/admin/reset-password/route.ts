@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
   });
   if (updErr) {
     return NextResponse.json(
-      { ok: false, error: `비번 변경 실패: ${updErr.message}` },
+      { ok: false, error: "비밀번호 변경 중 오류가 발생했습니다." },
       { status: 500 },
     );
   }
