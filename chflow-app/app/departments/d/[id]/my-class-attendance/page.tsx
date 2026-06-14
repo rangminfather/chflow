@@ -9,7 +9,7 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { BadgeCheck, CheckCircle2, ClipboardCheck, XCircle } from "lucide-react";
+import { type LucideIcon, BadgeCheck, CheckCircle2, ClipboardCheck, XCircle } from "lucide-react";
 
 interface Student {
   id: string;
@@ -51,7 +51,7 @@ const ATTENDANCE_OPTIONS = [
 const STATUS_COLOR: Record<string, string> = {
   출: "var(--success)",
   결: "var(--danger)",
-  인: "var(--accent-strong)",
+  인: "var(--info)",
 };
 
 export default function MyClassAttendancePage() {
@@ -229,14 +229,16 @@ export default function MyClassAttendancePage() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
       <style>{`
-        .status-btn { transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.12s, box-shadow 0.12s; }
-        .status-btn:hover { border-color: var(--ink-faint); transform: translateY(-1px); }
-        .status-btn:active { transform: scale(0.97); }
-        .status-btn-selected { animation: attendancePop 0.18s ease-out; }
-        @keyframes attendancePop {
-          0% { transform: scale(0.96); }
+        .seg-btn { transition: background 0.16s, color 0.16s, box-shadow 0.16s, transform 0.12s; }
+        .seg-btn:active:not(:disabled) { transform: scale(0.96); }
+        .seg-on { animation: segPop 0.2s ease-out; }
+        @keyframes segPop {
+          0%   { transform: scale(0.92); }
+          60%  { transform: scale(1.03); }
           100% { transform: scale(1); }
         }
+        .kid-avatar { transition: transform 0.16s ease; }
+        .student-card:hover .kid-avatar { transform: scale(1.06); }
       `}</style>
 
       <div style={headerStyle}>
@@ -250,7 +252,7 @@ export default function MyClassAttendancePage() {
 
       <main className="mx-auto w-full max-w-6xl px-0 py-4 md:px-4">
         {/* 월 선택 */}
-        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-lg border border-hairline bg-white px-4 py-3 md:mx-0">
+        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-hairline bg-white px-4 py-3 md:mx-0">
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
           <div className="min-w-[140px] text-center text-[19px] font-extrabold text-ink">
             {year}년 {month}월
@@ -281,53 +283,57 @@ export default function MyClassAttendancePage() {
                 <article
                   key={date}
                   ref={(node) => { weekCardRefs.current[date] = node; }}
-                  className={[
-                    "shrink-0 w-[84vw] snap-center overflow-hidden rounded-lg bg-white shadow-sm md:w-auto",
-                    isTodayWeek
-                      ? "border-2 border-amber-500 shadow-[0_10px_30px_rgba(165, 119, 42,0.16)]"
-                      : "border border-hairline-strong",
-                  ].join(" ")}
+                  className="shrink-0 w-[84vw] snap-center overflow-hidden rounded-3xl md:w-auto"
+                  style={{
+                    background: "var(--card)",
+                    border: isTodayWeek ? "1.5px solid var(--accent-line)" : "1px solid var(--hairline)",
+                    boxShadow: isTodayWeek
+                      ? "0 12px 30px color-mix(in srgb, var(--accent) 14%, transparent)"
+                      : "0 4px 16px rgba(43,39,34,0.06)",
+                  }}
                 >
-                  <header className={[
-                    "border-b px-4 py-3",
-                    isTodayWeek
-                      ? "border-amber-200 bg-gradient-to-r from-amber-50 to-white"
-                      : "border-hairline bg-surface",
-                  ].join(" ")}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 text-[19px] font-extrabold text-ink">
-                          {index + 1}주차
-                          {isTodayWeek && (
-                            <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[12px] font-extrabold text-amber-800">
-                              오늘 주차
-                            </span>
-                          )}
-                          {!isEditableWeek && (
-                            <span
-                              className={[
-                                "rounded-full border px-2 py-0.5 text-[12px] font-extrabold",
-                                editState === "past"
-                                  ? "border-hairline bg-white text-ink-faint"
-                                  : "border-accent-line bg-accent-soft text-accent-strong",
-                              ].join(" ")}
-                            >
-                              {editState === "past" ? "수정 마감" : "예정"}
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-1 text-[13px] font-semibold text-ink-soft">{formatMD(date)} 주일</div>
+                  <header
+                    className="flex items-center justify-between gap-3 px-4 py-4"
+                    style={{
+                      borderBottom: "1px solid var(--hairline)",
+                      background: isTodayWeek ? "linear-gradient(135deg, var(--accent-soft), var(--surface))" : "transparent",
+                    }}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-[20px] font-extrabold" style={{ color: "var(--ink)" }}>
+                        {index + 1}주차
+                        {isTodayWeek && (
+                          <span
+                            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-extrabold"
+                            style={{ background: "var(--accent)", color: "#fff" }}
+                          >
+                            <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: "#fff" }} /> 오늘
+                          </span>
+                        )}
+                        {!isEditableWeek && (
+                          <span
+                            className="rounded-full px-2.5 py-1 text-[11px] font-extrabold"
+                            style={
+                              editState === "past"
+                                ? { background: "var(--bg-soft)", color: "var(--ink-faint)" }
+                                : { background: "var(--accent-soft)", color: "var(--accent-strong)" }
+                            }
+                          >
+                            {editState === "past" ? "수정 마감" : "예정"}
+                          </span>
+                        )}
                       </div>
-                      <div className={[
-                        "rounded-md border bg-white px-2.5 py-1 text-[13px] font-extrabold",
-                        isTodayWeek ? "border-amber-200 text-amber-800" : "border-hairline text-ink-mid",
-                      ].join(" ")}>
-                        {summary.total}명
-                      </div>
+                      <div className="mt-1 text-[13px] font-semibold" style={{ color: "var(--ink-soft)" }}>{formatMD(date)} 주일</div>
+                    </div>
+                    <div
+                      className="shrink-0 rounded-full px-3 py-1.5 text-[13px] font-extrabold"
+                      style={{ background: "var(--accent-soft)", color: "var(--accent-strong)" }}
+                    >
+                      {summary.total}명
                     </div>
                   </header>
 
-                  <section className="space-y-2 bg-white px-4 py-4">
+                  <section className="flex flex-col gap-2.5 px-3.5 py-3.5">
                     {students.map((student) => {
                       const cell = getCell(student.id, date);
                       const currentStatus = normalizeStatus(cell?.attend_status);
@@ -335,55 +341,65 @@ export default function MyClassAttendancePage() {
                       return (
                         <div
                           key={student.id}
-                          className="rounded-lg border border-hairline bg-surface p-3 shadow-[0_1px_0_rgba(43,39,34,0.04)]"
-                          style={{ borderLeft: `4px solid ${STATUS_COLOR[currentStatus]}` }}
+                          className="student-card rounded-2xl p-3.5"
+                          style={{ background: "var(--surface)", border: "1px solid var(--hairline)" }}
                         >
-                          <div className="mb-3 flex items-center justify-between gap-3">
-                            <div className="flex min-w-0 items-baseline gap-2">
-                              <div className="truncate text-[16px] font-extrabold text-ink">{student.name}</div>
+                          <div className="mb-3 flex items-center gap-3">
+                            <Avatar name={student.name} gender={student.gender} />
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-[17px] font-extrabold leading-tight" style={{ color: "var(--ink)" }}>{student.name}</div>
                               {studentMeta(student) && (
-                                <div className="shrink-0 text-[12px] font-semibold text-ink-faint">
+                                <div className="truncate text-[12px] font-semibold" style={{ color: "var(--ink-faint)" }}>
                                   {studentMeta(student)}
                                 </div>
                               )}
                             </div>
                             <span
-                              className="shrink-0 rounded-md border bg-white px-2 py-1 text-[13px] font-extrabold"
-                              style={{ color: STATUS_COLOR[currentStatus] }}
+                              className="shrink-0 rounded-full px-3 py-1 text-[12px] font-extrabold"
+                              style={{ color: STATUS_COLOR[currentStatus], background: `color-mix(in srgb, ${STATUS_COLOR[currentStatus]} 14%, transparent)` }}
                             >
                               {statusLabel(currentStatus)}
                             </span>
                           </div>
 
-                          <div className="grid grid-cols-3 gap-2">
+                          <div
+                            className="flex gap-1 rounded-2xl p-1"
+                            style={{ background: isEditableWeek ? "var(--bg-soft)" : "color-mix(in srgb, var(--bg-soft) 60%, transparent)" }}
+                          >
                             {ATTENDANCE_OPTIONS.map((option) => {
                               const selected = currentStatus === option.value;
                               const savingKey = `${student.id}-${date}-${option.value}`;
                               const tone = attendanceTone(option.value);
                               const Icon = tone.Icon;
+                              const disabled = !isEditableWeek || saving === savingKey;
+
+                              let btnStyle: React.CSSProperties;
+                              if (selected) {
+                                btnStyle = {
+                                  background: tone.color,
+                                  color: "#fff",
+                                  boxShadow: `0 5px 12px color-mix(in srgb, ${tone.color} 36%, transparent)`,
+                                  opacity: isEditableWeek ? 1 : 0.78,
+                                };
+                              } else {
+                                btnStyle = { background: "transparent", color: "var(--ink-soft)", opacity: isEditableWeek ? 1 : 0.55 };
+                              }
+
                               return (
                                 <button
                                   key={option.value}
                                   type="button"
                                   onClick={() => setStatus(student.id, date, option.value)}
-                                  disabled={!isEditableWeek || saving === savingKey}
+                                  disabled={disabled}
                                   className={[
-                                    "status-btn relative min-h-[58px] overflow-hidden rounded-lg border px-2 py-2 text-[14px] font-extrabold leading-tight",
-                                    selected ? "status-btn-selected" : "",
-                                    !isEditableWeek
-                                      ? selected
-                                        ? "cursor-not-allowed border-hairline-strong bg-hairline text-ink-soft"
-                                        : "cursor-not-allowed border-hairline bg-white text-ink-faint opacity-70"
-                                      : selected
-                                        ? tone.selectedClass
-                                        : tone.defaultClass,
+                                    "seg-btn flex min-h-[48px] flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-[14px] font-extrabold leading-tight",
+                                    selected ? "seg-on" : "",
+                                    disabled ? "cursor-not-allowed" : "cursor-pointer",
                                   ].join(" ")}
+                                  style={btnStyle}
                                 >
-                                  {selected && <span className="absolute inset-x-3 bottom-1 h-1 rounded-full bg-white/50" />}
-                                  <span className="relative flex flex-col items-center justify-center gap-1">
-                                    <Icon size={18} strokeWidth={2.3} />
-                                    <span className="whitespace-nowrap">{option.label}</span>
-                                  </span>
+                                  <Icon size={19} strokeWidth={2.3} />
+                                  <span className="whitespace-nowrap">{option.label}</span>
                                 </button>
                               );
                             })}
@@ -393,13 +409,16 @@ export default function MyClassAttendancePage() {
                     })}
                   </section>
 
-                  <footer className="border-t border-hairline bg-surface px-4 py-3">
+                  <footer className="px-3.5 pb-4">
                     <div className="grid grid-cols-3 gap-2 text-center">
-                      <SummaryBox label="출석" value={summary.attend} />
-                      <SummaryBox label="결석" value={summary.absent} />
-                      <SummaryBox label="출석인정" value={summary.otherChurch} />
+                      <SummaryBox label="출석" value={summary.attend} color="var(--success)" Icon={CheckCircle2} />
+                      <SummaryBox label="결석" value={summary.absent} color="var(--danger)" Icon={XCircle} />
+                      <SummaryBox label="출석인정" value={summary.otherChurch} color="var(--info)" Icon={BadgeCheck} />
                     </div>
-                    <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[15px] leading-6 text-amber-900">
+                    <div
+                      className="mt-3 rounded-xl px-3 py-2 text-[13px] leading-6"
+                      style={{ border: "1px solid color-mix(in srgb, var(--warning) 26%, transparent)", background: "var(--warning-soft)", color: "var(--ink-mid)" }}
+                    >
                       ※ 출석인정 : 타교회 출석, 전염병 등 부서 재량 출석인정되는 경우
                     </div>
                   </footer>
@@ -481,25 +500,9 @@ function statusLabel(status: string) {
 }
 
 function attendanceTone(status: string) {
-  if (status === "출") {
-    return {
-      Icon: CheckCircle2,
-      defaultClass: "border-emerald-200 bg-emerald-50 text-emerald-800",
-      selectedClass: "border-emerald-600 bg-emerald-600 text-white shadow-[0_8px_18px_rgba(5,150,105,0.22)]",
-    };
-  }
-  if (status === "결") {
-    return {
-      Icon: XCircle,
-      defaultClass: "border-rose-200 bg-rose-50 text-rose-800",
-      selectedClass: "border-rose-500 bg-rose-500 text-white shadow-[0_8px_18px_rgba(225,29,72,0.18)]",
-    };
-  }
-  return {
-    Icon: BadgeCheck,
-    defaultClass: "border-sky-200 bg-sky-50 text-sky-800",
-    selectedClass: "border-sky-600 bg-sky-600 text-white shadow-[0_8px_18px_rgba(2,132,199,0.2)]",
-  };
+  if (status === "출") return { Icon: CheckCircle2, color: "var(--success)" };
+  if (status === "결") return { Icon: XCircle, color: "var(--danger)" };
+  return { Icon: BadgeCheck, color: "var(--info)" };
 }
 
 function normalizeStatus(status: string | null | undefined) {
@@ -517,11 +520,46 @@ function studentMeta(student: Student) {
   return [genderLabel(student.gender), student.school_name].filter(Boolean).join(" · ");
 }
 
-function SummaryBox({ label, value }: { label: string; value: number }) {
+// 아이 이름 기반 아기자기 아바타 — 성별 톤(--male/--female)으로 부드럽게 채색
+function avatarTone(gender: string | null | undefined) {
+  if (gender === "M" || gender === "남") return "var(--male)";
+  if (gender === "F" || gender === "여") return "var(--female)";
+  return "var(--accent-muted)";
+}
+
+function Avatar({ name, gender }: { name: string; gender: string | null | undefined }) {
+  const clean = (name || "").replace(/\s/g, "");
+  // 세 글자 이상이면 이름(성 제외) 2글자, 아니면 전체 — 반 아이 구분이 쉽도록
+  const label = clean.length >= 3 ? clean.slice(-2) : clean || "?";
+  const tone = avatarTone(gender);
   return (
-    <div className="rounded-md border border-hairline bg-white px-2 py-2">
-      <div className="text-[12px] font-bold text-ink-faint">{label}</div>
-      <div className="mt-0.5 text-[17px] font-extrabold text-ink">{value}</div>
+    <div
+      className="kid-avatar grid shrink-0 place-items-center font-extrabold text-white"
+      style={{
+        width: 46,
+        height: 46,
+        borderRadius: 999,
+        fontSize: label.length >= 2 ? 15 : 18,
+        background: `linear-gradient(140deg, color-mix(in srgb, ${tone} 72%, #fff), ${tone})`,
+        boxShadow: `0 4px 10px color-mix(in srgb, ${tone} 32%, transparent)`,
+      }}
+      aria-hidden
+    >
+      {label}
+    </div>
+  );
+}
+
+function SummaryBox({ label, value, color, Icon }: { label: string; value: number; color: string; Icon: LucideIcon }) {
+  return (
+    <div
+      className="rounded-2xl px-2 py-2.5"
+      style={{ border: `1px solid color-mix(in srgb, ${color} 22%, transparent)`, background: `color-mix(in srgb, ${color} 7%, var(--card))` }}
+    >
+      <div className="flex items-center justify-center gap-1 text-[12px] font-extrabold" style={{ color }}>
+        <Icon size={13} strokeWidth={2.4} /> {label}
+      </div>
+      <div className="mt-0.5 text-[19px] font-extrabold" style={{ color: "var(--ink)" }}>{value}</div>
     </div>
   );
 }
