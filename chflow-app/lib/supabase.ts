@@ -37,8 +37,14 @@ export const supabase = new Proxy({} as BrowserSupabaseClient, {
 // 🔬 UMS 자동등록 진단 — 콘솔에서 `await chflowDiag()` 1줄로 1·2단계 라이브 검증 (v3 spam-rotate)
 if (typeof window !== "undefined") {
   const w = window as unknown as {
+    __chflowGetToken?: () => Promise<string | null>;
     chflowDiag?: () => Promise<{ write_form_attempts?: unknown[] } | null>;
     chflowDiagN?: (n?: number) => Promise<unknown[]>;
+  };
+  // Minimal native bridge — returns access token only (not the full client)
+  w.__chflowGetToken = async () => {
+    const { data: { session } } = await getSupabaseBrowserClient().auth.getSession();
+    return session?.access_token ?? null;
   };
   w.chflowDiag = async () => {
     const { data: { session } } = await supabase.auth.getSession();

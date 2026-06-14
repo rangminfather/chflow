@@ -32,10 +32,9 @@ const SESSION_BRIDGE_SCRIPT = `
 
   async function sendSessionToken() {
     try {
-      var client = window.__chflowSupabase;
-      if (!client || !client.auth || !client.auth.getSession) return;
-      var result = await client.auth.getSession();
-      var token = result && result.data && result.data.session && result.data.session.access_token;
+      var getter = window.__chflowGetToken;
+      if (typeof getter !== 'function') return;
+      var token = await getter();
       if (token && window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(JSON.stringify({
           type: 'CHFLOW_AUTH_TOKEN',
