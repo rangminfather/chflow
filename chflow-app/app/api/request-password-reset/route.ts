@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "계정 정보를 확인할 수 없습니다" }, { status: 500 });
     }
     if (!profile) {
-      return NextResponse.json({ error: "등록되지 않은 아이디입니다" }, { status: 404 });
+      return NextResponse.json({ noEmail: true });
     }
 
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(profile.id);

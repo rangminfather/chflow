@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "로그인 정보를 확인할 수 없습니다" }, { status: 500 });
     }
     if (!profile) {
-      return NextResponse.json({ error: "등록되지 않은 아이디입니다" }, { status: 404 });
+      return NextResponse.json({ error: "아이디 또는 비밀번호가 일치하지 않습니다" }, { status: 401 });
     }
 
     const { data: authData, error: authError } = await admin.auth.admin.getUserById(profile.id);
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (authError || loginError || !loginData.session) {
-      return NextResponse.json({ error: "비밀번호가 일치하지 않습니다" }, { status: 401 });
+      return NextResponse.json({ error: "아이디 또는 비밀번호가 일치하지 않습니다" }, { status: 401 });
     }
 
     // 비밀번호가 맞더라도 활성(active) 상태가 아니면 토큰을 발급하지 않는다.
