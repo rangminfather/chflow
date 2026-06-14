@@ -62,7 +62,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
     maxGrade: 4,
     desc: "부서 공통 자료 / 공지 / 주보",
     items: [
-      { id: "notices", label: "공지 게시판", icon: Megaphone, desc: "부서 공지·알림", color: "#4A7B96", implemented: true },
+      { id: "notices/board", label: "공지 게시판", icon: Megaphone, desc: "부서 공지·알림", color: "#4A7B96", implemented: true },
       { id: "monthly-plan", label: "월간 교육계획서", icon: CalendarDays, desc: "월간 교육계획 파일 조회", color: "var(--accent)", implemented: true },
       { id: "bulletin", label: "주보 보기", icon: Newspaper, desc: "초등1부 주보 열람", color: "#3E7D74", implemented: true, onlyForDept: "초등1부" },
     ],
