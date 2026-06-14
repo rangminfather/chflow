@@ -5,7 +5,14 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 
 > ✅ **2026-06-14 적용 확인**: ②③ DB 마이그레이션이 운영 Supabase에 적용 완료됨.
 > 진단 SQL(#1 CR-1 트리거·#5 백업 RLS·#7 CR-3 역할검증·#8 H-2 assert_staff 7개) 모두 참 확인.
-> CR-1/CR-2/CR-3/H-2 방어막 가동 중. 남은 미해결은 §2 표의 H-1·H-3·H-5 및 §3 로드맵 참고.
+> CR-1/CR-2/CR-3/H-2 방어막 가동 중.
+>
+> ✅ **2026-06-15 추가 해소**:
+> - **M-err**: API 라우트 12개 에러 원문 전면 제거 (ums-bulletin/post-v2 스택트레이스 포함)
+> - **H-5 (xlsx)**: exceljs 4.4.0으로 전면 교체 (MemberDataTools·rearrange·review-problems·bulletin-import 4파일)
+> - **L — 버킷 signed URL**: member-photos·feedback-attachments 버킷 private 전환 + `/api/storage/` 프록시 라우트. members.photo_url 513건 마이그레이션 완료. commit df3c688
+>
+> 남은 미해결: find-id/password 계정 존재여부 노출(L), postcss moderate(next 내부, 16.3 릴리즈 시 해소)
 
 ---
 
@@ -35,8 +42,10 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 | **H-4** | High | 보안 헤더 전무 | ✅ **배포 완료**(운영 헤더 확인) |
 | **H-1** | High | edu 출석·달란트·주간추가 RPC가 멤버십만 검사(등급·반 무관) → 위변조 | ✍️ 작성됨 `claude/sec-h1`(d790e1b) · **미머지/행동검증 대기** |
 | **H-3** | High | anon 개인정보 열거(가입 매칭) | ⏳ 미착수 |
-| **H-5** | High | xlsx 0.18.5 서버측 파싱(prototype pollution/ReDoS) | ✅ **해소**(2026-06-14, SheetJS 0.20.3 패치판 업그레이드) |
-| **M-1~6** | Medium | 요람 PII 광범위, 에러원문 노출, 버킷 public, 재설정 enumeration 등 | ⏳ 미착수 |
+| **H-5** | High | xlsx 0.18.5 서버측 파싱(prototype pollution/ReDoS) | ✅ **해소**(2026-06-15, exceljs 4.4.0 전면 교체) |
+| **M-err** | Medium | API 라우트 에러 원문 노출 (error.message 반환) | ✅ **해소**(2026-06-15, 12개 파일 29곳 한국어 일반 메시지로 교체) |
+| **M-bucket** | Medium | member-photos·feedback-attachments 버킷 public → PII 사진 노출 | ✅ **해소**(2026-06-15, private 전환 + /api/storage/ 프록시, DB 마이그레이션 완료) |
+| **M-others** | Medium | find-id/password 계정 존재여부 노출 등 | ⏳ 미착수 |
 | **L-1~5** | Low | 진단코드 토큰노출, rate-limit 부재, document.write 등 | ⏳ 미착수 |
 
 ### 적용 완료/배포된 코드 (참고)
@@ -77,9 +86,11 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 
 ### 이후
 - **H-3**: anon 조회 함수(`search_member_candidates`, `find_member_for_signup` 등) anon GRANT 회수 → 서버 경유 + rate-limit. (가입 매칭 플로우 재설계)
-- ~~**H-5**: xlsx → exceljs 교체~~ → ✅ **해소(2026-06-14)**. exceljs는 `.xls`(BIFF)를 못 읽는데 운영 `monthly-plans` 버킷의 실제 파일이 `.xls`라 교체 시 edu 월별계획/복습문제 파싱이 깨짐. 대신 **SheetJS 패치판 0.20.3**(npm→`cdn.sheetjs.com` tarball)으로 업그레이드 — CVE-2023-30533(prototype pollution)·CVE-2024-22363(ReDoS) 패치, `.xls` 호환 유지, 코드 무변경. `npm audit`에서 xlsx 경고 사라짐.
-- **CSP**: ✅ **Report-Only 도입 완료(2026-06-14, 배포·헤더 확인)**. `next.config.ts` `cspReportOnly` — 비차단, 위반은 브라우저 콘솔 보고. 출처: daumcdn(우편번호)·jsdelivr(폰트)·supabase(https/wss)·pdfjs(self/blob)·이미지(data/blob/supabase). ⏳ **남은 일: 며칠 콘솔/리포트 위반 수집 → enforce(`Content-Security-Policy`)로 전환 + nonce 도입으로 `unsafe-inline`/`unsafe-eval` 축소.** (enforce 전환은 실사용 화면 회귀확인 필요)
-- **M/L**: 에러원문 노출 일반화(일반 사용자 경로 우선), member-photos/feedback-attachments 버킷 private+signed URL, `window.__chflowSupabase` 진단코드 제거, find-id/password rate-limit.
+- ~~**H-5**: xlsx → exceljs 교체~~ → ✅ **해소(2026-06-15)**. **exceljs 4.4.0 전면 교체** — MemberDataTools·rearrange·review-problems·bulletin-import 4파일. PK 컬럼 스타일 코멘트→갈색 폰트, xlsx 패키지 제거.
+- ~~**CSP**~~ → ✅ **enforce 전환 완료(2026-06-14)**. `next.config.ts`에서 `Content-Security-Policy-Report-Only` → `Content-Security-Policy`로 전환. Playwright로 공개·인증 화면 전체 CSP 위반 0건 확인. commit 2928dbb.
+- ~~**M-err**: 에러원문 노출~~ → ✅ **해소(2026-06-15)**. API 라우트 12개 파일, 29곳 `error.message` → 한국어 일반 메시지. ums-bulletin/post-v2 스택트레이스 필드 제거.
+- ~~**M-bucket**: 버킷 public~~ → ✅ **해소(2026-06-15)**. member-photos·feedback-attachments → `public=false`. `/api/storage/[bucket]/[...path]` 프록시 라우트 (인증 확인 → signed URL 302). members.photo_url 513건 → `/api/storage/...` 형태로 DB 마이그레이션 완료. commit df3c688.
+- **남은 M/L**: find-id/password 계정 존재여부 노출(L, enumeration), `window.__chflowSupabase` 진단코드(L), postcss moderate(next 내부·16.3 릴리즈 자동해소).
 
 ---
 

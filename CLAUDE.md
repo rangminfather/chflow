@@ -61,9 +61,8 @@
 
 ## 보안 이슈
 - **전체 현황·런북: `chflow-app/docs/SECURITY_REVIEW_2026-06.md`** (보안 검토 결과·조치 상태·적용 절차·진단 SQL·로드맵)
-- ⚠️ **DB 미적용 주의**: 마이그레이션 `20260612110000`(CR-1 권한상승 차단)·`20260612120000`(H-2)를 운영 Supabase SQL Editor에 적용해야 실제 방어막이 켜짐. `supabase db push` 금지(타 에이전트 미완성 마이그레이션 동반 적용됨) → SQL Editor 사용.
-- 코드 배포 완료: 가입 systemRole 검증, 로그인 status 게이트, 보안 헤더(next.config)
-- 미해소: H-1(edu 출석/달란트/일지 등급·반 검증), H-3(anon PII 열거), H-5(`xlsx`→`exceljs` 교체 필수), pastor 권한 구조 결정, CSP
+- ✅ **2026-06-15 기준 주요 항목 모두 해소**: CR-1~3·H-1~5·H-1b·H-3·M-err·M-bucket·CSP enforce·pastor A안·M-rate
+- 미해소(L): find-id/password 계정 열거, `window.__chflowSupabase` 진단코드
 - postcss moderate → Next.js 16.3 stable 릴리즈 후 해소 예정
 
 ## 사용자 원칙
