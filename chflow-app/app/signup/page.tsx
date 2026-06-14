@@ -399,16 +399,18 @@ export default function SignupPage() {
           ? `${pNorm.slice(0, 3)}-${pNorm.slice(3, 7)}-${pNorm.slice(7, 11)}`
           : parentPhone;
 
-        const { data, error: rpcError } = await supabase.rpc("find_child_for_signup", {
-          p_child_name: lookupName.trim(),
-          p_parent_name: parentName.trim(),
-          p_parent_phone: pFormatted,
+        const childRes = await fetch("/api/signup/find-child", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ childName: lookupName.trim(), parentName: parentName.trim(), parentPhone: pFormatted }),
         });
-        if (rpcError) {
-          setError(`조회 오류: ${rpcError.message}`);
+        const childJson = await childRes.json();
+        if (!childRes.ok) {
+          setError(`조회 오류: ${childJson.error ?? childRes.statusText}`);
           setLoading(false);
           return;
         }
+        const data: MatchedMember[] = childJson.data ?? [];
         if (data && data.length > 0) {
           const member = { ...(data[0] as MatchedMember), matched_as_child: true };
           if (member.has_account) {
@@ -436,11 +438,13 @@ export default function SignupPage() {
           });
           setStep("confirm");
         } else {
-          const { data: parentData } = await supabase.rpc("find_parent_for_child_signup", {
-            p_parent_name: parentName.trim(),
-            p_parent_phone: pFormatted,
+          const parentRes = await fetch("/api/signup/find-parent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ parentName: parentName.trim(), parentPhone: pFormatted }),
           });
-          const parent = parentData?.[0] as ParentMatch | undefined;
+          const parentJson = parentRes.ok ? await parentRes.json() : { data: [] };
+          const parent = (parentJson.data?.[0] ?? undefined) as ParentMatch | undefined;
           if (parent) fillParentFields(parent);
 
           // 부모 매칭 실패 또는 해당 가족 내 자녀 이름 없음 → 신규 자녀 가입
@@ -464,16 +468,18 @@ export default function SignupPage() {
         ? `${phoneNormalized.slice(0, 3)}-${phoneNormalized.slice(3, 7)}-${phoneNormalized.slice(7, 11)}`
         : lookupPhone;
 
-      const { data, error: rpcError } = await supabase.rpc("find_member_for_signup", {
-        p_name: lookupName.trim(),
-        p_phone: phoneFormatted,
+      const memberRes = await fetch("/api/signup/find-member", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: lookupName.trim(), phone: phoneFormatted }),
       });
-
-      if (rpcError) {
-        setError(`조회 오류: ${rpcError.message}`);
+      const memberJson = await memberRes.json();
+      if (!memberRes.ok) {
+        setError(`조회 오류: ${memberJson.error ?? memberRes.statusText}`);
         setLoading(false);
         return;
       }
+      const data: MatchedMember[] = memberJson.data ?? [];
 
       if (data && data.length > 0) {
         const member = data[0] as MatchedMember;
