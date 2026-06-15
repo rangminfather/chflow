@@ -67,6 +67,8 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${notoSansKr.variable} ${notoSerifKr.variable} h-full antialiased`}
     >
       <head>
+        {/* 다크모드 수동설정 복원 — 렌더 전 실행해서 FOWT 방지 */}
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('chflow-theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}` }} />
         {/* 본문: Pretendard (CDN), 한글 fallback: next/font */}
         <link
           rel="stylesheet"

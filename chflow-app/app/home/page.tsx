@@ -11,8 +11,9 @@ import {
   BookOpen, BookText, Users, User, Lightbulb, Vote, Megaphone, CalendarDays,
   Landmark, Bus, CalendarClock, Menu, LogOut, X, Folder, Home,
   Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid, MessagesSquare,
-  Sparkles, HeartHandshake,
+  Sparkles, HeartHandshake, Sun, Moon,
 } from "lucide-react";
+import { useTheme } from "@/lib/useTheme";
 import { LoadingView } from "@/components/StatusViews";
 import {
   T, PageShell, PageContent,
@@ -981,6 +982,7 @@ function SidebarContent({ user, myDepartments, router, onNavigate, onLogout }: {
       ))}
 
       <SideDivider />
+      <ThemeToggleButton />
       <button
         onClick={onLogout}
         style={{
@@ -995,6 +997,35 @@ function SidebarContent({ user, myDepartments, router, onNavigate, onLogout }: {
         <span>로그아웃</span>
       </button>
     </div>
+  );
+}
+
+function ThemeToggleButton() {
+  const { isDark, toggle } = useTheme();
+  return (
+    <button
+      onClick={toggle}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        width: "100%", padding: "10px 12px", boxSizing: "border-box",
+        background: "transparent", border: "none", borderRadius: 8,
+        fontSize: 13, fontWeight: 500, color: T.textMuted,
+        cursor: "pointer", fontFamily: "inherit",
+      }}
+    >
+      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {isDark
+          ? <Moon size={15} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+          : <Sun size={15} strokeWidth={1.75} style={{ flexShrink: 0 }} />}
+        <span>{isDark ? "다크 모드" : "라이트 모드"}</span>
+      </span>
+      <span style={{
+        fontSize: 11, padding: "2px 7px", borderRadius: 99,
+        background: "var(--hairline)", color: T.textMuted,
+      }}>
+        {isDark ? "ON" : "OFF"}
+      </span>
+    </button>
   );
 }
 
