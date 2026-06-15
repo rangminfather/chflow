@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
 
   const { data: teacher, error: teacherErr } = await admin
     .from("edu_teachers")
-    .select("id")
+    .select("id, teacher_role")
     .eq("department_id", body.dept_id)
     .eq("user_id", authData.user.id)
     .eq("is_active", true)
@@ -79,7 +79,9 @@ export async function POST(req: NextRequest) {
   if (studentErr || !student) {
     return NextResponse.json({ ok: false, error: "학생을 찾을 수 없습니다" }, { status: 404 });
   }
-  if (student.teacher_id !== teacher.id) {
+  // 전도사·부장급은 반 구분 없이 전체 학생 수정 가능
+  const isLeader = teacher.teacher_role !== "교사";
+  if (!isLeader && student.teacher_id !== teacher.id) {
     return NextResponse.json({ ok: false, error: "담당 반 학생만 수정할 수 있습니다" }, { status: 403 });
   }
 

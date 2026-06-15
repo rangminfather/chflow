@@ -77,7 +77,7 @@ export default function MyClassPage() {
 
       const { data: teacher } = await supabase
         .from("edu_teachers")
-        .select("id")
+        .select("id, teacher_role")
         .eq("department_id", deptId)
         .eq("user_id", user.id)
         .eq("is_active", true)
@@ -85,8 +85,10 @@ export default function MyClassPage() {
 
       setMyTeacherId(teacher?.id || null);
       setAuthChecked(true);
-      if (teacher?.id) await loadStudents(teacher.id);
-      else setLoading(false);
+      if (teacher?.id) {
+        const isLeader = teacher.teacher_role !== "교사";
+        await loadStudents(teacher.id, isLeader);
+      } else setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deptId, router]);
@@ -100,15 +102,18 @@ export default function MyClassPage() {
     if (!draft && selectedStudent) setDraft({ ...selectedStudent });
   }, [draft, selectedStudent]);
 
-  async function loadStudents(teacherId: string) {
+  async function loadStudents(teacherId: string, isLeader = false) {
     setLoading(true);
 
-    const { data: studentRows, error: studentErr } = await supabase
+    let query = supabase
       .from("edu_students")
       .select("id, department_id, student_no, name, student_type, grade, grade_year, class_no, is_active, order_no, member_id, teacher_id")
       .eq("department_id", deptId)
-      .eq("teacher_id", teacherId)
-      .eq("is_active", true)
+      .eq("is_active", true);
+    // 전도사·부장급은 전체 학생 조회, 교사는 본인 반만
+    if (!isLeader) query = query.eq("teacher_id", teacherId);
+
+    const { data: studentRows, error: studentErr } = await query
       .order("order_no", { ascending: true })
       .order("student_no", { ascending: true })
       .order("name", { ascending: true });
