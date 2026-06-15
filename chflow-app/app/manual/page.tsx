@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Printer, Search, AlertTriangle, X, ChevronUp, Pencil, Save, Plus, Trash2, Upload, XCircle } from "lucide-react";
+import { Printer, Download, Search, AlertTriangle, X, ChevronUp, Pencil, Save, Plus, Trash2, Upload, XCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 interface ManifestItem {
@@ -58,6 +58,7 @@ export default function ManualPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showTop, setShowTop] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const tabBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -196,6 +197,25 @@ export default function ManualPage() {
     window.print();
   }
 
+  async function handleDownloadPdf() {
+    setGeneratingPdf(true);
+    try {
+      const res = await fetch("/api/manual/pdf");
+      if (!res.ok) throw new Error("PDF 생성 실패");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "스마트명성_사용매뉴얼.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("PDF 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }
+
   async function saveManual(nextManifest = manifest) {
     if (!nextManifest) return;
     setSaving(true);
@@ -259,10 +279,16 @@ export default function ManualPage() {
             <div style={headerTitle}>스마트명성 사용 매뉴얼</div>
             <div style={headerSub}>접속부터 부서 사용까지 · 인쇄(A4) 가능</div>
           </div>
-          <button onClick={handlePrint} disabled={printing} style={printBtn} aria-label="인쇄 / PDF 저장">
+          <button onClick={handlePrint} disabled={printing} style={printBtn} aria-label="인쇄">
             <Printer size={16} strokeWidth={1.8} />
             <span style={{ fontSize: 12, fontWeight: 700, marginLeft: 5 }}>
               {printing ? "준비 중…" : "인쇄"}
+            </span>
+          </button>
+          <button onClick={handleDownloadPdf} disabled={generatingPdf} style={pdfBtn} aria-label="PDF 다운로드">
+            <Download size={16} strokeWidth={1.8} />
+            <span style={{ fontSize: 12, fontWeight: 700, marginLeft: 5 }}>
+              {generatingPdf ? "생성 중…" : "PDF"}
             </span>
           </button>
         </header>
@@ -661,6 +687,18 @@ const printBtn: React.CSSProperties = {
   background: "var(--ink)",
   color: "#fff",
   border: "none",
+  borderRadius: 8,
+  padding: "7px 12px",
+  fontSize: 16,
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+};
+const pdfBtn: React.CSSProperties = {
+  flexShrink: 0,
+  background: "var(--surface)",
+  color: "var(--ink)",
+  border: "1px solid var(--hairline)",
   borderRadius: 8,
   padding: "7px 12px",
   fontSize: 16,
