@@ -1,13 +1,17 @@
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
+import * as Application from 'expo-application';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   AppState,
   BackHandler,
+  Linking,
   Platform,
   StyleSheet,
+  Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -59,10 +63,31 @@ export default function App() {
   );
 }
 
+function ForceUpdateScreen({ storeUrl }: { storeUrl: string }) {
+  const open = () => {
+    Linking.openURL(storeUrl).catch(() =>
+      Linking.openURL('https://play.google.com/store/apps/details?id=com.smartmyungsung.app')
+    );
+  };
+  return (
+    <View style={styles.updateContainer}>
+      <Text style={styles.updateTitle}>업데이트 필요</Text>
+      <Text style={styles.updateBody}>
+        원활한 서비스 이용을 위해{'\n'}최신 버전으로 업데이트해 주세요.
+      </Text>
+      <TouchableOpacity style={styles.updateButton} onPress={open}>
+        <Text style={styles.updateButtonText}>Play Store에서 업데이트</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function AppWebView() {
   const webViewRef = useRef<WebView>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
+  const [needsUpdate, setNeedsUpdate] = useState(false);
+  const [storeUrl, setStoreUrl] = useState('market://details?id=com.smartmyungsung.app');
   const pendingAccessTokenRef = useRef<string | null>(null);
   const registeredKeyRef = useRef<string | null>(null);
   const pendingNotificationUrlRef = useRef<string | null>(null);
@@ -74,6 +99,24 @@ function AppWebView() {
 
   useEffect(() => {
     registerForPushNotifications().then(setExpoPushToken).catch(() => setExpoPushToken(null));
+  }, []);
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch(`${TARGET_URL}/api/app-config`);
+        if (!res.ok) return;
+        const config = await res.json() as { min_android_build: number; play_store_url: string };
+        const build = parseInt(Application.nativeBuildVersion ?? '0', 10);
+        if (config.play_store_url) setStoreUrl(config.play_store_url);
+        if (build > 0 && build < config.min_android_build) {
+          setNeedsUpdate(true);
+        }
+      } catch {
+        // 실패 시 앱 사용 허용 (fail open)
+      }
+    };
+    check();
   }, []);
 
   // Android 물리 뒤로가기 버튼 처리
@@ -247,6 +290,15 @@ function AppWebView() {
     flushPendingNotificationUrl();
   };
 
+  if (needsUpdate) {
+    return (
+      <View style={styles.safe}>
+        <StatusBar style="dark" backgroundColor="#FBF8F1" translucent={false} />
+        <ForceUpdateScreen storeUrl={storeUrl} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.safe}>
       <StatusBar style="dark" backgroundColor="#FBF8F1" translucent={false} />
@@ -388,5 +440,36 @@ const styles = StyleSheet.create({
   exitOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#FBF8F1',
+  },
+  updateContainer: {
+    flex: 1,
+    backgroundColor: '#FBF8F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  updateTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 12,
+  },
+  updateBody: {
+    fontSize: 15,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 32,
+  },
+  updateButton: {
+    backgroundColor: '#4A7C5F',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  updateButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
