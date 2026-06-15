@@ -505,19 +505,25 @@ function ToastCard({
 }) {
   const meta = getNotificationTypeMeta(toast.type);
   const startXRef = useRef<number | null>(null);
+  const swipeXRef = useRef(0);
   const [swipeX, setSwipeX] = useState(0);
   const [swiping, setSwiping] = useState(false);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     startXRef.current = e.touches[0].clientX;
+    swipeXRef.current = 0;
     setSwiping(true);
   };
   const handleTouchMove = (e: React.TouchEvent) => {
     if (startXRef.current === null) return;
-    setSwipeX(e.touches[0].clientX - startXRef.current);
+    const dx = e.touches[0].clientX - startXRef.current;
+    swipeXRef.current = dx;
+    setSwipeX(dx);
   };
   const handleTouchEnd = () => {
-    if (Math.abs(swipeX) > 72) { onDismiss(); return; }
+    const dx = swipeXRef.current;
+    if (Math.abs(dx) > 72) { onDismiss(); return; }
+    swipeXRef.current = 0;
     setSwipeX(0);
     setSwiping(false);
     startXRef.current = null;
@@ -543,7 +549,7 @@ function ToastCard({
         transform: swipeX !== 0 ? `translateX(${swipeX}px)` : undefined,
         opacity: swiping ? Math.max(0.3, 1 - Math.abs(swipeX) / 150) : 1,
         transition: swiping ? "none" : "transform 0.25s ease, opacity 0.25s ease",
-        touchAction: "pan-y",
+        touchAction: "none",
       }}
     >
       <div style={{
