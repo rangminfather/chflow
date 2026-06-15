@@ -16,7 +16,7 @@ const cspPolicy = [
   "font-src 'self' data: https://cdn.jsdelivr.net",
   "img-src 'self' data: blob: https://*.supabase.co https://*.daumcdn.net",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net",
-  "frame-src 'self' https://*.daumcdn.net",
+  "frame-src 'self' https://*.daumcdn.net https://postcode.map.kakao.com",
   "worker-src 'self' blob:",
 ].join("; ");
 
