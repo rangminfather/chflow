@@ -10,7 +10,7 @@ import {
   type LucideIcon,
   BookOpen, BookText, Users, User, Lightbulb, Vote, Megaphone, CalendarDays,
   Landmark, Bus, CalendarClock, Menu, LogOut, X, Folder, Home,
-  Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid,
+  Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid, MessagesSquare,
   Sparkles, HeartHandshake,
 } from "lucide-react";
 import { LoadingView } from "@/components/StatusViews";
@@ -70,6 +70,7 @@ type CommonMenu = {
 const COMMON_MENUS: CommonMenu[] = [
   { id: "bulletin",  label: "주보 보기",     icon: BookOpen,  color: "#2B4539", bg: "#EDF2EF", desc: "", href: "/bulletin" },
   { id: "directory", label: "성도 요람",     icon: Users,     color: "#2B4539", bg: "#EDF2EF", desc: "", href: "/directory" },
+  { id: "messenger", label: "메신저",        icon: MessagesSquare, color: "#2B4539", bg: "#EDF2EF", desc: "", href: "/messenger" },
   { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "#2B4539", bg: "#EDF2EF", desc: "", href: "/feedback" },
   { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "#2B4539", bg: "#EDF2EF", desc: "", href: "/manual" },
 ];

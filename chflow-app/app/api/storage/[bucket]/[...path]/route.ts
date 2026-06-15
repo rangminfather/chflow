@@ -13,7 +13,7 @@ import { cookies } from "next/headers";
 
 export const runtime = "nodejs";
 
-const ALLOWED_BUCKETS = new Set(["member-photos", "feedback-attachments"]);
+const ALLOWED_BUCKETS = new Set(["member-photos", "feedback-attachments", "messenger-attachments"]);
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -59,6 +59,30 @@ export async function GET(
 
   const storagePath = path.join("/");
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+
+  if (bucket === "messenger-attachments") {
+    const { data: attachment } = await admin
+      .from("messenger_message_attachments")
+      .select("conversation_id")
+      .eq("file_path", storagePath)
+      .maybeSingle();
+
+    if (!attachment?.conversation_id) {
+      return new NextResponse(null, { status: 404 });
+    }
+
+    const { data: participant } = await admin
+      .from("messenger_participants")
+      .select("id")
+      .eq("conversation_id", attachment.conversation_id)
+      .eq("user_id", uid)
+      .maybeSingle();
+
+    if (!participant?.id) {
+      return new NextResponse(null, { status: 403 });
+    }
+  }
+
   const { data, error } = await admin.storage
     .from(bucket)
     .createSignedUrl(storagePath, 300); // 5-minute signed URL

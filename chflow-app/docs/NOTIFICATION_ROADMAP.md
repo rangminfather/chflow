@@ -45,7 +45,7 @@ Goal:
 
 - turn the bottom-right dock into the PC notification/messenger entry point
 - use tabs for `알림`, `메시지`, `공지`
-- keep existing `notifications` rows as the data source for now
+- keep existing `notifications` rows as the data source for push/toast routing
 - filter message-like notifications by `type = message` or `type` prefix `message_`
 - filter notices by `type = notice` or `type` prefix `notice_`
 - keep PC behavior focused on a right-bottom panel
@@ -56,7 +56,7 @@ Recommended first implementation:
 - add local tab state to `NotificationBell`
 - when `placement === "dock"`, render a larger panel with tabs
 - keep inline placement backward compatible
-- do not create a full messenger DB yet
+- full messenger DB is now implemented separately from notification rows
 
 Current implementation:
 
@@ -65,7 +65,22 @@ Current implementation:
 - `메시지` tab filters `message` and `message_*` notification types
 - `공지` tab filters `notice` and `notice_*` notification types
 - notification list items show type chips
-- this is still notification-row based; full messenger tables are not created yet
+- Full messenger tables/RPCs were added on 2026-06-15:
+  - `messenger_conversations`
+  - `messenger_participants`
+  - `messenger_messages`
+  - `/messenger` UI for direct and group text conversations
+  - `message_new` notifications route to `/messenger?c=<conversation_id>`
+
+Commercial messenger upgrade added on 2026-06-15:
+
+- Private `messenger-attachments` Storage bucket
+- Participant-checked storage proxy for messenger attachments
+- Image/file attachments with preview/download
+- Message replies
+- Sender edit/delete
+- Read receipt counts and reader names
+- `send_messenger_message_v2`, `get_messenger_messages_v2`, `edit_messenger_message`, `delete_messenger_message`
 
 Verification:
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, X } from "lucide-react";
+import { Bell, MessagesSquare, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   fetchNotifications,
@@ -311,6 +311,39 @@ export default function NotificationBell({
                     active={activeTab === "notice"}
                     onClick={() => setActiveTab("notice")}
                   />
+                </div>
+              )}
+              {placement === "dock" && activeTab === "message" && (
+                <div style={{
+                  padding: "10px 12px",
+                  borderBottom: "1px solid var(--hairline)",
+                  background: "var(--surface)",
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      router.push("/messenger");
+                    }}
+                    style={{
+                      width: "100%",
+                      minHeight: 36,
+                      border: "1px solid rgba(62, 90, 74, 0.24)",
+                      borderRadius: 8,
+                      background: "var(--accent)",
+                      color: "#fff",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      fontSize: 12,
+                      fontWeight: 800,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <MessagesSquare size={15} strokeWidth={2} /> 메신저 열기
+                  </button>
                 </div>
               )}
               <div style={{ overflowY: "auto", flex: 1 }}>
