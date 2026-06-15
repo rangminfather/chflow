@@ -254,7 +254,7 @@ export default function MyClassPage() {
       <PageHeader deptId={deptId} router={router} myClassName={myClassName} />
 
       <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-4 md:grid-cols-[300px_1fr]">
-        <section className="rounded-lg border border-hairline bg-white">
+        <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-white">
           <div className="border-b border-hairline px-4 py-3">
             <div className="text-[17px] font-extrabold text-ink">우리반 학생</div>
             <div className="mt-1 text-[13px] font-semibold text-ink-faint">{students.length}명</div>
@@ -265,14 +265,14 @@ export default function MyClassPage() {
           ) : students.length === 0 ? (
             <div className="px-4 py-12 text-center text-[15px] leading-6 text-ink-faint">담당 반 학생이 없습니다.</div>
           ) : (
-            <div className="flex gap-2 overflow-x-auto p-3 scrollbar-hide md:block md:space-y-2 md:overflow-visible">
+            <div className="flex w-full snap-x snap-mandatory gap-3 overflow-x-auto p-3 pb-4 scrollbar-hide md:block md:snap-none md:space-y-2 md:overflow-visible md:pb-3">
               {students.map((student) => (
                 <button
                   key={student.id}
                   type="button"
                   onClick={() => selectStudent(student)}
                   className={[
-                    "min-w-[160px] rounded-lg border px-3 py-3 text-left md:w-full",
+                    "w-[72vw] max-w-[260px] shrink-0 snap-center rounded-lg border px-3 py-3 text-left md:w-full md:max-w-none md:shrink md:snap-align-none",
                     selectedId === student.id
                       ? "border-amber-400 bg-amber-50"
                       : "border-hairline bg-white",
@@ -288,7 +288,7 @@ export default function MyClassPage() {
           )}
         </section>
 
-        <section className="rounded-lg border border-hairline bg-white">
+        <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-white">
           {!draft ? (
             <div className="py-20 text-center text-[16px] text-ink-faint">학생을 선택하세요</div>
           ) : (
@@ -388,7 +388,7 @@ function PageHeader({ deptId, router, myClassName }: { deptId: string; router: R
       <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
         <Baby size={18} strokeWidth={1.8} /> 우리반 아이 정보 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
       </div>
-      <div style={{ width: 80 }} />
+      <div className="hidden md:block" style={{ width: 80 }} />
     </div>
   );
 }
@@ -415,7 +415,7 @@ function ReadOnly({ label, value }: { label: string; value: string }) {
 
 const inputClass = "min-h-11 w-full rounded-md border border-hairline-strong bg-white px-3 py-2 text-[16px] font-bold text-ink outline-none focus:border-amber-400 disabled:bg-bg-soft disabled:text-ink-faint";
 
-const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
+const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif", overflowX: "hidden" };
 const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)",
   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
