@@ -157,7 +157,7 @@ export default function StudentRecordPage() {
         {selectedStudent && history.length > 0 && (
           <>
             {/* 요약 카드 */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+            <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
               {[
                 { label: "전체 주일", value: totalAll, color: "var(--ink-soft)" },
                 { label: "출석", value: totalAttend, color: "var(--success)" },

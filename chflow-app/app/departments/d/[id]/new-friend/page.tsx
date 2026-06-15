@@ -172,9 +172,9 @@ export default function NewFriendPage() {
         <button onClick={newFriend} style={addBtnStyle}>+ 새 등록</button>
       </div>
 
-      <div style={{ display: "flex", maxWidth: 1200, margin: "0 auto", padding: 16, gap: 16 }}>
+      <div className="mx-auto grid max-w-[1200px] gap-4 p-4 md:grid-cols-[260px_1fr]">
         {/* 목록 패널 */}
-        <div style={{ width: 260, flexShrink: 0 }}>
+        <div>
           <div style={cardStyle}>
             <input
               type="text"
@@ -231,7 +231,7 @@ export default function NewFriendPage() {
         </div>
 
         {/* 등록카드 폼 */}
-        <div style={{ flex: 1 }}>
+        <div>
           {!showForm ? (
             <div style={{ ...cardStyle, padding: 24 }}>
               <EmptyState
@@ -272,7 +272,7 @@ export default function NewFriendPage() {
               </div>
 
               {/* 폼 그리드 */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <FormField label="이름 *">
                   <input type="text" value={f("name")} onChange={(e) => set("name", e.target.value)} placeholder="이름" style={inputStyle} />
                 </FormField>

@@ -466,7 +466,7 @@ export default function TalentPage() {
           <HeaderLogo />
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}><Medal size={18} strokeWidth={1.8} /> 달란트통장</div>
-          <div style={{ width: 80 }} />
+          <div className="hidden md:block" style={{ width: 80 }} />
         </div>
         <div className="mx-auto max-w-lg px-4 py-14">
           <div className="rounded-lg border border-hairline bg-white text-center">
@@ -498,7 +498,7 @@ export default function TalentPage() {
         <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
           <Medal size={18} strokeWidth={1.8} /> 달란트통장 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
         </div>
-        <div style={{ width: 80 }} />
+        <div className="hidden md:block" style={{ width: 80 }} />
       </div>
 
       <main className="mx-auto w-full max-w-6xl px-0 py-4 md:px-4">
