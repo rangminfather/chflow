@@ -22,6 +22,15 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
+const PHOTO_PREFIX = "/api/storage/member-photos/";
+async function resolvePhotoUrl(row: Record<string, unknown>) {
+  const raw = row.photo_url;
+  if (typeof raw !== "string" || !raw.startsWith(PHOTO_PREFIX)) return row;
+  const storagePath = raw.slice(PHOTO_PREFIX.length);
+  const { data } = await supabaseAdmin.storage.from("member-photos").createSignedUrl(storagePath, 300);
+  return { ...row, photo_url: data?.signedUrl ?? null };
+}
+
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
   if (!checkRateLimit(ip)) {
@@ -40,5 +49,7 @@ export async function POST(req: NextRequest) {
     p_phone: phone,
   });
   if (error) return NextResponse.json({ error: "조회 중 오류가 발생했습니다." }, { status: 500 });
-  return NextResponse.json({ data: data ?? [] });
+
+  const rows = await Promise.all((data ?? []).map(resolvePhotoUrl));
+  return NextResponse.json({ data: rows });
 }
