@@ -77,6 +77,7 @@ const COMMON_MENUS: CommonMenu[] = [
 
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "vote",     label: "투표",        icon: Vote,          color: "#B8963E", bg: "#F5EDD8", desc: "", href: "/vote" },
+  { id: "messenger-reports", label: "메신저 신고", icon: MessagesSquare, color: "#B8963E", bg: "#F5EDD8", desc: "", href: "/admin/messenger-reports" },
   { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "#B8963E", bg: "#F5EDD8", desc: "" },
   { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "#B8963E", bg: "#F5EDD8", desc: "" },
   { id: "facility", label: "시설 신청",   icon: Landmark,      color: "#B8963E", bg: "#F5EDD8", desc: "" },

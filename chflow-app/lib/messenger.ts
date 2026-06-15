@@ -97,6 +97,24 @@ export type MessengerSearchResult = {
   created_at: string;
 };
 
+export type MessengerReportStatus = "open" | "reviewing" | "resolved" | "dismissed";
+
+export type MessengerReport = {
+  report_id: string;
+  status: MessengerReportStatus;
+  reason: string;
+  note: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  conversation_id: string | null;
+  message_id: string | null;
+  message_body: string | null;
+  reporter_id: string;
+  reporter_name: string | null;
+  reported_user_id: string | null;
+  reported_user_name: string | null;
+};
+
 export async function listMessengerConversations(): Promise<MessengerConversation[]> {
   const { data, error } = await supabase.rpc("list_messenger_conversations");
   if (error) throw error;
@@ -258,6 +276,28 @@ export async function toggleMessengerReaction(messageId: string, emoji: string):
 export async function leaveMessengerConversation(conversationId: string): Promise<void> {
   const { error } = await supabase.rpc("leave_messenger_conversation", {
     p_conversation_id: conversationId,
+  });
+  if (error) throw error;
+}
+
+export async function listMessengerReports(status: MessengerReportStatus | "" = "open", limit = 50): Promise<MessengerReport[]> {
+  const { data, error } = await supabase.rpc("list_messenger_reports", {
+    p_status: status,
+    p_limit: limit,
+  });
+  if (error) throw error;
+  return (data || []) as MessengerReport[];
+}
+
+export async function resolveMessengerReport(
+  reportId: string,
+  status: MessengerReportStatus,
+  note = ""
+): Promise<void> {
+  const { error } = await supabase.rpc("resolve_messenger_report", {
+    p_report_id: reportId,
+    p_status: status,
+    p_note: note,
   });
   if (error) throw error;
 }
