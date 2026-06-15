@@ -57,6 +57,7 @@ export default function ManualPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showTop, setShowTop] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const tabBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -178,6 +179,23 @@ export default function ManualPage() {
     reader.readAsDataURL(file);
   }
 
+  async function handlePrint() {
+    if (!manifest) return;
+    setPrinting(true);
+    const srcs = manifest.items
+      .map(item => imageSrc(item))
+      .filter((s): s is string => !!s);
+    await Promise.all(
+      srcs.map(src => new Promise<void>(resolve => {
+        const img = new window.Image();
+        img.onload = img.onerror = () => resolve();
+        img.src = src;
+      }))
+    );
+    setPrinting(false);
+    window.print();
+  }
+
   async function saveManual(nextManifest = manifest) {
     if (!nextManifest) return;
     setSaving(true);
@@ -241,9 +259,11 @@ export default function ManualPage() {
             <div style={headerTitle}>스마트명성 사용 매뉴얼</div>
             <div style={headerSub}>접속부터 부서 사용까지 · 인쇄(A4) 가능</div>
           </div>
-          <button onClick={() => window.print()} style={printBtn} aria-label="인쇄 / PDF 저장">
+          <button onClick={handlePrint} disabled={printing} style={printBtn} aria-label="인쇄 / PDF 저장">
             <Printer size={16} strokeWidth={1.8} />
-            <span style={{ fontSize: 12, fontWeight: 700, marginLeft: 5 }}>인쇄</span>
+            <span style={{ fontSize: 12, fontWeight: 700, marginLeft: 5 }}>
+              {printing ? "준비 중…" : "인쇄"}
+            </span>
           </button>
         </header>
 
