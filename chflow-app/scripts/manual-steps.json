@@ -123,71 +123,55 @@
     },
     {
       "id": "ch06",
-      "title": "6장. 초등1부 담임교사 메뉴",
+      "title": "6장. 초등1부 담임교사 — 공통 메뉴",
       "account": "manual_teacher",
-      "intro": "담임교사로 승인되면 출석·달란트 입력과 부서 운영 메뉴를 사용할 수 있습니다. 매주 흐름: 주일에 ① 내 반 출석 체크 → ② 달란트통장 입력 → ③ 교육일지 작성 순서로 기록하면 됩니다.",
+      "intro": "담임교사로 승인되면 초등1부 홈에서 '공통'과 '학생관리' 두 묶음이 열립니다. 임원진(부부장·총무·서기)은 '행정관리'까지, 부장·전도사는 '부서관리'까지 볼 수 있습니다. 이 장에서는 역할에 상관없이 모든 구성원이 쓰는 공통 메뉴를 안내합니다.",
       "steps": [
         {
-          "id": "teacher-01",
-          "title": "담임교사 부서 화면",
-          "desc": "담임교사는 학부모보다 더 많은 메뉴가 보입니다. 학생관리 묶음(내 반 출결, 달란트통장, 우리반 아이 정보, 복습문제)이 추가로 열립니다.",
+          "id": "tc-01",
+          "title": "담임교사 부서 화면 — 메뉴 구성",
+          "desc": "초등1부 홈에 들어오면 메뉴가 묶음별로 정리되어 있습니다. 공통(모든 구성원), 학생관리(교사 이상), 행정관리(임원진 이상), 부서관리(부장·전도사 이상) 순으로 내 역할에 해당하는 묶음만 활성화됩니다. 화면을 아래로 스크롤하면 전체 메뉴를 확인할 수 있습니다.",
           "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76",
           "highlight": null,
           "requireLogin": true
         },
         {
-          "id": "teacher-02",
-          "title": "달란트통장",
-          "desc": "주일마다 학생별로 성경책 지참, 요절암송, 대표기도, 전도 등 항목을 체크하면 달란트가 자동으로 적립됩니다. 출석은 '내 반 출석'에서 입력한 내용이 자동으로 연결됩니다.",
-          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/talent",
+          "id": "tc-02",
+          "title": "공지 게시판 — 공지 읽기",
+          "desc": "부서 공지사항을 확인합니다. 제목 목록에서 글을 누르면 본문과 첨부 이미지를 볼 수 있습니다. 읽지 않은 새 공지는 제목 옆에 'N' 표시가 붙습니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/notices/board",
           "highlight": null,
           "requireLogin": true
         },
         {
-          "id": "teacher-03",
-          "title": "출결 통합 조회",
-          "desc": "반 전체의 출석 현황을 주차별로 한눈에 볼 수 있습니다.",
-          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/attendance",
+          "id": "tc-03",
+          "title": "공지 게시판 — 새 글 등록 (임원진 이상)",
+          "desc": "목록 오른쪽 위 '+ 글쓰기' 버튼을 눌러 제목·본문·이미지를 입력하고 등록합니다. 임원진(2등급) 이상만 새 글을 등록할 수 있습니다. 일반 교사는 읽기만 가능합니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/notices/board/new",
           "highlight": null,
           "requireLogin": true
         },
         {
-          "id": "teacher-04",
-          "title": "교사 출석",
-          "desc": "교사 본인의 출석을 기록하고 조회합니다.",
-          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/teacher-attendance",
-          "highlight": null,
-          "requireLogin": true
-        },
-        {
-          "id": "teacher-05",
-          "title": "공지 게시판",
-          "desc": "부서 공지사항을 확인합니다. 새 공지가 올라오면 이곳에서 볼 수 있습니다.",
-          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/notices",
-          "highlight": null,
-          "requireLogin": true
-        },
-        {
-          "id": "teacher-06",
-          "title": "월간 교육계획",
-          "desc": "이달의 교육 계획서를 열람합니다.",
+          "id": "tc-04",
+          "title": "월간 교육계획서 열람",
+          "desc": "이달의 교육 계획 PDF를 화면에서 바로 열람합니다. 파일이 등록되지 않으면 '등록된 계획서가 없습니다'가 표시됩니다. 파일 등록은 행정관리 → '월간교육 등록' 메뉴에서 합니다(임원진 이상).",
           "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/monthly-plan",
           "highlight": null,
           "requireLogin": true
         },
         {
-          "id": "teacher-07",
-          "title": "주보 만들기",
-          "desc": "부서 주보를 작성·열람합니다.",
-          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/weekly-bulletin",
+          "id": "tc-05",
+          "title": "부서 주보 열람",
+          "desc": "이번 주 초등1부 주보를 화면에서 확인합니다. 임원진이 '주보 만들기' 메뉴에서 작성·등록한 주보가 이곳에 표시됩니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/bulletin",
           "highlight": null,
           "requireLogin": true
         },
         {
-          "id": "teacher-08",
-          "title": "교육일지 작성",
-          "desc": "매주 수업 후 교육일지(출석 통계, 헌금, 특이사항)를 작성합니다.",
-          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/journal",
+          "id": "tc-06",
+          "title": "복습문제 열람",
+          "desc": "이번 주 복습문제(PPT) 파일 목록을 확인하고 파일을 눌러 화면에서 바로 봅니다. 파일 업로드는 행정관리 → '복습문제 관리' 메뉴에서 합니다(임원진 이상).",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/review-problems",
           "highlight": null,
           "requireLogin": true
         }
@@ -195,7 +179,209 @@
     },
     {
       "id": "ch07",
-      "title": "7장. 공통 기능",
+      "title": "7장. 초등1부 담임교사 — 학생관리",
+      "account": "manual_teacher",
+      "intro": "학생관리 메뉴는 담임교사(3등급) 이상에게 열립니다. 매주 주일 핵심 업무: ① 내 반 출결 체크 → ② 달란트통장 항목 입력. 두 작업은 연결되어 있어, 출결에서 입력한 출석 여부가 달란트통장에 자동으로 반영됩니다.",
+      "steps": [
+        {
+          "id": "ts-01",
+          "title": "우리반 아이 정보 조회",
+          "desc": "내가 맡은 반 학생들의 이름·생년월일·보호자 연락처를 조회합니다. 학생 이름을 누르면 개인 상세 정보를 볼 수 있습니다. 정보 수정은 행정관리 → '학생정보 관리'에서 합니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/my-class",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ts-02",
+          "title": "내 반 출결 체크 — 기본 입력",
+          "desc": "매 주일, 반 학생 이름 옆 버튼을 눌러 출결 상태를 기록합니다. 이번 주 칸만 입력 가능하며, 지난 주는 '수정 마감'으로 잠기고 다음 주는 '예정'으로 표시됩니다. 버튼을 누르는 즉시 저장됩니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/my-class-attendance",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ts-03",
+          "title": "출결 상태 구분 — 출석인정 처리",
+          "desc": "출결 상태는 '출석', '결석', '출석인정' 세 가지입니다. 버튼을 한 번 더 누르면 상태가 순서대로 바뀝니다. '출석인정'은 현장 불참이지만 다른 예배·활동으로 대체한 경우에 사용하며, 출석 횟수에 포함됩니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/my-class-attendance",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ts-04",
+          "title": "달란트통장 — 항목 체크",
+          "desc": "출결 체크 후, 달란트통장에서 학생별로 성경책 지참·요절암송·대표기도·전도 등 항목을 체크합니다. 출석 여부는 출결에서 입력한 값이 자동 연결됩니다. 체크한 항목수에 따라 달란트가 쌓이며, 화면 오른쪽에 현재까지의 누적 달란트가 표시됩니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/talent",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ts-05",
+          "title": "달란트 적립 규칙 확인",
+          "desc": "현재 운영 중인 달란트 항목과 각 항목의 점수(달란트)를 확인합니다. 규칙 추가·변경은 행정관리 → '달란트 규칙'에서 합니다(임원진 이상).",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/talent-rules",
+          "highlight": null,
+          "requireLogin": true
+        }
+      ]
+    },
+    {
+      "id": "ch08",
+      "title": "8장. 초등1부 임원진 — 행정관리",
+      "account": null,
+      "_note": "행정관리 메뉴는 2등급(부부장·총무·서기) 이상만 접근 가능. manual_teacher 계정으로는 스크린샷 자동 생성 불가. 관리자 UI에서 직접 업로드 필요.",
+      "intro": "행정관리 메뉴는 부부장·총무·서기(2등급) 이상에게만 열립니다. 새친구 등록, 교사 관리, 교육 자료 등록, 교육일지 작성, 주보 자동 생성 등 부서 운영 행정 전반을 담당합니다.",
+      "steps": [
+        {
+          "id": "ta-01",
+          "title": "행정관리 메뉴 한눈에 보기",
+          "desc": "행정관리 묶음에는 다음 11개 메뉴가 있습니다: ① 새친구 등록, ② 사역 가입 승인, ③ 교사 출석 관리, ④ 담임선생님 지정, ⑤ 교육일지 작성, ⑥ 월간교육 등록, ⑦ 주보 만들기, ⑧ 복습문제 관리, ⑨ 출결 통합 조회, ⑩ 학생 출결 조회, ⑪ 달란트 규칙. 학생정보 관리·출결 통계·달란트 통계는 현재 준비 중입니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ta-02",
+          "title": "새친구 등록",
+          "desc": "이번 주 처음 나온 학생을 등록합니다. 이름·생년월일·보호자 연락처를 입력하면 부서 학생 명단에 추가됩니다. 등록 후 '담임선생님 지정' 메뉴에서 해당 학생에게 담임을 배정합니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/new-friend",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ta-03",
+          "title": "사역 가입 승인 및 등급 배정",
+          "desc": "가입 신청 목록을 확인하고 '승인' 또는 '반려' 버튼을 누릅니다. 승인 시 신청한 역할(교사/학부모)에 맞는 기본 등급이 자동 배정됩니다. 등급을 따로 변경하려면 부서관리 → '부서원 등급 관리'를 이용하세요.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/dept-approval",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ta-04",
+          "title": "교사 출석 관리",
+          "desc": "매주 교사들의 출석을 기록합니다. 교사 이름 옆 출석 여부를 체크하면 월별 교사 출석 현황이 자동으로 집계됩니다. 교사 본인도 자신의 출석을 입력할 수 있으나, 임원진은 전체 교사 출석을 한 화면에서 관리합니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/teacher-attendance",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ta-05",
+          "title": "담임선생님 지정",
+          "desc": "학생과 담임교사를 연결합니다. 반별로 담임 교사를 배정하면 해당 교사의 '내 반 출결'·'달란트통장'에 학생 명단이 나타납니다. 진급·전반 시에도 이 메뉴에서 재배정합니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/teacher-assign",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ta-06",
+          "title": "교육일지 작성",
+          "desc": "주일 예배 후 출석 통계·헌금·특이사항을 입력합니다. 이번 주 출결 데이터가 자동으로 불러와지므로 추가 항목만 입력하면 됩니다. 작성된 교육일지는 부장이 취합·보고 자료로 활용합니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/journal",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ta-07",
+          "title": "월간 교육계획 등록",
+          "desc": "PDF 형식의 월간 교육계획서를 업로드합니다. 등록 후 모든 부서원이 '공통 → 월간 교육계획서'에서 열람할 수 있습니다. 이전 파일을 교체하려면 기존 파일을 삭제하고 새 파일을 업로드합니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/monthly-plan-upload",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ta-08",
+          "title": "주보 만들기 — 자동 생성 및 UMS 등록",
+          "desc": "이번 주 초등1부 주보를 작성합니다. 제목과 내용을 입력하고 '생성' 버튼을 누르면 부서 양식에 맞춰 PDF가 만들어집니다. '자동 등록' 버튼을 누르면 교회 UMS 게시판에 자동으로 업로드됩니다. 같은 주에 내용을 수정해 재등록하는 것도 가능합니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/weekly-bulletin",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ta-09",
+          "title": "복습문제 파일 관리",
+          "desc": "이번 주 복습문제 PPT 파일을 업로드합니다. 등록 후 모든 교사가 '공통 → 복습문제 열람'에서 확인할 수 있습니다. 오래된 파일은 목록에서 삭제할 수 있습니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/review-upload",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ta-10",
+          "title": "출결 통합 조회 (전 반)",
+          "desc": "모든 반의 출결 현황을 주차별로 한눈에 봅니다. 담임교사는 자기 반만 조회되지만, 임원진은 전체 반의 출석 현황을 확인하고 잘못 입력된 내용을 직접 수정할 수 있습니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/attendance",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ta-11",
+          "title": "학생 출결 조회 (개인별)",
+          "desc": "특정 학생의 출석 이력을 조회합니다. 이름을 검색하면 주차별 출결 현황과 누적 출석 횟수·출석률을 확인할 수 있습니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/student-record",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ta-12",
+          "title": "달란트 규칙 설정",
+          "desc": "달란트 적립 항목과 각 항목의 점수를 설정합니다. 항목 추가·삭제·점수 변경 후 저장하면 다음 주 달란트통장 입력부터 반영됩니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/talent-rules",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ta-13",
+          "title": "학생정보 관리 (준비 중)",
+          "desc": "학생 명단의 상세 정보(이름·생년월일·연락처·특이사항)를 일괄 조회·편집하는 메뉴입니다. 현재 개발 준비 중이며, 완성 후 이 화면에서 이용할 수 있습니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/students-info",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ta-14",
+          "title": "출결 통계 (준비 중)",
+          "desc": "부서 전체의 출결 통계를 월별·분기별·연간 단위로 그래프와 표로 확인하는 메뉴입니다. 현재 개발 준비 중입니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/attendance-stats",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "ta-15",
+          "title": "달란트 통계 (준비 중)",
+          "desc": "학생별·반별 달란트 누적 현황과 순위를 확인하는 메뉴입니다. 학기말 시상 준비에 활용할 수 있습니다. 현재 개발 준비 중입니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/talent-stats",
+          "highlight": null,
+          "requireLogin": true
+        }
+      ]
+    },
+    {
+      "id": "ch09",
+      "title": "9장. 초등1부 부장·전도사 — 부서관리",
+      "account": null,
+      "_note": "부서관리 메뉴는 1등급(부장·전도사) 이상만 접근 가능. 스크린샷은 관리자 UI에서 직접 업로드 필요.",
+      "intro": "부서관리 메뉴는 부장·전도사(1등급) 이상에게만 열립니다. 구성원의 역할 등급 조정과 연간 진급 처리가 주요 업무입니다.",
+      "steps": [
+        {
+          "id": "td-01",
+          "title": "부서원 등급 관리",
+          "desc": "구성원의 역할(등급)을 변경합니다. 학부모(4등급) → 교사(3등급) → 서기·총무·부부장(2등급) → 부장·전도사(1등급) 순으로 조정할 수 있으며, 등급이 변경되면 그에 맞는 메뉴가 자동으로 열립니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/members-grade",
+          "highlight": null,
+          "requireLogin": true
+        },
+        {
+          "id": "td-02",
+          "title": "진급 마법사 — 연간 진급 처리",
+          "desc": "새 학년도가 시작될 때 학생 전체를 한꺼번에 진급 처리합니다. 단계별 안내에 따라 반 배정을 조정하면 모든 학생의 학년·반 정보가 한 번에 갱신됩니다. 졸업 학생은 이 과정에서 부서 명단에서 제외할 수 있습니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/promote",
+          "highlight": null,
+          "requireLogin": true
+        }
+      ]
+    },
+    {
+      "id": "ch10",
+      "title": "10장. 공통 기능",
       "account": "manual_member",
       "intro": "직분·부서와 관계없이 모든 성도가 사용할 수 있는 메뉴입니다. 홈 화면 가운데 공통 메뉴에서 들어갈 수 있습니다.",
       "steps": [
