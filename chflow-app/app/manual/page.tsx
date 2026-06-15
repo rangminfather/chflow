@@ -363,6 +363,7 @@ export default function ManualPage() {
                 )}
                 {imageSrc(item) ? (
                   <div
+                    className="manual-shot-wrap"
                     style={shotWrap}
                     onClick={() => setLightbox(imageSrc(item))}
                     role="button"
@@ -507,6 +508,12 @@ export default function ManualPage() {
         .manual-sidenav { display: none; }
         .manual-tabbar  { display: flex; }
         .print-doc      { display: none; }
+
+        /* 스크린샷 이미지: 모바일 100%, 520px 이상에서 최대 320px */
+        .manual-shot-wrap { width: 100%; max-width: 100%; }
+        @media (min-width: 520px) {
+          .manual-shot-wrap { max-width: 320px; width: auto; }
+        }
 
         @media (min-width: 768px) {
           .manual-sidenav { display: flex !important; }
@@ -853,11 +860,13 @@ const shotWrap: React.CSSProperties = {
   borderRadius: 12,
   overflow: "hidden",
   border: "1px solid var(--hairline)",
-  maxWidth: 320,          /* 모바일에서도 넉넉한 폭 */
+  /* maxWidth는 .manual-shot-wrap CSS 클래스로 반응형 처리 */
 };
 const shotImg: React.CSSProperties = {
   display: "block",
   width: "100%",
+  height: "auto",
+  maxWidth: "100%",
 };
 const shotOverlay: React.CSSProperties = {
   position: "absolute",
