@@ -362,9 +362,9 @@ export default function JournalPage() {
         <button onClick={newJournal} style={addBtnStyle}>+ 새 일지</button>
       </div>
 
-      <div className="journal-layout" style={{ display: "flex", width: "100%", maxWidth: 1100, margin: "0 auto", padding: 16, gap: 16, minWidth: 0 }}>
+      <div className="journal-layout mx-auto grid w-full max-w-[1100px] gap-4 p-4 md:grid-cols-[240px_1fr]">
         {/* 목록 */}
-        <div className="journal-sidebar" style={{ width: 240, flexShrink: 0, minWidth: 0 }}>
+        <div className="journal-sidebar">
           <div style={cardStyle}>
             <div style={sectionLabel}>일지 목록</div>
             {loading ? (
@@ -402,7 +402,7 @@ export default function JournalPage() {
         </div>
 
         {/* 폼 */}
-        <div className="journal-content" style={{ flex: 1, minWidth: 0 }}>
+        <div className="journal-content min-w-0">
           {!showForm ? (
             <div style={{ ...cardStyle, textAlign: "center" }}>
               <EmptyState message="왼쪽에서 일지를 선택하거나 새 일지를 작성하세요" padding={60} />

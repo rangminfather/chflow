@@ -248,7 +248,7 @@ export default function PromotePage() {
           <HeaderLogo />
           <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtn}>← 부서홈</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><GraduationCap size={18} strokeWidth={1.8} /> 진급 마법사</div>
-        <div style={{ width: 60 }} />
+        <div className="hidden md:block" style={{ width: 60 }} />
       </div>
 
       {/* 단계 표시 */}
