@@ -12,6 +12,8 @@ const HIDDEN_PATH_PREFIXES = [
   "/find-password",
   "/reset-password",
   "/install",
+  "/messenger",
+  "/admin/messenger-reports",
 ];
 
 export default function GlobalNotifications() {
