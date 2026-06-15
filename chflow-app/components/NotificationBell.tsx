@@ -504,9 +504,30 @@ function ToastCard({
   mobile?: boolean;
 }) {
   const meta = getNotificationTypeMeta(toast.type);
+  const startXRef = useRef<number | null>(null);
+  const [swipeX, setSwipeX] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    startXRef.current = e.touches[0].clientX;
+    setSwiping(true);
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (startXRef.current === null) return;
+    setSwipeX(e.touches[0].clientX - startXRef.current);
+  };
+  const handleTouchEnd = () => {
+    if (Math.abs(swipeX) > 72) { onDismiss(); return; }
+    setSwipeX(0);
+    setSwiping(false);
+    startXRef.current = null;
+  };
 
   return (
     <div
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       style={{
         background: meta.gradient,
         color: "#fff",
@@ -519,6 +540,10 @@ function ToastCard({
         animation: mobile ? "toastSlideDown 0.4s ease" : "toastSlideInRight 0.4s ease",
         marginBottom: mobile ? 0 : 8,
         borderBottom: mobile ? "1px solid rgba(255,255,255,0.2)" : "none",
+        transform: swipeX !== 0 ? `translateX(${swipeX}px)` : undefined,
+        opacity: swiping ? Math.max(0.3, 1 - Math.abs(swipeX) / 150) : 1,
+        transition: swiping ? "none" : "transform 0.25s ease, opacity 0.25s ease",
+        touchAction: "pan-y",
       }}
     >
       <div style={{
