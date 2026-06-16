@@ -113,10 +113,11 @@ export default function HomePage() {
       setUser(profile);
       setAuthChecked(true);
 
-      const { data: depts } = await supabase.rpc("get_my_departments");
+      const [{ data: depts }, { data: photos }] = await Promise.all([
+        supabase.rpc("get_my_departments"),
+        supabase.rpc("get_my_photos"),
+      ]);
       if (depts) setMyDepartments(depts);
-
-      const { data: photos } = await supabase.rpc("get_my_photos");
       if (photos && photos[0]) {
         setPhotoUrl(photos[0].avatar_url || photos[0].member_photo_url || null);
       }
