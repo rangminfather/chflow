@@ -115,7 +115,7 @@ export default function DepartmentBulletinPage() {
     <main style={pageStyle}>
       <section style={shellStyle}>
         <header style={headerStyle}>
-          <button type="button" onClick={() => router.push(`/departments/d/${deptId}/notices`)} aria-label="공통으로" style={iconButtonStyle}>
+          <button type="button" onClick={() => router.push(`/departments/d/${deptId}`)} aria-label="부서홈으로" style={iconButtonStyle}>
             <ArrowLeft size={20} strokeWidth={1.8} />
           </button>
           <HeaderLogo />
