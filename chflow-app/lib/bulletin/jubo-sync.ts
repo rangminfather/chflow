@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import iconv from "iconv-lite";
 import { CookieJar, umsViaCf } from "@/lib/bulletin/ums-via-cf";
+import { r2 } from "@/lib/r2";
 
 // 메인 교회(명성교회) 주보 PDF 수집 로직.
 // cron(`/api/bulletin/sync`)과 조회 시 lazy 폴백(`/api/bulletin/latest`)이 공유한다.
@@ -110,16 +111,6 @@ function parseLatestJubo(html: string): JuboListItem | null {
   }
 
   return null;
-}
-
-async function ensureBucket(admin: ReturnType<typeof adminClient>) {
-  const { data } = await admin.storage.getBucket(BUCKET);
-  if (data) return;
-  await admin.storage.createBucket(BUCKET, {
-    public: false,
-    fileSizeLimit: 50 * 1024 * 1024,
-    allowedMimeTypes: ["application/pdf"],
-  });
 }
 
 function pdfFromBuffer(buf: Buffer) {
@@ -368,10 +359,9 @@ async function runSync(): Promise<JuboSyncResult> {
     }
 
     const pdf = await fetchPdfWithLogin(latest, umsUserId, umsPassword);
-    await ensureBucket(admin);
 
     const objectPath = `jubo/${latest.issue_date}_${latest.no}.pdf`;
-    const { error: uploadError } = await admin.storage.from(BUCKET).upload(objectPath, pdf, {
+    const { error: uploadError } = await r2.from(BUCKET).upload(objectPath, pdf, {
       contentType: "application/pdf",
       upsert: true,
     });

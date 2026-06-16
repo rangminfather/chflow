@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Workbook } from "exceljs";
+import { r2 } from "@/lib/r2";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const preferredRegion = "icn1";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const BUCKET = "monthly-plans";
 
@@ -51,12 +51,6 @@ type PlanEntry = {
 function authedClient(token: string) {
   return createClient(SUPABASE_URL, ANON_KEY, {
     global: { headers: { Authorization: `Bearer ${token}` } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-function adminClient() {
-  return createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
@@ -261,8 +255,7 @@ export async function GET(req: NextRequest) {
   const verified = await verifyGrade(req, deptId);
   if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
 
-  const admin = adminClient();
-  const { data: files, error: listError } = await admin.storage.from(BUCKET).list(deptId, {
+  const { data: files, error: listError } = await r2.from(BUCKET).list(deptId, {
     limit: 100,
     sortBy: { column: "created_at", order: "desc" },
   });
@@ -274,7 +267,7 @@ export async function GET(req: NextRequest) {
   for (let index = 0; index < planFiles.length; index += 1) {
     const file = planFiles[index];
     const path = `${deptId}/${file.name}`;
-    const { data, error } = await admin.storage.from(BUCKET).download(path);
+    const { data, error } = await r2.from(BUCKET).download(path);
     if (error || !data) continue;
     const buffer = Buffer.from(await data.arrayBuffer());
     allEntries.push(...await readEntriesFromWorkbook(buffer, file.name, index, year));

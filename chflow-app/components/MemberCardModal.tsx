@@ -134,9 +134,11 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
     try {
       const ext = file.name.split(".").pop() || "png";
       const path = `${currentId}/profile.${ext}`;
-      const { error: upErr } = await supabase.storage.from("member-photos")
-        .upload(path, file, { upsert: true, contentType: file.type });
-      if (upErr) { alert(`업로드 실패: ${upErr.message}`); return; }
+      const form = new FormData();
+      form.append("file", new File([file], file.name, { type: file.type }));
+      const uploadRes = await fetch(`/api/storage/member-photos/${path}`, { method: "POST", body: form });
+      const uploadResult = await uploadRes.json();
+      if (!uploadResult.ok) { alert(`업로드 실패: ${uploadResult.error ?? "오류"}`); return; }
       const url = `/api/storage/member-photos/${path}?t=${Date.now()}`;
       const { error: rpcErr } = await supabase.rpc("admin_set_member_photo", { p_member_id: currentId, p_photo_url: url });
       if (rpcErr) { alert(`저장 실패: ${rpcErr.message}`); return; }
@@ -151,12 +153,14 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
     if (!confirm("사진을 삭제할까요?\nStorage 파일까지 완전히 제거됩니다.")) return;
     setDeletingPhoto(true);
     try {
-      const { data: files, error: listErr } = await supabase.storage.from("member-photos").list(currentId);
-      if (listErr) { alert(`파일 조회 실패: ${listErr.message}`); return; }
-      if (files && files.length > 0) {
-        const paths = files.map(f => `${currentId}/${f.name}`);
-        const { error: rmErr } = await supabase.storage.from("member-photos").remove(paths);
-        if (rmErr) { alert(`파일 제거 실패: ${rmErr.message}`); return; }
+      const listRes = await fetch(`/api/storage/list/member-photos?prefix=${currentId}&limit=100`);
+      const listJson = await listRes.json();
+      if (!listRes.ok) { alert(`파일 조회 실패: ${listJson.error ?? "오류"}`); return; }
+      const files: { name: string }[] = listJson.data ?? [];
+      for (const f of files) {
+        const path = `${currentId}/${f.name}`;
+        const rmRes = await fetch(`/api/storage/member-photos/${encodeURIComponent(path)}`, { method: "DELETE" });
+        if (!rmRes.ok) { alert(`파일 제거 실패: ${f.name}`); return; }
       }
       const { error: rpcErr } = await supabase.rpc("admin_set_member_photo", { p_member_id: currentId, p_photo_url: null });
       if (rpcErr) { alert(`저장 실패: ${rpcErr.message}`); return; }

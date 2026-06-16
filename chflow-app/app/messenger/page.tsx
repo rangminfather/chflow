@@ -320,10 +320,11 @@ export default function MessengerPage() {
         }
         const safeName = sanitizeFileName(file.name);
         const path = `${session.user.id}/${activeId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
-        const { error: uploadError } = await supabase.storage
-          .from("messenger-attachments")
-          .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
-        if (uploadError) throw uploadError;
+        const form = new FormData();
+        form.append("file", new File([file], file.name, { type: file.type || "application/octet-stream" }));
+        const uploadRes = await fetch(`/api/storage/messenger-attachments/${path}`, { method: "POST", body: form });
+        const uploadResult = await uploadRes.json();
+        if (!uploadResult.ok) throw new Error(uploadResult.error ?? "업로드 실패");
 
         uploaded.push({
           file_path: path,

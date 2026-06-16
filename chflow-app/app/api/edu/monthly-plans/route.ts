@@ -1,24 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { r2 } from "@/lib/r2";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const preferredRegion = "icn1";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const BUCKET = "monthly-plans";
 
 function authedClient(token: string) {
   return createClient(SUPABASE_URL, ANON_KEY, {
     global: { headers: { Authorization: `Bearer ${token}` } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-function adminClient() {
-  return createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
@@ -44,15 +38,6 @@ async function verifyGrade(req: NextRequest, deptId: string) {
   return { ok: true as const, grade };
 }
 
-async function ensureBucket(admin: ReturnType<typeof adminClient>) {
-  const { data } = await admin.storage.getBucket(BUCKET);
-  if (data) return;
-  await admin.storage.createBucket(BUCKET, {
-    public: false,
-    fileSizeLimit: 25 * 1024 * 1024,
-  });
-}
-
 function safeExtension(name: string) {
   const ext = name.includes(".") ? name.split(".").pop() : "";
   const clean = (ext || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 12);
@@ -76,10 +61,7 @@ export async function GET(req: NextRequest) {
   const verified = await verifyGrade(req, deptId);
   if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
 
-  const admin = adminClient();
-  await ensureBucket(admin);
-
-  const { data, error } = await admin.storage.from(BUCKET).list(deptId, {
+  const { data, error } = await r2.from(BUCKET).list(deptId, {
     limit: 100,
     sortBy: { column: "created_at", order: "desc" },
   });
@@ -87,7 +69,7 @@ export async function GET(req: NextRequest) {
 
   const files = await Promise.all((data || []).filter((item) => item.name).map(async (item) => {
     const path = `${deptId}/${item.name}`;
-    const signed = await admin.storage.from(BUCKET).createSignedUrl(path, 60 * 10);
+    const signed = await r2.from(BUCKET).createSignedUrl(path, 60 * 10);
     const parsed = parsePlanName(item.name);
     return {
       name: item.name,
@@ -120,15 +102,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "월간교육등록 권한이 없습니다" }, { status: 403 });
   }
 
-  const admin = adminClient();
-  await ensureBucket(admin);
-
   const mm = String(month).padStart(2, "0");
   const objectName = `${year}-${mm}_${Date.now()}_monthly-plan${safeExtension(file.name)}`;
   const path = `${deptId}/${objectName}`;
   const bytes = await file.arrayBuffer();
 
-  const { error } = await admin.storage.from(BUCKET).upload(path, bytes, {
+  const { error } = await r2.from(BUCKET).upload(path, bytes, {
     contentType: file.type || "application/octet-stream",
     upsert: false,
   });

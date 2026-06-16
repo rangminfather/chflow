@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { r2 } from "@/lib/r2";
 
 export const runtime = "nodejs";
 
@@ -26,7 +27,7 @@ async function resolvePhotoUrl(row: Record<string, unknown>) {
   const raw = row.photo_url;
   if (typeof raw !== "string" || !raw.startsWith(PHOTO_PREFIX)) return row;
   const storagePath = raw.slice(PHOTO_PREFIX.length);
-  const { data } = await supabaseAdmin.storage.from("member-photos").createSignedUrl(storagePath, 300);
+  const { data } = await r2.from("member-photos").createSignedUrl(storagePath, 300);
   return { ...row, photo_url: data?.signedUrl ?? null };
 }
 

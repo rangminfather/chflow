@@ -62,14 +62,14 @@ export default function PhotoAvatar({
 
   const loadGallery = useCallback(async () => {
     setLoadingGallery(true);
-    const { data, error: listError } = await supabase.storage
-      .from("member-photos")
-      .list(userId, { limit: 100, sortBy: { column: "created_at", order: "desc" } });
-    if (listError) {
+    const res = await fetch(`/api/storage/list/member-photos?prefix=${userId}&limit=100`);
+    const json = await res.json();
+    const data: { name: string; created_at: string | null }[] = json.data ?? [];
+    if (!res.ok) {
       setLoadingGallery(false);
       return;
     }
-    const items: GalleryItem[] = (data || [])
+    const items: GalleryItem[] = data
       .filter((f) => !f.name.startsWith(".") && f.name !== "profile.png")
       .map((f) => {
         const path = `${userId}/${f.name}`;
@@ -159,13 +159,11 @@ export default function PhotoAvatar({
       }
 
       const fileName = `${userId}/photo_${Date.now()}.jpg`;
-      const { error: uploadError } = await supabase.storage
-        .from("member-photos")
-        .upload(fileName, blob, {
-          contentType: "image/jpeg",
-          cacheControl: "3600",
-          upsert: true,
-        });
+      const form = new FormData();
+      form.append("file", new File([blob], "photo.jpg", { type: "image/jpeg" }));
+      const uploadRes = await fetch(`/api/storage/member-photos/${fileName}`, { method: "POST", body: form });
+      const uploadResult = await uploadRes.json();
+      const uploadError = uploadResult.ok ? null : new Error(uploadResult.error ?? "업로드 실패");
 
       if (uploadError) {
         setError(`업로드 실패: ${uploadError.message}`);
@@ -219,9 +217,8 @@ export default function PhotoAvatar({
     if (!confirm("이 사진을 삭제하시겠습니까?")) return;
     const path = `${userId}/${item.name}`;
     setDeletingPath(path);
-    const { error: rmError } = await supabase.storage
-      .from("member-photos")
-      .remove([path]);
+    const rmRes = await fetch(`/api/storage/member-photos/${encodeURIComponent(path)}`, { method: "DELETE" });
+    const rmError = rmRes.ok ? null : new Error("삭제 실패");
     if (rmError) {
       setDeletingPath(null);
       setError(`삭제 실패: ${rmError.message}`);

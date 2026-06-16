@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import JSZip from "jszip";
 import { Workbook } from "exceljs";
+import { r2 } from "@/lib/r2";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const preferredRegion = "icn1";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const REVIEW_BUCKET = "review-problems";
 const PLAN_BUCKET = "monthly-plans";
@@ -55,12 +55,6 @@ function authedClient(token: string) {
   });
 }
 
-function adminClient() {
-  return createClient(SUPABASE_URL, SERVICE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
 function tokenFrom(req: NextRequest) {
   const auth = req.headers.get("Authorization") || "";
   return auth.startsWith("Bearer ") ? auth.slice(7) : null;
@@ -80,15 +74,6 @@ async function verifyGrade(req: NextRequest, deptId: string) {
     return { ok: false as const, status: 403, error: "부서 접근 권한이 없습니다" };
   }
   return { ok: true as const, grade };
-}
-
-async function ensureBucket(admin: ReturnType<typeof adminClient>, bucket: string) {
-  const { data } = await admin.storage.getBucket(bucket);
-  if (data) return;
-  await admin.storage.createBucket(bucket, {
-    public: false,
-    fileSizeLimit: 30 * 1024 * 1024,
-  });
 }
 
 function cleanText(value: unknown) {
@@ -377,8 +362,8 @@ async function readLessonsFromWorkbook(buffer: Buffer, sourceFile: string, fileO
   return lessons;
 }
 
-async function loadPlanLesson(admin: ReturnType<typeof adminClient>, deptId: string, date: string) {
-  const { data: files, error } = await admin.storage.from(PLAN_BUCKET).list(deptId, {
+async function loadPlanLesson(deptId: string, date: string) {
+  const { data: files, error } = await r2.from(PLAN_BUCKET).list(deptId, {
     limit: 100,
     sortBy: { column: "created_at", order: "desc" },
   });
@@ -392,7 +377,7 @@ async function loadPlanLesson(admin: ReturnType<typeof adminClient>, deptId: str
   for (let index = 0; index < planFiles.length; index += 1) {
     const file = planFiles[index];
     const path = `${deptId}/${file.name}`;
-    const { data } = await admin.storage.from(PLAN_BUCKET).download(path);
+    const { data } = await r2.from(PLAN_BUCKET).download(path);
     if (!data) continue;
     const buffer = Buffer.from(await data.arrayBuffer());
     allLessons.push(...await readLessonsFromWorkbook(buffer, file.name, index, year));
@@ -448,18 +433,18 @@ function lessonFromStorageName(name: string): string {
   return lessonFromTitle(name);
 }
 
-async function readIndex(admin: ReturnType<typeof adminClient>, deptId: string): Promise<IndexEntry[]> {
-  const { data } = await admin.storage.from(REVIEW_BUCKET).download(`${deptId}/${INDEX_FILE}`);
+async function readIndex(deptId: string): Promise<IndexEntry[]> {
+  const { data } = await r2.from(REVIEW_BUCKET).download(`${deptId}/${INDEX_FILE}`);
   if (!data) return [];
   try { return JSON.parse(await data.text()) as IndexEntry[]; } catch { return []; }
 }
 
-async function saveIndex(admin: ReturnType<typeof adminClient>, deptId: string, entries: IndexEntry[]) {
+async function saveIndex(deptId: string, entries: IndexEntry[]) {
   const sorted = [...entries].sort((a, b) => {
     const al = Number(a.lessonNum || 9999), bl = Number(b.lessonNum || 9999);
     return al !== bl ? al - bl : (a.title || "").localeCompare(b.title || "", "ko");
   });
-  await admin.storage.from(REVIEW_BUCKET).upload(
+  await r2.from(REVIEW_BUCKET).upload(
     `${deptId}/${INDEX_FILE}`,
     Buffer.from(JSON.stringify(sorted)),
     { contentType: "application/json", upsert: true }
@@ -467,8 +452,8 @@ async function saveIndex(admin: ReturnType<typeof adminClient>, deptId: string, 
 }
 
 // 스토리지 목록에서 index 재구성 (JSON 사이드카 있으면 정확한 메타데이터 사용)
-async function rebuildIndex(admin: ReturnType<typeof adminClient>, deptId: string): Promise<IndexEntry[]> {
-  const { data, error } = await admin.storage.from(REVIEW_BUCKET).list(deptId, { limit: 200 });
+async function rebuildIndex(deptId: string): Promise<IndexEntry[]> {
+  const { data, error } = await r2.from(REVIEW_BUCKET).list(deptId, { limit: 200 });
   if (error) throw error;
   const allNames = new Set((data || []).map((f) => f.name));
   const pptxItems = (data || []).filter((f) => /\.pptx$/i.test(f.name));
@@ -493,7 +478,7 @@ async function rebuildIndex(admin: ReturnType<typeof adminClient>, deptId: strin
 
     // JSON 사이드카 있으면 정확한 데이터로 덮어쓰기
     if (allNames.has(jsonName)) {
-      const { data: blob } = await admin.storage.from(REVIEW_BUCKET).download(jsonPath);
+      const { data: blob } = await r2.from(REVIEW_BUCKET).download(jsonPath);
       if (blob) {
         try {
           const parsed = JSON.parse(await blob.text()) as ParsedReviewProblem;
@@ -504,12 +489,12 @@ async function rebuildIndex(admin: ReturnType<typeof adminClient>, deptId: strin
     entries.push(entry);
   }
 
-  await saveIndex(admin, deptId, entries);
+  await saveIndex(deptId, entries);
   return entries;
 }
 
-async function addToIndex(admin: ReturnType<typeof adminClient>, deptId: string, parsed: ParsedReviewProblem, pptxPath: string) {
-  const existing = await readIndex(admin, deptId);
+async function addToIndex(deptId: string, parsed: ParsedReviewProblem, pptxPath: string) {
+  const existing = await readIndex(deptId);
   const entry: IndexEntry = {
     path: pptxPath,
     jsonPath: jsonPathFor(pptxPath),
@@ -521,17 +506,17 @@ async function addToIndex(admin: ReturnType<typeof adminClient>, deptId: string,
     size: parsed.size,
   };
   const next = existing.filter((e) => e.path !== pptxPath).concat(entry);
-  await saveIndex(admin, deptId, next);
+  await saveIndex(deptId, next);
 }
 
-async function removeFromIndex(admin: ReturnType<typeof adminClient>, deptId: string, pptxPath: string) {
-  const existing = await readIndex(admin, deptId);
-  await saveIndex(admin, deptId, existing.filter((e) => e.path !== pptxPath));
+async function removeFromIndex(deptId: string, pptxPath: string) {
+  const existing = await readIndex(deptId);
+  await saveIndex(deptId, existing.filter((e) => e.path !== pptxPath));
 }
 
 // JSON 사이드카 저장 (quizzes 포함 전체 데이터)
-async function saveJsonSidecar(admin: ReturnType<typeof adminClient>, pptxPath: string, problem: ParsedReviewProblem) {
-  await admin.storage.from(REVIEW_BUCKET).upload(
+async function saveJsonSidecar(pptxPath: string, problem: ParsedReviewProblem) {
+  await r2.from(REVIEW_BUCKET).upload(
     jsonPathFor(pptxPath),
     Buffer.from(JSON.stringify(problem)),
     { contentType: "application/json", upsert: true }
@@ -540,10 +525,10 @@ async function saveJsonSidecar(admin: ReturnType<typeof adminClient>, pptxPath: 
 
 // 특정 파일의 quizzes 포함 전체 데이터 가져오기
 // answerParsed 플래그가 없는 구버전 JSON은 PPTX 재파싱 후 사이드카 덮어씀 (자동 마이그레이션)
-async function fetchFullProblem(admin: ReturnType<typeof adminClient>, jsonPath: string): Promise<ParsedReviewProblem | null> {
+async function fetchFullProblem(jsonPath: string): Promise<ParsedReviewProblem | null> {
   const pptxPath = jsonPath.replace(/\.json$/i, ".pptx");
 
-  const { data: jsonData } = await admin.storage.from(REVIEW_BUCKET).download(jsonPath);
+  const { data: jsonData } = await r2.from(REVIEW_BUCKET).download(jsonPath);
   if (jsonData) {
     try {
       const existing = JSON.parse(await jsonData.text()) as ParsedReviewProblem;
@@ -554,13 +539,13 @@ async function fetchFullProblem(admin: ReturnType<typeof adminClient>, jsonPath:
   }
 
   // PPTX 파싱 (JSON 없거나 구버전인 경우)
-  const { data: pptxData } = await admin.storage.from(REVIEW_BUCKET).download(pptxPath);
+  const { data: pptxData } = await r2.from(REVIEW_BUCKET).download(pptxPath);
   if (!pptxData) return null;
   try {
     const buffer = Buffer.from(await pptxData.arrayBuffer());
     const fileName = pptxPath.split("/").pop() || pptxPath;
     const parsed = await parseReviewPptx(buffer, fileName, pptxPath, fileName, null, null);
-    await saveJsonSidecar(admin, pptxPath, parsed);
+    await saveJsonSidecar(pptxPath, parsed);
     return parsed;
   } catch { return null; }
 }
@@ -585,32 +570,29 @@ export async function GET(req: NextRequest) {
   const verified = await verifyGrade(req, deptId);
   if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
 
-  const admin = adminClient();
-
   // ① 단일 파일 quizzes 요청 (적용 버튼 클릭 시)
   if (filePath) {
     if (!filePath.startsWith(`${deptId}/`)) return NextResponse.json({ ok: false, error: "접근 불가" }, { status: 403 });
-    const problem = await fetchFullProblem(admin, filePath);
+    const problem = await fetchFullProblem(filePath);
     if (!problem) return NextResponse.json({ ok: false, error: "파일을 찾을 수 없습니다" }, { status: 404 });
     return NextResponse.json({ ok: true, problem });
   }
 
   // ② 목록 요청 — index만 읽음 (경량)
   try {
-    await ensureBucket(admin, REVIEW_BUCKET);
-    let index = await readIndex(admin, deptId);
+    let index = await readIndex(deptId);
     // index가 비어 있으면 스토리지에서 재구성 (최초 1회)
-    if (index.length === 0) index = await rebuildIndex(admin, deptId);
+    if (index.length === 0) index = await rebuildIndex(deptId);
 
     let planStatus = null;
     let match: ParsedReviewProblem | null = null;
     if (date) {
-      planStatus = await loadPlanLesson(admin, deptId, date);
+      planStatus = await loadPlanLesson(deptId, date);
       if (planStatus.status === "ready") {
         const entry = findMatchedEntry(index, planStatus.plan);
         if (entry) {
           // 매칭된 1개 파일만 quizzes 포함해서 가져옴
-          match = await fetchFullProblem(admin, entry.jsonPath);
+          match = await fetchFullProblem(entry.jsonPath);
           if (!match) planStatus = { ...planStatus, status: "no-review-match" as const, message: "복습문제 파일을 읽을 수 없습니다" };
         } else {
           planStatus = { ...planStatus, status: "no-review-match" as const, message: "월별 계획과 매칭되는 복습문제가 없습니다" };
@@ -619,7 +601,7 @@ export async function GET(req: NextRequest) {
     }
 
     const problems = await Promise.all(index.map(async (entry) => {
-      const signed = await admin.storage.from(REVIEW_BUCKET).createSignedUrl(entry.path, 60 * 10);
+      const signed = await r2.from(REVIEW_BUCKET).createSignedUrl(entry.path, 60 * 10);
       return { ...entry, url: signed.data?.signedUrl || "" };
     }));
 
@@ -638,9 +620,6 @@ export async function POST(req: NextRequest) {
   const verified = await verifyGrade(req, deptId);
   if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
 
-  const admin = adminClient();
-  await ensureBucket(admin, REVIEW_BUCKET);
-
   const uploaded = [];
   for (const file of files) {
     if (!/\.pptx$/i.test(file.name)) return NextResponse.json({ ok: false, error: "PPTX 파일만 업로드할 수 있습니다" }, { status: 400 });
@@ -650,7 +629,7 @@ export async function POST(req: NextRequest) {
     const objectName = `${lessonPart}_${Date.now()}_${safeSlug(file.name)}${safeExtension(file.name)}`;
     const pptxPath = `${deptId}/${objectName}`;
 
-    const { error } = await admin.storage.from(REVIEW_BUCKET).upload(pptxPath, bytes, {
+    const { error } = await r2.from(REVIEW_BUCKET).upload(pptxPath, bytes, {
       contentType: file.type || "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       upsert: false,
     });
@@ -658,8 +637,8 @@ export async function POST(req: NextRequest) {
 
     const fullParsed = { ...parsed, path: pptxPath };
     await Promise.all([
-      saveJsonSidecar(admin, pptxPath, fullParsed),
-      addToIndex(admin, deptId, fullParsed, pptxPath),
+      saveJsonSidecar(pptxPath, fullParsed),
+      addToIndex(deptId, fullParsed, pptxPath),
     ]);
     uploaded.push({ path: pptxPath, title: parsed.title, lessonNum: parsed.lessonNum, specialTitle: parsed.specialTitle });
   }
@@ -676,9 +655,8 @@ export async function DELETE(req: NextRequest) {
   const verified = await verifyGrade(req, deptId);
   if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
 
-  const admin = adminClient();
-  await admin.storage.from(REVIEW_BUCKET).remove([path, jsonPathFor(path)]);
-  await removeFromIndex(admin, deptId, path);
+  await r2.from(REVIEW_BUCKET).remove([path, jsonPathFor(path)]);
+  await removeFromIndex(deptId, path);
 
   return NextResponse.json({ ok: true });
 }

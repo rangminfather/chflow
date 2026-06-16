@@ -86,21 +86,23 @@ export default function NewFeedbackPage() {
     await Promise.all(newOnes.map(async (att) => {
       const ext = att.file.name.split(".").pop() || "png";
       const path = `${userId}/posts/${Date.now()}_${att.localId}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("feedback-attachments")
-        .upload(path, att.file, { contentType: att.file.type, upsert: false });
+      const form = new FormData();
+      form.append("file", att.file);
+      const uploadRes = await fetch(`/api/storage/feedback-attachments/${path}`, { method: "POST", body: form });
+      const uploadResult = await uploadRes.json();
+      const upErr = uploadResult.ok ? null : (uploadResult.error ?? "업로드 실패");
       setAttachments((prev) => prev.map((a) => a.localId === att.localId ? {
         ...a,
         uploading: false,
         uploadedPath: upErr ? undefined : path,
-        error: upErr ? upErr.message : undefined,
+        error: upErr ? String(upErr) : undefined,
       } : a));
     }));
   }
 
   async function removeAttachment(att: Attachment) {
     if (att.uploadedPath) {
-      await supabase.storage.from("feedback-attachments").remove([att.uploadedPath]);
+      await fetch(`/api/storage/feedback-attachments/${encodeURIComponent(att.uploadedPath)}`, { method: "DELETE" });
     }
     URL.revokeObjectURL(att.previewUrl);
     setAttachments((prev) => prev.filter((a) => a.localId !== att.localId));

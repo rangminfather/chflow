@@ -2,6 +2,7 @@ import { createHmac } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
+import { r2 } from "@/lib/r2";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -321,7 +322,7 @@ async function loadStoredItems(deptKey: string): Promise<DeptBulletinItem[]> {
     const sourceNo = Number(row.content?.match(/UMS samusil no:\s*(\d+)/)?.[1] || 0);
     let signedUrl = "";
     if (path && !/^https?:\/\//i.test(path)) {
-      const signed = await admin.storage.from(BUCKET).createSignedUrl(path, PDF_URL_TTL_SECONDS);
+      const signed = await r2.from(BUCKET).createSignedUrl(path, PDF_URL_TTL_SECONDS);
       signedUrl = signed.data?.signedUrl || "";
     } else {
       signedUrl = path;

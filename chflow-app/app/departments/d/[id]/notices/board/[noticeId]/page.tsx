@@ -48,6 +48,7 @@ export default function DeptNoticeDetailPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState<Notice | null>(null);
   const [signed, setSigned] = useState<Record<string, string>>({});
+  // signed는 이제 사용되지 않지만 AttachmentList 인터페이스 호환을 위해 유지
 
   const [reply, setReply] = useState("");
   const [uploads, setUploads] = useState<Upload[]>([]);
@@ -73,15 +74,14 @@ export default function DeptNoticeDetailPage() {
     const n = data as Notice;
     setNotice(n);
 
-    // 서명 URL 일괄 생성 (비공개 버킷)
+    // API 라우트를 통해 파일을 서빙하므로 서명 URL 대신 프록시 URL 사용
     const paths = [
       ...n.attachments.map((a) => a.file_path),
       ...n.comments.flatMap((c) => c.attachments.map((a) => a.file_path)),
     ];
     if (paths.length) {
-      const { data: urls } = await supabase.storage.from(BUCKET).createSignedUrls(paths, 60 * 60);
       const map: Record<string, string> = {};
-      (urls || []).forEach((u) => { if (u.path && u.signedUrl) map[u.path] = u.signedUrl; });
+      paths.forEach((p) => { map[p] = `/api/storage/${BUCKET}/${p}`; });
       setSigned(map);
     }
     setLoading(false);
@@ -121,13 +121,19 @@ export default function DeptNoticeDetailPage() {
     await Promise.all(newOnes.map(async (att) => {
       const ext = att.file.name.split(".").pop() || "bin";
       const path = `${userId}/dept-notice/${Date.now()}_${att.localId}.${ext}`;
-      const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, att.file, { contentType: att.file.type || "application/octet-stream", upsert: false });
-      setUploads((prev) => prev.map((a) => a.localId === att.localId ? { ...a, uploading: false, uploadedPath: upErr ? undefined : path, error: upErr ? upErr.message : undefined } : a));
+      const form = new FormData();
+      form.append("file", att.file);
+      const uploadRes = await fetch(`/api/storage/${BUCKET}/${path}`, { method: "POST", body: form });
+      const uploadResult = await uploadRes.json();
+      const upErr = uploadResult.ok ? null : (uploadResult.error ?? "업로드 실패");
+      setUploads((prev) => prev.map((a) => a.localId === att.localId ? { ...a, uploading: false, uploadedPath: upErr ? undefined : path, error: upErr ? String(upErr) : undefined } : a));
     }));
   }
 
   async function removeUpload(att: Upload) {
-    if (att.uploadedPath) await supabase.storage.from(BUCKET).remove([att.uploadedPath]);
+    if (att.uploadedPath) {
+      await fetch(`/api/storage/${BUCKET}/${encodeURIComponent(att.uploadedPath)}`, { method: "DELETE" });
+    }
     if (att.previewUrl) URL.revokeObjectURL(att.previewUrl);
     setUploads((prev) => prev.filter((a) => a.localId !== att.localId));
   }

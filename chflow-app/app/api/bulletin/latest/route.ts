@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import iconv from "iconv-lite";
 import { syncJuboBulletin } from "@/lib/bulletin/jubo-sync";
 import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
+import { r2 } from "@/lib/r2";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -259,7 +260,7 @@ async function loadStoredItems(): Promise<BulletinItem[]> {
     const sourceNo = Number(row.content?.match(/UMS jubo no: (\d+)/)?.[1] || 0);
     let signedUrl = "";
     if (path && !/^https?:\/\//i.test(path)) {
-      const signed = await admin.storage.from(BUCKET).createSignedUrl(path, 60 * 10);
+      const signed = await r2.from(BUCKET).createSignedUrl(path, 60 * 10);
       signedUrl = signed.data?.signedUrl || "";
     } else {
       signedUrl = path;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
+import { r2 } from "@/lib/r2";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -57,16 +58,6 @@ function hasCronAccess(req: NextRequest) {
   if (!secret) return process.env.NODE_ENV !== "production";
   const auth = req.headers.get("Authorization") || "";
   return auth === `Bearer ${secret}`;
-}
-
-async function ensureBucket(admin: ReturnType<typeof adminClient>) {
-  const { data } = await admin.storage.getBucket(BUCKET);
-  if (data) return;
-  await admin.storage.createBucket(BUCKET, {
-    public: false,
-    fileSizeLimit: 50 * 1024 * 1024,
-    allowedMimeTypes: ["application/pdf"],
-  });
 }
 
 function decodeHtml(value: string) {
@@ -246,10 +237,9 @@ async function syncDeptBulletin() {
     }
 
     const pdf = await downloadPdf(latest.no);
-    await ensureBucket(admin);
 
     const objectPath = `${STORAGE_PREFIX}/${issueDate}_${latest.no}.pdf`;
-    const { error: uploadError } = await admin.storage.from(BUCKET).upload(objectPath, pdf, {
+    const { error: uploadError } = await r2.from(BUCKET).upload(objectPath, pdf, {
       contentType: "application/pdf",
       upsert: true,
     });
