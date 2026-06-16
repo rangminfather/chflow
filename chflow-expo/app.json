@@ -20,7 +20,7 @@
       }
     },
     "android": {
-      "googleServicesFile": "./google-services.json",
+      "googleServicesFile": "$GOOGLE_SERVICES_JSON",
       "package": "com.smartmyungsung.app",
       "versionCode": 2,
       "adaptiveIcon": {
