@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 
 // CSP (Enforced) — 2026-06-14 enforce 전환.
 // 외부 출처: Daum 우편번호(t1/*.daumcdn.net), Pretendard(cdn.jsdelivr.net),
-//   Supabase(*.supabase.co https+wss), PDF worker(self/blob:), 이미지(data:/blob:/supabase)
+//   Supabase(*.supabase.co https+wss), R2(*.r2.cloudflarestorage.com — 사진·PDF 서명 URL),
+//   PDF worker(self/blob:), 이미지(data:/blob:/supabase/r2)
 // 'unsafe-inline'/'unsafe-eval': Next 하이드레이션·인라인 스타일·pdfjs 필수.
 //   향후 nonce 도입으로 축소 가능.
 const cspPolicy = [
@@ -14,8 +15,8 @@ const cspPolicy = [
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://t1.daumcdn.net https://*.daumcdn.net",
   "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
   "font-src 'self' data: https://cdn.jsdelivr.net",
-  "img-src 'self' data: blob: https://*.supabase.co https://*.daumcdn.net",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net",
+  "img-src 'self' data: blob: https://*.supabase.co https://*.daumcdn.net https://*.r2.cloudflarestorage.com",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://*.r2.cloudflarestorage.com",
   "frame-src 'self' https://*.daumcdn.net https://postcode.map.kakao.com",
   "worker-src 'self' blob:",
 ].join("; ");
