@@ -17,6 +17,7 @@ const s3 = new S3Client({
     accessKeyId: process.env.R2_ACCESS_KEY_ID!,
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
   },
+  forcePathStyle: true, // R2는 path-style 필수 (virtual-hosted-style 미지원)
 });
 
 function from(bucketName: string) {
