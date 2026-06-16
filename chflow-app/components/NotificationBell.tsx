@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, MessagesSquare, X } from "lucide-react";
+import { Bell, MessagesSquare, X, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   fetchNotifications,
@@ -608,15 +608,27 @@ function ToastCard({
   );
 }
 
-// 알림 목록 아이템 스와이프 — 방향 감지 후 수평이면 dismiss
+// 알림 목록 아이템 스와이프 — 빨간 배경 + 휴지통 아이콘 + 방향 화살표
 function SwipeableNotifRow({ children, onDismiss }: { children: React.ReactNode; onDismiss: (e: Event) => void }) {
   const startXRef = useRef<number | null>(null);
   const startYRef = useRef<number | null>(null);
   const swipeXRef = useRef(0);
   const [swipeX, setSwipeX] = useState(0);
   const [dir, setDir] = useState<"idle" | "h" | "v">("idle");
+  const [exiting, setExiting] = useState(false);
+
+  const THRESHOLD = 80;
+  const absX = Math.abs(swipeX);
+  const isPast = absX > THRESHOLD;
+  const bgOpacity = dir === "h" ? Math.min(1, absX / THRESHOLD) : 0;
+
+  const triggerDismiss = (e: Event) => {
+    setExiting(true);
+    setTimeout(() => onDismiss(e), 280);
+  };
 
   const onTouchStart = (e: React.TouchEvent) => {
+    if (exiting) return;
     startXRef.current = e.touches[0].clientX;
     startYRef.current = e.touches[0].clientY;
     swipeXRef.current = 0;
@@ -639,8 +651,8 @@ function SwipeableNotifRow({ children, onDismiss }: { children: React.ReactNode;
   };
 
   const onTouchEnd = (e: React.TouchEvent) => {
-    if (dir === "h" && Math.abs(swipeXRef.current) > 80) {
-      onDismiss(e.nativeEvent);
+    if (dir === "h" && Math.abs(swipeXRef.current) > THRESHOLD) {
+      triggerDismiss(e.nativeEvent);
       return;
     }
     swipeXRef.current = 0;
@@ -650,19 +662,48 @@ function SwipeableNotifRow({ children, onDismiss }: { children: React.ReactNode;
     startYRef.current = null;
   };
 
+  const goingLeft = swipeX < 0;
+
   return (
-    <div
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-      style={{
-        transform: dir === "h" && swipeX !== 0 ? `translateX(${swipeX}px)` : undefined,
-        opacity: dir === "h" ? Math.max(0.3, 1 - Math.abs(swipeX) / 150) : 1,
-        transition: dir === "idle" ? "transform 0.25s ease, opacity 0.25s ease" : "none",
-        touchAction: dir === "h" ? "none" : "pan-y",
-      }}
-    >
-      {children}
+    <div style={{ position: "relative", overflow: "hidden", maxHeight: exiting ? 0 : 200, transition: exiting ? "max-height 0.28s ease" : "none" }}>
+      {/* 빨간 배경 */}
+      {dir === "h" && (
+        <div style={{
+          position: "absolute", inset: 0,
+          background: `rgba(220,38,38,${bgOpacity})`,
+          display: "flex", alignItems: "center",
+          justifyContent: goingLeft ? "flex-end" : "flex-start",
+          padding: "0 20px", gap: 6,
+          transition: "background 0.05s",
+        }}>
+          {!goingLeft && (
+            <ChevronRight size={isPast ? 20 : 16} color="white" strokeWidth={2.5}
+              style={{ transition: "all 0.15s", opacity: bgOpacity }} />
+          )}
+          <Trash2 size={isPast ? 20 : 17} color="white" strokeWidth={isPast ? 2.5 : 2}
+            style={{ transition: "all 0.15s", opacity: bgOpacity }} />
+          {goingLeft && (
+            <ChevronLeft size={isPast ? 20 : 16} color="white" strokeWidth={2.5}
+              style={{ transition: "all 0.15s", opacity: bgOpacity }} />
+          )}
+        </div>
+      )}
+      {/* 콘텐츠 */}
+      <div
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={{
+          transform: exiting
+            ? `translateX(${goingLeft ? "-110%" : "110%"})`
+            : dir === "h" && swipeX !== 0 ? `translateX(${swipeX}px)` : undefined,
+          transition: exiting ? "transform 0.28s ease" : dir === "idle" ? "transform 0.2s ease" : "none",
+          touchAction: dir === "h" ? "none" : "pan-y",
+          background: "var(--surface)",
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
