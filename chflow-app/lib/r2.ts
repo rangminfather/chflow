@@ -69,6 +69,30 @@ function from(bucketName: string) {
       }
     },
 
+    // 프록시 스트리밍용 — 바이트 + 메타데이터 반환 (same-origin 서빙)
+    async getObject(path: string) {
+      try {
+        const res = await s3.send(
+          new GetObjectCommand({ Bucket: BUCKET, Key: prefix + path })
+        );
+        const chunks: Buffer[] = [];
+        for await (const chunk of res.Body as AsyncIterable<Uint8Array>) {
+          chunks.push(Buffer.from(chunk));
+        }
+        const body = Buffer.concat(chunks);
+        return {
+          data: {
+            body,
+            contentType: res.ContentType ?? "application/octet-stream",
+            contentLength: res.ContentLength ?? body.length,
+          },
+          error: null,
+        };
+      } catch (e) {
+        return { data: null, error: e as Error };
+      }
+    },
+
     async list(
       prefix2?: string,
       options?: { limit?: number; sortBy?: { column: string; order: string } }

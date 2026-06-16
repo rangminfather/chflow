@@ -260,8 +260,8 @@ async function loadStoredItems(): Promise<BulletinItem[]> {
     const sourceNo = Number(row.content?.match(/UMS jubo no: (\d+)/)?.[1] || 0);
     let signedUrl = "";
     if (path && !/^https?:\/\//i.test(path)) {
-      const signed = await r2.from(BUCKET).createSignedUrl(path, 60 * 10);
-      signedUrl = signed.data?.signedUrl || "";
+      // same-origin 프록시 URL (pdf.js CORS 우회)
+      signedUrl = `/api/storage/${BUCKET}/${path}`;
     } else {
       signedUrl = path;
     }

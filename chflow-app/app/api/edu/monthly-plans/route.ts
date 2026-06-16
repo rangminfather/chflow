@@ -67,20 +67,19 @@ export async function GET(req: NextRequest) {
   });
   if (error) return NextResponse.json({ ok: false, error: "처리 중 오류가 발생했습니다." }, { status: 500 });
 
-  const files = await Promise.all((data || []).filter((item) => item.name).map(async (item) => {
+  const files = (data || []).filter((item) => item.name).map((item) => {
     const path = `${deptId}/${item.name}`;
-    const signed = await r2.from(BUCKET).createSignedUrl(path, 60 * 10);
     const parsed = parsePlanName(item.name);
     return {
       name: item.name,
       path,
-      url: signed.data?.signedUrl || "",
+      url: `/api/storage/${BUCKET}/${path}?download=1`,
       size: item.metadata?.size || null,
       created_at: item.created_at,
       updated_at: item.updated_at,
       ...parsed,
     };
-  }));
+  });
 
   return NextResponse.json({ ok: true, files });
 }

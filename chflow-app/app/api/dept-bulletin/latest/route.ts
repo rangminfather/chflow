@@ -322,8 +322,8 @@ async function loadStoredItems(deptKey: string): Promise<DeptBulletinItem[]> {
     const sourceNo = Number(row.content?.match(/UMS samusil no:\s*(\d+)/)?.[1] || 0);
     let signedUrl = "";
     if (path && !/^https?:\/\//i.test(path)) {
-      const signed = await r2.from(BUCKET).createSignedUrl(path, PDF_URL_TTL_SECONDS);
-      signedUrl = signed.data?.signedUrl || "";
+      // same-origin 프록시 URL (pdf.js CORS 우회)
+      signedUrl = `/api/storage/${BUCKET}/${path}`;
     } else {
       signedUrl = path;
     }

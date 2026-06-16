@@ -600,10 +600,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const problems = await Promise.all(index.map(async (entry) => {
-      const signed = await r2.from(REVIEW_BUCKET).createSignedUrl(entry.path, 60 * 10);
-      return { ...entry, url: signed.data?.signedUrl || "" };
-    }));
+    const problems = index.map((entry) => {
+      // same-origin 프록시 URL (다운로드 CORS 우회)
+      return { ...entry, url: `/api/storage/${REVIEW_BUCKET}/${entry.path}?download=1` };
+    });
 
     return NextResponse.json({ ok: true, problems, planStatus, match });
   } catch (e: unknown) {

@@ -103,10 +103,22 @@ export async function GET(
     if (!participant?.id) return new NextResponse(null, { status: 403 });
   }
 
-  const { data, error } = await r2.from(bucket).createSignedUrl(storagePath, 300);
-  if (error || !data?.signedUrl) return new NextResponse(null, { status: 404 });
+  // R2에서 바이트를 직접 스트리밍 (same-origin → CORS/CSP 우회, pdf.js·다운로드 호환)
+  const { data, error } = await r2.from(bucket).getObject(storagePath);
+  if (error || !data) return new NextResponse(null, { status: 404 });
 
-  return NextResponse.redirect(data.signedUrl, { status: 302 });
+  const headers = new Headers();
+  headers.set("Content-Type", data.contentType);
+  headers.set("Content-Length", String(data.contentLength));
+  headers.set("Cache-Control", "private, max-age=300");
+
+  // 다운로드 요청(?download=1)이면 파일명 지정
+  if (req.nextUrl.searchParams.get("download") === "1") {
+    const filename = storagePath.split("/").pop() || "file";
+    headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(filename)}"`);
+  }
+
+  return new NextResponse(new Uint8Array(data.body), { status: 200, headers });
 }
 
 export async function POST(
