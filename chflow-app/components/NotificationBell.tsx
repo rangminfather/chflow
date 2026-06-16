@@ -9,6 +9,8 @@ import {
   getUnreadCount,
   markRead,
   markAllRead,
+  deleteNotification,
+  deleteAllNotifications,
   setAppBadge,
   clearAppBadge,
   type Notification,
@@ -193,6 +195,22 @@ export default function NotificationBell({
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  const handleDeleteNotif = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    await deleteNotification(id);
+    const newCount = await getUnreadCount();
+    setUnreadCount(newCount);
+    if (newCount === 0) clearAppBadge(); else setAppBadge(newCount);
+  };
+
+  const handleDeleteAll = async () => {
+    setNotifications([]);
+    setUnreadCount(0);
+    clearAppBadge();
+    await deleteAllNotifications();
+  };
+
   return (
     <>
       {/* === 종 버튼 === */}
@@ -280,8 +298,18 @@ export default function NotificationBell({
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--app-serif)", fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>
                   <Bell size={16} strokeWidth={1.75} color="var(--accent)" /> {placement === "dock" ? "알림 센터" : "알림"}
                 </div>
-                <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
-                  {unreadCount > 0 ? `안읽음 ${unreadCount}` : `${notifications.length}건`}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>
+                    {unreadCount > 0 ? `안읽음 ${unreadCount}` : `${notifications.length}건`}
+                  </span>
+                  {notifications.length > 0 && (
+                    <button
+                      onClick={handleDeleteAll}
+                      style={{ fontSize: 11, color: "var(--ink-faint)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 4, fontFamily: "inherit" }}
+                    >
+                      전체삭제
+                    </button>
+                  )}
                 </div>
               </div>
               {placement === "dock" && (
@@ -363,62 +391,38 @@ export default function NotificationBell({
                   </div>
                 ) : (
                   visibleNotifications.map((n) => (
-                    <div
-                      key={n.id}
-                      onClick={() => handleNotifClick(n)}
-                      style={{
-                        padding: "12px 18px",
-                        borderBottom: "1px solid var(--hairline)",
-                        cursor: "pointer",
-                        background: n.is_read ? "var(--surface)" : "var(--accent-soft)",
-                        transition: "background 0.15s",
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.background = "var(--bg)";
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.background = n.is_read ? "var(--surface)" : "var(--accent-soft)";
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                        <TypeChip type={n.type} />
-                        {!n.is_read && (
-                          <span style={{
-                            width: 6,
-                            height: 6,
-                            borderRadius: 999,
-                            background: "var(--danger)",
-                            flexShrink: 0,
-                          }} />
-                        )}
-                      </div>
+                    <SwipeableNotifRow key={n.id} onDismiss={(e) => handleDeleteNotif(e as unknown as React.MouseEvent, n.id)}>
                       <div
+                        onClick={() => handleNotifClick(n)}
                         style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: "var(--ink)",
-                          marginBottom: 4,
+                          padding: "12px 14px 12px 18px",
+                          borderBottom: "1px solid var(--hairline)",
+                          cursor: "pointer",
+                          background: n.is_read ? "var(--surface)" : "var(--accent-soft)",
+                          display: "flex",
+                          gap: 8,
+                          alignItems: "flex-start",
                         }}
+                        onMouseOver={(e) => { e.currentTarget.style.background = "var(--bg)"; }}
+                        onMouseOut={(e) => { e.currentTarget.style.background = n.is_read ? "var(--surface)" : "var(--accent-soft)"; }}
                       >
-                        {n.title}
-                      </div>
-                      {n.body && (
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: "var(--ink-soft)",
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          {n.body}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                            <TypeChip type={n.type} />
+                            {!n.is_read && <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--danger)", flexShrink: 0 }} />}
+                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", marginBottom: 4 }}>{n.title}</div>
+                          {n.body && <div style={{ fontSize: 11, color: "var(--ink-soft)", lineHeight: 1.5 }}>{n.body}</div>}
+                          <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 6 }}>{timeAgo(n.created_at)}</div>
                         </div>
-                      )}
-                      <div
-                        style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 6 }}
-                      >
-                        {timeAgo(n.created_at)}
+                        <button
+                          onClick={(e) => handleDeleteNotif(e, n.id)}
+                          style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 6, background: "none", border: "none", cursor: "pointer", color: "var(--ink-faint)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginTop: 2 }}
+                        >
+                          <X size={13} strokeWidth={2.2} />
+                        </button>
                       </div>
-                    </div>
+                    </SwipeableNotifRow>
                   ))
                 )}
               </div>
@@ -600,6 +604,65 @@ function ToastCard({
       >
         <X size={12} strokeWidth={2.2} />
       </button>
+    </div>
+  );
+}
+
+// 알림 목록 아이템 스와이프 — 방향 감지 후 수평이면 dismiss
+function SwipeableNotifRow({ children, onDismiss }: { children: React.ReactNode; onDismiss: (e: Event) => void }) {
+  const startXRef = useRef<number | null>(null);
+  const startYRef = useRef<number | null>(null);
+  const swipeXRef = useRef(0);
+  const [swipeX, setSwipeX] = useState(0);
+  const [dir, setDir] = useState<"idle" | "h" | "v">("idle");
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    startXRef.current = e.touches[0].clientX;
+    startYRef.current = e.touches[0].clientY;
+    swipeXRef.current = 0;
+    setDir("idle");
+    setSwipeX(0);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (startXRef.current === null || startYRef.current === null) return;
+    const dx = e.touches[0].clientX - startXRef.current;
+    const dy = e.touches[0].clientY - startYRef.current;
+    if (dir === "v") return;
+    if (dir === "idle") {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      if (Math.abs(dy) > Math.abs(dx)) { setDir("v"); return; }
+      setDir("h");
+    }
+    swipeXRef.current = dx;
+    setSwipeX(dx);
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (dir === "h" && Math.abs(swipeXRef.current) > 80) {
+      onDismiss(e.nativeEvent);
+      return;
+    }
+    swipeXRef.current = 0;
+    setSwipeX(0);
+    setDir("idle");
+    startXRef.current = null;
+    startYRef.current = null;
+  };
+
+  return (
+    <div
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      style={{
+        transform: dir === "h" && swipeX !== 0 ? `translateX(${swipeX}px)` : undefined,
+        opacity: dir === "h" ? Math.max(0.3, 1 - Math.abs(swipeX) / 150) : 1,
+        transition: dir === "idle" ? "transform 0.25s ease, opacity 0.25s ease" : "none",
+        touchAction: dir === "h" ? "none" : "pan-y",
+      }}
+    >
+      {children}
     </div>
   );
 }

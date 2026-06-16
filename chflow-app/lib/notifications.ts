@@ -38,6 +38,14 @@ export async function markAllRead(): Promise<number> {
   return (data as number) || 0;
 }
 
+export async function deleteNotification(id: string): Promise<void> {
+  await supabase.from("notifications").delete().eq("id", id);
+}
+
+export async function deleteAllNotifications(): Promise<void> {
+  await supabase.from("notifications").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+}
+
 // PWA 앱 아이콘 배지 (지원 브라우저만)
 type BadgeNavigator = Navigator & {
   setAppBadge?: (count?: number) => Promise<void>;
