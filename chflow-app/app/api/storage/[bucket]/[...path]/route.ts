@@ -21,6 +21,26 @@ const ALLOWED_BUCKETS = new Set([
   "review-problems",
 ]);
 
+const IMAGES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const DOCS = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/x-hwp",
+  "application/haansofthwp",
+];
+
+const BUCKET_RULES: Record<string, { mimes: string[]; maxBytes: number }> = {
+  "member-photos":          { mimes: IMAGES,          maxBytes: 10 * 1024 * 1024 },
+  "feedback-attachments":   { mimes: IMAGES,          maxBytes: 10 * 1024 * 1024 },
+  "messenger-attachments":  { mimes: [...IMAGES, ...DOCS], maxBytes: 10 * 1024 * 1024 },
+  "dept-notice-attachments":{ mimes: [...IMAGES, ...DOCS], maxBytes: 20 * 1024 * 1024 },
+};
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -106,6 +126,23 @@ export async function POST(
   const file = form.get("file");
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "file required" }, { status: 400 });
+  }
+
+  const rules = BUCKET_RULES[bucket];
+  if (rules) {
+    if (file.size > rules.maxBytes) {
+      return NextResponse.json(
+        { error: `파일 크기 초과 (최대 ${rules.maxBytes / 1024 / 1024}MB)` },
+        { status: 413 }
+      );
+    }
+    const mime = file.type.toLowerCase().split(";")[0].trim();
+    if (!rules.mimes.includes(mime)) {
+      return NextResponse.json(
+        { error: `허용되지 않는 파일 형식입니다 (${mime})` },
+        { status: 415 }
+      );
+    }
   }
 
   const storagePath = path.join("/");

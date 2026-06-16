@@ -35,17 +35,21 @@ export default function NoticeBoardPage() {
   const params = useParams();
   const deptId = params.id as string;
 
+  const currentYear = new Date().getFullYear();
   const [authChecked, setAuthChecked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [items, setItems] = useState<NoticeRow[]>([]);
   const [canWrite, setCanWrite] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(currentYear);
 
-  const load = useCallback(async () => {
+  const yearOptions = Array.from({ length: currentYear - 2024 + 1 }, (_, i) => currentYear - i);
+
+  const load = useCallback(async (year: number) => {
     setLoading(true);
     setError("");
     const [{ data: notices, error: listErr }, { data: grade }] = await Promise.all([
-      supabase.rpc("list_dept_notices", { p_department_id: deptId, p_limit: PAGE_SIZE, p_offset: 0 }),
+      supabase.rpc("list_dept_notices", { p_department_id: deptId, p_limit: PAGE_SIZE, p_offset: 0, p_year: year }),
       supabase.rpc("get_user_grade", { p_dept_id: deptId }),
     ]);
     if (listErr) {
@@ -66,9 +70,9 @@ export default function NoticeBoardPage() {
         return;
       }
       setAuthChecked(true);
-      await load();
+      await load(currentYear);
     })();
-  }, [router, load]);
+  }, [router, load, currentYear]);
 
   if (!authChecked) return <LoadingView full />;
 
@@ -90,16 +94,32 @@ export default function NoticeBoardPage() {
               <div className="text-[20px] font-extrabold text-ink">공지 게시판</div>
               <div className="mt-1 text-[14px] font-semibold text-ink-soft">리더·임원진이 공지를 올리고, 누구나 답글로 소통합니다.</div>
             </div>
-            {canWrite && (
-              <button
-                type="button"
-                onClick={() => router.push(`/departments/d/${deptId}/notices/board/new`)}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-4 py-2.5 text-[14px] font-bold text-white"
-                style={{ background: "var(--accent)" }}
+            <div className="flex shrink-0 items-center gap-2">
+              <select
+                value={selectedYear}
+                onChange={(e) => {
+                  const y = Number(e.target.value);
+                  setSelectedYear(y);
+                  load(y);
+                }}
+                className="rounded-lg border border-hairline px-3 py-2 text-[14px] font-semibold text-ink"
+                style={{ background: "var(--surface)" }}
               >
-                <PencilLine size={16} strokeWidth={2} /> 글쓰기
-              </button>
-            )}
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>{y}년</option>
+                ))}
+              </select>
+              {canWrite && selectedYear === currentYear && (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/departments/d/${deptId}/notices/board/new`)}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-[14px] font-bold text-white"
+                  style={{ background: "var(--accent)" }}
+                >
+                  <PencilLine size={16} strokeWidth={2} /> 글쓰기
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="p-3 sm:p-4">
