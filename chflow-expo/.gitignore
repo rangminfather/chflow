@@ -30,6 +30,10 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# Firebase — contains API key, managed via EAS
+google-services.json
+GoogleService-Info.plist
+
 # local env files
 .env*.local
 
