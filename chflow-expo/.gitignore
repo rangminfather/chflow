@@ -30,9 +30,18 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# Firebase — contains API key, managed via EAS
-google-services.json
+# Firebase
+# google-services.json(안드로이드 클라이언트 설정)은 APK에 어차피 포함되는 공개 정보라 커밋함.
+#   EAS 파일 env var가 정적 app.json $VAR 치환을 못 해 빌드가 깨지므로 직접 커밋이 안정적.
+# GoogleService-Info.plist(iOS)는 미사용으로 제외.
 GoogleService-Info.plist
+
+# 서비스 계정 비공개 키(절대 커밋 금지) — FCM V1 admin/service account
+*service-account*.json
+*serviceaccount*.json
+*adminsdk*.json
+fcm-key.json
+*-private-key.json
 
 # local env files
 .env*.local
