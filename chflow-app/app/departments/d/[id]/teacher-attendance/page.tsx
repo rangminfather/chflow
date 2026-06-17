@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
 import { UserCheck, Trash2 } from "lucide-react";
@@ -27,6 +28,7 @@ interface AttendRow {
 
 export default function TeacherAttendancePage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
 
@@ -118,7 +120,7 @@ export default function TeacherAttendancePage() {
   };
 
   const deleteTeacher = async (id: string, name: string) => {
-    if (!confirm(`"${name}" 교사를 삭제하시겠습니까?`)) return;
+    if (!await confirm(`"${name}" 교사를 삭제하시겠습니까?`)) return;
     await supabase.rpc("edu_delete_teacher", { p_id: id });
     await loadAll();
     showToast("삭제되었습니다");

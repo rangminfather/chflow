@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Lightbulb, Lock, MessageSquare, Paperclip, Trash2, CheckSquare, Square } from "lucide-react";
@@ -46,6 +47,7 @@ const PER_PAGE = 15;
 
 export default function FeedbackListPage() {
   const router = useRouter();
+  const { prompt } = useConfirm();
   const [items, setItems] = useState<FeedbackListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -104,7 +106,7 @@ export default function FeedbackListPage() {
 
   const handleBulkDelete = async () => {
     if (selected.size === 0) return;
-    const reason = window.prompt(`${selected.size}개 글을 삭제합니다.\n작성자에게 삭제 알림이 전송됩니다.\n\n삭제 사유 (선택, 비워도 됨):`, "");
+    const reason = await prompt(`${selected.size}개 글을 삭제합니다.\n작성자에게 삭제 알림이 전송됩니다.\n\n삭제 사유 (선택, 비워도 됨):`, "");
     if (reason === null) return; // 취소
     setDeleting(true);
     try {

@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
 import { Lock, Medal } from "lucide-react";
@@ -64,6 +65,7 @@ function memberKey(m: DeptMember) {
 
 export default function MembersGradePage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
 
@@ -122,7 +124,7 @@ export default function MembersGradePage() {
       showToast("앱 미가입 상태입니다. 앱 가입 후 등급 조정이 가능합니다.");
       return;
     }
-    if (!confirm(`${member.name} 님의 등급을 ${member.grade} → ${newGrade} 로 변경하시겠습니까?`)) return;
+    if (!await confirm(`${member.name} 님의 등급을 ${member.grade} → ${newGrade} 로 변경하시겠습니까?`)) return;
     setSavingId(memberKey(member));
     const { error } = await supabase.rpc("upsert_member_grade", {
       p_dept_id: deptId,
@@ -176,7 +178,7 @@ export default function MembersGradePage() {
   async function handleAppoint() {
     if (!picked) return;
     const role = ROLE_OPTIONS[pickedRoleIdx];
-    if (!confirm(`${picked.name} 님을 ${role.label}(으)로 임명하시겠습니까?`)) return;
+    if (!await confirm(`${picked.name} 님을 ${role.label}(으)로 임명하시겠습니까?`)) return;
     setAppointing(true);
     const { error } = await supabase.rpc("admin_appoint_dept_member", {
       p_dept_id: deptId,

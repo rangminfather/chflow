@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase, formatPhone } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import MemberCardModal from "@/components/MemberCardModal";
 import { ExportMembersModal, ImportMembersModal } from "@/components/MemberDataTools";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -849,6 +850,7 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { confirm } = useConfirm();
   const [plain, setPlain] = useState("");
   const [grassland, setGrassland] = useState("");
   const [pasture, setPasture] = useState("");
@@ -882,9 +884,9 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
     setParentSearching(false);
   };
 
-  const handleToggleChild = (next: boolean) => {
+  const handleToggleChild = async (next: boolean) => {
     if (!next && parent) {
-      const ok = window.confirm("자녀 해제 시 부모 연결이 해제됩니다 (각종 연결 해제). 진행할까요?");
+      const ok = await confirm("자녀 해제 시 부모 연결이 해제됩니다 (각종 연결 해제). 진행할까요?");
       if (!ok) return;
       setParent(null);
       setParentCandidates([]);

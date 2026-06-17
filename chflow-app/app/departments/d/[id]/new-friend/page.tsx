@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase, formatPhone } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Sparkles, User } from "lucide-react";
@@ -44,6 +45,7 @@ const EMPTY_FORM: Omit<FriendDetail, "id" | "department_id" | "created_at"> = {
 
 export default function NewFriendPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
 
@@ -136,7 +138,7 @@ export default function NewFriendPage() {
 
   const handleDelete = async () => {
     if (!selected) return;
-    if (!confirm(`"${selected.name}"을(를) 삭제하시겠습니까?`)) return;
+    if (!await confirm(`"${selected.name}"을(를) 삭제하시겠습니까?`)) return;
     await supabase.rpc("edu_delete_new_friend", { p_id: selected.id });
     showToast("삭제되었습니다");
     setSelected(null);

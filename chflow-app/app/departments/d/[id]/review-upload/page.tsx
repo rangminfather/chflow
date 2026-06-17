@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Lock, Hourglass, FolderUp, CheckCircle2, XCircle, FileText, BookOpen } from "lucide-react";
 
@@ -20,6 +21,7 @@ interface ReviewFile {
 
 export default function ReviewUploadPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
 
@@ -97,7 +99,7 @@ export default function ReviewUploadPage() {
   }
 
   async function handleDelete(file: ReviewFile) {
-    if (!confirm(`"${file.title}" 복습문제를 삭제하시겠습니까?\n삭제하면 복구할 수 없습니다.`)) return;
+    if (!await confirm(`"${file.title}" 복습문제를 삭제하시겠습니까?\n삭제하면 복구할 수 없습니다.`)) return;
     setDeletingPath(file.path);
     try {
       const { data: { session } } = await supabase.auth.getSession();

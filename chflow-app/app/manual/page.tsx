@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { Printer, Download, Search, AlertTriangle, X, ChevronUp, Pencil, Save, Plus, Trash2, Upload, XCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -47,6 +48,7 @@ function normalizeManifest(data: unknown): Manifest {
 
 export default function ManualPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [activeChapter, setActiveChapter] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -164,7 +166,7 @@ export default function ManualPage() {
   }
 
   async function deleteItem(stepId: string) {
-    if (!manifest || !confirm("이 설명 카드 전체를 삭제할까요?")) return;
+    if (!manifest || !await confirm("이 설명 카드 전체를 삭제할까요?")) return;
     const next = { ...manifest, items: manifest.items.filter(item => item.stepId !== stepId) };
     setManifest(next);
     setEditingItemId(null);

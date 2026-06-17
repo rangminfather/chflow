@@ -3,6 +3,7 @@
 import { useCallback, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { EmptyState } from "@/components/StatusViews";
 import { KeyRound, AlertTriangle, CheckCircle2, ClipboardList, ScrollText } from "lucide-react";
@@ -27,6 +28,7 @@ interface ResetLogRow {
 
 export default function PasswordResetPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const [authChecked, setAuthChecked] = useState(false);
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -82,7 +84,7 @@ export default function PasswordResetPage() {
 
   async function doReset() {
     if (!selectedUser) return;
-    if (!confirm(`${selectedUser.name} (${selectedUser.username}) 의 비밀번호를 초기화하시겠습니까?\n\n임시 비밀번호가 발급되며, 첫 로그인 시 변경하도록 강제됩니다.`)) return;
+    if (!await confirm(`${selectedUser.name} (${selectedUser.username}) 의 비밀번호를 초기화하시겠습니까?\n\n임시 비밀번호가 발급되며, 첫 로그인 시 변경하도록 강제됩니다.`)) return;
     setResetting(true);
     setError("");
     const { data: { session } } = await supabase.auth.getSession();

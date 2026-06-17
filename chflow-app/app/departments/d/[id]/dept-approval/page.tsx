@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import DeptIcon from "@/components/DeptIcon";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
@@ -36,6 +37,7 @@ const GRADES = [
 
 export default function DeptApprovalPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
 
@@ -95,7 +97,7 @@ export default function DeptApprovalPage() {
   }
 
   async function doReject(j: PendingJoin) {
-    if (!confirm(`${j.user_name}님의 가입 신청을 거절하시겠습니까?`)) return;
+    if (!await confirm(`${j.user_name}님의 가입 신청을 거절하시겠습니까?`)) return;
     setProcessing(j.id);
     const { error } = await supabase.rpc("dept_leader_approve_join", {
       p_join_id: j.id,

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
@@ -77,6 +78,7 @@ function toLocalDatetimeInput(iso: string) {
 
 export default function AdminVotesPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const [authOk, setAuthOk] = useState(false);
   const [votes, setVotes] = useState<Vote[]>([]);
   const [loading, setLoading] = useState(true);
@@ -303,7 +305,7 @@ export default function AdminVotesPage() {
   }
 
   async function handleDeleteVote(vote: Vote) {
-    if (!confirm(`"${vote.title}" 투표를 삭제하시겠습니까?\n투표 기록도 모두 삭제됩니다.`)) return;
+    if (!await confirm(`"${vote.title}" 투표를 삭제하시겠습니까?\n투표 기록도 모두 삭제됩니다.`)) return;
     await supabase.rpc("admin_delete_vote", { p_vote_id: vote.id });
     await loadVotes();
   }
@@ -331,7 +333,7 @@ export default function AdminVotesPage() {
   }
 
   async function handleDeleteCandidate(c: Candidate) {
-    if (!confirm(`"${c.name}" 후보를 삭제하시겠습니까?`)) return;
+    if (!await confirm(`"${c.name}" 후보를 삭제하시겠습니까?`)) return;
     await supabase.rpc("admin_delete_vote_candidate", { p_candidate_id: c.id });
     setCandidates(prev => prev.filter(x => x.id !== c.id));
     await loadVotes();

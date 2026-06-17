@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/components/ConfirmDialog";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -38,6 +39,7 @@ const STATUS_LABEL: Record<MessengerReportStatus, string> = {
 
 export default function MessengerReportsPage() {
   const router = useRouter();
+  const { prompt } = useConfirm();
   const [authChecked, setAuthChecked] = useState(false);
   const [status, setStatus] = useState<MessengerReportStatus | "">("open");
   const [reports, setReports] = useState<MessengerReport[]>([]);
@@ -90,7 +92,7 @@ export default function MessengerReportsPage() {
   const updateStatus = async (report: MessengerReport, nextStatus: MessengerReportStatus) => {
     const note = nextStatus === "reviewing"
       ? "검토를 시작했습니다."
-      : window.prompt("처리 메모를 입력하세요.", report.note || "") || "";
+      : (await prompt("처리 메모를 입력하세요.", report.note || "")) ?? "";
 
     setProcessingId(report.report_id);
     setError("");

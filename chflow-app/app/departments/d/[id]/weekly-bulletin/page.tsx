@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
 import { Ticket, CheckCircle2, XCircle, AlertTriangle, Hourglass, Circle, Newspaper, FolderOpen, Save, Pencil, ClipboardList, RefreshCw, BookOpen, FileText, Music, BarChart3, Settings, Send, Info, Download, Wrench, Camera, X } from "lucide-react";
@@ -638,6 +639,7 @@ function PostStepper({ currentStep }: { currentStep: PostStepId | null }) {
 
 export default function WeeklyBulletinPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
 
@@ -791,7 +793,7 @@ export default function WeeklyBulletinPage() {
   }
 
   async function handleDeleteCreds() {
-    if (!confirm("등록된 UMS 계정을 삭제하시겠습니까?\n(다시 등록해야 자동등록 가능)")) return;
+    if (!await confirm("등록된 UMS 계정을 삭제하시겠습니까?\n(다시 등록해야 자동등록 가능)")) return;
     const { data: { session } } = await supabase.auth.getSession();
     const r = await fetch("/api/ums-credentials/mine", {
       method: "DELETE",
@@ -1133,9 +1135,9 @@ export default function WeeklyBulletinPage() {
   };
 
   // 페이지별 리셋 — 사용자 입력만 초기화, 자동 입력 (yearly 표어/default 시작시간 등) 은 보존
-  const handleResetPage = (page: 1 | 2 | 3 | 4) => {
+  const handleResetPage = async (page: 1 | 2 | 3 | 4) => {
     const pageNames = { 1: "표지", 2: "예배 순서", 3: "공과", 4: "목장 현황" };
-    if (!confirm(`${page}페이지 (${pageNames[page]}) 입력값을 초기화할까요?\n자동 입력된 기본값은 유지됩니다.`)) return;
+    if (!await confirm(`${page}페이지 (${pageNames[page]}) 입력값을 초기화할까요?\n자동 입력된 기본값은 유지됩니다.`)) return;
 
     if (page === 1) {
       setForm((f) => ({
@@ -1197,7 +1199,7 @@ export default function WeeklyBulletinPage() {
   };
 
   const handleDeleteDraft = async (issueDate: string) => {
-    const confirmed = confirm(
+    const confirmed = await confirm(
       `${issueDate} 임시저장본을 삭제하시겠습니까?\n\n삭제하면 복구할 수 없습니다.\n작성한 모든 내용이 사라집니다.`
     );
     if (!confirmed) return;

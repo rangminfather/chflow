@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { Workbook } from "exceljs";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
@@ -50,6 +51,7 @@ const PLAIN_ORDER = ["1", "2", "3", "젊은이"];
 
 export default function RearrangePage() {
   const router = useRouter();
+  const { prompt } = useConfirm();
   const [authChecked, setAuthChecked] = useState(false);
 
   const [plains, setPlains] = useState<Plain[]>([]);
@@ -173,7 +175,7 @@ export default function RearrangePage() {
 
   // 신규 초원 생성
   const addGrassland = async (plainId: string) => {
-    const name = prompt("새 초원 이름 (예: 초원장 성함)");
+    const name = await prompt("새 초원 이름 (예: 초원장 성함)");
     if (!name || !name.trim()) return;
     const { data, error } = await supabase.rpc("create_grassland", { p_plain_id: plainId, p_name: name.trim() });
     if (error) { alert(`생성 실패: ${error.message}`); return; }
