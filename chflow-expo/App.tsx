@@ -119,41 +119,52 @@ function AppWebView() {
     check();
   }, []);
 
-  // Android 물리 뒤로가기 버튼 처리
+  // 종료 확인 모달 (웹이 '루트에서 뒤로가기' 신호를 보낼 때 호출)
+  const promptExit = useCallback(() => {
+    Alert.alert(
+      '스마트명성',
+      '앱을 종료하시겠습니까?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '종료',
+          style: 'destructive',
+          onPress: () => {
+            // exitApp()은 프로세스를 죽이지 않고 태스크만 백그라운드로 보냄.
+            // 다음 포그라운드 진입 시 스플래시(/)부터 다시 시작하도록 표시.
+            exitedRef.current = true;
+            BackHandler.exitApp();
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  }, []);
+
+  // Android 물리 뒤로가기 → 웹에 위임.
+  // WebView의 canGoBack은 Next.js SPA(pushState)를 제대로 추적하지 못하므로,
+  // 웹의 실제 history로 뒤로가기를 처리하고, 루트(홈)에서만 종료를 확인한다.
   useEffect(() => {
     if (Platform.OS !== 'android') return;
 
+    const BACK_DELEGATE_JS = `
+      (function(){
+        try {
+          if (typeof window.__chflowHardwareBack === 'function') { window.__chflowHardwareBack(); }
+          else if (window.history.length > 1) { window.history.back(); }
+          else if (window.ReactNativeWebView) { window.ReactNativeWebView.postMessage(JSON.stringify({type:'CHFLOW_BACK_AT_ROOT'})); }
+        } catch (e) {}
+      })(); true;
+    `;
+
     const onBackPress = () => {
-      if (canGoBack) {
-        // WebView 내부에 뒤로갈 페이지가 있으면 그걸 먼저
-        webViewRef.current?.goBack();
-        return true;
-      }
-      // 더 이상 뒤로갈 페이지가 없으면 종료 확인
-      Alert.alert(
-        '스마트명성',
-        '앱을 종료하시겠습니까?',
-        [
-          { text: '취소', style: 'cancel' },
-          {
-            text: '종료',
-            style: 'destructive',
-            onPress: () => {
-              // exitApp()은 프로세스를 죽이지 않고 태스크만 백그라운드로 보냄.
-              // 다음 포그라운드 진입 시 스플래시(/)부터 다시 시작하도록 표시.
-              exitedRef.current = true;
-              BackHandler.exitApp();
-            },
-          },
-        ],
-        { cancelable: true }
-      );
-      return true; // 기본 동작 차단
+      webViewRef.current?.injectJavaScript(BACK_DELEGATE_JS);
+      return true; // 기본 동작(즉시 종료) 항상 차단, 처리는 웹/메시지로
     };
 
     const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => sub.remove();
-  }, [canGoBack]);
+  }, []);
 
   // '종료'로 나갔다가 다시 실행하면 스플래시(/)부터 시작 (런치 모션 재생)
   // 덮개(exitReloading)로 마지막 화면을 가려서 "옛 화면 → 민들레" 깜빡임 방지
@@ -273,6 +284,12 @@ function AppWebView() {
     if (message.type === 'CHFLOW_EXIT_APP') {
       exitedRef.current = true;
       BackHandler.exitApp();
+      return;
+    }
+
+    // 웹이 '루트(홈)에서 뒤로가기' 라고 알려줌 → 종료 확인
+    if (message.type === 'CHFLOW_BACK_AT_ROOT') {
+      promptExit();
       return;
     }
 
