@@ -20,7 +20,10 @@ export default function GlobalNotifications() {
   const pathname = usePathname();
   const [userId, setUserId] = useState<string | null>(null);
   const hidden = useMemo(
-    () => HIDDEN_PATH_PREFIXES.some((prefix) => pathname?.startsWith(prefix)),
+    () =>
+      HIDDEN_PATH_PREFIXES.some((prefix) => pathname?.startsWith(prefix)) ||
+      // 주보 보기 화면(메인/부서)에서는 종 숨김
+      !!pathname?.endsWith("/bulletin"),
     [pathname]
   );
 

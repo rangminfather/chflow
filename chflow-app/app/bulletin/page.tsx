@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BookOpen, ExternalLink, List, RefreshCw, X } from "lucide-react";
+import { ArrowLeft, ArrowUp, ExternalLink, List, RefreshCw, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import PdfCanvasViewer from "@/components/PdfCanvasViewer";
 import { LoadingView } from "@/components/StatusViews";
@@ -45,6 +45,13 @@ export default function BulletinPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [showList, setShowList] = useState(false);
+  const [showTop, setShowTop] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 240);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const loadBulletins = async (accessToken: string) => {
     setError("");
@@ -155,25 +162,6 @@ export default function BulletinPage() {
               </section>
             )}
 
-            <article style={latestCardStyle}>
-              <div style={latestIconStyle}>
-                <BookOpen size={26} strokeWidth={1.7} />
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={badgeStyle}>{latest.issue_date === items[0]?.issue_date ? "기본 주보" : "선택한 주보"}</div>
-                <h2 style={latestTitleStyle}>{latest.title}</h2>
-                <div style={metaStyle}>
-                  {formatDate(latest.issue_date)} 발행
-                  {latest.posted_at ? ` · ${formatDate(latest.posted_at)} 등록` : ""}
-                </div>
-                {latest.volume && <div style={volumeStyle}>{latest.volume}</div>}
-              </div>
-              <a href={latest.pdf_url || latest.url} target="_blank" rel="noopener noreferrer" style={openButtonStyle}>
-                <span>{latest.pdf_url ? "PDF 보기" : "원문 보기"}</span>
-                <ExternalLink size={16} strokeWidth={1.8} />
-              </a>
-            </article>
-
             {showList && (
               <div style={listOverlayStyle} onClick={() => setShowList(false)}>
                 <div style={listStyle} onClick={(e) => e.stopPropagation()}>
@@ -215,9 +203,23 @@ export default function BulletinPage() {
             )}
 
             <div style={noticeStyle}>
-              {latest.pdf_url
-                ? "저장된 주보 PDF는 SmartMS 인증 회원에게만 제공됩니다."
-                : "아직 저장된 주보 PDF가 없어 교회 홈페이지 원문으로 연결합니다."}
+              {latest.pdf_url ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                  <span>
+                    <strong style={{ fontWeight: 800 }}>{latest.title}</strong>
+                    {" · "}{formatDate(latest.issue_date)} 발행
+                    {latest.posted_at ? ` · ${formatDate(latest.posted_at)} 등록` : ""}
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                  <span>아직 저장된 주보 PDF가 없어 교회 홈페이지 원문으로 연결합니다.</span>
+                  <a href={latest.url} target="_blank" rel="noopener noreferrer" style={openButtonStyle}>
+                    <span>원문 보기</span>
+                    <ExternalLink size={16} strokeWidth={1.8} />
+                  </a>
+                </div>
+              )}
             </div>
           </>
         ) : (
@@ -227,9 +229,38 @@ export default function BulletinPage() {
           </div>
         )}
       </section>
+
+      {showTop && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label="맨 위로"
+          style={scrollTopStyle}
+        >
+          <ArrowUp size={22} strokeWidth={2} />
+        </button>
+      )}
     </main>
   );
 }
+
+const scrollTopStyle: React.CSSProperties = {
+  position: "fixed",
+  right: "clamp(14px, 4vw, 28px)",
+  bottom: "clamp(18px, 5vh, 34px)",
+  width: 46,
+  height: 46,
+  borderRadius: 999,
+  border: "1px solid var(--hairline)",
+  background: "var(--accent)",
+  color: "#FFFDF7",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  zIndex: 60,
+  boxShadow: "0 6px 18px color-mix(in srgb, var(--ink) 22%, transparent)",
+};
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
@@ -310,65 +341,6 @@ const pdfFallbackStyle: React.CSSProperties = {
   padding: 16,
   marginBottom: 12,
   textAlign: "center",
-};
-
-const latestCardStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 14,
-  border: "1px solid rgba(62, 90, 74, 0.22)",
-  borderRadius: 14,
-  background: "linear-gradient(135deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--accent-soft) 92%, transparent))",
-  padding: "clamp(16px, 4vw, 22px)",
-  marginBottom: 14,
-  flexWrap: "wrap",
-};
-
-const latestIconStyle: React.CSSProperties = {
-  width: 52,
-  height: 52,
-  borderRadius: 12,
-  background: "#EAF3ED",
-  color: "#2F6B4F",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flexShrink: 0,
-};
-
-const badgeStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  minHeight: 24,
-  padding: "0 9px",
-  borderRadius: 999,
-  background: "#EAF3ED",
-  color: "#2F6B4F",
-  fontSize: 12,
-  fontWeight: 800,
-  marginBottom: 8,
-};
-
-const latestTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "clamp(20px, 4.8vw, 28px)",
-  lineHeight: 1.25,
-  fontWeight: 800,
-  letterSpacing: 0,
-};
-
-const metaStyle: React.CSSProperties = {
-  marginTop: 8,
-  fontSize: 13,
-  lineHeight: 1.5,
-  color: "var(--ink-soft)",
-};
-
-const volumeStyle: React.CSSProperties = {
-  marginTop: 5,
-  fontSize: 12,
-  fontWeight: 700,
-  color: "#A4884E",
 };
 
 const openButtonStyle: React.CSSProperties = {

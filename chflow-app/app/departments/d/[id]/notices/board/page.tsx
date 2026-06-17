@@ -92,7 +92,6 @@ export default function NoticeBoardPage() {
           <div className="flex items-center justify-between gap-3 border-b border-hairline px-5 py-4">
             <div className="min-w-0">
               <div className="text-[20px] font-extrabold text-ink">공지 게시판</div>
-              <div className="mt-1 text-[14px] font-semibold text-ink-soft">리더·임원진이 공지를 올리고, 누구나 답글로 소통합니다.</div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <select

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type React from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, BookOpen, ExternalLink, List, RefreshCw, X } from "lucide-react";
+import { ArrowLeft, ArrowUp, ExternalLink, List, RefreshCw, X } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import PdfCanvasViewer from "@/components/PdfCanvasViewer";
 import { supabase } from "@/lib/supabase";
@@ -46,6 +46,13 @@ export default function DepartmentBulletinPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [showList, setShowList] = useState(false);
+  const [showTop, setShowTop] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 240);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const loadBulletins = async (accessToken: string) => {
     setError("");
@@ -151,25 +158,6 @@ export default function DepartmentBulletinPage() {
               />
             </section>
 
-            <article style={latestCardStyle}>
-              <div style={latestIconStyle}>
-                <BookOpen size={26} strokeWidth={1.7} />
-              </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={badgeStyle}>{latest.issue_date === items[0]?.issue_date ? "기본 주보" : "선택한 주보"}</div>
-                <h2 style={latestTitleStyle}>{latest.title}</h2>
-                <div style={metaStyle}>
-                  {formatDate(latest.issue_date)} 발행
-                  {latest.posted_at ? ` · ${formatDate(latest.posted_at)} 등록` : ""}
-                  {latest.author ? ` · ${latest.author}` : ""}
-                </div>
-              </div>
-              <a href={latest.url} target="_blank" rel="noopener noreferrer" style={openButtonStyle}>
-                <span>UMS 원문</span>
-                <ExternalLink size={16} strokeWidth={1.8} />
-              </a>
-            </article>
-
             {showList && (
               <div style={listOverlayStyle} onClick={() => setShowList(false)}>
                 <div style={listStyle} onClick={(e) => e.stopPropagation()}>
@@ -208,7 +196,18 @@ export default function DepartmentBulletinPage() {
             )}
 
             <div style={noticeStyle}>
-              UMS 사무실 게시판에서 작성자와 제목 패턴으로 초등1부 주보를 찾아 표시합니다. PDF 주소는 짧은 시간만 유효합니다.
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                <span>
+                  <strong style={{ fontWeight: 800 }}>{latest.title}</strong>
+                  {" · "}{formatDate(latest.issue_date)} 발행
+                  {latest.posted_at ? ` · ${formatDate(latest.posted_at)} 등록` : ""}
+                  {latest.author ? ` · ${latest.author}` : ""}
+                </span>
+                <a href={latest.url} target="_blank" rel="noopener noreferrer" style={openButtonStyle}>
+                  <span>UMS 원문</span>
+                  <ExternalLink size={16} strokeWidth={1.8} />
+                </a>
+              </div>
             </div>
           </>
         ) : (
@@ -218,9 +217,38 @@ export default function DepartmentBulletinPage() {
           </div>
         )}
       </section>
+
+      {showTop && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label="맨 위로"
+          style={scrollTopStyle}
+        >
+          <ArrowUp size={22} strokeWidth={2} />
+        </button>
+      )}
     </main>
   );
 }
+
+const scrollTopStyle: React.CSSProperties = {
+  position: "fixed",
+  right: "clamp(14px, 4vw, 28px)",
+  bottom: "clamp(18px, 5vh, 34px)",
+  width: 46,
+  height: 46,
+  borderRadius: 999,
+  border: "1px solid var(--hairline)",
+  background: "#3E7D74",
+  color: "#fff",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  zIndex: 60,
+  boxShadow: "0 6px 18px color-mix(in srgb, var(--ink) 22%, transparent)",
+};
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
@@ -282,58 +310,6 @@ const pdfFrameWrapStyle: React.CSSProperties = {
   background: "var(--card)",
   overflow: "hidden",
   marginBottom: 12,
-};
-
-const latestCardStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 14,
-  border: "1px solid rgba(20, 184, 166, 0.25)",
-  borderRadius: 14,
-  background: "linear-gradient(135deg, rgba(240,253,250,0.98), rgba(248,250,252,0.98))",
-  padding: "clamp(16px, 4vw, 22px)",
-  marginBottom: 14,
-  flexWrap: "wrap",
-};
-
-const latestIconStyle: React.CSSProperties = {
-  width: 52,
-  height: 52,
-  borderRadius: 12,
-  background: "#DFEDEA",
-  color: "#3E7D74",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flexShrink: 0,
-};
-
-const badgeStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  minHeight: 24,
-  padding: "0 9px",
-  borderRadius: 999,
-  background: "#DFEDEA",
-  color: "#3E7D74",
-  fontSize: 12,
-  fontWeight: 800,
-  marginBottom: 8,
-};
-
-const latestTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "clamp(20px, 4.8vw, 28px)",
-  lineHeight: 1.25,
-  fontWeight: 800,
-  letterSpacing: 0,
-};
-
-const metaStyle: React.CSSProperties = {
-  marginTop: 8,
-  fontSize: 13,
-  lineHeight: 1.5,
-  color: "var(--ink-soft)",
 };
 
 const openButtonStyle: React.CSSProperties = {
