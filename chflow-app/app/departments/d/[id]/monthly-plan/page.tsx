@@ -10,6 +10,7 @@ import PdfCanvasViewer from "@/components/PdfCanvasViewer";
 
 interface PlanFile {
   name: string;
+  path: string;
   url: string;
   year: number | null;
   month: number | null;
@@ -31,6 +32,46 @@ function isImage(url: string) {
 
 function isPdf(url: string) {
   return /\.pdf(\?|$)/i.test(url);
+}
+
+function isXlsx(url: string) {
+  return /\.xlsx(\?|$)/i.test(url);
+}
+
+// .xlsx → 서버에서 표(HTML)로 파싱해 인라인 표출
+function XlsxView({ path }: { path: string }) {
+  const [html, setHtml] = useState<string | null>(null);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`/api/edu/monthly-plans/render?path=${encodeURIComponent(path)}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (cancelled) return;
+      if (!res.ok || !json.ok) { setErr(json.error || "표 변환 실패"); return; }
+      setHtml(json.html || "");
+    })();
+    return () => { cancelled = true; };
+  }, [path]);
+
+  if (err) return <div style={{ padding: 16, color: "var(--danger)", fontSize: 13 }}>{err}</div>;
+  if (html === null) return <div style={{ padding: 24, textAlign: "center", color: "var(--ink-faint)", fontSize: 13 }}>표 변환 중...</div>;
+  return (
+    <div style={{ overflowX: "auto", border: "1px solid var(--hairline)", borderRadius: 12, background: "var(--card)", padding: 12 }}>
+      <style>{`
+        .mp-sheet + .mp-sheet { margin-top: 18px; }
+        .mp-sheet-name { font-size: 12px; font-weight: 700; color: var(--ink-faint); margin-bottom: 6px; }
+        .mp-table { border-collapse: collapse; font-size: 12px; color: var(--ink); }
+        .mp-table td { border: 1px solid var(--hairline); padding: 4px 7px; white-space: nowrap; vertical-align: middle; }
+      `}</style>
+      <div dangerouslySetInnerHTML={{ __html: html }} />
+    </div>
+  );
 }
 
 export default function MonthlyPlanPage() {
@@ -205,6 +246,8 @@ export default function MonthlyPlanPage() {
                     <div style={{ width: "100%", height: "80vh", borderRadius: 12, border: "1px solid var(--hairline)", overflow: "hidden", background: "var(--card)" }}>
                       <PdfCanvasViewer key={file.url} url={file.url} fallbackUrl={`${file.url}?download=1`} />
                     </div>
+                  ) : isXlsx(file.url) ? (
+                    <XlsxView path={file.path} />
                   ) : (
                     /* 엑셀·한글 등 브라우저가 이미지로 못 띄우는 형식 → 다운로드 카드 */
                     <div style={{ padding: "22px 18px", borderRadius: 12, background: "var(--card)", border: "1px solid var(--hairline)", textAlign: "center" }}>

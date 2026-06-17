@@ -95,6 +95,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "필수값이 누락되었습니다" }, { status: 400 });
   }
 
+  // 허용 형식: 이미지 · PDF · 엑셀(.xlsx)만. (.xls·.hwp 등은 차단)
+  const ext = safeExtension(file.name);
+  const ALLOWED_EXT = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".pdf", ".xlsx"];
+  if (!ALLOWED_EXT.includes(ext)) {
+    return NextResponse.json(
+      { ok: false, error: "이미지·PDF·엑셀(.xlsx)만 올릴 수 있습니다. 한글(.hwp)·구형 엑셀(.xls)은 PDF로 저장해 올려주세요." },
+      { status: 415 }
+    );
+  }
+  if (file.size > 20 * 1024 * 1024) {
+    return NextResponse.json({ ok: false, error: "파일 크기는 20MB 이하만 가능합니다." }, { status: 413 });
+  }
+
   const verified = await verifyGrade(req, deptId);
   if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
   if (verified.grade > 2) {

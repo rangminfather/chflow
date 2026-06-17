@@ -123,8 +123,20 @@ export default function MonthlyPlanUploadPage() {
                 <div className="mb-1 text-[14px] font-bold text-ink-soft">파일</div>
                 <input
                   type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.xlsx,image/*,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   onChange={(event) => {
                     const nextFile = event.target.files?.[0] || null;
+                    if (nextFile) {
+                      const ok = /\.(jpe?g|png|webp|gif|pdf|xlsx)$/i.test(nextFile.name);
+                      if (!ok) {
+                        setMessage("이미지·PDF·엑셀(.xlsx)만 올릴 수 있습니다. 한글(.hwp)·구형 엑셀(.xls)은 PDF로 저장해 올려주세요.");
+                        event.target.value = "";
+                        setFile(null);
+                        setFileName("");
+                        return;
+                      }
+                    }
+                    setMessage("");
                     setFile(nextFile);
                     setFileName(nextFile?.name || "");
                   }}
@@ -143,8 +155,7 @@ export default function MonthlyPlanUploadPage() {
                 </div>
               </div>
               <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[15px] leading-6 text-amber-900">
-                등록한 파일은 월간 교육계획서 화면에서 선생님들이 조회합니다.
-                <br />이미지(JPG·PNG)·PDF는 누르면 <b>바로 화면에 표시</b>되고, 엑셀·한글 파일은 <b>다운로드</b>로 제공됩니다. 바로 보기를 원하시면 이미지나 PDF로 올려주세요.
+                이미지·PDF·엑셀(.xlsx)만 가능. 한글은 PDF로 저장해 올려주세요.
               </div>
               <button
                 type="button"
