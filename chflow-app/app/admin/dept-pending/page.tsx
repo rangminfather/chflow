@@ -21,6 +21,7 @@ interface PendingJoin {
   dept_name: string;
   dept_icon: string;
   requested_at: string;
+  photo_url: string | null;
 }
 
 interface DeptInfo {
@@ -268,8 +269,13 @@ export default function AdminDeptPage() {
               ) : (
                 pending.map((j) => (
                   <div key={j.id} style={{ padding: "12px 20px", borderBottom: "1px solid var(--bg-soft)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg, var(--accent-soft), #EDE7F2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
-                      {j.dept_icon ? <span>{j.dept_icon}</span> : <Folder size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} />}
+                    <div style={{ width: 40, height: 40, borderRadius: 999, overflow: "hidden", background: "var(--bg-soft)", display: "grid", placeItems: "center", color: "var(--ink-soft)", fontSize: 15, fontWeight: 800, flexShrink: 0 }}>
+                      {j.photo_url ? (
+                        <img src={j.photo_url} alt="" loading="lazy" decoding="async"
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        <span>{j.user_name?.slice(0, 1) || "?"}</span>
+                      )}
                     </div>
                     <div style={{ flex: 1, minWidth: 180 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>

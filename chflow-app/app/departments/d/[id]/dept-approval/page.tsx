@@ -7,7 +7,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
-import DeptIcon from "@/components/DeptIcon";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Inbox, AlertTriangle, Folder, Phone, CheckCircle2 } from "lucide-react";
@@ -26,6 +25,7 @@ interface PendingJoin {
   dept_icon: string | null;
   requested_at: string;
   children_desc: string | null;
+  photo_url: string | null;
 }
 
 // 임원진(grade 0~2)이 승인 시 부여할 수 있는 등급: 교사·학부모만
@@ -143,8 +143,13 @@ export default function DeptApprovalPage() {
           ) : (
             pending.map((j) => (
               <div key={j.id} style={{ padding: "14px 18px", borderBottom: "1px solid var(--bg-soft)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                <div style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg, var(--accent-soft), #EDE7F2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-                  <DeptIcon name={j.dept_name} size={20} />
+                <div style={{ width: 44, height: 44, borderRadius: 999, overflow: "hidden", background: "var(--bg-soft)", display: "grid", placeItems: "center", color: "var(--ink-soft)", fontSize: 16, fontWeight: 800, flexShrink: 0 }}>
+                  {j.photo_url ? (
+                    <img src={j.photo_url} alt="" loading="lazy" decoding="async"
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <span>{j.user_name?.slice(0, 1) || "?"}</span>
+                  )}
                 </div>
                 <div style={{ flex: 1, minWidth: 180 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
