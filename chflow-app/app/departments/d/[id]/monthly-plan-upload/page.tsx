@@ -143,7 +143,8 @@ export default function MonthlyPlanUploadPage() {
                 </div>
               </div>
               <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[15px] leading-6 text-amber-900">
-                등록한 파일은 공지사항의 월간 교육계획서에서 선생님들이 조회할 수 있습니다.
+                등록한 파일은 월간 교육계획서 화면에서 선생님들이 조회합니다.
+                <br />이미지(JPG·PNG)·PDF는 누르면 <b>바로 화면에 표시</b>되고, 엑셀·한글 파일은 <b>다운로드</b>로 제공됩니다. 바로 보기를 원하시면 이미지나 PDF로 올려주세요.
               </div>
               <button
                 type="button"

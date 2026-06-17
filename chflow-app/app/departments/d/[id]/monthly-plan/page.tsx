@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { CalendarDays, List, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, List, ChevronLeft, ChevronRight, FileDown, FileText } from "lucide-react";
+import PdfCanvasViewer from "@/components/PdfCanvasViewer";
 
 interface PlanFile {
   name: string;
@@ -201,20 +202,24 @@ export default function MonthlyPlanPage() {
                       loading={i === 0 ? "eager" : "lazy"}
                     />
                   ) : isPdf(file.url) ? (
-                    <iframe
-                      src={file.url}
-                      style={{ width: "100%", height: "80vh", borderRadius: 12, border: "1px solid var(--hairline)" }}
-                      title={file.originalName}
-                    />
+                    <div style={{ width: "100%", height: "80vh", borderRadius: 12, border: "1px solid var(--hairline)", overflow: "hidden", background: "var(--card)" }}>
+                      <PdfCanvasViewer key={file.url} url={file.url} fallbackUrl={`${file.url}?download=1`} />
+                    </div>
                   ) : (
-                    <a
-                      href={file.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ display: "block", padding: "20px", borderRadius: 12, background: "var(--card)", border: "1px solid var(--hairline)", textAlign: "center", color: "var(--accent)", fontWeight: 700, fontSize: 15 }}
-                    >
-                      {file.originalName} — 파일 열기
-                    </a>
+                    /* 엑셀·한글 등 브라우저가 이미지로 못 띄우는 형식 → 다운로드 카드 */
+                    <div style={{ padding: "22px 18px", borderRadius: 12, background: "var(--card)", border: "1px solid var(--hairline)", textAlign: "center" }}>
+                      <div style={{ display: "inline-flex", marginBottom: 10, color: "var(--ink-faint)" }}>
+                        <FileText size={32} strokeWidth={1.6} />
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", marginBottom: 4, wordBreak: "break-all" }}>{file.originalName}</div>
+                      <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 14 }}>이 형식은 미리보기를 지원하지 않습니다. 내려받아 확인하세요.</div>
+                      <a
+                        href={`${file.url}?download=1`}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 18px", borderRadius: 10, background: "var(--accent)", color: "#fff", fontWeight: 700, fontSize: 14, textDecoration: "none" }}
+                      >
+                        <FileDown size={16} strokeWidth={2} /> 다운로드
+                      </a>
+                    </div>
                   )}
                 </div>
               ))}
