@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
 import { Medal, Lock } from "lucide-react";
@@ -36,6 +37,7 @@ const SYSTEM_WEEKLY_KEYS: { key: string; label: string; desc: string }[] = [
 
 export default function TalentRulesPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
 
@@ -116,7 +118,7 @@ export default function TalentRulesPage() {
   }
 
   async function handleDelete(r: Rule) {
-    if (!confirm(`"${r.label}" 규칙을 삭제하시겠습니까?`)) return;
+    if (!await confirm(`"${r.label}" 규칙을 삭제하시겠습니까?`)) return;
     const { error } = await supabase.rpc("delete_talent_rule", { p_id: r.id });
     if (error) { showToast("삭제 실패: " + error.message); return; }
     showToast("삭제됨");

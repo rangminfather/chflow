@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import DeptIcon from "@/components/DeptIcon";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
@@ -50,6 +51,7 @@ const AVAILABLE_ROLES = [
 
 export default function AdminDeptPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const [authChecked, setAuthChecked] = useState(false);
 
   // 데이터
@@ -130,7 +132,7 @@ export default function AdminDeptPage() {
   };
 
   const handleReject = async (j: PendingJoin) => {
-    if (!confirm(`${j.user_name}님의 ${j.category} / ${j.dept_name} 가입을 거절하시겠습니까?`)) return;
+    if (!await confirm(`${j.user_name}님의 ${j.category} / ${j.dept_name} 가입을 거절하시겠습니까?`)) return;
     setProcessing(j.id);
     const { error } = await supabase.rpc("admin_approve_dept_join", { p_join_id: j.id, p_approved: false });
     setProcessing(null);
@@ -139,7 +141,7 @@ export default function AdminDeptPage() {
   };
 
   const handleRemoveMember = async (m: DeptMember) => {
-    if (!confirm(`${m.user_name}님을 ${selectedDept?.name}에서 탈퇴 처리하시겠습니까?`)) return;
+    if (!await confirm(`${m.user_name}님을 ${selectedDept?.name}에서 탈퇴 처리하시겠습니까?`)) return;
     const { error } = await supabase.rpc("admin_remove_dept_member", { p_join_id: m.id });
     if (error) { alert(`탈퇴 실패: ${error.message}`); return; }
     if (selectedDeptId) loadMembers(selectedDeptId);

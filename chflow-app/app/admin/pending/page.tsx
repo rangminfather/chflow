@@ -3,6 +3,7 @@
 import { useCallback, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { getRoleImageByLabel, getAllSubRoleOptions } from "@/lib/roles";
@@ -40,6 +41,7 @@ const displayGender = (value?: string | null) => {
 
 export default function AdminPendingPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const [authChecked, setAuthChecked] = useState(false);
   const [pending, setPending] = useState<PendingUser[]>([]);
   const [loading, setLoading] = useState(false);
@@ -95,7 +97,7 @@ export default function AdminPendingPage() {
   };
 
   const handleReject = async (user: PendingUser) => {
-    if (!confirm(`${user.name}(${user.username})님의 가입을 거절하시겠습니까?`)) return;
+    if (!await confirm(`${user.name}(${user.username})님의 가입을 거절하시겠습니까?`)) return;
     setProcessing(user.id);
     const { error } = await supabase.rpc("admin_reject_signup", {
       p_user_id: user.id,

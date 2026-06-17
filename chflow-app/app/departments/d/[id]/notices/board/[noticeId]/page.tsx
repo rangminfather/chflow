@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Megaphone, Pin, PinOff, Trash2, FileText, Download, AlertTriangle, X, Send } from "lucide-react";
 
@@ -37,6 +38,7 @@ function fmtDateTime(iso: string) {
 
 export default function DeptNoticeDetailPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
   const noticeId = params.noticeId as string;
@@ -166,7 +168,7 @@ export default function DeptNoticeDetailPage() {
   }
 
   async function removeNotice() {
-    if (!confirm("이 공지를 삭제할까요?")) return;
+    if (!await confirm("이 공지를 삭제할까요?")) return;
     const { error: e } = await supabase.rpc("delete_dept_notice", { p_notice_id: noticeId });
     if (e) { setError(e.message); return; }
     router.replace(boardUrl);

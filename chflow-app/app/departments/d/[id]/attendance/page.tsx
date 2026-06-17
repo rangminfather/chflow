@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
 import { ClipboardList, BookOpen, Trash2 } from "lucide-react";
@@ -51,6 +52,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function AttendancePage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
 
@@ -200,7 +202,7 @@ export default function AttendancePage() {
   };
 
   const deleteStudent = async (id: string, name: string) => {
-    if (!confirm(`"${name}" 학생을 삭제하시겠습니까?`)) return;
+    if (!await confirm(`"${name}" 학생을 삭제하시겠습니까?`)) return;
     await supabase.rpc("edu_delete_student", { p_id: id });
     await loadAll();
     showToast("삭제되었습니다");

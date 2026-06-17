@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { NotebookPen, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
@@ -70,6 +71,7 @@ const DEPT_PREFILL_KEY: Record<string, string> = {
 
 export default function JournalPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
 
@@ -327,7 +329,7 @@ export default function JournalPage() {
 
   const handleDelete = async () => {
     if (!selected) return;
-    if (!confirm("이 일지를 삭제하시겠습니까?")) return;
+    if (!await confirm("이 일지를 삭제하시겠습니까?")) return;
     const { error } = await supabase.rpc("edu_delete_journal", { p_id: selected.id });
     if (!error) {
       showToast("삭제되었습니다");

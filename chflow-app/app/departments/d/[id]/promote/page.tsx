@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
 import { Lock, GraduationCap, BookOpen, AlertTriangle } from "lucide-react";
@@ -39,6 +40,7 @@ const STEPS = [
 
 export default function PromotePage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
 
@@ -157,7 +159,7 @@ export default function PromotePage() {
   }
 
   async function handleFinalize() {
-    if (!confirm(`${year}년도 진급을 확정합니다.\n\n진급 후 학년/반/담임이 일괄 변경되며 이력이 저장됩니다.\n되돌리기는 어렵습니다. 계속할까요?`)) return;
+    if (!await confirm(`${year}년도 진급을 확정합니다.\n\n진급 후 학년/반/담임이 일괄 변경되며 이력이 저장됩니다.\n되돌리기는 어렵습니다. 계속할까요?`)) return;
     setFinalizing(true);
     const payload = Object.entries(assignments).map(([sid, a]) => ({
       student_id: sid,

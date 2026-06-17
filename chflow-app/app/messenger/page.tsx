@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/components/ConfirmDialog";
 import {
   ArrowLeft,
   Check,
@@ -66,6 +67,7 @@ const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
 export default function MessengerPage() {
   const router = useRouter();
+  const { confirm, prompt, alert } = useConfirm();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -394,7 +396,7 @@ export default function MessengerPage() {
 
   const removeMessage = async (message: MessengerMessage) => {
     if (!activeId) return;
-    if (!window.confirm("메시지를 삭제할까요?")) return;
+    if (!await confirm("메시지를 삭제할까요?")) return;
     try {
       await deleteMessengerMessage(message.id);
       await loadConversationBody(activeId);
@@ -421,7 +423,7 @@ export default function MessengerPage() {
     if (!activeConversation || activeConversation.type !== "direct") return;
     const peer = participants.find((p) => p.user_id !== myUserId);
     if (!peer) return;
-    if (!window.confirm(`${peer.name || "상대방"}님을 차단할까요?`)) return;
+    if (!await confirm(`${peer.name || "상대방"}님을 차단할까요?`)) return;
     try {
       await blockMessengerUser(peer.user_id);
       await setMessengerConversationState(activeConversation.conversation_id, { archived: true });
@@ -433,11 +435,11 @@ export default function MessengerPage() {
   };
 
   const reportMessage = async (message: MessengerMessage) => {
-    const reason = window.prompt("신고 사유를 입력하세요.");
+    const reason = await prompt("신고 사유를 입력하세요.");
     if (!reason?.trim()) return;
     try {
       await reportMessengerMessage(message.id, reason.trim());
-      window.alert("신고가 접수되었습니다.");
+      await alert("신고가 접수되었습니다.");
     } catch (e) {
       setError(getErrorMessage(e));
     }
@@ -470,7 +472,7 @@ export default function MessengerPage() {
   const leaveConversation = async () => {
     if (!activeConversation) return;
     const label = activeConversation.type === "group" ? "이 그룹 대화방에서 나갈까요?" : "이 대화를 목록에서 숨길까요?";
-    if (!window.confirm(label)) return;
+    if (!await confirm(label)) return;
     try {
       await leaveMessengerConversation(activeConversation.conversation_id);
       setActiveId(null);

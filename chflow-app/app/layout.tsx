@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Noto_Sans_KR, Noto_Serif_KR } from "next/font/google";
 import GlobalNotifications from "@/components/GlobalNotifications";
 import HardwareBackBridge from "@/components/HardwareBackBridge";
+import { ConfirmProvider } from "@/components/ConfirmDialog";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -79,7 +80,9 @@ export default function RootLayout({
         <link rel="preload" as="image" href="/launch-dandelion.webp" fetchPriority="high" />
       </head>
       <body className="min-h-full flex flex-col">
-        {children}
+        <ConfirmProvider>
+          {children}
+        </ConfirmProvider>
         <GlobalNotifications />
         <HardwareBackBridge />
       </body>
