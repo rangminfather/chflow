@@ -87,6 +87,8 @@ function AppWebView() {
   const [canGoBack, setCanGoBack] = useState(false);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [needsUpdate, setNeedsUpdate] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [updateDismissed, setUpdateDismissed] = useState(false);
   const [storeUrl, setStoreUrl] = useState('market://details?id=com.smartmyungsung.app');
   const pendingAccessTokenRef = useRef<string | null>(null);
   const registeredKeyRef = useRef<string | null>(null);
@@ -106,11 +108,20 @@ function AppWebView() {
       try {
         const res = await fetch(`${TARGET_URL}/api/app-config`);
         if (!res.ok) return;
-        const config = await res.json() as { min_android_build: number; play_store_url: string };
+        const config = await res.json() as {
+          min_android_build: number;
+          latest_android_build?: number;
+          play_store_url: string;
+        };
         const build = parseInt(Application.nativeBuildVersion ?? '0', 10);
         if (config.play_store_url) setStoreUrl(config.play_store_url);
-        if (build > 0 && build < config.min_android_build) {
+        if (build <= 0) return;
+        if (build < config.min_android_build) {
+          // 치명적: 차단형 강제 업데이트
           setNeedsUpdate(true);
+        } else if (config.latest_android_build && build < config.latest_android_build) {
+          // 일반 신규 버전: 닫기 가능한 권장 업데이트 안내
+          setUpdateAvailable(true);
         }
       } catch {
         // 실패 시 앱 사용 허용 (fail open)
@@ -350,6 +361,27 @@ function AppWebView() {
           style={styles.webview}
         />
         {exitReloading && <View style={styles.exitOverlay} pointerEvents="none" />}
+        {updateAvailable && !updateDismissed && (
+          <View style={styles.updateBanner}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.updateBannerTitle}>새 버전이 있습니다</Text>
+              <Text style={styles.updateBannerBody}>더 나은 사용을 위해 업데이트해 주세요.</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.updateBannerBtn}
+              onPress={() => {
+                Linking.openURL(storeUrl).catch(() =>
+                  Linking.openURL('https://play.google.com/store/apps/details?id=com.smartmyungsung.app')
+                );
+              }}
+            >
+              <Text style={styles.updateBannerBtnText}>업데이트</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.updateBannerClose} onPress={() => setUpdateDismissed(true)}>
+              <Text style={styles.updateBannerCloseText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -488,5 +520,53 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     fontWeight: '600',
+  },
+  updateBanner: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2B4539',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  updateBannerTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  updateBannerBody: {
+    color: '#D7E3DC',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  updateBannerBtn: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 9,
+  },
+  updateBannerBtnText: {
+    color: '#2B4539',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  updateBannerClose: {
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+  },
+  updateBannerCloseText: {
+    color: '#A9BDB2',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
