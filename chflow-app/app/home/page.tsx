@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "@/lib/useTheme";
 import { LoadingView } from "@/components/StatusViews";
+import WeatherOverlay from "@/components/WeatherOverlay";
 import {
   T, PageShell, PageContent,
   Section, SectionHeader,
@@ -197,6 +198,7 @@ export default function HomePage() {
 
   return (
     <PageShell style={{ background: "#F5F1EB" }}>
+      <WeatherOverlay />
 
       <style>{`
         @media (max-width: 768px) {
