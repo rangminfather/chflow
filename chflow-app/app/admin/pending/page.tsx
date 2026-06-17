@@ -31,6 +31,7 @@ interface PendingUser {
   signup_guardian_name: string | null;
   signup_guardian_phone: string | null;
   signup_parent_name: string | null;
+  photo_url: string | null;
 }
 
 const displayGender = (value?: string | null) => {
@@ -195,6 +196,20 @@ export default function AdminPendingPage() {
                   whiteSpace: "nowrap",
                 }}>신규</div>
               )}
+
+              {/* 얼굴 사진 */}
+              <div style={{
+                width: 44, height: 44, borderRadius: 999, overflow: "hidden", flexShrink: 0,
+                background: "var(--bg-soft)", display: "grid", placeItems: "center",
+                color: "var(--ink-soft)", fontSize: 16, fontWeight: 800,
+              }}>
+                {user.photo_url ? (
+                  <img src={user.photo_url} alt="" loading="lazy" decoding="async"
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <span>{user.name?.slice(0, 1) || "?"}</span>
+                )}
+              </div>
 
               {/* User Info */}
               <div style={{ flex: 1, minWidth: 200 }}>
