@@ -89,5 +89,26 @@ export async function GET(req: NextRequest) {
     results.dept_error = (e as Error).message;
   }
 
+  // ── 4. 구형 .xls 월간계획서 폐기 (2026-06-30 경과 후) ────────────
+  // .xls는 주보만들기에만 쓰이고 6/30까지만 보관, 이후 자동 폐기.
+  try {
+    const now = new Date();
+    const cutoff = new Date("2026-07-01T00:00:00+09:00");
+    if (now >= cutoff) {
+      const { data: keys } = await r2.from("monthly-plans").listAll();
+      const xls = (keys ?? []).filter((k) => k.toLowerCase().endsWith(".xls"));
+      if (xls.length > 0) {
+        await r2.from("monthly-plans").remove(xls);
+        results.monthly_xls = `${xls.length}개 폐기`;
+      } else {
+        results.monthly_xls = "없음";
+      }
+    } else {
+      results.monthly_xls = "보관기간(6/30) 이전";
+    }
+  } catch (e) {
+    results.monthly_xls_error = (e as Error).message;
+  }
+
   return NextResponse.json({ ok: true, ...results });
 }

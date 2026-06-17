@@ -115,6 +115,8 @@ export default function MonthlyPlanPage() {
     const map = new Map<string, PlanFile[]>();
     for (const f of files) {
       if (!f.year || !f.month) continue;
+      // 미리보기 가능한 형식만 노출(이미지·PDF·xlsx). 구형 .xls 등은 주보만들기 전용이라 숨김.
+      if (!isImage(f.url) && !isPdf(f.url) && !isXlsx(f.url)) continue;
       const key = `${f.year}-${String(f.month).padStart(2, "0")}`;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(f);

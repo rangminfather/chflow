@@ -125,6 +125,26 @@ function from(bucketName: string) {
       }
     },
 
+    // 버킷 하위 모든 객체 키(상대경로) 재귀 조회 — 정리 작업용
+    async listAll() {
+      try {
+        const keys: string[] = [];
+        let token: string | undefined = undefined;
+        do {
+          const res: import("@aws-sdk/client-s3").ListObjectsV2CommandOutput = await s3.send(
+            new ListObjectsV2Command({ Bucket: BUCKET, Prefix: prefix, ContinuationToken: token })
+          );
+          for (const obj of res.Contents || []) {
+            if (obj.Key) keys.push(obj.Key.slice(prefix.length));
+          }
+          token = res.IsTruncated ? res.NextContinuationToken : undefined;
+        } while (token);
+        return { data: keys, error: null };
+      } catch (e) {
+        return { data: null, error: e as Error };
+      }
+    },
+
     async remove(paths: string[]) {
       try {
         await Promise.all(
