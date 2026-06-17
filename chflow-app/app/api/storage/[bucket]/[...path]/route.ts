@@ -103,7 +103,17 @@ export async function GET(
     if (!participant?.id) return new NextResponse(null, { status: 403 });
   }
 
-  // R2에서 바이트를 직접 스트리밍 (same-origin → CORS/CSP 우회, pdf.js·다운로드 호환)
+  const isStream = req.nextUrl.searchParams.get("stream") === "1";
+  const isDownload = req.nextUrl.searchParams.get("download") === "1";
+
+  // 기본: 302 리디렉트 (이미지 <img> 등) — R2에서 직접 병렬 다운로드라 빠름.
+  // pdf.js·fetch 처럼 same-origin 이 필요한 경우만 ?stream=1 로 바이트 스트리밍(CORS 우회).
+  if (!isStream && !isDownload) {
+    const { data, error } = await r2.from(bucket).createSignedUrl(storagePath, 300);
+    if (error || !data?.signedUrl) return new NextResponse(null, { status: 404 });
+    return NextResponse.redirect(data.signedUrl, { status: 302 });
+  }
+
   const { data, error } = await r2.from(bucket).getObject(storagePath);
   if (error || !data) return new NextResponse(null, { status: 404 });
 
@@ -112,8 +122,7 @@ export async function GET(
   headers.set("Content-Length", String(data.contentLength));
   headers.set("Cache-Control", "private, max-age=300");
 
-  // 다운로드 요청(?download=1)이면 파일명 지정
-  if (req.nextUrl.searchParams.get("download") === "1") {
+  if (isDownload) {
     const filename = storagePath.split("/").pop() || "file";
     headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(filename)}"`);
   }

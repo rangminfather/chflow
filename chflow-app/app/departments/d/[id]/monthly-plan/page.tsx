@@ -246,7 +246,7 @@ export default function MonthlyPlanPage() {
                     />
                   ) : isPdf(file.url) ? (
                     <div style={{ width: "100%", height: "80vh", borderRadius: 12, border: "1px solid var(--hairline)", overflow: "hidden", background: "var(--card)" }}>
-                      <PdfCanvasViewer key={file.url} url={file.url} fallbackUrl={`${file.url}?download=1`} />
+                      <PdfCanvasViewer key={file.url} url={`${file.url}?stream=1`} fallbackUrl={`${file.url}?download=1`} />
                     </div>
                   ) : isXlsx(file.url) ? (
                     <XlsxView path={file.path} />

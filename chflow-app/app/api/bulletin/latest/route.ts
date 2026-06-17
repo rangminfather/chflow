@@ -260,8 +260,8 @@ async function loadStoredItems(): Promise<BulletinItem[]> {
     const sourceNo = Number(row.content?.match(/UMS jubo no: (\d+)/)?.[1] || 0);
     let signedUrl = "";
     if (path && !/^https?:\/\//i.test(path)) {
-      // same-origin 프록시 URL (pdf.js CORS 우회)
-      signedUrl = `/api/storage/${BUCKET}/${path}`;
+      // pdf.js 가 fetch 하므로 same-origin 스트리밍(?stream=1)
+      signedUrl = `/api/storage/${BUCKET}/${path}?stream=1`;
     } else {
       signedUrl = path;
     }
