@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type React from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ArrowUp } from "lucide-react";
 
 type Props = {
   url: string;
@@ -19,7 +19,9 @@ const BACKING_WIDTH = 1100;
 
 export default function PdfCanvasViewer({ url, fallbackUrl }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [showTop, setShowTop] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,21 +83,62 @@ export default function PdfCanvasViewer({ url, fallbackUrl }: Props) {
   }, [url]);
 
   return (
-    <div style={viewerStyle}>
-      <div ref={containerRef} style={canvasHostStyle} />
-      {status === "loading" && <div style={overlayStyle}>주보를 불러오는 중...</div>}
-      {status === "error" && (
-        <div style={overlayStyle}>
-          <div style={{ fontWeight: 800, marginBottom: 8 }}>주보를 표시하지 못했습니다</div>
-          <a href={fallbackUrl} target="_blank" rel="noopener noreferrer" style={openButtonStyle}>
-            <span>원문 보기</span>
-            <ExternalLink size={16} strokeWidth={1.8} />
-          </a>
-        </div>
+    <div style={rootStyle}>
+      <div
+        ref={scrollRef}
+        style={viewerStyle}
+        onScroll={(e) => setShowTop(e.currentTarget.scrollTop > 200)}
+      >
+        <div ref={containerRef} style={canvasHostStyle} />
+        {status === "loading" && <div style={overlayStyle}>주보를 불러오는 중...</div>}
+        {status === "error" && (
+          <div style={overlayStyle}>
+            <div style={{ fontWeight: 800, marginBottom: 8 }}>주보를 표시하지 못했습니다</div>
+            <a href={fallbackUrl} target="_blank" rel="noopener noreferrer" style={openButtonStyle}>
+              <span>원문 보기</span>
+              <ExternalLink size={16} strokeWidth={1.8} />
+            </a>
+          </div>
+        )}
+      </div>
+      {showTop && (
+        <button
+          type="button"
+          onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label="맨 위로"
+          style={scrollTopStyle}
+        >
+          <ArrowUp size={22} strokeWidth={2} />
+        </button>
       )}
     </div>
   );
 }
+
+const rootStyle: React.CSSProperties = {
+  position: "relative",
+  width: "100%",
+  height: "100%",
+  overflow: "hidden",
+};
+
+const scrollTopStyle: React.CSSProperties = {
+  position: "absolute",
+  bottom: 16,
+  right: 16,
+  width: 44,
+  height: 44,
+  borderRadius: 999,
+  border: "none",
+  background: "var(--accent)",
+  color: "#FFFDF7",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  boxShadow: "0 6px 18px color-mix(in srgb, var(--ink) 28%, transparent)",
+  zIndex: 5,
+};
 
 const viewerStyle: React.CSSProperties = {
   position: "relative",

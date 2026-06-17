@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type React from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, ArrowUp, ExternalLink, List, RefreshCw, X } from "lucide-react";
+import { ArrowLeft, List, RefreshCw, X } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import PdfCanvasViewer from "@/components/PdfCanvasViewer";
 import { supabase } from "@/lib/supabase";
@@ -34,6 +34,14 @@ function formatDate(value: string | null) {
   return `${match[1]}년 ${Number(match[2])}월 ${Number(match[3])}일`;
 }
 
+// 월·일만 (예: "6월 14일")
+function formatMonthDay(value: string | null) {
+  if (!value) return "";
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return "";
+  return `${Number(m[2])}월 ${Number(m[3])}일`;
+}
+
 export default function DepartmentBulletinPage() {
   const router = useRouter();
   const params = useParams();
@@ -46,13 +54,6 @@ export default function DepartmentBulletinPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [showList, setShowList] = useState(false);
-  const [showTop, setShowTop] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setShowTop(window.scrollY > 240);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   const loadBulletins = async (accessToken: string) => {
     setError("");
@@ -128,7 +129,12 @@ export default function DepartmentBulletinPage() {
           <HeaderLogo />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={eyebrowStyle}>교육사역국 · 초등1부</div>
-            <h1 style={titleStyle}>주보 보기</h1>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+              <h1 style={titleStyle}>주보 보기</h1>
+              {latest && formatMonthDay(latest.issue_date) && (
+                <span style={dateChipStyle}>{formatMonthDay(latest.issue_date)}</span>
+              )}
+            </div>
           </div>
           {items.length > 0 && (
             <button type="button" onClick={() => setShowList((v) => !v)} aria-label="주보 목록" style={iconButtonStyle}>
@@ -195,20 +201,6 @@ export default function DepartmentBulletinPage() {
               </div>
             )}
 
-            <div style={noticeStyle}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                <span>
-                  <strong style={{ fontWeight: 800 }}>{latest.title}</strong>
-                  {" · "}{formatDate(latest.issue_date)} 발행
-                  {latest.posted_at ? ` · ${formatDate(latest.posted_at)} 등록` : ""}
-                  {latest.author ? ` · ${latest.author}` : ""}
-                </span>
-                <a href={latest.url} target="_blank" rel="noopener noreferrer" style={openButtonStyle}>
-                  <span>UMS 원문</span>
-                  <ExternalLink size={16} strokeWidth={1.8} />
-                </a>
-              </div>
-            </div>
           </>
         ) : (
           <div style={emptyStyle}>
@@ -217,38 +209,9 @@ export default function DepartmentBulletinPage() {
           </div>
         )}
       </section>
-
-      {showTop && (
-        <button
-          type="button"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          aria-label="맨 위로"
-          style={scrollTopStyle}
-        >
-          <ArrowUp size={22} strokeWidth={2} />
-        </button>
-      )}
     </main>
   );
 }
-
-const scrollTopStyle: React.CSSProperties = {
-  position: "fixed",
-  right: "clamp(14px, 4vw, 28px)",
-  bottom: "clamp(18px, 5vh, 34px)",
-  width: 46,
-  height: 46,
-  borderRadius: 999,
-  border: "1px solid var(--hairline)",
-  background: "#3E7D74",
-  color: "#fff",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
-  zIndex: 60,
-  boxShadow: "0 6px 18px color-mix(in srgb, var(--ink) 22%, transparent)",
-};
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
@@ -300,6 +263,12 @@ const titleStyle: React.CSSProperties = {
   letterSpacing: 0,
 };
 
+const dateChipStyle: React.CSSProperties = {
+  fontSize: 15,
+  fontWeight: 700,
+  color: "#3E7D74",
+};
+
 const pdfFrameWrapStyle: React.CSSProperties = {
   width: "100%",
   height: "calc(100vh - 132px)",
@@ -310,22 +279,6 @@ const pdfFrameWrapStyle: React.CSSProperties = {
   background: "var(--card)",
   overflow: "hidden",
   marginBottom: 12,
-};
-
-const openButtonStyle: React.CSSProperties = {
-  minHeight: 40,
-  padding: "0 14px",
-  borderRadius: 10,
-  background: "#3E7D74",
-  color: "#fff",
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 7,
-  fontSize: 13,
-  fontWeight: 800,
-  flexShrink: 0,
 };
 
 const listOverlayStyle: React.CSSProperties = {
@@ -436,17 +389,6 @@ const activeTextStyle: React.CSSProperties = {
   ...chooseTextStyle,
   color: "var(--warning)",
 };
-
-const noticeStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: "12px 14px",
-  borderRadius: 12,
-  background: "rgba(20, 184, 166, 0.1)",
-  color: "#3E7D74",
-  fontSize: 12,
-  lineHeight: 1.6,
-};
-
 
 const loadingPanelStyle: React.CSSProperties = {
   minHeight: 180,

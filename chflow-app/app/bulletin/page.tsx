@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowUp, ExternalLink, List, RefreshCw, X } from "lucide-react";
+import { ArrowLeft, ExternalLink, List, RefreshCw, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import PdfCanvasViewer from "@/components/PdfCanvasViewer";
 import { LoadingView } from "@/components/StatusViews";
@@ -36,6 +36,14 @@ function formatDate(value: string | null) {
   return `${match[1]}년 ${Number(match[2])}월 ${Number(match[3])}일`;
 }
 
+// 월·일만 (예: "6월 14일")
+function formatMonthDay(value: string | null) {
+  if (!value) return "";
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return "";
+  return `${Number(m[2])}월 ${Number(m[3])}일`;
+}
+
 export default function BulletinPage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
@@ -45,13 +53,6 @@ export default function BulletinPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [showList, setShowList] = useState(false);
-  const [showTop, setShowTop] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setShowTop(window.scrollY > 240);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   const loadBulletins = async (accessToken: string) => {
     setError("");
@@ -126,7 +127,12 @@ export default function BulletinPage() {
           </button>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={eyebrowStyle}>명성교회</div>
-            <h1 style={titleStyle}>주보 보기</h1>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+              <h1 style={titleStyle}>주보 보기</h1>
+              {latest && formatMonthDay(latest.issue_date) && (
+                <span style={dateChipStyle}>{formatMonthDay(latest.issue_date)}</span>
+              )}
+            </div>
           </div>
           {items.length > 0 && (
             <button type="button" onClick={() => setShowList((v) => !v)} aria-label="주보 목록" style={iconButtonStyle}>
@@ -158,7 +164,11 @@ export default function BulletinPage() {
               </section>
             ) : (
               <section style={pdfFallbackStyle}>
-                저장된 PDF가 없어 교회 홈페이지 원문으로 연결합니다.
+                <span>저장된 PDF가 없어 교회 홈페이지 원문으로 연결합니다.</span>
+                <a href={latest.url} target="_blank" rel="noopener noreferrer" style={openButtonStyle}>
+                  <span>원문 보기</span>
+                  <ExternalLink size={16} strokeWidth={1.8} />
+                </a>
               </section>
             )}
 
@@ -202,25 +212,6 @@ export default function BulletinPage() {
               </div>
             )}
 
-            <div style={noticeStyle}>
-              {latest.pdf_url ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                  <span>
-                    <strong style={{ fontWeight: 800 }}>{latest.title}</strong>
-                    {" · "}{formatDate(latest.issue_date)} 발행
-                    {latest.posted_at ? ` · ${formatDate(latest.posted_at)} 등록` : ""}
-                  </span>
-                </div>
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                  <span>아직 저장된 주보 PDF가 없어 교회 홈페이지 원문으로 연결합니다.</span>
-                  <a href={latest.url} target="_blank" rel="noopener noreferrer" style={openButtonStyle}>
-                    <span>원문 보기</span>
-                    <ExternalLink size={16} strokeWidth={1.8} />
-                  </a>
-                </div>
-              )}
-            </div>
           </>
         ) : (
           <div style={emptyStyle}>
@@ -229,38 +220,9 @@ export default function BulletinPage() {
           </div>
         )}
       </section>
-
-      {showTop && (
-        <button
-          type="button"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          aria-label="맨 위로"
-          style={scrollTopStyle}
-        >
-          <ArrowUp size={22} strokeWidth={2} />
-        </button>
-      )}
     </main>
   );
 }
-
-const scrollTopStyle: React.CSSProperties = {
-  position: "fixed",
-  right: "clamp(14px, 4vw, 28px)",
-  bottom: "clamp(18px, 5vh, 34px)",
-  width: 46,
-  height: 46,
-  borderRadius: 999,
-  border: "1px solid var(--hairline)",
-  background: "var(--accent)",
-  color: "#FFFDF7",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
-  zIndex: 60,
-  boxShadow: "0 6px 18px color-mix(in srgb, var(--ink) 22%, transparent)",
-};
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
@@ -315,6 +277,12 @@ const titleStyle: React.CSSProperties = {
   letterSpacing: 0,
 };
 
+const dateChipStyle: React.CSSProperties = {
+  fontSize: 15,
+  fontWeight: 700,
+  color: "var(--accent)",
+};
+
 const pdfFrameWrapStyle: React.CSSProperties = {
   width: "100%",
   height: "calc(100vh - 132px)",
@@ -333,8 +301,10 @@ const pdfFallbackStyle: React.CSSProperties = {
   border: "1px solid var(--hairline)",
   background: "var(--surface)",
   display: "flex",
+  flexDirection: "column",
   alignItems: "center",
   justifyContent: "center",
+  gap: 12,
   color: "var(--ink-soft)",
   fontSize: 13,
   lineHeight: 1.5,
@@ -467,17 +437,6 @@ const activeTextStyle: React.CSSProperties = {
   ...chooseTextStyle,
   color: "#A4884E",
 };
-
-const noticeStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: "12px 14px",
-  borderRadius: 12,
-  background: "rgba(164, 136, 78, 0.1)",
-  color: "#725A3A",
-  fontSize: 12,
-  lineHeight: 1.6,
-};
-
 
 const loadingPanelStyle: React.CSSProperties = {
   minHeight: 180,
