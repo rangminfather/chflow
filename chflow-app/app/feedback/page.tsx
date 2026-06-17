@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Lightbulb, Lock, MessageSquare, Paperclip } from "lucide-react";
+import { Lightbulb, Lock, MessageSquare, Paperclip, Trash2, CheckSquare, Square } from "lucide-react";
 
 type FeedbackStatus = "submitted" | "received" | "reviewing" | "resolved" | "rejected";
 
@@ -52,6 +52,10 @@ export default function FeedbackListPage() {
   const [loading, setLoading] = useState(true);
   const [scope, setScope] = useState<"all" | "mine">("all");
   const [statusFilter, setStatusFilter] = useState<FeedbackStatus | "all">("all");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async (s: "all" | "mine", st: FeedbackStatus | "all", p: number) => {
     setLoading(true);
@@ -80,8 +84,45 @@ export default function FeedbackListPage() {
         router.replace("/login");
         return;
       }
+      const { data: role } = await supabase.rpc("get_user_role");
+      setIsAdmin(typeof role === "string" && ["admin", "office", "pastor"].includes(role));
     })();
   }, [router]);
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelected(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    if (selected.size === 0) return;
+    const reason = window.prompt(`${selected.size}개 글을 삭제합니다.\n작성자에게 삭제 알림이 전송됩니다.\n\n삭제 사유 (선택, 비워도 됨):`, "");
+    if (reason === null) return; // 취소
+    setDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace("/login"); return; }
+      const res = await fetch("/api/feedback/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ postIds: Array.from(selected), reason: reason.trim() || null }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(result.error || "삭제 실패"); return; }
+      exitSelectMode();
+      await load(scope, statusFilter, page);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // 뒤로가기 → 홈으로
   useEffect(() => {
@@ -122,9 +163,34 @@ export default function FeedbackListPage() {
         </div>
         <div className="fb-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button style={ghostButtonStyle} onClick={() => router.replace("/home")}>홈</button>
+          {isAdmin && (
+            selectMode ? (
+              <button style={ghostButtonStyle} onClick={exitSelectMode}>선택취소</button>
+            ) : (
+              <button style={ghostButtonStyle} onClick={() => setSelectMode(true)}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Trash2 size={14} strokeWidth={2} /> 선택삭제</span>
+              </button>
+            )
+          )}
           <button style={primaryButtonStyle} onClick={() => router.push("/feedback/new")}>글쓰기</button>
         </div>
       </header>
+
+      {selectMode && (
+        <div style={selectBarStyle}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{selected.size}개 선택됨</span>
+          <div style={{ flex: 1 }} />
+          <button
+            onClick={handleBulkDelete}
+            disabled={selected.size === 0 || deleting}
+            style={{ ...primaryButtonStyle, background: "var(--danger)", opacity: selected.size === 0 || deleting ? 0.5 : 1 }}
+          >
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <Trash2 size={14} strokeWidth={2} /> {deleting ? "삭제 중..." : "삭제"}
+            </span>
+          </button>
+        </div>
+      )}
 
       <section style={panelStyle}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
@@ -147,7 +213,15 @@ export default function FeedbackListPage() {
         ) : (
           <>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-              {items.map((p) => <FeedbackRow key={p.id} item={p} onClick={() => router.push(`/feedback/${p.id}`)} />)}
+              {items.map((p) => (
+                <FeedbackRow
+                  key={p.id}
+                  item={p}
+                  selectMode={selectMode}
+                  checked={selected.has(p.id)}
+                  onClick={() => selectMode ? toggleSelect(p.id) : router.push(`/feedback/${p.id}`)}
+                />
+              ))}
             </ul>
 
             <Pager page={page} totalPages={totalPages} total={total} onChange={setPage} />
@@ -158,14 +232,19 @@ export default function FeedbackListPage() {
   );
 }
 
-function FeedbackRow({ item, onClick }: { item: FeedbackListItem; onClick: () => void }) {
+function FeedbackRow({ item, onClick, selectMode = false, checked = false }: { item: FeedbackListItem; onClick: () => void; selectMode?: boolean; checked?: boolean }) {
   const meta = STATUS_META[item.status];
   const titleDisplay = item.is_locked
     ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Lock size={14} strokeWidth={1.8} /> 비공개 글입니다</span>
     : item.title;
   return (
     <li>
-      <button onClick={onClick} className="fb-row" style={rowStyle}>
+      <button onClick={onClick} className="fb-row" style={{ ...rowStyle, ...(checked ? { background: "var(--danger-soft)", borderColor: "var(--danger)" } : null) }}>
+        {selectMode && (
+          <span style={{ flexShrink: 0, color: checked ? "var(--danger)" : "var(--ink-faint)", display: "inline-flex" }}>
+            {checked ? <CheckSquare size={20} strokeWidth={2} /> : <Square size={20} strokeWidth={2} />}
+          </span>
+        )}
         <span className="fb-seq" style={seqStyle}>#{item.seq}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
           {item.is_private && <span style={lockBadge} title="비공개"><Lock size={14} strokeWidth={1.8} /></span>}
@@ -248,6 +327,11 @@ const pageStyle: React.CSSProperties = {
   background: "linear-gradient(135deg, var(--info-soft) 0%, var(--warning-soft) 100%)",
   padding: "20px 16px 60px",
   fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
+};
+const selectBarStyle: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 10,
+  maxWidth: 920, margin: "0 auto 12px", padding: "10px 14px",
+  background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: 12,
 };
 const headerStyle: React.CSSProperties = {
   display: "flex", justifyContent: "space-between", alignItems: "center",

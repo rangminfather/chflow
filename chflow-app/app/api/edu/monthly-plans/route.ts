@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     return {
       name: item.name,
       path,
-      url: `/api/storage/${BUCKET}/${path}?download=1`,
+      url: `/api/storage/${BUCKET}/${path}`,
       size: item.metadata?.size || null,
       created_at: item.created_at,
       updated_at: item.updated_at,
