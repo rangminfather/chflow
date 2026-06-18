@@ -20,7 +20,6 @@ type RoleGroupId = "clergy" | "coworkers" | "permanent" | "members" | "nextgen";
 
 const IDENTITY_PROVIDERS: Array<{ id: IdentityProvider; label: string; tone: string }> = [
   { id: "naver", label: "네이버", tone: "#03c75a" },
-  { id: "kakao", label: "카카오", tone: "#fee500" },
 ];
 
 const displayGender = (value?: string | null) => {
