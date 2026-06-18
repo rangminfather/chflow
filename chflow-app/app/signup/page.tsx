@@ -15,13 +15,12 @@ import { CheckCircle2, Users, User, AlertTriangle, Lightbulb, MousePointerClick,
 
 type Step = "entry" | "lookup" | "confirm" | "role" | "info" | "done";
 type SignupMethod = "manual" | "verified";
-type IdentityProvider = "naver" | "kakao" | "google";
+type IdentityProvider = "naver" | "kakao";
 type RoleGroupId = "clergy" | "coworkers" | "permanent" | "members" | "nextgen";
 
 const IDENTITY_PROVIDERS: Array<{ id: IdentityProvider; label: string; tone: string }> = [
   { id: "naver", label: "네이버", tone: "#03c75a" },
   { id: "kakao", label: "카카오", tone: "#fee500" },
-  { id: "google", label: "구글", tone: "#4285f4" },
 ];
 
 const displayGender = (value?: string | null) => {
@@ -228,6 +227,34 @@ export default function SignupPage() {
       const { data } = await supabase.rpc("list_signup_pastures");
       setPastureOptions((data as PastureOption[]) || []);
     })();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const identityError = params.get("identity_error");
+    if (identityError) {
+      setError(identityError);
+      setStep("entry");
+      window.history.replaceState(null, "", window.location.pathname);
+      return;
+    }
+
+    const token = params.get("identity_token");
+    const identityName = params.get("identity_name") || "";
+    const identityPhone = params.get("identity_phone") || "";
+    if (!token) return;
+
+    setSignupMethod("verified");
+    setIdentityVerificationToken(token);
+    setLookupName(identityName);
+    setLookupPhone(formatPhone(identityPhone));
+    setName(identityName);
+    setPhone(formatPhone(identityPhone));
+    setNoPhone(false);
+    setError("");
+    setStep("lookup");
+    window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
   useEffect(() => {
@@ -1792,7 +1819,7 @@ const entryDescStyle: React.CSSProperties = {
 
 const providerRowStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
   gap: 8,
   marginTop: 12,
 };

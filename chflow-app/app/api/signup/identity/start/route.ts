@@ -1,53 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  buildAuthorizeUrl,
+  createOauthState,
+  getProviderConfig,
+  getStateCookieName,
+  isSignupIdentityProvider,
+  PROVIDER_LABELS,
+  SIGNUP_IDENTITY_PROVIDERS,
+} from "@/lib/server/signup-identity-oauth";
 
 export const runtime = "nodejs";
 
-const SUPPORTED_PROVIDERS = ["naver", "kakao", "google"] as const;
-type SignupIdentityProvider = (typeof SUPPORTED_PROVIDERS)[number];
-
-const PROVIDER_LABELS: Record<SignupIdentityProvider, string> = {
-  naver: "네이버",
-  kakao: "카카오",
-  google: "구글",
-};
-
-function isSignupIdentityProvider(value: string | null): value is SignupIdentityProvider {
-  return !!value && SUPPORTED_PROVIDERS.includes(value as SignupIdentityProvider);
-}
-
-function getProviderStartUrl(provider: SignupIdentityProvider) {
-  const envKey = `SIGNUP_IDENTITY_${provider.toUpperCase()}_START_URL`;
-  return process.env[envKey] || process.env.SIGNUP_IDENTITY_START_URL || "";
-}
-
 export async function GET(req: NextRequest) {
-  const providerParam = req.nextUrl.searchParams.get("provider");
-  if (!isSignupIdentityProvider(providerParam)) {
+  const provider = req.nextUrl.searchParams.get("provider");
+  if (!isSignupIdentityProvider(provider)) {
     return NextResponse.json(
       {
         ok: false,
         configured: false,
         error: "지원하는 본인인증 공급자를 선택해 주세요.",
-        supportedProviders: SUPPORTED_PROVIDERS,
+        supportedProviders: SIGNUP_IDENTITY_PROVIDERS,
       },
       { status: 400 }
     );
   }
 
-  const identityUrl = getProviderStartUrl(providerParam);
-  if (!identityUrl) {
+  const config = getProviderConfig(provider, req);
+  if (!config) {
     return NextResponse.json(
       {
         ok: false,
         configured: false,
-        provider: providerParam,
-        error: `${PROVIDER_LABELS[providerParam]} 본인인증 설정이 아직 연결되지 않았습니다.`,
+        provider,
+        error: `${PROVIDER_LABELS[provider]} 본인인증 설정이 아직 연결되지 않았습니다.`,
       },
       { status: 501 }
     );
   }
 
-  const redirectUrl = new URL(identityUrl, req.nextUrl.origin);
-  redirectUrl.searchParams.set("provider", providerParam);
-  return NextResponse.redirect(redirectUrl);
+  const state = createOauthState();
+  const res = NextResponse.redirect(buildAuthorizeUrl(provider, config, state));
+  res.cookies.set(getStateCookieName(provider), state, {
+    httpOnly: true,
+    secure: req.nextUrl.protocol === "https:",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 10 * 60,
+  });
+  return res;
 }

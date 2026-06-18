@@ -28,6 +28,19 @@ npm run start
 
 루트 `.env.example`과 `docs/ENVIRONMENT.md`를 기준으로 설정합니다. 로컬 개발은 `chflow-app/.env.local`을 사용하고, 운영은 Vercel Environment Variables를 사용합니다.
 
+### 회원가입 본인인증
+
+네이버와 카카오 OAuth를 사용합니다. 구글은 기본 프로필에서 휴대폰 번호를 안정적으로 제공하지 않아 회원가입 자동승인 본인인증 공급자에서 제외합니다.
+
+- 공통 운영 URL: `NEXT_PUBLIC_SITE_URL=https://chflow-app.vercel.app`
+- 네이버: `SIGNUP_IDENTITY_NAVER_CLIENT_ID`, `SIGNUP_IDENTITY_NAVER_CLIENT_SECRET`
+- 카카오: `SIGNUP_IDENTITY_KAKAO_CLIENT_ID` 또는 `KAKAO_REST_API_KEY`, 선택값 `SIGNUP_IDENTITY_KAKAO_CLIENT_SECRET`
+- Redirect URI:
+  - 네이버: `https://chflow-app.vercel.app/api/signup/identity/naver/callback`
+  - 카카오: `https://chflow-app.vercel.app/api/signup/identity/kakao/callback`
+
+카카오 자동승인은 카카오 동의항목에서 `name`, `phone_number`가 제공되어야 동작합니다. 네이버 자동승인은 프로필 조회 권한에서 이름과 휴대전화번호 제공이 필요합니다.
+
 ## 알림 관련 API
 
 - `POST /api/mobile/push-token`: Expo push token 등록
