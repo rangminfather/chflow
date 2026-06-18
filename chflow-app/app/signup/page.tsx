@@ -15,7 +15,14 @@ import { CheckCircle2, Users, User, AlertTriangle, Lightbulb, MousePointerClick,
 
 type Step = "entry" | "lookup" | "confirm" | "role" | "info" | "done";
 type SignupMethod = "manual" | "verified";
+type IdentityProvider = "naver" | "kakao" | "google";
 type RoleGroupId = "clergy" | "coworkers" | "permanent" | "members" | "nextgen";
+
+const IDENTITY_PROVIDERS: Array<{ id: IdentityProvider; label: string; tone: string }> = [
+  { id: "naver", label: "네이버", tone: "#03c75a" },
+  { id: "kakao", label: "카카오", tone: "#fee500" },
+  { id: "google", label: "구글", tone: "#4285f4" },
+];
 
 const displayGender = (value?: string | null) => {
   if (value === "M") return "남";
@@ -568,11 +575,11 @@ export default function SignupPage() {
     setStep("lookup");
   };
 
-  const startVerifiedSignup = async () => {
+  const startVerifiedSignup = async (provider: IdentityProvider) => {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/signup/identity/start");
+      const res = await fetch(`/api/signup/identity/start?provider=${provider}`);
       if (res.redirected) {
         window.location.href = res.url;
         return;
@@ -663,13 +670,26 @@ export default function SignupPage() {
           </div>
 
           <div style={{ display: "grid", gap: 10, marginBottom: 14 }}>
-            <button type="button" onClick={startVerifiedSignup} disabled={loading} style={entryCardStyle}>
+            <div style={{ ...entryCardStyle, cursor: "default" }}>
               <span style={entryIconStyle}><ShieldCheck size={22} strokeWidth={1.8} /></span>
               <span style={{ flex: 1, textAlign: "left" }}>
                 <strong style={entryTitleStyle}>본인인증으로 바로 가입</strong>
                 <span style={entryDescStyle}>인증된 이름/전화번호가 교회 DB와 일치하면 관리자 승인 없이 가입됩니다.</span>
+                <span style={providerRowStyle}>
+                  {IDENTITY_PROVIDERS.map((provider) => (
+                    <button
+                      key={provider.id}
+                      type="button"
+                      onClick={() => startVerifiedSignup(provider.id)}
+                      disabled={loading}
+                      style={{ ...providerButtonStyle, borderColor: provider.tone }}
+                    >
+                      {provider.label}
+                    </button>
+                  ))}
+                </span>
               </span>
-            </button>
+            </div>
 
             <button type="button" onClick={startManualSignup} style={entryCardStyle}>
               <span style={entryIconStyle}><ClipboardEdit size={22} strokeWidth={1.8} /></span>
@@ -1768,6 +1788,25 @@ const entryDescStyle: React.CSSProperties = {
   lineHeight: 1.5,
   color: "var(--ink-soft)",
   fontWeight: 600,
+};
+
+const providerRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: 8,
+  marginTop: 12,
+};
+
+const providerButtonStyle: React.CSSProperties = {
+  height: 36,
+  border: "1px solid",
+  borderRadius: 8,
+  background: "var(--bg)",
+  color: "var(--ink)",
+  fontSize: 12,
+  fontWeight: 900,
+  fontFamily: "inherit",
+  cursor: "pointer",
 };
 
 const supportBoxStyle: React.CSSProperties = {
