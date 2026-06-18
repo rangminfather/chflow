@@ -11,9 +11,10 @@ import {
   formatPhone,
 } from "@/lib/supabase";
 import ModalBackdrop from "@/components/ModalBackdrop";
-import { CheckCircle2, Users, User, AlertTriangle, Lightbulb, MousePointerClick, Eye, EyeOff } from "lucide-react";
+import { CheckCircle2, Users, User, AlertTriangle, Lightbulb, MousePointerClick, Eye, EyeOff, ShieldCheck, ClipboardEdit, Send } from "lucide-react";
 
-type Step = "lookup" | "confirm" | "role" | "info" | "done";
+type Step = "entry" | "lookup" | "confirm" | "role" | "info" | "done";
+type SignupMethod = "manual" | "verified";
 type RoleGroupId = "clergy" | "coworkers" | "permanent" | "members" | "nextgen";
 
 const displayGender = (value?: string | null) => {
@@ -161,7 +162,9 @@ interface PastureOption {
 
 export default function SignupPage() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("lookup");
+  const [step, setStep] = useState<Step>("entry");
+  const [signupMethod, setSignupMethod] = useState<SignupMethod>("manual");
+  const [identityVerificationToken, setIdentityVerificationToken] = useState<string | null>(null);
 
   // === 입력 데이터 ===
   const [lookupName, setLookupName] = useState("");
@@ -208,6 +211,10 @@ export default function SignupPage() {
   // 공통
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [supportTitle, setSupportTitle] = useState("");
+  const [supportBody, setSupportBody] = useState("");
+  const [supportSending, setSupportSending] = useState(false);
+  const [supportDone, setSupportDone] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -368,8 +375,10 @@ export default function SignupPage() {
       } else if (step === "done") {
         router.push("/login?notice=signup");
         return;
+      } else if (step === "lookup") {
+        setStep("entry");
       } else {
-        // step === "lookup": 회원가입 진입 직전 화면(로그인)으로
+        // step === "entry": 회원가입 진입 직전 화면(로그인)으로
         router.push("/login");
         return;
       }
@@ -552,6 +561,69 @@ export default function SignupPage() {
     setStep("role");
   };
 
+  const startManualSignup = () => {
+    setSignupMethod("manual");
+    setIdentityVerificationToken(null);
+    setError("");
+    setStep("lookup");
+  };
+
+  const startVerifiedSignup = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/signup/identity/start");
+      if (res.redirected) {
+        window.location.href = res.url;
+        return;
+      }
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(result.error || "본인인증 설정이 아직 연결되지 않았습니다. 정보입력(승인대기)로 신청해 주세요.");
+        return;
+      }
+      setSignupMethod("verified");
+      setStep("lookup");
+    } catch (e: unknown) {
+      setError(`본인인증 시작 실패: ${getErrorMessage(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitSignupSupport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSupportDone(false);
+    if (!supportTitle.trim()) return setError("문의 제목을 입력해 주세요.");
+    if (!supportBody.trim()) return setError("문의 내용을 입력해 주세요.");
+    setSupportSending(true);
+    try {
+      const res = await fetch("/api/signup/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: supportTitle.trim(),
+          body: supportBody.trim(),
+          name: lookupName.trim() || name.trim(),
+          phone: lookupPhone.trim() || phone.trim() || parentPhone.trim(),
+        }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(result.error || "문의 접수에 실패했습니다.");
+        return;
+      }
+      setSupportTitle("");
+      setSupportBody("");
+      setSupportDone(true);
+    } catch (err: unknown) {
+      setError(`문의 접수 오류: ${getErrorMessage(err)}`);
+    } finally {
+      setSupportSending(false);
+    }
+  };
+
   // ============ Render ============
 
   // 가입 완료
@@ -575,19 +647,72 @@ export default function SignupPage() {
     );
   }
 
+  if (step === "entry") {
+    return (
+      <div style={pageStyle}>
+        <div style={cardStyle}>
+          <BackBar onBack={() => router.push("/login")} title="회원가입" />
+
+          <div style={{ textAlign: "center", marginBottom: 22 }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)", letterSpacing: 0 }}>
+              스마트명성 <span style={{ color: "var(--ink-soft)", fontSize: 14, fontWeight: 600 }}>회원가입</span>
+            </div>
+            <div className="auth-copy" style={{ marginTop: 12 }}>
+              가입 방법을 선택해 주세요.
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: 10, marginBottom: 14 }}>
+            <button type="button" onClick={startVerifiedSignup} disabled={loading} style={entryCardStyle}>
+              <span style={entryIconStyle}><ShieldCheck size={22} strokeWidth={1.8} /></span>
+              <span style={{ flex: 1, textAlign: "left" }}>
+                <strong style={entryTitleStyle}>본인인증으로 바로 가입</strong>
+                <span style={entryDescStyle}>인증된 이름/전화번호가 교회 DB와 일치하면 관리자 승인 없이 가입됩니다.</span>
+              </span>
+            </button>
+
+            <button type="button" onClick={startManualSignup} style={entryCardStyle}>
+              <span style={entryIconStyle}><ClipboardEdit size={22} strokeWidth={1.8} /></span>
+              <span style={{ flex: 1, textAlign: "left" }}>
+                <strong style={entryTitleStyle}>정보입력으로 신청</strong>
+                <span style={entryDescStyle}>이름/전화번호로 등록 교인을 확인하되, 가입 후 관리자 승인대기로 접수됩니다.</span>
+              </span>
+            </button>
+          </div>
+
+          {error && (
+            <div style={{ ...errorStyle, display: "inline-flex", alignItems: "center", gap: 6, width: "100%" }}>
+              <AlertTriangle size={14} strokeWidth={1.8} /> {error}
+            </div>
+          )}
+
+          <SignupSupportBox
+            title={supportTitle}
+            body={supportBody}
+            done={supportDone}
+            sending={supportSending}
+            onTitleChange={setSupportTitle}
+            onBodyChange={setSupportBody}
+            onSubmit={submitSignupSupport}
+          />
+        </div>
+      </div>
+    );
+  }
+
   // ============ Step 1: 이름+휴대폰 lookup (+ 자녀 가입 분기) ============
   if (step === "lookup") {
     return (
       <div style={pageStyle}>
         <div style={cardStyle}>
-          <BackBar onBack={() => router.push("/login")} title="회원가입" />
+          <BackBar onBack={() => setStep("entry")} title={signupMethod === "verified" ? "본인인증 가입" : "정보입력 신청"} />
 
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)", letterSpacing: -0.5 }}>
               스마트명성 <span style={{ color: "var(--ink-soft)", fontSize: 14, fontWeight: 600 }}>회원가입</span>
             </div>
             <div className="auth-copy" style={{ marginTop: 14 }}>
-              먼저 명성교회 등록 여부를 확인합니다<br />
+              {signupMethod === "verified" ? "본인인증 결과로 등록 여부를 확인합니다" : "입력한 정보로 등록 여부를 확인합니다"}<br />
               <strong>이름</strong>과 <strong>휴대폰 번호</strong>를 입력해주세요
             </div>
           </div>
@@ -672,9 +797,21 @@ export default function SignupPage() {
           </form>
 
           <div className="auth-muted-panel" style={{ marginTop: 20 }}>
-            <Lightbulb size={13} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} />명성교회에 등록되지 않은 경우에도 가입할 수 있습니다.<br />
-            등록된 경우 정보가 자동으로 입력됩니다.
+            <Lightbulb size={13} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} />
+            {signupMethod === "verified"
+              ? "본인인증 정보가 교회 DB와 정확히 일치하면 바로 가입됩니다."
+              : "정보입력 신청은 등록 교인으로 확인되어도 관리자 승인 후 이용할 수 있습니다."}<br />
+            등록되지 않은 경우 신규회원 가입 절차로 이어집니다.
           </div>
+          <SignupSupportBox
+            title={supportTitle}
+            body={supportBody}
+            done={supportDone}
+            sending={supportSending}
+            onTitleChange={setSupportTitle}
+            onBodyChange={setSupportBody}
+            onSubmit={submitSignupSupport}
+          />
         </div>
       </div>
     );
@@ -722,13 +859,8 @@ export default function SignupPage() {
               }}><User size={28} strokeWidth={1.8} /></div>
               <div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)" }}>
-                  {matched.name} <span style={{ fontSize: 14, color: "var(--accent)", marginLeft: 6 }}>{matched.sub_role || matched.family_church}</span>
+                  {maskName(matched.name)} <span style={{ fontSize: 14, color: "var(--accent)", marginLeft: 6 }}>{matched.sub_role || matched.family_church}</span>
                 </div>
-                {matched.spouse_name && (
-                  <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
-                    배우자: {matched.spouse_name}
-                  </div>
-                )}
               </div>
             </div>
 
@@ -750,7 +882,7 @@ export default function SignupPage() {
               {matched.birth_date && (
                 <>
                   <div style={infoLabel}>생년월일</div>
-                  <div style={infoValue}>{matched.birth_date}</div>
+                  <div style={infoValue}>{maskBirthDate(matched.birth_date)}</div>
                 </>
               )}
               {matched.gender && (
@@ -779,6 +911,15 @@ export default function SignupPage() {
             네 선택 시 등록된 정보가 자동으로 입력되며 직분 선택으로 이동합니다.<br />
             아닙니다 선택 시 처음부터 입력하실 수 있습니다.
           </div>
+          <SignupSupportBox
+            title={supportTitle}
+            body={supportBody}
+            done={supportDone}
+            sending={supportSending}
+            onTitleChange={setSupportTitle}
+            onBodyChange={setSupportBody}
+            onSubmit={submitSignupSupport}
+          />
         </div>
       </div>
     );
@@ -946,6 +1087,8 @@ export default function SignupPage() {
           guardianName: noPhone ? parentName.trim() : null,
           guardianPhone: noPhone ? normalizePhone(parentPhone) : null,
           isChild: noPhone,
+          signupMethod,
+          identityVerificationToken,
         }),
       });
       const result = await res.json();
@@ -958,6 +1101,8 @@ export default function SignupPage() {
   };
 
   // ============ Step 4: 정보 입력 ============
+  const identityLocked = signupMethod === "verified" && confirmedMatchedMember && !!matched;
+
   return (
     <div style={pageStyle}>
       <div style={{ ...cardStyle, maxWidth: 480 }}>
@@ -1053,14 +1198,16 @@ export default function SignupPage() {
           <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>이름 *</label>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)}
-              placeholder="실명" style={{ ...inputStyle, marginTop: 6 }} />
+              disabled={identityLocked}
+              placeholder="실명" style={{ ...inputStyle, marginTop: 6, background: identityLocked ? "var(--bg-soft)" : inputStyle.background }} />
           </div>
 
           <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>전화번호 {noPhone ? "(선택)" : "*"}</label>
             <input type="tel" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))}
+              disabled={identityLocked}
               placeholder={noPhone ? "휴대폰 없으시면 비워두셔도 됩니다" : "010-0000-0000"}
-              style={{ ...inputStyle, marginTop: 6 }} />
+              style={{ ...inputStyle, marginTop: 6, background: identityLocked ? "var(--bg-soft)" : inputStyle.background }} />
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 10, marginBottom: 14 }}>
@@ -1300,6 +1447,15 @@ export default function SignupPage() {
           <div style={{ fontSize: 10, color: "var(--ink-soft)", textAlign: "center", marginTop: 14, lineHeight: 1.5 }}>
             가입 신청 후 관리자 승인이 필요합니다
           </div>
+          <SignupSupportBox
+            title={supportTitle}
+            body={supportBody}
+            done={supportDone}
+            sending={supportSending}
+            onTitleChange={setSupportTitle}
+            onBodyChange={setSupportBody}
+            onSubmit={submitSignupSupport}
+          />
       </div>
 
       {addressSearchOpen && (
@@ -1324,6 +1480,60 @@ export default function SignupPage() {
 }
 
 // ============ Components ============
+function SignupSupportBox({
+  title,
+  body,
+  done,
+  sending,
+  onTitleChange,
+  onBodyChange,
+  onSubmit,
+}: {
+  title: string;
+  body: string;
+  done: boolean;
+  sending: boolean;
+  onTitleChange: (value: string) => void;
+  onBodyChange: (value: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+}) {
+  return (
+    <form onSubmit={onSubmit} style={supportBoxStyle}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
+        가입이 어렵거나 본인 정보가 다르게 표시되나요?
+      </div>
+      <div style={{ fontSize: 11, color: "var(--ink-soft)", lineHeight: 1.5, marginBottom: 10 }}>
+        관리자 연락처: 010-2527-2064<br />
+        아래 문의는 불편사항 신고 게시판에 관리자용 비공개 글로 접수됩니다.
+      </div>
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => onTitleChange(e.target.value)}
+        placeholder="문의 제목"
+        maxLength={80}
+        style={{ ...inputStyle, height: 42, fontSize: 13, marginBottom: 8 }}
+      />
+      <textarea
+        value={body}
+        onChange={(e) => onBodyChange(e.target.value)}
+        placeholder="문의 내용을 적어주세요. 사진 첨부는 없습니다."
+        rows={4}
+        maxLength={2000}
+        style={{ ...inputStyle, height: "auto", minHeight: 92, paddingTop: 12, resize: "vertical", fontSize: 13, lineHeight: 1.55 }}
+      />
+      {done && (
+        <div style={{ marginTop: 8, fontSize: 11, color: "var(--success)", fontWeight: 800 }}>
+          문의가 접수되었습니다.
+        </div>
+      )}
+      <button type="submit" disabled={sending} style={{ ...secondaryBtnStyle, height: 42, marginTop: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+        <Send size={14} strokeWidth={1.9} /> {sending ? "접수 중..." : "관리자에게 문의 보내기"}
+      </button>
+    </form>
+  );
+}
+
 function BackBar({ onBack, title }: { onBack: () => void; title: string }) {
   return (
     <div className="auth-topbar" style={{ marginBottom: 20 }}>
@@ -1436,6 +1646,22 @@ function SubRoleModal({ role, onSelect, onClose }: { role: Role; onSelect: (labe
   );
 }
 
+function maskName(name: string): string {
+  const trimmed = (name || "").trim();
+  if (!trimmed) return "";
+  if (trimmed.length <= 1) return `${trimmed}*`;
+  if (trimmed.length === 2) return `${trimmed[0]}*`;
+  return `${trimmed[0]}*${trimmed.slice(-1)}`;
+}
+
+function maskBirthDate(value?: string | null): string {
+  if (!value) return "";
+  const digits = value.replace(/[^0-9]/g, "");
+  if (digits.length >= 8) return `${digits.slice(0, 2)}**-**-${digits.slice(6, 8)}`;
+  if (digits.length >= 4) return `${digits.slice(0, 2)}**-**`;
+  return "**";
+}
+
 function maskPhone(phone: string): string {
   if (!phone) return "";
   // 010-1234-5678 → 010-****-5678
@@ -1498,6 +1724,58 @@ const inputStyle: React.CSSProperties = {
   fontWeight: 600,
   WebkitTextFillColor: "var(--ink)",
   caretColor: "var(--accent)",
+};
+
+const entryCardStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 92,
+  padding: "16px 14px",
+  border: "1px solid rgba(43, 39, 34, 0.12)",
+  borderRadius: 8,
+  background: "var(--card)",
+  color: "var(--ink)",
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  textAlign: "left",
+};
+
+const entryIconStyle: React.CSSProperties = {
+  width: 42,
+  height: 42,
+  borderRadius: 8,
+  background: "var(--accent-soft)",
+  color: "var(--accent)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+};
+
+const entryTitleStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: 15,
+  fontWeight: 900,
+  color: "var(--ink)",
+  marginBottom: 4,
+};
+
+const entryDescStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: 11,
+  lineHeight: 1.5,
+  color: "var(--ink-soft)",
+  fontWeight: 600,
+};
+
+const supportBoxStyle: React.CSSProperties = {
+  marginTop: 18,
+  padding: "14px",
+  borderRadius: 8,
+  border: "1px solid rgba(43, 39, 34, 0.1)",
+  background: "color-mix(in srgb, var(--surface) 88%, transparent)",
 };
 
 const pastureSuggestStyle: React.CSSProperties = {
