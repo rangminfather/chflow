@@ -1,0 +1,18 @@
+# deps
+node_modules/
+dist/
+dist-ssr/
+
+# env (비밀값)
+.env
+.env.local
+.env.*.local
+
+# tauri / rust
+src-tauri/target/
+src-tauri/gen/
+
+# editor / os
+.DS_Store
+*.log
+.vite/
