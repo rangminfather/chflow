@@ -604,24 +604,7 @@ export default function SignupPage() {
   const startVerifiedSignup = async (provider: IdentityProvider) => {
     setError("");
     setLoading(true);
-    try {
-      const res = await fetch(`/api/signup/identity/start?provider=${provider}`);
-      if (res.redirected) {
-        window.location.href = res.url;
-        return;
-      }
-      const result = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(result.error || "본인인증 설정이 아직 연결되지 않았습니다. 정보입력(승인대기)로 신청해 주세요.");
-        return;
-      }
-      setSignupMethod("verified");
-      setStep("lookup");
-    } catch (e: unknown) {
-      setError(`본인인증 시작 실패: ${getErrorMessage(e)}`);
-    } finally {
-      setLoading(false);
-    }
+    window.location.href = `/api/signup/identity/start?provider=${provider}`;
   };
 
   const submitSignupSupport = async (e: React.FormEvent) => {
