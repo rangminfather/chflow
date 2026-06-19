@@ -7,6 +7,9 @@ dist-ssr/
 .env
 .env.local
 .env.*.local
+# 로컬 전용 테스트 자격증명 (절대 커밋 금지)
+.env.local.credentials
+*.credentials
 
 # tauri / rust
 src-tauri/target/

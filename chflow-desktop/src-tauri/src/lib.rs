@@ -20,6 +20,7 @@ pub fn run() {
             commands::secure_store::secure_get,
             commands::secure_store::secure_set,
             commands::secure_store::secure_delete,
+            commands::secure_store::secure_purge,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
