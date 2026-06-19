@@ -782,10 +782,10 @@ export default function SignupPage() {
   if (step === "entry") {
     return (
       <div style={pageStyle}>
-        <div style={{ ...cardStyle, maxWidth: 920 }}>
+        <div className="signup-entry-card" style={{ ...cardStyle, maxWidth: 920 }}>
           <BackBar onBack={() => router.push("/login")} title="회원가입" />
 
-          <div style={{ textAlign: "center", marginBottom: 22 }}>
+          <div className="signup-entry-intro" style={{ textAlign: "center", marginBottom: 22 }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)", letterSpacing: 0 }}>
               스마트명성 <span style={{ color: "var(--ink-soft)", fontSize: 14, fontWeight: 600 }}>회원가입</span>
             </div>
@@ -795,10 +795,10 @@ export default function SignupPage() {
           </div>
 
           <div className="signup-method-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18, marginBottom: 14 }}>
-            <section style={entryPanelStyle}>
-              <strong style={entryPanelTitleStyle}>인증회원가입</strong>
-              <span style={entryDescStyle}>본인인증 정보가 교회 DB와 일치하면 관리자 승인 없이 가입됩니다.</span>
-              <div style={{ display: "flex", justifyContent: "center", marginTop: 28 }}>
+            <section className="signup-entry-panel signup-verified-panel" style={entryPanelStyle}>
+              <strong className="signup-entry-panel-title" style={entryPanelTitleStyle}>인증회원가입</strong>
+              <span className="signup-entry-description" style={entryDescStyle}>본인인증 정보가 교회 DB와 일치하면 관리자 승인 없이 가입됩니다.</span>
+              <div className="verified-provider-wrap" style={{ display: "flex", justifyContent: "center", marginTop: 28 }}>
                 {IDENTITY_PROVIDERS.map((provider) => (
                   <button
                     key={provider.id}
@@ -806,19 +806,21 @@ export default function SignupPage() {
                     onClick={() => startVerifiedSignup(provider.id)}
                     disabled={loading}
                     aria-label={`${provider.label} 인증회원가입`}
+                    className="provider-tile"
                     style={providerTileStyle}
                   >
-                    <span style={{ ...naverIconStyle, background: provider.tone }}>N</span>
+                    <span className="naver-provider-icon" style={{ ...naverIconStyle, background: provider.tone }}>N</span>
                     <span style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>{provider.label}</span>
                   </button>
                 ))}
               </div>
             </section>
 
-            <section style={entryPanelStyle}>
-              <strong style={entryPanelTitleStyle}>일반회원가입</strong>
-              <span style={entryDescStyle}>이름과 전화번호로 등록 여부를 확인한 후 가입을 진행합니다.</span>
+            <section className="signup-entry-panel" style={entryPanelStyle}>
+              <strong className="signup-entry-panel-title" style={entryPanelTitleStyle}>일반회원가입</strong>
+              <span className="signup-entry-description" style={entryDescStyle}>이름과 전화번호로 등록 여부를 확인한 후 가입을 진행합니다.</span>
               <form
+                className="manual-signup-entry-form"
                 onSubmit={(e) => {
                   setSignupMethod("manual");
                   void handleLookup(e);
@@ -870,7 +872,52 @@ export default function SignupPage() {
           )}
           <style jsx>{`
             @media (max-width: 680px) {
-              .signup-method-grid { grid-template-columns: 1fr !important; }
+              .signup-entry-card {
+                padding: 20px 16px !important;
+                border-radius: 16px !important;
+              }
+              .signup-entry-intro {
+                margin-bottom: 16px !important;
+              }
+              .signup-method-grid {
+                grid-template-columns: 1fr !important;
+                gap: 12px !important;
+              }
+              .signup-entry-panel {
+                min-height: 0 !important;
+                padding: 18px !important;
+                border-radius: 12px !important;
+              }
+              .signup-entry-panel-title {
+                font-size: 18px !important;
+                margin-bottom: 6px !important;
+                text-align: left !important;
+              }
+              .signup-entry-description {
+                font-size: 12px !important;
+                line-height: 1.55 !important;
+              }
+              .verified-provider-wrap {
+                margin-top: 14px !important;
+              }
+              .provider-tile {
+                width: 100% !important;
+                min-height: 68px !important;
+                padding: 10px 14px !important;
+                border-radius: 10px !important;
+                flex-direction: row !important;
+                justify-content: flex-start !important;
+                gap: 12px !important;
+              }
+              .naver-provider-icon {
+                width: 44px !important;
+                height: 44px !important;
+                border-radius: 9px !important;
+                font-size: 26px !important;
+              }
+              .manual-signup-entry-form {
+                margin-top: 14px !important;
+              }
             }
           `}</style>
         </div>
