@@ -11,7 +11,7 @@ import {
   formatPhone,
 } from "@/lib/supabase";
 import ModalBackdrop from "@/components/ModalBackdrop";
-import { CheckCircle2, Users, User, AlertTriangle, Lightbulb, MousePointerClick, Eye, EyeOff, ShieldCheck, ClipboardEdit, Send } from "lucide-react";
+import { CheckCircle2, Users, User, AlertTriangle, Lightbulb, MousePointerClick, Eye, EyeOff, Send } from "lucide-react";
 
 type Step = "entry" | "lookup" | "confirm" | "role" | "info" | "done";
 type SignupMethod = "manual" | "verified";
@@ -170,6 +170,8 @@ export default function SignupPage() {
   const [step, setStep] = useState<Step>("entry");
   const [signupMethod, setSignupMethod] = useState<SignupMethod>("manual");
   const [identityVerificationToken, setIdentityVerificationToken] = useState<string | null>(null);
+  const [verifiedLookupRequest, setVerifiedLookupRequest] = useState<{ name: string; phone: string } | null>(null);
+  const [signupResultStatus, setSignupResultStatus] = useState<"active" | "pending" | null>(null);
 
   // === 입력 데이터 ===
   const [lookupName, setLookupName] = useState("");
@@ -220,6 +222,7 @@ export default function SignupPage() {
   const [supportBody, setSupportBody] = useState("");
   const [supportSending, setSupportSending] = useState(false);
   const [supportDone, setSupportDone] = useState(false);
+  const [showSignupSupport, setShowSignupSupport] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -234,6 +237,7 @@ export default function SignupPage() {
     const identityError = params.get("identity_error");
     if (identityError) {
       setError(identityError);
+      setShowSignupSupport(true);
       setStep("entry");
       window.history.replaceState(null, "", window.location.pathname);
       return;
@@ -253,6 +257,7 @@ export default function SignupPage() {
     setNoPhone(false);
     setError("");
     setStep("lookup");
+    setVerifiedLookupRequest({ name: identityName, phone: identityPhone });
     window.history.replaceState(null, "", window.location.pathname);
   }, []);
 
@@ -402,11 +407,11 @@ export default function SignupPage() {
       } else if (step === "info") {
         setStep("role");
       } else if (step === "role") {
-        setStep(matched ? "confirm" : "lookup");
+        setStep(matched && signupMethod !== "verified" ? "confirm" : "lookup");
       } else if (step === "confirm") {
         setStep("lookup");
       } else if (step === "done") {
-        router.push("/login?notice=signup");
+        router.push(signupResultStatus === "active" ? "/login?notice=signup-active" : "/login?notice=signup");
         return;
       } else if (step === "lookup") {
         setStep("entry");
@@ -420,12 +425,13 @@ export default function SignupPage() {
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [step, showSubRoleModal, matched, router]);
+  }, [step, showSubRoleModal, matched, router, signupMethod, signupResultStatus]);
 
   // ============ Step 1: 이름+휴대폰 lookup (+ 자녀 가입 분기) ============
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setShowSignupSupport(false);
     if (!lookupName.trim()) return setError("이름을 입력하세요");
     if (!noPhone && !lookupPhone.trim()) return setError("휴대폰 번호를 입력하세요");
     if (noPhone && !parentName.trim()) return setError("부모님 이름을 입력하세요");
@@ -449,6 +455,7 @@ export default function SignupPage() {
         const childJson = await childRes.json();
         if (!childRes.ok) {
           setError(`조회 오류: ${childJson.error ?? childRes.statusText}`);
+          setShowSignupSupport(true);
           setLoading(false);
           return;
         }
@@ -457,6 +464,7 @@ export default function SignupPage() {
           const member = { ...(data[0] as MatchedMember), matched_as_child: true };
           if (member.has_account) {
             setError("이미 가입된 회원입니다. 로그인 또는 비밀번호 찾기를 이용하세요.");
+            setShowSignupSupport(true);
             setLoading(false);
             return;
           }
@@ -518,6 +526,7 @@ export default function SignupPage() {
       const memberJson = await memberRes.json();
       if (!memberRes.ok) {
         setError(`조회 오류: ${memberJson.error ?? memberRes.statusText}`);
+        setShowSignupSupport(true);
         setLoading(false);
         return;
       }
@@ -527,6 +536,7 @@ export default function SignupPage() {
         const member = data[0] as MatchedMember;
         if (member.has_account) {
           setError("이미 가입된 회원입니다. 로그인 또는 비밀번호 찾기를 이용하세요.");
+          setShowSignupSupport(true);
           setLoading(false);
           return;
         }
@@ -554,9 +564,93 @@ export default function SignupPage() {
       }
     } catch (e: unknown) {
       setError(`오류: ${getErrorMessage(e)}`);
+      setShowSignupSupport(true);
     }
     setLoading(false);
   };
+
+  useEffect(() => {
+    if (!verifiedLookupRequest) return;
+
+    const lookupVerifiedMember = async () => {
+      const { name: verifiedName, phone: verifiedPhone } = verifiedLookupRequest;
+      setVerifiedLookupRequest(null);
+      setLoading(true);
+      setError("");
+      setShowSignupSupport(false);
+
+      try {
+        const phoneNormalized = normalizePhone(verifiedPhone);
+        const phoneFormatted = phoneNormalized.length >= 10
+          ? `${phoneNormalized.slice(0, 3)}-${phoneNormalized.slice(3, 7)}-${phoneNormalized.slice(7, 11)}`
+          : verifiedPhone;
+        const memberRes = await fetch("/api/signup/find-member", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: verifiedName.trim(), phone: phoneFormatted }),
+        });
+        const memberJson = await memberRes.json();
+        if (!memberRes.ok) {
+          setError(`조회 오류: ${memberJson.error ?? memberRes.statusText}`);
+          setShowSignupSupport(true);
+          return;
+        }
+
+        const member = (memberJson.data?.[0] ?? null) as MatchedMember | null;
+        if (member?.has_account) {
+          setError("이미 가입된 회원입니다. 로그인 또는 비밀번호 찾기를 이용하세요.");
+          setShowSignupSupport(true);
+          return;
+        }
+
+        if (member) {
+          setMatched(member);
+          fillMemberFields(member);
+          setConfirmedMatchedMember(true);
+          setIsRoleLocked(false);
+
+          const resolvedRole = resolveRoleFromMemberSubRole(member.sub_role, member.gender);
+          if (resolvedRole) {
+            setSelectedRole(resolvedRole.role);
+            setSelectedSubRole(resolvedRole.subRole || null);
+            const group = ROLE_GROUPS.find((item) => item.roleIds.includes(resolvedRole.role.id));
+            if (group) setRoleGroup(group.id);
+          } else {
+            setSelectedRole(null);
+            setSelectedSubRole(null);
+            setRoleGroup("members");
+          }
+          setStep("role");
+          return;
+        }
+
+        // 본인인증은 완료됐지만 교회 DB에 없는 경우 신규회원 승인 대기 경로로 진행한다.
+        setMatched(null);
+        setConfirmedMatchedMember(false);
+        setSelectedRole(null);
+        setSelectedSubRole(null);
+        setParentMatch(null);
+        setName(verifiedName.trim());
+        setPhone(formatPhone(verifiedPhone));
+        setBirthDate("");
+        setGender("");
+        setAddress("");
+        setAddressDetail("");
+        setAddressZonecode("");
+        setPastureId("");
+        setPastureSearch("");
+        setRoleGroup("members");
+        setStep("role");
+      } catch (lookupError: unknown) {
+        setError(`오류: ${getErrorMessage(lookupError)}`);
+        setShowSignupSupport(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void lookupVerifiedMember();
+  }, [verifiedLookupRequest]);
 
   // ============ Step 2: 매칭 확인 ============
   const handleConfirmYes = () => {
@@ -598,11 +692,13 @@ export default function SignupPage() {
     setSignupMethod("manual");
     setIdentityVerificationToken(null);
     setError("");
+    setShowSignupSupport(false);
     setStep("lookup");
   };
 
   const startVerifiedSignup = async (provider: IdentityProvider) => {
     setError("");
+    setShowSignupSupport(false);
     setLoading(true);
     window.location.href = `/api/signup/identity/start?provider=${provider}`;
   };
@@ -644,18 +740,22 @@ export default function SignupPage() {
 
   // 가입 완료
   if (step === "done") {
+    const autoApproved = signupResultStatus === "active";
     return (
       <div style={pageStyle}>
         <div style={cardStyle}>
           <div style={{ marginBottom: 20, textAlign: "center", color: "var(--success)" }}><CheckCircle2 size={44} strokeWidth={1.5} /></div>
           <div style={{ fontSize: 22, fontWeight: 800, color: "var(--ink)", marginBottom: 12, textAlign: "center" }}>
-            가입 신청 완료!
+            {autoApproved ? "회원가입 완료!" : "가입 신청 완료!"}
           </div>
           <div style={{ fontSize: 13, color: "var(--ink-soft)", lineHeight: 1.6, textAlign: "center", marginBottom: 28 }}>
-            가입 신청이 완료되었습니다.<br />
-            <strong>관리자 승인</strong> 후 이용하실 수 있습니다.
+            {autoApproved ? (
+              <>등록 회원 확인을 통해 <strong>자동 승인</strong>되었습니다.<br />지금 바로 로그인할 수 있습니다.</>
+            ) : (
+              <>신규회원 가입 신청이 완료되었습니다.<br /><strong>관리자 승인</strong> 후 이용하실 수 있습니다.</>
+            )}
           </div>
-          <button onClick={() => router.push("/login?notice=signup")} style={primaryBtnStyle}>
+          <button onClick={() => router.push(autoApproved ? "/login?notice=signup-active" : "/login?notice=signup")} style={primaryBtnStyle}>
             로그인 화면으로
           </button>
         </div>
@@ -666,7 +766,7 @@ export default function SignupPage() {
   if (step === "entry") {
     return (
       <div style={pageStyle}>
-        <div style={cardStyle}>
+        <div style={{ ...cardStyle, maxWidth: 920 }}>
           <BackBar onBack={() => router.push("/login")} title="회원가입" />
 
           <div style={{ textAlign: "center", marginBottom: 22 }}>
@@ -678,35 +778,62 @@ export default function SignupPage() {
             </div>
           </div>
 
-          <div style={{ display: "grid", gap: 10, marginBottom: 14 }}>
-            <div style={{ ...entryCardStyle, cursor: "default" }}>
-              <span style={entryIconStyle}><ShieldCheck size={22} strokeWidth={1.8} /></span>
-              <span style={{ flex: 1, textAlign: "left" }}>
-                <strong style={entryTitleStyle}>본인인증으로 바로 가입</strong>
-                <span style={entryDescStyle}>인증된 이름/전화번호가 교회 DB와 일치하면 관리자 승인 없이 가입됩니다.</span>
-                <span style={providerRowStyle}>
-                  {IDENTITY_PROVIDERS.map((provider) => (
-                    <button
-                      key={provider.id}
-                      type="button"
-                      onClick={() => startVerifiedSignup(provider.id)}
-                      disabled={loading}
-                      style={{ ...providerButtonStyle, borderColor: provider.tone }}
-                    >
-                      {provider.label}
-                    </button>
-                  ))}
-                </span>
-              </span>
-            </div>
+          <div className="signup-method-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18, marginBottom: 14 }}>
+            <section style={entryPanelStyle}>
+              <strong style={entryPanelTitleStyle}>인증회원가입</strong>
+              <span style={entryDescStyle}>본인인증 정보가 교회 DB와 일치하면 관리자 승인 없이 가입됩니다.</span>
+              <div style={{ display: "flex", justifyContent: "center", marginTop: 28 }}>
+                {IDENTITY_PROVIDERS.map((provider) => (
+                  <button
+                    key={provider.id}
+                    type="button"
+                    onClick={() => startVerifiedSignup(provider.id)}
+                    disabled={loading}
+                    aria-label={`${provider.label} 인증회원가입`}
+                    style={providerTileStyle}
+                  >
+                    <span style={{ ...naverIconStyle, background: provider.tone }}>N</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>{provider.label}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
 
-            <button type="button" onClick={startManualSignup} style={entryCardStyle}>
-              <span style={entryIconStyle}><ClipboardEdit size={22} strokeWidth={1.8} /></span>
-              <span style={{ flex: 1, textAlign: "left" }}>
-                <strong style={entryTitleStyle}>정보입력으로 신청</strong>
-                <span style={entryDescStyle}>이름/전화번호로 등록 교인을 확인하되, 가입 후 관리자 승인대기로 접수됩니다.</span>
-              </span>
-            </button>
+            <section style={entryPanelStyle}>
+              <strong style={entryPanelTitleStyle}>일반회원가입</strong>
+              <span style={entryDescStyle}>이름과 전화번호로 등록 여부를 확인한 후 가입을 진행합니다.</span>
+              <form
+                onSubmit={(e) => {
+                  setSignupMethod("manual");
+                  setIdentityVerificationToken(null);
+                  void handleLookup(e);
+                }}
+                style={{ marginTop: 20 }}
+              >
+                <label style={labelStyle}>이름 *</label>
+                <input
+                  type="text"
+                  value={lookupName}
+                  onChange={(e) => setLookupName(e.target.value)}
+                  placeholder="실명을 입력해주세요"
+                  style={{ ...inputStyle, height: 48, marginTop: 6, marginBottom: 12 }}
+                />
+                <label style={labelStyle}>휴대폰 번호 *</label>
+                <input
+                  type="tel"
+                  value={lookupPhone}
+                  onChange={(e) => setLookupPhone(formatPhone(e.target.value))}
+                  placeholder="010-0000-0000"
+                  style={{ ...inputStyle, height: 48, marginTop: 6, marginBottom: 14 }}
+                />
+                <button type="submit" disabled={loading} style={{ ...primaryBtnStyle, height: 48 }}>
+                  {loading ? "확인 중..." : "일반회원가입 계속"}
+                </button>
+                <button type="button" onClick={startManualSignup} style={{ ...textButtonStyle, marginTop: 10 }}>
+                  휴대폰이 없는 어린이·유아 가입
+                </button>
+              </form>
+            </section>
           </div>
 
           {error && (
@@ -715,15 +842,22 @@ export default function SignupPage() {
             </div>
           )}
 
-          <SignupSupportBox
-            title={supportTitle}
-            body={supportBody}
-            done={supportDone}
-            sending={supportSending}
-            onTitleChange={setSupportTitle}
-            onBodyChange={setSupportBody}
-            onSubmit={submitSignupSupport}
-          />
+          {showSignupSupport && (
+            <SignupSupportBox
+              title={supportTitle}
+              body={supportBody}
+              done={supportDone}
+              sending={supportSending}
+              onTitleChange={setSupportTitle}
+              onBodyChange={setSupportBody}
+              onSubmit={submitSignupSupport}
+            />
+          )}
+          <style jsx>{`
+            @media (max-width: 680px) {
+              .signup-method-grid { grid-template-columns: 1fr !important; }
+            }
+          `}</style>
         </div>
       </div>
     );
@@ -753,8 +887,9 @@ export default function SignupPage() {
                 type="text"
                 value={lookupName}
                 onChange={(e) => setLookupName(e.target.value)}
+                disabled={signupMethod === "verified"}
                 placeholder="실명을 입력해주세요"
-                style={{ ...inputStyle, marginTop: 6 }}
+                style={{ ...inputStyle, marginTop: 6, background: signupMethod === "verified" ? "var(--bg-soft)" : inputStyle.background }}
                 autoFocus
               />
             </div>
@@ -766,15 +901,15 @@ export default function SignupPage() {
                 value={lookupPhone}
                 onChange={(e) => setLookupPhone(formatPhone(e.target.value))}
                 placeholder="010-0000-0000"
-                disabled={noPhone}
+                disabled={noPhone || signupMethod === "verified"}
                 style={{
                   ...inputStyle,
                   marginTop: 6,
-                  background: noPhone ? "var(--bg-soft)" : "#fff",
+                  background: noPhone || signupMethod === "verified" ? "var(--bg-soft)" : "#fff",
                   color: noPhone ? "var(--ink-faint)" : "var(--ink)",
                 }}
               />
-              <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontWeight: 600 }}>
+              {signupMethod !== "verified" && <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontWeight: 600 }}>
                 <input
                   type="checkbox"
                   checked={noPhone}
@@ -782,7 +917,7 @@ export default function SignupPage() {
                   style={{ width: 16, height: 16, accentColor: "var(--accent)" }}
                 />
                 휴대폰 없음 (어린이/유아)
-              </label>
+              </label>}
             </div>
 
             {noPhone && (
@@ -832,15 +967,17 @@ export default function SignupPage() {
               : "정보입력 신청은 등록 교인으로 확인되어도 관리자 승인 후 이용할 수 있습니다."}<br />
             등록되지 않은 경우 신규회원 가입 절차로 이어집니다.
           </div>
-          <SignupSupportBox
-            title={supportTitle}
-            body={supportBody}
-            done={supportDone}
-            sending={supportSending}
-            onTitleChange={setSupportTitle}
-            onBodyChange={setSupportBody}
-            onSubmit={submitSignupSupport}
-          />
+          {showSignupSupport && (
+            <SignupSupportBox
+              title={supportTitle}
+              body={supportBody}
+              done={supportDone}
+              sending={supportSending}
+              onTitleChange={setSupportTitle}
+              onBodyChange={setSupportBody}
+              onSubmit={submitSignupSupport}
+            />
+          )}
         </div>
       </div>
     );
@@ -940,15 +1077,17 @@ export default function SignupPage() {
             네 선택 시 등록된 정보가 자동으로 입력되며 직분 선택으로 이동합니다.<br />
             아닙니다 선택 시 처음부터 입력하실 수 있습니다.
           </div>
-          <SignupSupportBox
-            title={supportTitle}
-            body={supportBody}
-            done={supportDone}
-            sending={supportSending}
-            onTitleChange={setSupportTitle}
-            onBodyChange={setSupportBody}
-            onSubmit={submitSignupSupport}
-          />
+          {showSignupSupport && (
+            <SignupSupportBox
+              title={supportTitle}
+              body={supportBody}
+              done={supportDone}
+              sending={supportSending}
+              onTitleChange={setSupportTitle}
+              onBodyChange={setSupportBody}
+              onSubmit={submitSignupSupport}
+            />
+          )}
         </div>
       </div>
     );
@@ -982,7 +1121,15 @@ export default function SignupPage() {
     return (
       <div style={pageStyle}>
         <div style={{ ...cardStyle, maxWidth: 720 }}>
-          <BackBar onBack={() => setStep(matched ? "confirm" : "lookup")} title="직분 선택" />
+          <BackBar onBack={() => setStep(matched && signupMethod !== "verified" ? "confirm" : "lookup")} title="직분 선택" />
+
+          {signupMethod === "verified" && (
+            <div style={{ padding: "12px 14px", background: matched ? "#f3f7f1" : "var(--warning-soft)", border: `1px solid ${matched ? "rgba(62, 90, 74, 0.16)" : "#E0C893"}`, borderRadius: 8, fontSize: 12, color: matched ? "var(--accent)" : "var(--warning)", marginBottom: 16, fontWeight: 700, textAlign: "center" }}>
+              {matched
+                ? "✓ 본인인증 및 등록 회원 확인이 완료되었습니다"
+                : "본인인증은 완료되었으나 등록 회원 정보가 없어 신규회원 승인 절차로 진행됩니다"}
+            </div>
+          )}
 
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: "var(--accent)", marginTop: 4, letterSpacing: 0 }}>
@@ -1076,6 +1223,7 @@ export default function SignupPage() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setShowSignupSupport(false);
     const lower = username.toLowerCase().trim();
     const uv = validateUsername(lower);
     if (!uv.valid) return setError(uv.error!);
@@ -1121,16 +1269,23 @@ export default function SignupPage() {
         }),
       });
       const result = await res.json();
-      if (!res.ok) { setError(result.error || "가입 실패"); setLoading(false); return; }
+      if (!res.ok) {
+        setError(result.error || "가입 실패");
+        setShowSignupSupport(true);
+        setLoading(false);
+        return;
+      }
+      setSignupResultStatus(result.status === "active" ? "active" : "pending");
       setStep("done");
     } catch (e: unknown) {
       setError(`오류: ${getErrorMessage(e)}`);
+      setShowSignupSupport(true);
     }
     setLoading(false);
   };
 
   // ============ Step 4: 정보 입력 ============
-  const identityLocked = signupMethod === "verified" && confirmedMatchedMember && !!matched;
+  const identityLocked = signupMethod === "verified";
 
   return (
     <div style={pageStyle}>
@@ -1476,15 +1631,17 @@ export default function SignupPage() {
           <div style={{ fontSize: 10, color: "var(--ink-soft)", textAlign: "center", marginTop: 14, lineHeight: 1.5 }}>
             가입 신청 후 관리자 승인이 필요합니다
           </div>
-          <SignupSupportBox
-            title={supportTitle}
-            body={supportBody}
-            done={supportDone}
-            sending={supportSending}
-            onTitleChange={setSupportTitle}
-            onBodyChange={setSupportBody}
-            onSubmit={submitSignupSupport}
-          />
+          {showSignupSupport && (
+            <SignupSupportBox
+              title={supportTitle}
+              body={supportBody}
+              done={supportDone}
+              sending={supportSending}
+              onTitleChange={setSupportTitle}
+              onBodyChange={setSupportBody}
+              onSubmit={submitSignupSupport}
+            />
+          )}
       </div>
 
       {addressSearchOpen && (
@@ -1755,40 +1912,26 @@ const inputStyle: React.CSSProperties = {
   caretColor: "var(--accent)",
 };
 
-const entryCardStyle: React.CSSProperties = {
+const entryPanelStyle: React.CSSProperties = {
   width: "100%",
-  minHeight: 92,
-  padding: "16px 14px",
+  minHeight: 330,
+  padding: "24px",
   border: "1px solid rgba(43, 39, 34, 0.12)",
-  borderRadius: 8,
+  borderRadius: 14,
   background: "var(--card)",
   color: "var(--ink)",
   display: "flex",
-  alignItems: "center",
-  gap: 12,
-  cursor: "pointer",
-  fontFamily: "inherit",
-  textAlign: "left",
+  flexDirection: "column",
+  boxSizing: "border-box",
 };
 
-const entryIconStyle: React.CSSProperties = {
-  width: 42,
-  height: 42,
-  borderRadius: 8,
-  background: "var(--accent-soft)",
-  color: "var(--accent)",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flexShrink: 0,
-};
-
-const entryTitleStyle: React.CSSProperties = {
+const entryPanelTitleStyle: React.CSSProperties = {
   display: "block",
-  fontSize: 15,
+  fontSize: 19,
   fontWeight: 900,
   color: "var(--ink)",
-  marginBottom: 4,
+  marginBottom: 8,
+  textAlign: "center",
 };
 
 const entryDescStyle: React.CSSProperties = {
@@ -1799,21 +1942,43 @@ const entryDescStyle: React.CSSProperties = {
   fontWeight: 600,
 };
 
-const providerRowStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: 8,
-  marginTop: 12,
+const providerTileStyle: React.CSSProperties = {
+  width: 142,
+  minHeight: 150,
+  padding: "20px 14px",
+  border: "1px solid rgba(43, 39, 34, 0.12)",
+  borderRadius: 12,
+  background: "var(--card)",
+  color: "var(--ink)",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 14,
+  fontFamily: "inherit",
+  cursor: "pointer",
 };
 
-const providerButtonStyle: React.CSSProperties = {
-  height: 36,
-  border: "1px solid",
-  borderRadius: 8,
-  background: "var(--bg)",
-  color: "var(--ink)",
+const naverIconStyle: React.CSSProperties = {
+  width: 58,
+  height: 58,
+  borderRadius: 10,
+  color: "#fff",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 34,
+  fontWeight: 950,
+  fontFamily: "Arial, sans-serif",
+};
+
+const textButtonStyle: React.CSSProperties = {
+  width: "100%",
+  border: "none",
+  background: "transparent",
+  color: "var(--accent)",
   fontSize: 12,
-  fontWeight: 900,
+  fontWeight: 800,
   fontFamily: "inherit",
   cursor: "pointer",
 };
