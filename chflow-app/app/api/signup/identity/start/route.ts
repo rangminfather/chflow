@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SIGNUP_IDENTITY_COOKIE_NAME } from "@/lib/server/signup-security";
 import {
   buildAuthorizeUrl,
   createOauthState,
@@ -46,6 +47,13 @@ export async function GET(req: NextRequest) {
     sameSite: "lax",
     path: "/",
     maxAge: 10 * 60,
+  });
+  res.cookies.set(SIGNUP_IDENTITY_COOKIE_NAME, "", {
+    httpOnly: true,
+    secure: req.nextUrl.protocol === "https:",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
   });
   return res;
 }

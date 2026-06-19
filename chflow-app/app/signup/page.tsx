@@ -169,7 +169,6 @@ export default function SignupPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("entry");
   const [signupMethod, setSignupMethod] = useState<SignupMethod>("manual");
-  const [identityVerificationToken, setIdentityVerificationToken] = useState<string | null>(null);
   const [verifiedLookupRequest, setVerifiedLookupRequest] = useState<{ name: string; phone: string } | null>(null);
   const [signupResultStatus, setSignupResultStatus] = useState<"active" | "pending" | null>(null);
 
@@ -232,33 +231,51 @@ export default function SignupPage() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const identityError = params.get("identity_error");
-    if (identityError) {
-      setError(identityError);
+    let cancelled = false;
+    const loadIdentityResult = async () => {
+      if (typeof window === "undefined") return;
+      const params = new URLSearchParams(window.location.search);
+      const identityError = params.get("identity_error");
+      if (identityError) {
+        setError(identityError);
+        setShowSignupSupport(true);
+        setStep("entry");
+        window.history.replaceState(null, "", window.location.pathname);
+        return;
+      }
+
+      const res = await fetch("/api/signup/identity/result", {
+        method: "GET",
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (res.status === 401 || cancelled) return;
+      const result = await res.json();
+      if (!res.ok || !result.authenticated) {
+        throw new Error(result.error || "본인인증 결과를 확인할 수 없습니다.");
+      }
+
+      const identityName = String(result.name || "");
+      const identityPhone = String(result.phone || "");
+      setSignupMethod("verified");
+      setLookupName(identityName);
+      setLookupPhone(formatPhone(identityPhone));
+      setName(identityName);
+      setPhone(formatPhone(identityPhone));
+      setNoPhone(false);
+      setError("");
+      setStep("lookup");
+      setVerifiedLookupRequest({ name: identityName, phone: identityPhone });
+      window.history.replaceState(null, "", window.location.pathname);
+    };
+
+    void loadIdentityResult().catch((identityResultError: unknown) => {
+      if (cancelled) return;
+      setError(getErrorMessage(identityResultError));
       setShowSignupSupport(true);
       setStep("entry");
-      window.history.replaceState(null, "", window.location.pathname);
-      return;
-    }
-
-    const token = params.get("identity_token");
-    const identityName = params.get("identity_name") || "";
-    const identityPhone = params.get("identity_phone") || "";
-    if (!token) return;
-
-    setSignupMethod("verified");
-    setIdentityVerificationToken(token);
-    setLookupName(identityName);
-    setLookupPhone(formatPhone(identityPhone));
-    setName(identityName);
-    setPhone(formatPhone(identityPhone));
-    setNoPhone(false);
-    setError("");
-    setStep("lookup");
-    setVerifiedLookupRequest({ name: identityName, phone: identityPhone });
-    window.history.replaceState(null, "", window.location.pathname);
+    });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -690,7 +707,6 @@ export default function SignupPage() {
 
   const startManualSignup = () => {
     setSignupMethod("manual");
-    setIdentityVerificationToken(null);
     setError("");
     setShowSignupSupport(false);
     setStep("lookup");
@@ -805,7 +821,6 @@ export default function SignupPage() {
               <form
                 onSubmit={(e) => {
                   setSignupMethod("manual");
-                  setIdentityVerificationToken(null);
                   void handleLookup(e);
                 }}
                 style={{ marginTop: 20 }}
@@ -1265,7 +1280,6 @@ export default function SignupPage() {
           guardianPhone: noPhone ? normalizePhone(parentPhone) : null,
           isChild: noPhone,
           signupMethod,
-          identityVerificationToken,
         }),
       });
       const result = await res.json();

@@ -105,8 +105,31 @@ export async function fetchProviderProfile(
     throw new Error(token.error_description || token.error || "접근 토큰을 받을 수 없습니다.");
   }
 
-  if (provider === "naver") return fetchNaverProfile(token.access_token);
+  if (provider === "naver") {
+    try {
+      return await fetchNaverProfile(token.access_token);
+    } finally {
+      await revokeNaverAccessToken(token.access_token, config);
+    }
+  }
   return fetchKakaoProfile(token.access_token);
+}
+
+async function revokeNaverAccessToken(accessToken: string, config: ProviderConfig) {
+  const body = new URLSearchParams();
+  body.set("client_id", config.clientId);
+  body.set("client_secret", config.clientSecret);
+  body.set("token", accessToken);
+  body.set("token_type_hint", "access_token");
+  const res = await fetch("https://nid.naver.com/oauth2.0/revoke", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=utf-8" },
+    body,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error("네이버 인증 토큰을 안전하게 폐기하지 못했습니다. 다시 시도해 주세요.");
+  }
 }
 
 async function exchangeCodeForToken(

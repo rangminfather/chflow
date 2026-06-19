@@ -1,8 +1,9 @@
-import { createHmac, createHash, timingSafeEqual } from "crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
 
-const TOKEN_VERSION = "v1";
+const TOKEN_VERSION = "v2";
+export const SIGNUP_IDENTITY_COOKIE_NAME = "signup_identity_verification";
 
 export type SignupAttemptResult =
   | "matched"
@@ -148,28 +149,35 @@ function getTokenSecret(): string {
   return process.env.SIGNUP_VERIFICATION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 }
 
-function signTokenPayload(payload: string): string {
-  return createHmac("sha256", getTokenSecret()).update(payload).digest("base64url");
+function getTokenEncryptionKey(): Buffer {
+  return createHash("sha256").update(getTokenSecret()).digest();
 }
 
 export function createSignupIdentityToken(identity: VerifiedSignupIdentity): string {
-  const payload = Buffer.from(JSON.stringify(identity), "utf8").toString("base64url");
-  return `${TOKEN_VERSION}.${payload}.${signTokenPayload(`${TOKEN_VERSION}.${payload}`)}`;
+  if (!getTokenSecret()) throw new Error("가입 인증 암호화 키가 설정되지 않았습니다.");
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", getTokenEncryptionKey(), iv);
+  cipher.setAAD(Buffer.from(TOKEN_VERSION));
+  const encrypted = Buffer.concat([
+    cipher.update(JSON.stringify(identity), "utf8"),
+    cipher.final(),
+  ]);
+  return `${TOKEN_VERSION}.${iv.toString("base64url")}.${encrypted.toString("base64url")}.${cipher.getAuthTag().toString("base64url")}`;
 }
 
 export function verifySignupIdentityToken(token: string | null | undefined): VerifiedSignupIdentity | null {
   if (!token || !getTokenSecret()) return null;
   const parts = token.split(".");
-  if (parts.length !== 3 || parts[0] !== TOKEN_VERSION) return null;
-  const expected = signTokenPayload(`${parts[0]}.${parts[1]}`);
-  const actual = parts[2];
-  const expectedBuffer = Buffer.from(expected);
-  const actualBuffer = Buffer.from(actual);
-  if (expectedBuffer.length !== actualBuffer.length || !timingSafeEqual(expectedBuffer, actualBuffer)) {
-    return null;
-  }
+  if (parts.length !== 4 || parts[0] !== TOKEN_VERSION) return null;
   try {
-    const parsed = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as VerifiedSignupIdentity;
+    const decipher = createDecipheriv("aes-256-gcm", getTokenEncryptionKey(), Buffer.from(parts[1], "base64url"));
+    decipher.setAAD(Buffer.from(TOKEN_VERSION));
+    decipher.setAuthTag(Buffer.from(parts[3], "base64url"));
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(parts[2], "base64url")),
+      decipher.final(),
+    ]);
+    const parsed = JSON.parse(decrypted.toString("utf8")) as VerifiedSignupIdentity;
     if (!parsed.name || !parsed.phone || !parsed.provider || !parsed.subject || !parsed.verifiedAt) return null;
     if (Date.now() - parsed.verifiedAt > 15 * 60 * 1000) return null;
     return { ...parsed, phone: normalizePhoneDigits(parsed.phone) };

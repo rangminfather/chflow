@@ -5,6 +5,7 @@ import {
   getClientIp,
   logSignupAttempt,
   normalizePhoneDigits,
+  SIGNUP_IDENTITY_COOKIE_NAME,
   verifySignupIdentityToken,
 } from "@/lib/server/signup-security";
 
@@ -55,7 +56,6 @@ interface SignupBody {
   guardianPhone?: string | null;
   isChild?: boolean;
   signupMethod?: "manual" | "verified";
-  identityVerificationToken?: string | null;
 }
 
 function usernameToEmail(username: string): string {
@@ -78,7 +78,28 @@ function validateUsername(username: string): { valid: boolean; error?: string } 
   return { valid: true };
 }
 
+function signupResponse(
+  req: NextRequest,
+  clearIdentity: boolean,
+  body: unknown,
+  init?: ResponseInit
+) {
+  const res = NextResponse.json(body, init);
+  if (clearIdentity) {
+    res.cookies.set(SIGNUP_IDENTITY_COOKIE_NAME, "", {
+      httpOnly: true,
+      secure: req.nextUrl.protocol === "https:",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+  }
+  res.headers.set("Cache-Control", "no-store, private");
+  return res;
+}
+
 export async function POST(req: NextRequest) {
+  let consumeIdentityCookie = false;
   try {
     const body: SignupBody = await req.json();
     const ip = getClientIp(req);
@@ -105,8 +126,8 @@ export async function POST(req: NextRequest) {
       guardianPhone,
       isChild,
       signupMethod = "manual",
-      identityVerificationToken,
     } = body;
+    consumeIdentityCookie = signupMethod === "verified";
 
     // Validation (phone은 noPhone 체크 시 선택)
     if (!username || !password || !name) {
@@ -162,7 +183,9 @@ export async function POST(req: NextRequest) {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const identity = verifySignupIdentityToken(identityVerificationToken);
+    const identity = verifySignupIdentityToken(
+      req.cookies.get(SIGNUP_IDENTITY_COOKIE_NAME)?.value
+    );
     const identityVerified = signupMethod === "verified" && !!identity;
     let autoApprove = false;
 
@@ -177,7 +200,7 @@ export async function POST(req: NextRequest) {
         ip,
         userAgent,
       });
-      return NextResponse.json({ error: "본인인증 정보가 확인되지 않았습니다. 다시 인증해 주세요." }, { status: 400 });
+      return signupResponse(req, true, { error: "본인인증 정보가 확인되지 않았습니다. 다시 인증해 주세요." }, { status: 400 });
     }
 
     if (identityVerified && normalizePhoneDigits(phone) !== normalizePhoneDigits(identity.phone)) {
@@ -191,7 +214,7 @@ export async function POST(req: NextRequest) {
         ip,
         userAgent,
       });
-      return NextResponse.json({ error: "본인인증 정보와 가입 정보가 일치하지 않습니다." }, { status: 400 });
+      return signupResponse(req, true, { error: "본인인증 정보와 가입 정보가 일치하지 않습니다." }, { status: 400 });
     }
 
     if (identityVerified && name.trim() !== identity.name.trim()) {
@@ -205,7 +228,7 @@ export async function POST(req: NextRequest) {
         ip,
         userAgent,
       });
-      return NextResponse.json({ error: "본인인증 정보와 가입 정보가 일치하지 않습니다." }, { status: 400 });
+      return signupResponse(req, true, { error: "본인인증 정보와 가입 정보가 일치하지 않습니다." }, { status: 400 });
     }
 
     if (identityVerified && matchedMemberId) {
@@ -216,7 +239,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (!member || member.app_user_id) {
-        return NextResponse.json({ error: "이미 가입되었거나 확인할 수 없는 교인 정보입니다." }, { status: 409 });
+        return signupResponse(req, true, { error: "이미 가입되었거나 확인할 수 없는 교인 정보입니다." }, { status: 409 });
       }
 
       autoApprove =
@@ -235,7 +258,7 @@ export async function POST(req: NextRequest) {
           userAgent,
           metadata: { matchedMemberId },
         });
-        return NextResponse.json({ error: "본인인증 정보와 교인 정보가 일치하지 않습니다." }, { status: 400 });
+        return signupResponse(req, true, { error: "본인인증 정보와 교인 정보가 일치하지 않습니다." }, { status: 400 });
       }
     }
 
@@ -246,7 +269,7 @@ export async function POST(req: NextRequest) {
       .ilike("username", lower)
       .maybeSingle();
     if (existing) {
-      return NextResponse.json({ error: "이미 사용 중인 아이디입니다" }, { status: 409 });
+      return signupResponse(req, consumeIdentityCookie, { error: "이미 사용 중인 아이디입니다" }, { status: 409 });
     }
 
     // 2. Create user via admin API (no rate limit, no email confirmation)
@@ -257,7 +280,9 @@ export async function POST(req: NextRequest) {
       user_metadata: { username: lower, name },
     });
     if (createError || !created.user) {
-      return NextResponse.json(
+      return signupResponse(
+        req,
+        consumeIdentityCookie,
         { error: `가입 실패: ${createError?.message || "사용자 생성 실패"}` },
         { status: 500 }
       );
@@ -300,7 +325,9 @@ export async function POST(req: NextRequest) {
     if (profileError) {
       // Rollback: delete user
       await admin.auth.admin.deleteUser(userId);
-      return NextResponse.json(
+      return signupResponse(
+        req,
+        consumeIdentityCookie,
         { error: "프로필 생성 실패" },
         { status: 500 }
       );
@@ -326,8 +353,8 @@ export async function POST(req: NextRequest) {
       metadata: { userId, matchedMemberId, autoApprove },
     });
 
-    return NextResponse.json({ success: true, userId, status: autoApprove ? "active" : "pending" });
+    return signupResponse(req, consumeIdentityCookie, { success: true, userId, status: autoApprove ? "active" : "pending" });
   } catch (e: unknown) {
-    return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 });
+    return signupResponse(req, consumeIdentityCookie, { error: getErrorMessage(e) }, { status: 500 });
   }
 }

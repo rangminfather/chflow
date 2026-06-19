@@ -1,6 +1,9 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { createSignupIdentityToken } from "@/lib/server/signup-security";
+import {
+  createSignupIdentityToken,
+  SIGNUP_IDENTITY_COOKIE_NAME,
+} from "@/lib/server/signup-security";
 import {
   fetchProviderProfile,
   getStateCookieName,
@@ -39,19 +42,16 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     return clearStateAndRedirect(providerParam, signupUrl);
   }
 
+  let identityToken: string | null = null;
   try {
     const profile = await fetchProviderProfile(providerParam, code, req);
-    const identityToken = createSignupIdentityToken({
+    identityToken = createSignupIdentityToken({
       provider: profile.provider,
       subject: profile.subject,
       name: profile.name,
       phone: profile.phone,
       verifiedAt: Date.now(),
     });
-    signupUrl.searchParams.set("identity_token", identityToken);
-    signupUrl.searchParams.set("identity_provider", providerParam);
-    signupUrl.searchParams.set("identity_name", profile.name);
-    signupUrl.searchParams.set("identity_phone", profile.phone);
   } catch (err) {
     const message = err instanceof Error
       ? err.message
@@ -59,7 +59,16 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     signupUrl.searchParams.set("identity_error", message);
   }
 
-  return clearStateAndRedirect(providerParam, signupUrl);
+  const res = clearStateAndRedirect(providerParam, signupUrl);
+  res.cookies.set(SIGNUP_IDENTITY_COOKIE_NAME, identityToken || "", {
+    httpOnly: true,
+    secure: req.nextUrl.protocol === "https:",
+    sameSite: "lax",
+    path: "/",
+    maxAge: identityToken ? 15 * 60 : 0,
+  });
+  res.headers.set("Cache-Control", "no-store, private");
+  return res;
 }
 
 function clearStateAndRedirect(provider: SignupIdentityProvider, url: URL) {
