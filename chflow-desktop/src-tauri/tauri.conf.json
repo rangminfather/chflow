@@ -5,7 +5,6 @@
   "identifier": "app.chflow.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
@@ -22,8 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://chflow-app.vercel.app https://*.r2.cloudflarestorage.com; img-src 'self' data: blob: https://*.supabase.co https://*.r2.cloudflarestorage.com; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:",
-      "devCsp": "default-src 'self'; connect-src 'self' http://localhost:1420 ws://localhost:1421 https://*.supabase.co wss://*.supabase.co https://chflow-app.vercel.app https://*.r2.cloudflarestorage.com; img-src 'self' data: blob: https://*.supabase.co https://*.r2.cloudflarestorage.com; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:"
+      "csp": "default-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://chflow-app.vercel.app https://*.r2.cloudflarestorage.com; img-src 'self' data: blob: https://*.supabase.co https://*.r2.cloudflarestorage.com; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:"
     }
   },
   "bundle": {

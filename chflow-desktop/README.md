@@ -30,16 +30,26 @@
 2. `.env` 설정
 
 ## 보안 메모
-- Supabase 세션 토큰은 **Windows Credential Manager**(keyring)에 저장. localStorage 미사용. (`src/services/secureStorage.ts` + `src-tauri/.../secure_store.rs`)
+- **세션 저장(대안 2)**: Windows Credential Manager의 2560자 한도로 세션 직접저장이 불가함을 확인 → CM에는 **32바이트 마스터키만**, Supabase 세션 JSON은 **AES-256-GCM**으로 암호화해 `appLocalData/secure/<key>.bin`에 저장. 매 저장 새 nonce, `[version|nonce|ciphertext]` 포맷. (`src/services/secureStorage.ts` + `src-tauri/.../secure_store.rs`)
+- **localStorage 미사용**(폴백 없음, Tauri 환경). 복호화 실패 시 손상파일 제거 후 재로그인 유도(무한재시도 금지). 평문 세션은 디스크/임시/로그 어디에도 안 남김.
+- 키 수명주기: `secure_delete`=세션파일만 삭제(마스터키 유지), `secure_purge`=마스터키+세션 모두 삭제(완전 초기화).
 - 자체 호스팅 API 호출은 **tauri-plugin-http**(네이티브, CORS 비적용)로 수행.
 - service_role 키 절대 미포함. RLS/RPC가 최종 방어선.
+- **dev/prod CSP·URL 분리**: 프로덕션 `csp`(base 설정)엔 localhost 없음. dev 전용 `devUrl`은 `src-tauri/tauri.dev.conf.json`에 분리 → `npm run tauri:dev`(`--config`)에서만 병합. release 바이너리에 localhost 미포함(검증됨).
 
-## 3단계 검증 체크리스트 (Rust 설치 머신에서 수행 — 현재 미검증)
-**인증/세션 (Q-2, Q-3)**
+## 3단계 검증 체크리스트
+**환경/빌드 (검증 완료)**
+- [x] Rust 1.96.0 / MSVC 14.44 / Windows SDK 10.0.26100 / WebView2 설치
+- [x] cargo fmt --check / cargo check 통과
+- [x] 프로덕션 빌드(무서명) + 클린 재빌드, release exe에 localhost 미포함 확인
+- [x] 단일 인스턴스(2회 실행→1개), WebView2 로컬 번들 UI 로드 확인
+- [x] 보안저장소 더미 1~8KB 저장·복원·삭제 통과(AES-GCM), CM 2560자 한도 회피, 잘못된 키→재로그인
+
+**인증/세션 — 실제 자격증명 필요(미검증)**
 - [ ] username 로그인 성공/실패 (실제 API 통합: CORS·Origin·preflight·Bearer 확인)
-- [ ] 로그인 후 토큰이 **Credential Manager 에만** 저장, localStorage 에 없음
-- [ ] 앱 재시작 후 세션 복원 / 토큰 갱신 / 로그아웃 시 보안저장소 삭제 / 계정 변경 시 갱신
-- [ ] Credential Manager blob 크기 한도 초과 여부(세션 JSON)
+- [ ] 로그인 후 세션이 **AES-GCM 파일**에 저장(CM엔 마스터키만), **localStorage에 sb-* 없음**
+- [ ] 앱 재시작 후 세션 복원 / 토큰 갱신 / 로그아웃 시 세션파일 삭제 / 계정 변경 시 갱신
+- [ ] 실제 Supabase 세션 직렬화 크기(바이트만 보고)
 
 **Realtime (Q-1 — 확정 아님, 검증 대상)**
 - [ ] 계정 2개로 참여 대화방 이벤트만 수신, 미참여방 유출 없음
