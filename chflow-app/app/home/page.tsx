@@ -488,7 +488,7 @@ function UserSummary({ user, photoUrl, userImage, router }: {
   const OVERLAP = Math.round(SIZE / 3); // 1/3 가려짐 → 2/3 노출
 
   return (
-    <SafeCard onClick={() => router.push("/myinfo")} padding={16} style={{ marginBottom: 18, borderRadius: 20, background: "#FFFFFF", border: "1px solid #E8E3DA", boxShadow: "0 2px 16px rgba(26,22,18,0.06)", cursor: "pointer", position: "relative", overflow: "hidden" }}>
+    <SafeCard onClick={() => router.push("/myinfo")} padding={16} style={{ marginBottom: 18, borderRadius: 20, background: "var(--card)", border: "1px solid var(--hairline)", boxShadow: "0 2px 16px rgba(26,22,18,0.06)", cursor: "pointer", position: "relative", overflow: "hidden" }}>
       {/* 보태니컬 데코 — 우측 하단 */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -579,7 +579,7 @@ function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartmen
   const empty = approved.length === 0 && pending.length === 0;
 
   return (
-    <Section bg="rgba(248,245,240,0.90)" style={{ height: "100%", marginBottom: 0, border: "1px solid #E8E3DA" }}>
+    <Section bg="var(--surface)" style={{ height: "100%", marginBottom: 0, border: "1px solid var(--hairline)" }}>
       <SectionHeader
         icon={<Folder size={18} strokeWidth={1.75} />}
         iconColor="#2B4539"
@@ -633,7 +633,7 @@ function MinistryCard({ dept, status, onClick }: {
   onClick: () => void;
 }) {
   return (
-    <SafeCard onClick={onClick} padding={12} style={{ borderRadius: 14, background: "#FFFFFF", border: "1px solid #E8E3DA", boxShadow: "0 1px 4px rgba(26,22,18,0.04)" }}>
+    <SafeCard onClick={onClick} padding={12} style={{ borderRadius: 14, background: "var(--card)", border: "1px solid var(--hairline)", boxShadow: "0 1px 4px rgba(26,22,18,0.04)" }}>
       <SafeRow gap={12}>
         <IconBox bg="#EDF2EF" size={40}>
           <DeptIcon name={dept.name} category={dept.category} size={20} />
@@ -669,7 +669,7 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
   // TODO: 승인 대기 상태 분기 — pasture_requests 테이블/RPC 추가되면 이 자리에 분기 추가
 
   return (
-    <Section bg="rgba(234,239,232,0.72)" style={{ height: "100%", marginBottom: 0 }}>
+    <Section bg="var(--accent-soft)" style={{ height: "100%", marginBottom: 0 }}>
       <SectionHeader
         icon={<Home size={18} strokeWidth={1.75} />}
         iconColor={T.mokjangPoint}
@@ -744,7 +744,7 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
 // =============================================================
 function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: RouterType }) {
   return (
-    <Section bg="rgba(248,245,240,0.90)" style={{ border: "1px solid #E8E3DA" }}>
+    <Section bg="var(--surface)" style={{ border: "1px solid var(--hairline)" }}>
       <SectionHeader
         icon={<LayoutGrid size={18} strokeWidth={1.75} />}
         iconColor="#2B4539"
@@ -788,8 +788,8 @@ function MenuCard({ menu, router, compact }: { menu: CommonMenu; router: RouterT
       style={{
         minHeight: compact ? 58 : 68,
         borderRadius: 14,
-        background: "#FFFFFF",
-        border: "1px solid #E8E3DA",
+        background: "var(--card)",
+        border: "1px solid var(--hairline)",
         boxShadow: "0 1px 4px rgba(26,22,18,0.04)",
         transition: "border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease",
       }}
@@ -799,7 +799,7 @@ function MenuCard({ menu, router, compact }: { menu: CommonMenu; router: RouterT
         e.currentTarget.style.boxShadow = "0 8px 20px rgba(26,22,18,0.10)";
       }}
       onMouseOut={(e) => {
-        e.currentTarget.style.borderColor = "#E8E3DA";
+        e.currentTarget.style.borderColor = "var(--hairline)";
         e.currentTarget.style.transform = "translateY(0)";
         e.currentTarget.style.boxShadow = "0 1px 4px rgba(26,22,18,0.04)";
       }}
