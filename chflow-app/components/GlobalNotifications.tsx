@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import NotificationBell from "@/components/NotificationBell";
+import FontScaleControl from "@/components/FontScaleControl";
 import { supabase } from "@/lib/supabase";
 
 const HIDDEN_PATH_PREFIXES = [
@@ -49,6 +50,7 @@ export default function GlobalNotifications() {
 
   return (
     <div className="global-notification-dock" aria-live="polite">
+      <FontScaleControl />
       <NotificationBell userId={userId} placement="dock" />
     </div>
   );

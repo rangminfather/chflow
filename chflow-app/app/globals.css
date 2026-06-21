@@ -291,6 +291,15 @@ img, video, canvas, svg, iframe { max-width: 100%; }
   overflow-x: hidden;
 }
 
+/* 글자 크기 비례 확대 (접근성 — 노안 대응)
+   --app-zoom 은 useFontScale + <head> 인라인 스크립트가 설정.
+   래퍼에만 적용해 글자·버튼·간격이 함께 커지고, 플로팅 dock(가/벨)은 제외된다. */
+#app-zoom-root {
+  zoom: var(--app-zoom, 1);
+  width: 100%;
+  max-width: 100vw;
+}
+
 /* ========================================================
    Login
    ======================================================== */
@@ -847,6 +856,10 @@ input::placeholder {
   right: 18px;
   bottom: calc(18px + var(--safe-bottom));
   z-index: 95;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
 }
 
 .global-notification-dock > div > button {
