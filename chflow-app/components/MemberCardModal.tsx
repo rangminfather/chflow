@@ -321,9 +321,9 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                     {m.sub_role || "직분 미지정"} · {m.family_church || "목원"}
                     {m.spouse_name && ` · 배우자 ${m.spouse_name}`}
                   </div>
-                  <div style={{ fontSize: 13, color: "var(--ink-mid)", marginBottom: 2, display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    <Phone size={15} strokeWidth={1.8} />
-                    <span>{m.phone || "연락처 없음"}</span>
+                  <div style={{ fontSize: 13, color: "var(--ink-mid)", marginBottom: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", minWidth: 0 }}>
+                    <Phone size={15} strokeWidth={1.8} style={{ flexShrink: 0 }} />
+                    <span style={{ minWidth: 0, overflowWrap: "anywhere", wordBreak: "keep-all" }}>{m.phone || "연락처 없음"}</span>
                     {actionPhone && (
                       <span className="member-card-mobile-phone-actions" style={mobilePhoneActionsStyle}>
                         <a href={`tel:${actionPhone}`} aria-label="전화걸기" title="전화걸기" style={mobilePhoneActionStyle}>

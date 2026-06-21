@@ -827,7 +827,7 @@ function InfoLine({ label, value, phoneActions }: { label: string; value: string
     <div style={infoLineStyle}>
       <span>{label}</span>
       <strong style={infoValueStyle}>
-        <span>{value}</span>
+        <span style={{ minWidth: 0, overflowWrap: "anywhere", wordBreak: "keep-all" }}>{value}</span>
         {actionPhone && (
           <span className="directory-mobile-phone-actions" style={mobilePhoneActionsStyle}>
             <a href={`tel:${actionPhone}`} aria-label="전화걸기" title="전화걸기" style={mobilePhoneActionStyle}>
@@ -1188,7 +1188,8 @@ const infoLineStyle: CSSProperties = {
 };
 
 const infoValueStyle: CSSProperties = {
-  display: "inline-flex",
+  display: "flex",
+  flexWrap: "wrap",
   alignItems: "center",
   gap: 7,
   minWidth: 0,
