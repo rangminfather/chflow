@@ -41,6 +41,11 @@ export default function NotificationBell({
   const seenIdsRef = useRef<Set<string>>(new Set());
   const initLoadedRef = useRef(false);
 
+  // 패널 손으로 끌어 옮기기 (dock 모드 전용) — 위치는 transform 으로만 이동시켜
+  // 가로/세로 스크롤바를 만들지 않는다. 종을 다시 켜면 0,0(기본 상단 가운데)으로 초기화.
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const dragRef = useRef({ startX: 0, startY: 0, baseX: 0, baseY: 0, dragging: false });
+
   const tabCounts = useMemo(() => ({
     all: notifications.length,
     message: notifications.filter((n) => getNotificationGroup(n.type) === "message").length,
@@ -171,14 +176,40 @@ export default function NotificationBell({
   }, [handleNewNotification, userId]);
 
   const handleBellClick = async () => {
-    setOpen(!open);
+    const willOpen = !open;
+    setOpen(willOpen);
+    // 다시 켤 때마다 위치 초기화 (상단 화면 가운데 = 기본 위치)
+    if (willOpen) setDragOffset({ x: 0, y: 0 });
     // 종을 누르면 모두 읽음 처리 + 배지 제거
-    if (!open && unreadCount > 0) {
+    if (willOpen && unreadCount > 0) {
       await markAllRead();
       setUnreadCount(0);
       clearAppBadge();
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
     }
+  };
+
+  // === 패널 드래그 핸들러 (헤더 바를 잡고 이동) ===
+  const handleDragStart = (e: React.PointerEvent) => {
+    if (placement !== "dock") return;
+    // 헤더 안의 버튼(전체삭제 등)을 누른 경우는 드래그 시작 안 함
+    if ((e.target as HTMLElement).closest("button")) return;
+    dragRef.current = {
+      startX: e.clientX, startY: e.clientY,
+      baseX: dragOffset.x, baseY: dragOffset.y, dragging: true,
+    };
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* noop */ }
+  };
+  const handleDragMove = (e: React.PointerEvent) => {
+    if (!dragRef.current.dragging) return;
+    setDragOffset({
+      x: dragRef.current.baseX + (e.clientX - dragRef.current.startX),
+      y: dragRef.current.baseY + (e.clientY - dragRef.current.startY),
+    });
+  };
+  const handleDragEnd = (e: React.PointerEvent) => {
+    dragRef.current.dragging = false;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* noop */ }
   };
 
   const handleNotifClick = async (notif: Notification) => {
@@ -283,9 +314,16 @@ export default function NotificationBell({
                 overflow: "hidden",
                 display: "flex",
                 flexDirection: "column",
+                transform: (dragOffset.x || dragOffset.y)
+                  ? `translate(${dragOffset.x}px, ${dragOffset.y}px)`
+                  : undefined,
               }}
             >
               <div
+                onPointerDown={handleDragStart}
+                onPointerMove={handleDragMove}
+                onPointerUp={handleDragEnd}
+                onPointerCancel={handleDragEnd}
                 style={{
                   padding: "14px 18px",
                   borderBottom: "1px solid var(--hairline)",
@@ -293,6 +331,9 @@ export default function NotificationBell({
                   justifyContent: "space-between",
                   alignItems: "center",
                   background: "var(--accent-soft)",
+                  cursor: placement === "dock" ? "grab" : "default",
+                  touchAction: placement === "dock" ? "none" : undefined,
+                  userSelect: "none",
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--app-serif)", fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>
