@@ -87,9 +87,7 @@ export default function MyClassAttendancePage() {
       setMyTeacherId(t?.id || null);
 
       setAuthChecked(true);
-      // 전도사·부장급(teacher_role이 교사가 아닌 경우)은 전체 학생 조회
-      const isLeader = t && t.teacher_role !== "교사";
-      await loadAll(t?.id || null, isLeader ?? false);
+      await loadAll(t?.id || null);
     })();
   }, [router, deptId]);
 
@@ -98,19 +96,18 @@ export default function MyClassAttendancePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, month, authChecked]);
 
-  const loadAll = async (teacherId: string | null, isLeader = false) => {
+  const loadAll = async (teacherId: string | null) => {
     setLoading(true);
     if (teacherId) {
-      await Promise.all([loadStudents(teacherId, isLeader), loadAttendance()]);
+      await Promise.all([loadStudents(teacherId), loadAttendance()]);
     }
     setLoading(false);
   };
 
-  const loadStudents = async (teacherId: string, isLeader = false) => {
+  const loadStudents = async (teacherId: string) => {
     const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
     const all = (data || []) as Student[];
-    // 전도사·부장급은 전체 학생 조회, 교사는 본인 반만
-    const mine = isLeader ? all : all.filter((s) => s.teacher_id === teacherId);
+    const mine = all.filter((s) => s.teacher_id === teacherId);
     const memberIds = mine.map((s) => s.member_id).filter(Boolean) as string[];
     const memberInfo: Record<string, { gender: string | null; school_name: string | null }> = {};
 
@@ -184,7 +181,7 @@ export default function MyClassAttendancePage() {
     const cell = getCell(studentId, date);
     const key = `${studentId}-${date}-${status}`;
     setSaving(key);
-    await supabase.rpc("edu_set_student_attendance", {
+    await supabase.rpc("edu_set_my_class_attendance", {
       p_student_id: studentId,
       p_dept_id:    deptId,
       p_date:       date,

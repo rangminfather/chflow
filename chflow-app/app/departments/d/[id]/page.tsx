@@ -11,7 +11,7 @@ import {
   Megaphone, CalendarDays, Newspaper, GraduationCap, ClipboardCheck, ClipboardList,
   Medal, Users, Inbox, BookText, CalendarPlus, BookOpen, FileText, BarChart3,
   TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks, FileSearch,
-  Settings, Award, Lock, CircleHelp, Construction, Smile,
+  Settings, Award, Lock, CircleHelp, Construction,
 } from "lucide-react";
 
 interface DeptInfo {
@@ -52,6 +52,8 @@ interface MenuCategory {
   items: MenuItem[];
   /** 일부 부서만 표시 (없으면 모두) */
   onlyForDept?: string;
+  /** 실제 학생 담임 배정이 있는 사용자에게만 표시 */
+  requiresHomeroom?: boolean;
 }
 
 const MENU_CATEGORIES: MenuCategory[] = [
@@ -65,20 +67,21 @@ const MENU_CATEGORIES: MenuCategory[] = [
       { id: "notices/board", label: "공지 게시판", icon: Megaphone, desc: "부서 공지·알림", color: "#4A7B96", implemented: true },
       { id: "monthly-plan", label: "월간 교육계획서", icon: CalendarDays, desc: "월간 교육계획 파일 조회", color: "var(--accent)", implemented: true },
       { id: "bulletin", label: "주보 보기", icon: Newspaper, desc: "초등1부 주보 열람", color: "#3E7D74", implemented: true, onlyForDept: "초등1부" },
+      { id: "review-problems", label: "복습문제 보기", icon: BookOpen, desc: "등록된 복습문제 PPT 보기", color: "#6B4F8C", implemented: true, onlyForDept: "초등1부" },
     ],
   },
   {
     id: "students",
-    label: "학생관리",
+    label: "담임메뉴",
     icon: GraduationCap,
     maxGrade: 3,
     desc: "출결 / 달란트 / 우리반 정보",
     onlyForDept: "초등1부",
+    requiresHomeroom: true,
     items: [
       { id: "my-class-attendance", label: "내 반 출결", icon: ClipboardCheck, desc: "내 담당 반 학생 출석 체크", color: "var(--success)", implemented: true },
       { id: "talent", label: "달란트통장", icon: Medal, desc: "달란트 적립 · 누적 합계", color: "var(--accent-muted)", implemented: true },
       { id: "my-class", label: "우리반 아이 정보", icon: Users, desc: "담당 반 학생 정보", color: "var(--warning)", implemented: true },
-      { id: "review-problems", label: "복습문제 보기", icon: BookOpen, desc: "등록된 복습문제 PPT 보기", color: "#6B4F8C", implemented: true },
     ],
   },
   {
@@ -130,6 +133,7 @@ export default function DepartmentDetailPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [dept, setDept] = useState<DeptInfo | null>(null);
   const [myGrade, setMyGrade] = useState<number | null>(null);
+  const [hasHomeroom, setHasHomeroom] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
 
@@ -139,15 +143,33 @@ export default function DepartmentDetailPage() {
       if (!session) { router.replace("/login"); return; }
       setAuthChecked(true);
       setLoading(true);
-      const [deptResp, gradeResp] = await Promise.all([
+      const [deptResp, gradeResp, teacherResp] = await Promise.all([
         supabase.rpc("get_department_info", { p_dept_id: deptId }),
         supabase.rpc("get_user_grade", { p_dept_id: deptId }),
+        supabase
+          .from("edu_teachers")
+          .select("id")
+          .eq("department_id", deptId)
+          .eq("user_id", session.user.id)
+          .eq("is_active", true)
+          .maybeSingle(),
       ]);
       if (!deptResp.error && deptResp.data && deptResp.data.length > 0) {
         setDept(deptResp.data[0]);
       }
       if (!gradeResp.error && gradeResp.data !== null && gradeResp.data !== undefined) {
         setMyGrade(typeof gradeResp.data === "number" ? gradeResp.data : Number(gradeResp.data));
+      }
+      if (teacherResp.data?.id) {
+        const { count } = await supabase
+          .from("edu_students")
+          .select("id", { count: "exact", head: true })
+          .eq("department_id", deptId)
+          .eq("teacher_id", teacherResp.data.id)
+          .eq("is_active", true);
+        setHasHomeroom((count ?? 0) > 0);
+      } else {
+        setHasHomeroom(false);
       }
       setLoading(false);
     })();
@@ -216,6 +238,7 @@ export default function DepartmentDetailPage() {
   // 카테고리별 표시 여부 결정
   // item.onlyForDept !== undefined 면 item 값 우선 (null = 모든 부서), 없으면 cat.onlyForDept 상속
   const visibleCategories = MENU_CATEGORIES.filter((cat) => {
+    if (cat.requiresHomeroom && !hasHomeroom) return false;
     return cat.items.some((item) => {
       const deptFilter = item.onlyForDept !== undefined ? item.onlyForDept : cat.onlyForDept;
       if (deptFilter && deptFilter !== dept.name) return false;
