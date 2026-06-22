@@ -10,7 +10,7 @@ import { Megaphone, Pin, PinOff, Trash2, FileText, Download, AlertTriangle, X, S
 
 type Att = { id: string; file_path: string; file_name: string; mime_type: string | null; size_bytes: number | null };
 type Person = { id: string; name: string | null; sub_role: string | null };
-type Comment = { id: string; body: string; is_mine: boolean; created_at: string; author: Person; attachments: Att[] };
+type Comment = { id: string; parent_comment_id: string | null; body: string; is_mine: boolean; can_delete: boolean; created_at: string; author: Person; attachments: Att[] };
 type Notice = {
   id: string; notice_no: number; department_id: string; title: string; body: string;
   is_pinned: boolean; is_mine: boolean; my_grade: number;
@@ -55,6 +55,10 @@ export default function DeptNoticeDetailPage() {
   const [reply, setReply] = useState("");
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [posting, setPosting] = useState(false);
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [nestedReply, setNestedReply] = useState("");
+  const [postingNestedReply, setPostingNestedReply] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
@@ -160,6 +164,42 @@ export default function DeptNoticeDetailPage() {
     await load();
   }
 
+  async function submitNestedReply(e: React.FormEvent, parentCommentId: string) {
+    e.preventDefault();
+    setError("");
+    if (!nestedReply.trim()) return setError("대댓글 내용을 입력하세요");
+    setPostingNestedReply(true);
+    const { error: rpcErr } = await supabase.rpc("add_dept_notice_comment", {
+      p_notice_id: noticeId,
+      p_body: nestedReply.trim(),
+      p_attachments: [],
+      p_parent_comment_id: parentCommentId,
+    });
+    setPostingNestedReply(false);
+    if (rpcErr) { setError(`대댓글 등록 실패: ${rpcErr.message}`); return; }
+    setNestedReply("");
+    setReplyingToId(null);
+    await load();
+  }
+
+  async function removeComment(commentId: string) {
+    const reason = window.prompt("삭제 사유를 입력하세요. (선택사항, 취소를 누르면 삭제하지 않습니다)", "");
+    if (reason === null) return;
+    setError("");
+    setDeletingCommentId(commentId);
+    const { error: rpcErr } = await supabase.rpc("delete_dept_notice_comment", {
+      p_comment_id: commentId,
+      p_reason: reason.trim() || null,
+    });
+    setDeletingCommentId(null);
+    if (rpcErr) { setError(`댓글 삭제 실패: ${rpcErr.message}`); return; }
+    if (replyingToId === commentId) {
+      setReplyingToId(null);
+      setNestedReply("");
+    }
+    await load();
+  }
+
   async function togglePin() {
     if (!notice) return;
     const { error: e } = await supabase.rpc("toggle_dept_notice_pin", { p_notice_id: noticeId, p_pinned: !notice.is_pinned });
@@ -238,8 +278,9 @@ export default function DeptNoticeDetailPage() {
               <div className="flex flex-col gap-2">
                 {notice.comments.length === 0 ? (
                   <div className="rounded-lg border border-hairline bg-white px-4 py-6 text-center text-[14px] text-ink-faint">첫 답글을 남겨보세요.</div>
-                ) : notice.comments.map((c) => (
-                  <div key={c.id} className="rounded-lg border border-hairline bg-white p-4">
+                ) : notice.comments.filter((comment) => !comment.parent_comment_id).map((c) => (
+                  <div key={c.id}>
+                  <div className="rounded-lg border border-hairline bg-white p-4">
                     <div className="flex flex-wrap items-center gap-x-2 text-[13px] font-semibold text-ink-soft">
                       <span className="text-ink-mid">{c.author.name || "멤버"}</span>
                       {c.author.sub_role && <span className="text-ink-faint">· {c.author.sub_role}</span>}
@@ -250,6 +291,57 @@ export default function DeptNoticeDetailPage() {
                     {c.attachments.length > 0 && (
                       <div className="mt-3"><AttachmentList atts={c.attachments} signed={signed} /></div>
                     )}
+                    <div className="mt-2 flex justify-end gap-1.5">
+                      {notice.can_reply && (
+                        <button type="button" onClick={() => {
+                          setReplyingToId(replyingToId === c.id ? null : c.id);
+                          setNestedReply("");
+                        }} className="rounded-md border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-ink-soft hover:bg-surface">
+                          ↳ 답글
+                        </button>
+                      )}
+                      {c.can_delete && (
+                        <button type="button" disabled={deletingCommentId === c.id} onClick={() => removeComment(c.id)}
+                          className="inline-flex items-center gap-1 rounded-md border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-danger hover:bg-danger-soft">
+                          <Trash2 size={13} strokeWidth={1.8} /> {deletingCommentId === c.id ? "삭제 중" : "삭제"}
+                        </button>
+                      )}
+                    </div>
+                    {replyingToId === c.id && (
+                      <form onSubmit={(e) => submitNestedReply(e, c.id)} className="mt-3 border-t border-hairline pt-3">
+                        <textarea value={nestedReply} onChange={(e) => setNestedReply(e.target.value)} rows={2}
+                          placeholder={`${c.author.name || "작성자"}님에게 답글`} style={inputStyle} />
+                        <div className="mt-2 flex justify-end gap-2">
+                          <button type="button" onClick={() => { setReplyingToId(null); setNestedReply(""); }}
+                            className="rounded-md border border-hairline px-3 py-2 text-[12px] font-bold text-ink-soft">취소</button>
+                          <button type="submit" disabled={postingNestedReply}
+                            className="rounded-md px-3 py-2 text-[12px] font-bold text-white" style={{ background: "var(--accent)", opacity: postingNestedReply ? 0.6 : 1 }}>
+                            {postingNestedReply ? "등록 중" : "대댓글 등록"}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                  {notice.comments.filter((child) => child.parent_comment_id === c.id).map((child) => (
+                    <div key={child.id} className="ml-5 mt-2 rounded-lg border border-hairline border-l-[3px] border-l-accent-line bg-surface p-4">
+                      <div className="flex flex-wrap items-center gap-x-2 text-[13px] font-semibold text-ink-soft">
+                        <span className="text-ink-faint">↳</span>
+                        <span className="text-ink-mid">{child.author.name || "멤버"}</span>
+                        {child.author.sub_role && <span className="text-ink-faint">· {child.author.sub_role}</span>}
+                        <span className="text-ink-faint">· {fmtDateTime(child.created_at)}</span>
+                        {child.is_mine && <span className="rounded px-1.5 py-0.5 text-[11px] font-bold text-accent" style={{ background: "var(--accent-soft)" }}>내 대댓글</span>}
+                      </div>
+                      <div className="mt-1.5 whitespace-pre-wrap break-words text-[14px] leading-7 text-ink">{child.body}</div>
+                      {child.can_delete && (
+                        <div className="mt-2 flex justify-end">
+                          <button type="button" disabled={deletingCommentId === child.id} onClick={() => removeComment(child.id)}
+                            className="inline-flex items-center gap-1 rounded-md border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-danger hover:bg-danger-soft">
+                            <Trash2 size={13} strokeWidth={1.8} /> {deletingCommentId === child.id ? "삭제 중" : "삭제"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                   </div>
                 ))}
               </div>
