@@ -143,7 +143,7 @@ export default function TeacherAttendancePage() {
         <HeaderLogo />
         <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><UserCheck size={18} strokeWidth={1.8} /> 선생임 (교사출석부)</div>
-        <button onClick={() => setShowAddForm(!showAddForm)} style={addBtnStyle}>+ 교사 추가</button>
+        <button className="app-header-actions" onClick={() => setShowAddForm(!showAddForm)} style={addBtnStyle}>+ 교사 추가</button>
       </div>
 
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16 }}>

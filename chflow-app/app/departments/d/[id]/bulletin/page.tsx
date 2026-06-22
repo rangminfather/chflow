@@ -136,14 +136,16 @@ export default function DepartmentBulletinPage() {
               )}
             </div>
           </div>
-          {items.length > 0 && (
-            <button type="button" onClick={() => setShowList((v) => !v)} aria-label="주보 목록" style={iconButtonStyle}>
-              <List size={19} strokeWidth={1.8} />
+          <div className="app-header-actions">
+            {items.length > 0 && (
+              <button type="button" onClick={() => setShowList((v) => !v)} aria-label="주보 목록" style={iconButtonStyle}>
+                <List size={19} strokeWidth={1.8} />
+              </button>
+            )}
+            <button type="button" onClick={refresh} aria-label="새로고침" disabled={refreshing} style={iconButtonStyle}>
+              <RefreshCw size={19} strokeWidth={1.8} style={{ transform: refreshing ? "rotate(28deg)" : undefined }} />
             </button>
-          )}
-          <button type="button" onClick={refresh} aria-label="새로고침" disabled={refreshing} style={iconButtonStyle}>
-            <RefreshCw size={19} strokeWidth={1.8} style={{ transform: refreshing ? "rotate(28deg)" : undefined }} />
-          </button>
+          </div>
         </header>
 
         {error ? (

@@ -157,6 +157,7 @@ export default function MonthlyPlanPage() {
         </div>
         {groups.length > 1 && (
           <button
+            className="app-header-actions"
             onClick={() => setShowList((v) => !v)}
             style={{ padding: "7px 12px", background: showList ? "var(--accent-soft)" : "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 13, color: showList ? "var(--accent)" : "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5, fontWeight: 600 }}
           >

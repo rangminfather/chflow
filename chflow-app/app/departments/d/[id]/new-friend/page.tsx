@@ -171,7 +171,7 @@ export default function NewFriendPage() {
         <HeaderLogo />
         <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Sparkles size={18} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 새친구 등록카드</div>
-        <button onClick={newFriend} style={addBtnStyle}>+ 새 등록</button>
+        <button className="app-header-actions" onClick={newFriend} style={addBtnStyle}>+ 새 등록</button>
       </div>
 
       <div className="mx-auto grid max-w-[1200px] gap-4 p-4 md:grid-cols-[260px_1fr]">
