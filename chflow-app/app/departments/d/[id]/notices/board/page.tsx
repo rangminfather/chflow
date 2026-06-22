@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Megaphone, Pin, MessageSquare, Paperclip, PencilLine } from "lucide-react";
+import { Megaphone, Pin, MessageSquare, Paperclip, PencilLine, ChevronRight } from "lucide-react";
 
 type NoticeRow = {
   id: string;
@@ -140,71 +140,84 @@ export default function NoticeBoardPage() {
             </div>
           </div>
 
-          <div className="p-3 sm:p-4">
-            {loading ? (
-              <LoadingView padding={48} />
-            ) : error ? (
-              <EmptyState message="목록을 불러오지 못했습니다" hint={error} padding={48} />
-            ) : items.length === 0 ? (
+          {loading ? (
+            <div className="p-3 sm:p-4"><LoadingView padding={48} /></div>
+          ) : error ? (
+            <div className="p-3 sm:p-4"><EmptyState message="목록을 불러오지 못했습니다" hint={error} padding={48} /></div>
+          ) : items.length === 0 ? (
+            <div className="p-3 sm:p-4">
               <EmptyState
                 icon={<Megaphone size={28} strokeWidth={1.6} />}
                 message="아직 등록된 공지가 없습니다"
                 hint={canWrite ? "첫 공지를 작성해보세요." : undefined}
                 padding={56}
               />
-            ) : (
-              <ul className="flex flex-col gap-2">
+            </div>
+          ) : (
+            <>
+              {/* 목록 헤더 (넓은 화면에서만) */}
+              <div className="hidden border-b border-hairline px-4 py-2.5 text-[12px] font-semibold text-ink-faint sm:flex sm:items-center sm:gap-3">
+                <span className="w-10 shrink-0 text-center">번호</span>
+                <span className="flex-1">제목</span>
+                <span className="shrink-0 pr-7">작성자 · 작성일</span>
+              </div>
+
+              <ul>
                 {items.map((n) => (
-                  <li key={n.id}>
+                  <li key={n.id} className="border-b border-hairline last:border-b-0">
                     <button
                       type="button"
                       onClick={() => router.push(`/departments/d/${deptId}/notices/board/${n.id}`)}
-                      className="flex w-full items-center gap-3 rounded-lg border border-hairline bg-surface px-4 py-3 text-left transition-colors hover:border-accent-line"
+                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-surface sm:px-4"
                     >
-                      <span className="w-9 shrink-0 text-right text-[13px] font-bold tabular-nums text-ink-faint">
+                      <span className="w-9 shrink-0 text-center text-[13px] font-semibold tabular-nums text-ink-faint sm:w-10">
                         {n.notice_no}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[16px] font-bold text-ink">
+                        <div className="flex items-center gap-1.5">
                           {n.is_pinned && (
-                            <Pin size={14} strokeWidth={2} fill="currentColor" className="mr-1 inline align-[-2px] text-accent" />
+                            <Pin size={13} strokeWidth={2} fill="currentColor" className="shrink-0 text-accent" />
                           )}
-                          {n.title}
+                          <span className="truncate text-[15px] font-bold text-ink">{n.title}</span>
                         </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-semibold text-ink-soft">
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12.5px] font-medium text-ink-soft">
                           <span>{n.author_name || "작성자"}</span>
                           {n.author_sub_role && <span className="text-ink-faint">· {n.author_sub_role}</span>}
                           <span className="text-ink-faint">· {formatDate(n.created_at)}</span>
-                          {n.is_mine && <span className="rounded px-1.5 py-0.5 text-[11px] font-bold text-accent" style={{ background: "var(--accent-soft)" }}>내 글</span>}
+                          {n.attachment_count > 0 && (
+                            <span className="inline-flex items-center gap-0.5 text-ink-faint"><Paperclip size={12} strokeWidth={2} />{n.attachment_count}</span>
+                          )}
+                          {n.comment_count > 0 && (
+                            <span className="inline-flex items-center gap-0.5 text-ink-faint"><MessageSquare size={12} strokeWidth={2} />{n.comment_count}</span>
+                          )}
                         </div>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2.5 text-[13px] font-semibold text-ink-soft">
-                        {n.attachment_count > 0 && (
-                          <span className="inline-flex items-center gap-0.5"><Paperclip size={13} strokeWidth={2} />{n.attachment_count}</span>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {n.is_mine && (
+                          <span className="rounded-full px-2 py-0.5 text-[11px] font-bold text-accent" style={{ background: "var(--accent-soft)" }}>내 글</span>
                         )}
-                        {n.comment_count > 0 && (
-                          <span className="inline-flex items-center gap-0.5"><MessageSquare size={13} strokeWidth={2} />{n.comment_count}</span>
-                        )}
+                        <ChevronRight size={16} strokeWidth={2} className="text-ink-faint" />
                       </div>
                     </button>
                   </li>
                 ))}
               </ul>
-            )}
-            {!loading && !error && hasMore && (
-              <div className="mt-3 flex justify-center">
-                <button
-                  type="button"
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="rounded-lg border border-hairline px-5 py-2.5 text-[14px] font-bold text-ink-soft transition-colors hover:border-accent-line disabled:opacity-60"
-                  style={{ background: "var(--surface)" }}
-                >
-                  {loadingMore ? "불러오는 중…" : "더보기"}
-                </button>
-              </div>
-            )}
-          </div>
+
+              {hasMore && (
+                <div className="flex justify-center px-3 py-3 sm:px-4">
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="rounded-lg border border-hairline px-5 py-2.5 text-[14px] font-bold text-ink-soft transition-colors hover:border-accent-line disabled:opacity-60"
+                    style={{ background: "var(--surface)" }}
+                  >
+                    {loadingMore ? "불러오는 중…" : "더보기"}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </section>
       </main>
     </div>
