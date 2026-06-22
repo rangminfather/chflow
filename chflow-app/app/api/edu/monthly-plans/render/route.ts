@@ -37,39 +37,33 @@ function parseRange(ref: string) {
   return { left: col(m[1]), top: Number(m[2]), right: col(m[3]), bottom: Number(m[4]) };
 }
 
-export async function GET(req: NextRequest) {
-  const path = req.nextUrl.searchParams.get("path") || "";
-  if (!path.endsWith(".xlsx")) {
-    return NextResponse.json({ error: "지원하지 않는 형식" }, { status: 400 });
-  }
-  const deptId = path.split("/")[0];
-
-  // 인증 + 부서 접근 권한
+// 인증 + 부서 접근 권한 확인 (grade ≤ 4 면 통과)
+async function checkAccess(req: NextRequest, deptId: string) {
   const token = tokenFrom(req);
-  if (!token) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+  if (!token) return { ok: false as const, status: 401, error: "Unauthenticated" };
   const userClient = createClient(SUPABASE_URL, ANON_KEY, {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const { data: authData, error: authErr } = await userClient.auth.getUser(token);
-  if (authErr || !authData.user) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+  if (authErr || !authData.user) return { ok: false as const, status: 401, error: "Invalid token" };
   const gradeResp = await userClient.rpc("get_user_grade", { p_dept_id: deptId });
   const grade = typeof gradeResp.data === "number" ? gradeResp.data : Number(gradeResp.data);
   if (!Number.isFinite(grade) || grade > 4) {
-    return NextResponse.json({ error: "부서 접근 권한이 없습니다" }, { status: 403 });
+    return { ok: false as const, status: 403, error: "부서 접근 권한이 없습니다" };
   }
+  return { ok: true as const, grade };
+}
 
-  // R2에서 파일 받아 파싱
-  const { data, error } = await r2.from("monthly-plans").getObject(path);
-  if (error || !data) return NextResponse.json({ error: "파일을 찾을 수 없습니다" }, { status: 404 });
-
+// xlsx 바이트 → 시트별 HTML 표 (병합 반영)
+async function renderXlsxHtml(bytes: unknown): Promise<string | null> {
   const wb = new Workbook();
   try {
     // exceljs 번들 타입의 Buffer 제네릭 충돌 회피 (런타임은 Node Buffer로 정상)
     const load = wb.xlsx.load.bind(wb.xlsx) as (d: unknown) => Promise<unknown>;
-    await load(data.body);
+    await load(bytes);
   } catch {
-    return NextResponse.json({ error: "엑셀 파싱 실패" }, { status: 422 });
+    return null;
   }
 
   const sheetsHtml: string[] = [];
@@ -110,6 +104,45 @@ export async function GET(req: NextRequest) {
     );
   });
 
-  const html = sheetsHtml.join("");
+  return sheetsHtml.join("");
+}
+
+// GET: R2에 저장된 파일 렌더 (조회 화면용)
+export async function GET(req: NextRequest) {
+  const path = req.nextUrl.searchParams.get("path") || "";
+  if (!path.endsWith(".xlsx")) {
+    return NextResponse.json({ error: "지원하지 않는 형식" }, { status: 400 });
+  }
+  const deptId = path.split("/")[0];
+
+  const access = await checkAccess(req, deptId);
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
+
+  const { data, error } = await r2.from("monthly-plans").getObject(path);
+  if (error || !data) return NextResponse.json({ error: "파일을 찾을 수 없습니다" }, { status: 404 });
+
+  const html = await renderXlsxHtml(data.body);
+  if (html === null) return NextResponse.json({ error: "엑셀 파싱 실패" }, { status: 422 });
+  return NextResponse.json({ ok: true, html });
+}
+
+// POST: 업로드 전 미리보기용 — 저장 없이 올린 파일 바이트를 바로 렌더
+export async function POST(req: NextRequest) {
+  const form = await req.formData();
+  const deptId = String(form.get("dept_id") || "");
+  const file = form.get("file");
+  if (!deptId || !(file instanceof File)) {
+    return NextResponse.json({ error: "필수값이 누락되었습니다" }, { status: 400 });
+  }
+  if (!file.name.toLowerCase().endsWith(".xlsx")) {
+    return NextResponse.json({ error: "지원하지 않는 형식" }, { status: 400 });
+  }
+
+  const access = await checkAccess(req, deptId);
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
+
+  const bytes = await file.arrayBuffer();
+  const html = await renderXlsxHtml(bytes);
+  if (html === null) return NextResponse.json({ error: "엑셀 파싱 실패" }, { status: 422 });
   return NextResponse.json({ ok: true, html });
 }

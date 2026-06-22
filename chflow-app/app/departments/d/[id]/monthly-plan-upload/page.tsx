@@ -1,78 +1,64 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Lock, CalendarDays } from "lucide-react";
+import { Lock, CalendarPlus, UploadCloud, Check, ChevronRight, Pencil } from "lucide-react";
+import PdfCanvasViewer from "@/components/PdfCanvasViewer";
+
+const ALLOWED_EXT = /\.(jpe?g|png|webp|gif|pdf|xlsx)$/i;
+const MAX_MB = 20;
+
+function isImageName(name: string) { return /\.(jpe?g|png|webp|gif)$/i.test(name); }
+function isPdfName(name: string) { return /\.pdf$/i.test(name); }
+function isXlsxName(name: string) { return /\.xlsx$/i.test(name); }
 
 export default function MonthlyPlanUploadPage() {
   const router = useRouter();
   const params = useParams();
   const deptId = params.id as string;
   const now = new Date();
+
   const [authChecked, setAuthChecked] = useState(false);
   const [grade, setGrade] = useState<number | null>(null);
+
+  // 마법사 상태
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [file, setFile] = useState<File | null>(null);
+  const [fileName, setFileName] = useState("");
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [title, setTitle] = useState("");
-  const [fileName, setFileName] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [titleTouched, setTitleTouched] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+
+  // 미리보기 상태
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null); // 이미지/PDF object URL
+  const [xlsxHtml, setXlsxHtml] = useState<string | null>(null);
+  const [previewErr, setPreviewErr] = useState("");
+
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const objectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.replace("/login");
-        return;
-      }
+      if (!session) { router.replace("/login"); return; }
       const gradeResp = await supabase.rpc("get_user_grade", { p_dept_id: deptId });
       setGrade(typeof gradeResp.data === "number" ? gradeResp.data : Number(gradeResp.data));
       setAuthChecked(true);
     })();
   }, [deptId, router]);
 
+  // object URL 정리
+  useEffect(() => () => {
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+  }, []);
+
   if (!authChecked) return <LoadingView full />;
-
-  async function handleUpload() {
-    if (!file) {
-      setMessage("파일을 선택하세요");
-      return;
-    }
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      router.replace("/login");
-      return;
-    }
-
-    const form = new FormData();
-    form.append("dept_id", deptId);
-    form.append("year", String(year));
-    form.append("month", String(month));
-    form.append("title", title);
-    form.append("file", file);
-
-    setSaving(true);
-    setMessage("");
-    const response = await fetch("/api/edu/monthly-plans", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${session.access_token}` },
-      body: form,
-    });
-    const result = await response.json();
-    setSaving(false);
-    if (!response.ok || !result.ok) {
-      setMessage(result.error || "등록 실패");
-      return;
-    }
-    setMessage("등록되었습니다");
-    setTitle("");
-    setFile(null);
-    setFileName("");
-  }
 
   if (grade === null || grade > 2) {
     return (
@@ -87,91 +73,316 @@ export default function MonthlyPlanUploadPage() {
     );
   }
 
+  const autoTitle = `${year}년 ${month}월 교육계획서`;
+  const effectiveTitle = titleTouched && title.trim() ? title.trim() : autoTitle;
+
+  function pickFile(next: File | null) {
+    if (!next) return;
+    if (!ALLOWED_EXT.test(next.name)) {
+      setMessage("이미지·PDF·엑셀(.xlsx)만 올릴 수 있습니다. 한글(.hwp)·구형 엑셀(.xls)은 PDF로 저장해 올려주세요.");
+      return;
+    }
+    if (next.size > MAX_MB * 1024 * 1024) {
+      setMessage(`파일 크기는 ${MAX_MB}MB 이하만 가능합니다.`);
+      return;
+    }
+    setMessage("");
+    setFile(next);
+    setFileName(next.name);
+  }
+
+  // Step 2 → 3: 미리보기 준비
+  async function goPreview() {
+    if (!file) return;
+    setPreviewErr("");
+    setXlsxHtml(null);
+
+    // 이전 object URL 정리
+    if (objectUrlRef.current) { URL.revokeObjectURL(objectUrlRef.current); objectUrlRef.current = null; }
+    setPreviewUrl(null);
+
+    if (isImageName(fileName) || isPdfName(fileName)) {
+      const url = URL.createObjectURL(file);
+      objectUrlRef.current = url;
+      setPreviewUrl(url);
+      setStep(3);
+      return;
+    }
+
+    if (isXlsxName(fileName)) {
+      setStep(3);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace("/login"); return; }
+      const form = new FormData();
+      form.append("dept_id", deptId);
+      form.append("file", file);
+      const res = await fetch("/api/edu/monthly-plans/render", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: form,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) { setPreviewErr(json.error || "표 변환 실패"); return; }
+      setXlsxHtml(json.html || "");
+      return;
+    }
+
+    setStep(3);
+  }
+
+  async function handleUpload() {
+    if (!file) { setMessage("파일을 선택하세요"); return; }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { router.replace("/login"); return; }
+
+    const form = new FormData();
+    form.append("dept_id", deptId);
+    form.append("year", String(year));
+    form.append("month", String(month));
+    form.append("title", effectiveTitle);
+    form.append("file", file);
+
+    setSaving(true);
+    setMessage("");
+    const response = await fetch("/api/edu/monthly-plans", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: form,
+    });
+    const result = await response.json();
+    setSaving(false);
+    if (!response.ok || !result.ok) { setMessage(result.error || "등록 실패"); return; }
+
+    // 완료 → 조회 화면으로 이동
+    router.push(`/departments/d/${deptId}/monthly-plan`);
+  }
+
   return (
     <div style={pageStyle}>
       <PageHeader deptId={deptId} router={router} />
 
-      <main className="mx-auto w-full max-w-4xl px-4 py-5">
-        <section className="rounded-lg border border-hairline bg-white">
-          <div className="border-b border-hairline px-5 py-4">
-            <div className="text-[20px] font-extrabold text-ink">월간교육등록</div>
-            <div className="mt-1 text-[15px] font-semibold text-ink-soft">
-              월간 교육계획서를 등록하면 선생님들이 공지사항에서 조회하게 될 화면입니다.
-            </div>
-          </div>
+      <main className="mx-auto w-full max-w-3xl px-4 py-5">
+        <Stepper step={step} />
 
-          <div className="grid gap-4 p-5 md:grid-cols-2">
-            <div className="rounded-lg border border-hairline bg-surface p-4">
-              <div className="mb-3 text-[17px] font-extrabold text-ink">계획서 정보</div>
-              <label className="mb-3 block">
-                <div className="mb-1 text-[14px] font-bold text-ink-soft">연도</div>
-                <input type="number" value={year} onChange={(event) => setYear(Number(event.target.value))} className={inputClass} />
-              </label>
-              <label className="mb-3 block">
-                <div className="mb-1 text-[14px] font-bold text-ink-soft">월</div>
-                <select value={month} onChange={(event) => setMonth(Number(event.target.value))} className={inputClass}>
-                  {Array.from({ length: 12 }, (_, index) => index + 1).map((m) => (
-                    <option key={m} value={m}>{m}월</option>
-                  ))}
-                </select>
-              </label>
-              <label className="mb-3 block">
-                <div className="mb-1 text-[14px] font-bold text-ink-soft">제목</div>
-                <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="예: 6월 월간 교육계획서" className={inputClass} />
-              </label>
-              <label className="mb-3 block">
-                <div className="mb-1 text-[14px] font-bold text-ink-soft">파일</div>
-                <input
-                  type="file"
-                  accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.xlsx,image/*,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                  onChange={(event) => {
-                    const nextFile = event.target.files?.[0] || null;
-                    if (nextFile) {
-                      const ok = /\.(jpe?g|png|webp|gif|pdf|xlsx)$/i.test(nextFile.name);
-                      if (!ok) {
-                        setMessage("이미지·PDF·엑셀(.xlsx)만 올릴 수 있습니다. 한글(.hwp)·구형 엑셀(.xls)은 PDF로 저장해 올려주세요.");
-                        event.target.value = "";
-                        setFile(null);
-                        setFileName("");
-                        return;
-                      }
-                    }
-                    setMessage("");
-                    setFile(nextFile);
-                    setFileName(nextFile?.name || "");
-                  }}
-                  className="w-full rounded-md border border-hairline-strong bg-white px-3 py-3 text-[15px] font-bold text-ink-mid"
-                />
-              </label>
+        {/* ─────────── STEP 1: 업로드 ─────────── */}
+        {step === 1 && (
+          <section className="rounded-lg border border-hairline bg-white p-5">
+            <div className="text-[19px] font-extrabold text-ink">파일 올리기</div>
+            <div className="mt-1 text-[14px] font-semibold text-ink-soft">
+              월간 교육계획서 파일을 한 개 선택하세요.
             </div>
 
-            <div className="rounded-lg border border-accent-line bg-accent-soft p-4">
-              <div className="mb-3 text-[17px] font-extrabold text-accent-strong">등록 미리보기</div>
-              <div className="rounded-lg border border-accent-soft bg-white p-4">
-                <div className="text-[15px] font-bold text-ink-faint">{year}년 {month}월</div>
-                <div className="mt-1 text-[18px] font-extrabold text-ink">{title || "월간 교육계획서 제목"}</div>
-                <div className="mt-3 rounded-md border border-hairline bg-surface px-3 py-2 text-[15px] font-bold text-ink-soft">
-                  {fileName || "선택된 파일 없음"}
+            <label className="mt-4 flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-hairline-strong bg-surface px-4 py-10 text-center transition hover:border-accent-muted">
+              <UploadCloud size={32} strokeWidth={1.6} className="text-ink-faint" />
+              <div className="text-[15px] font-bold text-ink">
+                {fileName || "여기를 눌러 파일 선택"}
+              </div>
+              <input
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.xlsx,image/*,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                onChange={(e) => pickFile(e.target.files?.[0] || null)}
+              />
+            </label>
+
+            <div className="mt-4 rounded-md border border-hairline bg-surface px-4 py-3 text-[13px] leading-6 text-ink-soft">
+              <div className="font-bold text-ink-mid">올릴 수 있는 형식</div>
+              <div>· 이미지(JPG·PNG) — 캡처해서 올리면 가장 깔끔합니다</div>
+              <div>· PDF — 원본 그대로 보입니다</div>
+              <div>· 엑셀(.xlsx) — 표로 변환되어 보입니다</div>
+              <div className="mt-1 text-ink-faint">최대 {MAX_MB}MB · 한글(.hwp)·구형 엑셀(.xls)은 PDF로 저장해 올려주세요.</div>
+            </div>
+
+            {message && <div className="mt-3 text-center text-[14px] font-bold text-danger">{message}</div>}
+
+            <button
+              type="button"
+              onClick={() => { setMessage(""); setStep(2); }}
+              disabled={!file}
+              className="mt-5 min-h-12 w-full rounded-md bg-accent-strong text-[16px] font-extrabold text-white disabled:bg-hairline-strong"
+            >
+              다음
+            </button>
+          </section>
+        )}
+
+        {/* ─────────── STEP 2: 월 확인 ─────────── */}
+        {step === 2 && (
+          <section className="rounded-lg border border-hairline bg-white p-5">
+            <div className="text-[19px] font-extrabold text-ink">언제 것인가요?</div>
+            <div className="mt-1 text-[14px] font-semibold text-ink-soft">
+              어느 달 교육계획서로 등록할지 확인하세요.
+            </div>
+
+            <label className="mt-4 block">
+              <div className="mb-1 text-[14px] font-bold text-ink-soft">월</div>
+              <select value={month} onChange={(e) => setMonth(Number(e.target.value))} className={inputClass}>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>{m}월</option>
+                ))}
+              </select>
+            </label>
+
+            <div className="mt-3 rounded-md border border-accent-line bg-accent-soft px-4 py-3 text-[15px] font-bold text-accent-strong">
+              {effectiveTitle} 로 등록합니다
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowDetails((v) => !v)}
+              className="mt-3 inline-flex items-center gap-1 text-[13px] font-bold text-ink-soft"
+            >
+              <Pencil size={13} strokeWidth={2} /> 연도·제목 직접 수정
+            </button>
+
+            {showDetails && (
+              <div className="mt-2 grid gap-3 rounded-md border border-hairline bg-surface p-4">
+                <label className="block">
+                  <div className="mb-1 text-[13px] font-bold text-ink-soft">연도</div>
+                  <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} className={inputClass} />
+                </label>
+                <label className="block">
+                  <div className="mb-1 text-[13px] font-bold text-ink-soft">제목</div>
+                  <input
+                    value={titleTouched ? title : autoTitle}
+                    onChange={(e) => { setTitleTouched(true); setTitle(e.target.value); }}
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+            )}
+
+            <div className="mt-3 rounded-md border border-hairline bg-surface px-4 py-2 text-[13px] font-bold text-ink-faint">
+              파일: {fileName}
+            </div>
+
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="min-h-12 flex-1 rounded-md border border-hairline-strong bg-white text-[15px] font-bold text-ink-mid"
+              >
+                뒤로
+              </button>
+              <button
+                type="button"
+                onClick={goPreview}
+                className="min-h-12 flex-[2] rounded-md bg-accent-strong text-[16px] font-extrabold text-white"
+              >
+                다음
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* ─────────── STEP 3: 미리보기 + 확인 ─────────── */}
+        {step === 3 && (
+          <section className="rounded-lg border border-hairline bg-white p-5">
+            <div className="text-[19px] font-extrabold text-ink">이 화면이 맞습니까?</div>
+            <div className="mt-1 text-[14px] font-semibold text-ink-soft">
+              선생님들이 「월간 교육계획서」에서 보게 될 화면입니다.
+            </div>
+
+            <div className="mt-3 rounded-md border border-accent-line bg-accent-soft px-4 py-2 text-[14px] font-bold text-accent-strong">
+              {effectiveTitle}
+            </div>
+
+            <div className="mt-3">
+              {isImageName(fileName) && previewUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={previewUrl} alt={effectiveTitle} style={{ width: "100%", borderRadius: 12, display: "block", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }} />
+              )}
+              {isPdfName(fileName) && previewUrl && (
+                <div style={{ width: "100%", height: "70vh", borderRadius: 12, border: "1px solid var(--hairline)", overflow: "hidden", background: "var(--card)" }}>
+                  <PdfCanvasViewer key={previewUrl} url={previewUrl} fallbackUrl={previewUrl} />
                 </div>
-              </div>
-              <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[15px] leading-6 text-amber-900">
-                이미지·PDF·엑셀(.xlsx)만 가능. 한글은 PDF로 저장해 올려주세요.
-              </div>
+              )}
+              {isXlsxName(fileName) && (
+                <XlsxPreview html={xlsxHtml} err={previewErr} />
+              )}
+            </div>
+
+            {message && <div className="mt-3 text-center text-[14px] font-bold text-danger">{message}</div>}
+
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => router.push(`/departments/d/${deptId}`)}
+                className="min-h-12 flex-1 rounded-md border border-hairline-strong bg-white text-[15px] font-bold text-ink-mid"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                className="min-h-12 flex-1 rounded-md border border-hairline-strong bg-white text-[15px] font-bold text-ink-mid"
+              >
+                뒤로
+              </button>
               <button
                 type="button"
                 onClick={handleUpload}
-                disabled={saving || !file}
-                className="mt-4 min-h-12 w-full rounded-md bg-accent-strong text-[16px] font-extrabold text-white disabled:bg-hairline-strong"
+                disabled={saving}
+                className="min-h-12 flex-[2] rounded-md bg-accent-strong text-[16px] font-extrabold text-white disabled:bg-hairline-strong"
               >
-                {saving ? "등록 중..." : "등록"}
+                {saving ? "업로드 중..." : "업로드"}
               </button>
-              {message && (
-                <div className="mt-3 text-center text-[15px] font-extrabold text-ink-mid">{message}</div>
-              )}
             </div>
-          </div>
-        </section>
+          </section>
+        )}
       </main>
+    </div>
+  );
+}
+
+function XlsxPreview({ html, err }: { html: string | null; err: string }) {
+  if (err) return <div style={{ padding: 16, color: "var(--danger)", fontSize: 13 }}>{err}</div>;
+  if (html === null) return <div style={{ padding: 24, textAlign: "center", color: "var(--ink-faint)", fontSize: 13 }}>표 변환 중...</div>;
+  return (
+    <div style={{ overflowX: "auto", border: "1px solid var(--hairline)", borderRadius: 12, background: "var(--card)", padding: 12 }}>
+      <style>{`
+        .mp-sheet + .mp-sheet { margin-top: 18px; }
+        .mp-sheet-name { font-size: 12px; font-weight: 700; color: var(--ink-faint); margin-bottom: 6px; }
+        .mp-table { border-collapse: collapse; font-size: 12px; color: var(--ink); }
+        .mp-table td { border: 1px solid var(--hairline); padding: 4px 7px; white-space: nowrap; vertical-align: middle; }
+      `}</style>
+      <div dangerouslySetInnerHTML={{ __html: html }} />
+    </div>
+  );
+}
+
+function Stepper({ step }: { step: 1 | 2 | 3 }) {
+  const steps = [
+    { n: 1, label: "업로드" },
+    { n: 2, label: "월 확인" },
+    { n: 3, label: "미리보기" },
+  ];
+  return (
+    <div className="mb-4 flex items-center justify-center gap-1.5">
+      {steps.map((s, i) => {
+        const active = step === s.n;
+        const done = step > s.n;
+        return (
+          <div key={s.n} className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <span
+                className="flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-extrabold"
+                style={{
+                  background: active ? "var(--accent-strong)" : done ? "var(--accent-soft)" : "var(--bg-soft)",
+                  color: active ? "#fff" : done ? "var(--accent-strong)" : "var(--ink-faint)",
+                  border: active || done ? "none" : "1px solid var(--hairline-strong)",
+                }}
+              >
+                {done ? <Check size={14} strokeWidth={2.5} /> : s.n}
+              </span>
+              <span className="text-[13px] font-bold" style={{ color: active ? "var(--ink)" : "var(--ink-faint)" }}>
+                {s.label}
+              </span>
+            </div>
+            {i < steps.length - 1 && <ChevronRight size={14} strokeWidth={2} className="text-ink-faint" />}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -181,7 +392,7 @@ function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typ
     <div className="app-subpage-header" style={headerStyle}>
       <HeaderLogo />
       <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
-      <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}><CalendarDays size={18} strokeWidth={1.8} /> 월간교육등록</div>
+      <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}><CalendarPlus size={18} strokeWidth={1.8} /> 월간교육등록</div>
       <div style={{ width: 80 }} />
     </div>
   );
