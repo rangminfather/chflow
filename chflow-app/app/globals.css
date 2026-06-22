@@ -949,3 +949,25 @@ input::placeholder {
     opacity: 1;
   }
 }
+/* 하위 화면 공통 헤더: 메인 홈 로고는 항상 왼쪽, 상위 메뉴 이동은 항상 오른쪽 */
+.app-subpage-header {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-subpage-header > .app-home-logo {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.app-subpage-header > .app-header-back {
+  grid-column: -1;
+  grid-row: 1;
+  justify-self: end;
+}
+
+.app-subpage-header > :empty {
+  display: none !important;
+}

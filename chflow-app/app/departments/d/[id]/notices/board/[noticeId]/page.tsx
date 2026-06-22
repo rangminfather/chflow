@@ -178,9 +178,9 @@ export default function DeptNoticeDetailPage() {
 
   return (
     <div style={pageStyle}>
-      <div style={headerStyle}>
+      <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
-        <button onClick={() => router.push(boardUrl)} style={backBtnStyle}>← 게시판</button>
+        <button className="app-header-back" onClick={() => router.push(boardUrl)} style={backBtnStyle}>← 게시판</button>
         <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
           <Megaphone size={18} strokeWidth={1.8} /> 공지
         </div>

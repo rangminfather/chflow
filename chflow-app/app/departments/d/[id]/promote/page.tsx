@@ -246,9 +246,9 @@ export default function PromotePage() {
   return (
     <div style={pageStyle}>
 
-      <div style={headerStyle}>
+      <div className="app-subpage-header" style={headerStyle}>
           <HeaderLogo />
-          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtn}>← 부서홈</button>
+          <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtn}>← 부서홈</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><GraduationCap size={18} strokeWidth={1.8} /> 진급 마법사</div>
         <div className="hidden md:block" style={{ width: 60 }} />
       </div>

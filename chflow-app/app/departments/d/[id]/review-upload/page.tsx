@@ -253,9 +253,9 @@ export default function ReviewUploadPage() {
 
 function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typeof useRouter> }) {
   return (
-    <div style={headerStyle}>
+    <div className="app-subpage-header" style={headerStyle}>
       <HeaderLogo />
-      <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+      <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
       <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}><BookOpen size={18} strokeWidth={1.8} /> 복습문제 관리</div>
       <div style={{ width: 80 }} />
     </div>

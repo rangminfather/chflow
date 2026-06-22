@@ -97,9 +97,9 @@ export default function NoticeBoardPage() {
 
   return (
     <div style={pageStyle}>
-      <div style={headerStyle}>
+      <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
-        <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
           <Megaphone size={18} strokeWidth={1.8} /> 공지 게시판
         </div>

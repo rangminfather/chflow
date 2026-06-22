@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
+import HeaderLogo from "@/components/HeaderLogo";
 import { AlertTriangle, FileText, X } from "lucide-react";
 
 type Attachment = {
@@ -158,12 +159,12 @@ export default function NewDeptNoticePage() {
 
   return (
     <div style={pageStyle}>
+      <div className="app-subpage-header" style={{ maxWidth: 640, margin: "0 auto 14px", background: "var(--card)", borderRadius: 14, padding: "10px 14px" }}>
+        <HeaderLogo />
+        <div style={{ minWidth: 0, fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>공지 작성</div>
+        <button className="app-header-back" onClick={() => router.replace(boardUrl)} style={{ ...backBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}>← 게시판</button>
+      </div>
       <div style={cardStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-          <button onClick={() => router.replace(boardUrl)} style={backBtnStyle}>←</button>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>공지 작성</div>
-        </div>
-
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 12 }}>
             <label style={labelStyle}>제목 *</label>

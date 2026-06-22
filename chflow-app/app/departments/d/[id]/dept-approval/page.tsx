@@ -115,17 +115,16 @@ export default function DeptApprovalPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-soft)", paddingBottom: 60, fontFamily: "'Noto Sans KR', sans-serif" }}>
-      <HeaderLogo />
+      <div className="app-subpage-header" style={{ background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)" }}>
+        <HeaderLogo />
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}><Inbox size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 사역 가입 승인</h1>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{deptName}</div>
+        </div>
+        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={btnGhost}>← 부서홈</button>
+      </div>
 
       <div style={{ maxWidth: 800, margin: "0 auto", padding: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={btnGhost}>←</button>
-          <div>
-            <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}><Inbox size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 사역 가입 승인</h1>
-            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{deptName}</div>
-          </div>
-        </div>
-
         <div style={{ background: "var(--warning-soft)", border: "1px solid #E0C893", borderRadius: 8, padding: 12, fontSize: 12, color: "var(--warning)", marginBottom: 16, lineHeight: 1.6 }}>
           <AlertTriangle size={14} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> 본 부서로 가입 신청한 사용자만 표시됩니다. 승인 시 등급(권한)을 선택할 수 있고, 추후 <strong>부서원 등급 관리</strong>에서 수정 가능합니다.
         </div>

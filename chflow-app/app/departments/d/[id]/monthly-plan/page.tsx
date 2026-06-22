@@ -149,9 +149,9 @@ export default function MonthlyPlanPage() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
       {/* 헤더 */}
-      <div style={{ background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", gap: 8 }}>
+      <div className="app-subpage-header" style={{ background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", gap: 8 }}>
         <HeaderLogo />
-        <button onClick={() => router.push(`/departments/d/${deptId}`)} style={{ padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={{ padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>← 부서홈</button>
         <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 6 }}>
           <CalendarDays size={17} strokeWidth={1.8} /> 월간 교육계획서
         </div>

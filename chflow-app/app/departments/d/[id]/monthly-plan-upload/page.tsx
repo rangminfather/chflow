@@ -178,9 +178,9 @@ export default function MonthlyPlanUploadPage() {
 
 function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typeof useRouter> }) {
   return (
-    <div style={headerStyle}>
+    <div className="app-subpage-header" style={headerStyle}>
       <HeaderLogo />
-      <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+      <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
       <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}><CalendarDays size={18} strokeWidth={1.8} /> 월간교육등록</div>
       <div style={{ width: 80 }} />
     </div>

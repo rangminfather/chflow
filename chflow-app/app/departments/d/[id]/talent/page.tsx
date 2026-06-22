@@ -462,9 +462,9 @@ export default function TalentPage() {
   if (!myTeacherId) {
     return (
       <div style={pageStyle}>
-        <div style={headerStyle}>
+        <div className="app-subpage-header" style={headerStyle}>
           <HeaderLogo />
-          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+          <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
           <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}><Medal size={18} strokeWidth={1.8} /> 달란트통장</div>
           <div className="hidden md:block" style={{ width: 80 }} />
         </div>
@@ -492,9 +492,9 @@ export default function TalentPage() {
         .student-card:hover .kid-avatar { transform: scale(1.06); }
       `}</style>
 
-      <div style={headerStyle}>
+      <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
-        <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
           <Medal size={18} strokeWidth={1.8} /> 달란트통장 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
         </div>
