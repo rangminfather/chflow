@@ -64,6 +64,9 @@ export async function loginWithUsername(username: string, password: string): Pro
   if (error || !data.user) {
     throw new AuthError(error?.message || "세션 설정에 실패했습니다");
   }
+  // Realtime 소켓에 토큰을 명시적으로 세팅 — 구독 전 인증 보장(RLS가 이벤트를 전달하려면 필요).
+  // (검증: setAuth 누락 시 참여자도 postgres_changes 미수신 — race 방지)
+  void supabase.realtime.setAuth(json.session.access_token);
   return data.user;
 }
 
@@ -72,6 +75,10 @@ export async function restoreSession(): Promise<Session | null> {
   if (error) {
     console.error("[auth] 세션 복원 실패:", error);
     return null;
+  }
+  // 복원된 세션이 있으면 Realtime 소켓에도 토큰 반영(구독 전 인증 보장).
+  if (data.session) {
+    void supabase.realtime.setAuth(data.session.access_token);
   }
   return data.session;
 }
