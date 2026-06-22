@@ -338,11 +338,13 @@ export default function NotificationBell({
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "var(--app-serif)", fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>
                   <Bell size={16} strokeWidth={1.75} color="var(--accent)" /> {placement === "dock" ? "알림 센터" : "알림"}
+                  {placement === "dock" && (
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-faint)" }}>
+                      ({notifications.length}건)
+                    </span>
+                  )}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>
-                    {unreadCount > 0 ? `안읽음 ${unreadCount}` : `${notifications.length}건`}
-                  </span>
                   {notifications.length > 0 && (
                     <button
                       onClick={handleDeleteAll}
@@ -350,6 +352,20 @@ export default function NotificationBell({
                     >
                       전체삭제
                     </button>
+                  )}
+                  {placement === "dock" ? (
+                    <button
+                      onClick={() => setOpen(false)}
+                      aria-label="알림 센터 닫기"
+                      title="닫기"
+                      style={{ width: 26, height: 26, borderRadius: 7, background: "none", border: "none", cursor: "pointer", color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                    >
+                      <X size={16} strokeWidth={2.2} />
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>
+                      {unreadCount > 0 ? `안읽음 ${unreadCount}` : `${notifications.length}건`}
+                    </span>
                   )}
                 </div>
               </div>
