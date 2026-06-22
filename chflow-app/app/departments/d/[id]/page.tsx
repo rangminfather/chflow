@@ -59,14 +59,14 @@ interface MenuCategory {
 const MENU_CATEGORIES: MenuCategory[] = [
   {
     id: "notices",
-    label: "공통",
+    label: "공통메뉴",
     icon: Megaphone,
     maxGrade: 4,
     desc: "부서 공통 자료 / 공지 / 주보",
     items: [
       { id: "notices/board", label: "공지 게시판", icon: Megaphone, desc: "부서 공지·알림", color: "#4A7B96", implemented: true },
       { id: "monthly-plan", label: "월간 교육계획서", icon: CalendarDays, desc: "월간 교육계획 파일 조회", color: "var(--accent)", implemented: true },
-      { id: "bulletin", label: "주보 보기", icon: Newspaper, desc: "초등1부 주보 열람", color: "#3E7D74", implemented: true, onlyForDept: "초등1부" },
+      { id: "bulletin", label: "{dept} 주보보기", icon: Newspaper, desc: "초등1부 주보 열람", color: "#3E7D74", implemented: true, onlyForDept: "초등1부" },
       { id: "review-problems", label: "복습문제 보기", icon: BookOpen, desc: "등록된 복습문제 PPT 보기", color: "#6B4F8C", implemented: true, onlyForDept: "초등1부" },
     ],
   },
@@ -335,9 +335,12 @@ export default function DepartmentDetailPage() {
                   const deptFilter = item.onlyForDept !== undefined ? item.onlyForDept : cat.onlyForDept;
                   return (!deptFilter || deptFilter === dept.name) && grade <= (item.maxGrade ?? cat.maxGrade);
                 })
-                .map((item) => (
-                  <MenuCard key={item.id} item={item} onClick={() => handleItemClick(item)} />
-                ))}
+                .map((item) => {
+                  const resolved = item.label.includes("{dept}")
+                    ? { ...item, label: item.label.replace("{dept}", dept.name) }
+                    : item;
+                  return <MenuCard key={item.id} item={resolved} onClick={() => handleItemClick(resolved)} />;
+                })}
             </div>
           </div>
         ))}
