@@ -12,7 +12,7 @@ type Att = { id: string; file_path: string; file_name: string; mime_type: string
 type Person = { id: string; name: string | null; sub_role: string | null };
 type Comment = { id: string; body: string; is_mine: boolean; created_at: string; author: Person; attachments: Att[] };
 type Notice = {
-  id: string; department_id: string; title: string; body: string;
+  id: string; notice_no: number; department_id: string; title: string; body: string;
   is_pinned: boolean; is_mine: boolean; my_grade: number;
   can_manage: boolean; can_reply: boolean;
   created_at: string; updated_at: string;
@@ -215,6 +215,7 @@ export default function DeptNoticeDetailPage() {
                 )}
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-x-2 text-[13px] font-semibold text-ink-soft">
+                <span className="tabular-nums text-ink-faint">#{notice.notice_no}</span>
                 <span className="text-ink-mid">{notice.author.name || "작성자"}</span>
                 {notice.author.sub_role && <span className="text-ink-faint">· {notice.author.sub_role}</span>}
                 <span className="text-ink-faint">· {fmtDateTime(notice.created_at)}</span>

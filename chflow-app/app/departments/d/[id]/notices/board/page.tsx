@@ -9,6 +9,7 @@ import { Megaphone, Pin, MessageSquare, Paperclip, PencilLine } from "lucide-rea
 
 type NoticeRow = {
   id: string;
+  notice_no: number;
   title: string;
   is_pinned: boolean;
   is_mine: boolean;
@@ -42,12 +43,15 @@ export default function NoticeBoardPage() {
   const [items, setItems] = useState<NoticeRow[]>([]);
   const [canWrite, setCanWrite] = useState(false);
   const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const yearOptions = Array.from({ length: currentYear - 2024 + 1 }, (_, i) => currentYear - i);
 
   const load = useCallback(async (year: number) => {
     setLoading(true);
     setError("");
+    setHasMore(false);
     const [{ data: notices, error: listErr }, { data: grade }] = await Promise.all([
       supabase.rpc("list_dept_notices", { p_department_id: deptId, p_limit: PAGE_SIZE, p_offset: 0, p_year: year }),
       supabase.rpc("get_user_grade", { p_dept_id: deptId }),
@@ -56,11 +60,26 @@ export default function NoticeBoardPage() {
       setError(listErr.message);
       setItems([]);
     } else {
-      setItems((notices as NoticeRow[]) || []);
+      const rows = (notices as NoticeRow[]) || [];
+      setItems(rows);
+      setHasMore(rows.length === PAGE_SIZE);
     }
     setCanWrite(typeof grade === "number" && grade <= 3);
     setLoading(false);
   }, [deptId]);
+
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    const { data, error: listErr } = await supabase.rpc("list_dept_notices", {
+      p_department_id: deptId, p_limit: PAGE_SIZE, p_offset: items.length, p_year: selectedYear,
+    });
+    if (!listErr) {
+      const rows = (data as NoticeRow[]) || [];
+      setItems((prev) => [...prev, ...rows]);
+      setHasMore(rows.length === PAGE_SIZE);
+    }
+    setLoadingMore(false);
+  }, [deptId, items.length, selectedYear]);
 
   useEffect(() => {
     (async () => {
@@ -142,13 +161,16 @@ export default function NoticeBoardPage() {
                       onClick={() => router.push(`/departments/d/${deptId}/notices/board/${n.id}`)}
                       className="flex w-full items-center gap-3 rounded-lg border border-hairline bg-surface px-4 py-3 text-left transition-colors hover:border-accent-line"
                     >
-                      {n.is_pinned && (
-                        <span className="shrink-0 text-accent" title="고정됨">
-                          <Pin size={16} strokeWidth={2} fill="currentColor" />
-                        </span>
-                      )}
+                      <span className="w-9 shrink-0 text-right text-[13px] font-bold tabular-nums text-ink-faint">
+                        {n.notice_no}
+                      </span>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[16px] font-bold text-ink">{n.title}</div>
+                        <div className="truncate text-[16px] font-bold text-ink">
+                          {n.is_pinned && (
+                            <Pin size={14} strokeWidth={2} fill="currentColor" className="mr-1 inline align-[-2px] text-accent" />
+                          )}
+                          {n.title}
+                        </div>
                         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-semibold text-ink-soft">
                           <span>{n.author_name || "작성자"}</span>
                           {n.author_sub_role && <span className="text-ink-faint">· {n.author_sub_role}</span>}
@@ -168,6 +190,19 @@ export default function NoticeBoardPage() {
                   </li>
                 ))}
               </ul>
+            )}
+            {!loading && !error && hasMore && (
+              <div className="mt-3 flex justify-center">
+                <button
+                  type="button"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="rounded-lg border border-hairline px-5 py-2.5 text-[14px] font-bold text-ink-soft transition-colors hover:border-accent-line disabled:opacity-60"
+                  style={{ background: "var(--surface)" }}
+                >
+                  {loadingMore ? "불러오는 중…" : "더보기"}
+                </button>
+              </div>
             )}
           </div>
         </section>
