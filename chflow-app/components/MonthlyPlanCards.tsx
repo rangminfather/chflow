@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, ChevronDown, Info, CalendarClock } from "lucide-react";
+import {
+  BookOpen, ChevronDown, Info, CalendarClock,
+  Mic, Speech, HandHeart, Music, Music2, Megaphone, Users,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 // render route(format=cards)가 돌려주는 구조와 동일
 export interface PlanWeek {
@@ -25,6 +29,15 @@ export interface CardsData {
   common: string[];
   months: MonthBucket[];
 }
+
+const ROLE_ICON: Record<string, LucideIcon> = {
+  사회: Mic,
+  설교: Speech,
+  기도: HandHeart,
+  주제찬양: Music,
+  안내: Megaphone,
+  율동: Music2,
+};
 
 // 한 달치 화면: 주일 카드(주요 내용) → 그 달 행사·안내 → 공통 안내(접기)
 export function PlanMonthView({ year, month, common, weeks, notes }: {
@@ -51,45 +64,61 @@ export function PlanMonthView({ year, month, common, weeks, notes }: {
 
 function WeekCard({ week }: { week: PlanWeek }) {
   return (
-    <div style={{ position: "relative", border: "1px solid var(--hairline)", borderLeft: "3px solid var(--accent)", borderRadius: 14, background: "var(--card)", padding: "13px 16px", boxShadow: "0 1px 4px color-mix(in srgb, var(--ink) 5%, transparent)" }}>
-      {/* 날짜 (보조 마커) */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-        <span style={{ fontSize: 13, fontWeight: 800, color: "var(--accent-strong)", letterSpacing: "0.01em" }}>
-          {week.date} <span style={{ color: "var(--ink-faint)", fontWeight: 700 }}>주일</span>
-        </span>
-        {week.verse && (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5, fontWeight: 700, color: "var(--accent)", background: "var(--accent-soft)", padding: "2px 8px", borderRadius: 99 }}>
-            <BookOpen size={11} strokeWidth={2.2} /> {week.verse}
+    <div
+      style={{
+        border: "1px solid var(--hairline)",
+        borderRadius: 16,
+        background: "var(--card)",
+        overflow: "hidden",
+        boxShadow: "0 1px 2px color-mix(in srgb, var(--ink) 4%, transparent), 0 6px 18px color-mix(in srgb, var(--ink) 5%, transparent)",
+      }}
+    >
+      <div style={{ padding: "15px 16px 14px" }}>
+        {/* 날짜 + 요절 */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 800, color: "var(--accent-strong)" }}>
+            <span style={{ width: 6, height: 6, borderRadius: 99, background: "var(--accent)" }} />
+            {week.date} <span style={{ color: "var(--ink-faint)", fontWeight: 700 }}>주일</span>
           </span>
+          {week.verse && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11.5, fontWeight: 700, color: "var(--accent)", background: "var(--accent-soft)", padding: "3px 9px", borderRadius: 99 }}>
+              <BookOpen size={11} strokeWidth={2.2} /> {week.verse}
+            </span>
+          )}
+        </div>
+
+        {/* 설교제목 — 히어로 */}
+        {week.title && (
+          <div style={{ marginTop: 8, fontSize: 17, fontWeight: 800, color: "var(--ink)", lineHeight: 1.36, letterSpacing: "-0.01em" }}>
+            {week.title}
+          </div>
+        )}
+        {week.scripture && (
+          <div style={{ marginTop: 3, fontSize: 12.5, fontWeight: 600, color: "var(--ink-soft)" }}>{week.scripture}</div>
+        )}
+
+        {/* 2부 특별활동 */}
+        {week.event && (
+          <div style={{ marginTop: 11, display: "flex", alignItems: "center", gap: 7, fontSize: 13.5, fontWeight: 700, color: "var(--ink-mid)" }}>
+            <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 800, color: "var(--accent)", background: "var(--accent-soft)", padding: "2px 7px", borderRadius: 6 }}>2부</span>
+            {week.event}
+          </div>
         )}
       </div>
 
-      {/* 설교제목 — 주요 내용(히어로) */}
-      {week.title && (
-        <div style={{ marginTop: 5, fontSize: 17, fontWeight: 800, color: "var(--ink)", lineHeight: 1.35, letterSpacing: "-0.01em" }}>
-          {week.title}
-        </div>
-      )}
-      {week.scripture && (
-        <div style={{ marginTop: 3, fontSize: 12.5, fontWeight: 600, color: "var(--ink-soft)" }}>{week.scripture}</div>
-      )}
-
-      {/* 2부 특별활동 — 한 일정의 핵심 활동 */}
-      {week.event && (
-        <div style={{ marginTop: 9, fontSize: 13.5, fontWeight: 700, color: "var(--ink-mid)" }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--accent)", background: "var(--accent-soft)", padding: "2px 7px", borderRadius: 6, marginRight: 6 }}>2부</span>
-          {week.event}
-        </div>
-      )}
-
-      {/* 역할 분담 — 보조 정보 */}
+      {/* 역할 분담 — 아이콘 칩 (하단 밴드) */}
       {week.roles.length > 0 && (
-        <div style={{ marginTop: 10, paddingTop: 9, borderTop: "1px dashed var(--hairline)", display: "flex", flexWrap: "wrap", gap: "4px 5px" }}>
-          {week.roles.map((r) => (
-            <span key={r.label} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "var(--ink-soft)", background: "var(--bg-soft)", padding: "2px 8px", borderRadius: 7 }}>
-              <span style={{ color: "var(--ink-faint)", fontWeight: 700 }}>{r.label}</span> {r.name}
-            </span>
-          ))}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "7px 8px", padding: "11px 16px", borderTop: "1px solid var(--hairline)", background: "color-mix(in srgb, var(--accent) 4%, var(--card))" }}>
+          {week.roles.map((r) => {
+            const Icon = ROLE_ICON[r.label] ?? Users;
+            return (
+              <span key={r.label} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "var(--ink-mid)" }}>
+                <Icon size={13} strokeWidth={2} color="var(--accent)" />
+                <span style={{ color: "var(--ink-faint)", fontWeight: 700 }}>{r.label}</span>
+                <span style={{ color: "var(--ink)" }}>{r.name}</span>
+              </span>
+            );
+          })}
         </div>
       )}
     </div>
