@@ -188,8 +188,8 @@ export default function VerseMemoryPage() {
         <section style={heroStyle}>
           <div>
             <div style={eyebrowStyle}>초등1부 · 공통게시판</div>
-            <h1 style={titleStyle}>월별 요절암송</h1>
-            <p style={descriptionStyle}>매월 요절암송 본문과 학습 자료를 확인할 수 있습니다.</p>
+            <h1 style={titleStyle}>요절암송</h1>
+            <p style={descriptionStyle}>월별 요절암송 보기</p>
           </div>
           {canWrite && (
             <button onClick={() => setFormOpen((open) => !open)} style={primaryButton}>
@@ -296,7 +296,7 @@ const heroStyle: React.CSSProperties = { display: "flex", alignItems: "center", 
 const eyebrowStyle: React.CSSProperties = { color: "var(--accent)", fontSize: 12, fontWeight: 800 };
 const titleStyle: React.CSSProperties = { margin: "5px 0 4px", fontSize: 24, fontWeight: 900 };
 const descriptionStyle: React.CSSProperties = { margin: 0, color: "var(--ink-soft)", fontSize: 13 };
-const primaryButton: React.CSSProperties = { minHeight: 40, border: 0, borderRadius: 9, padding: "0 15px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--accent)", color: "#fff", fontWeight: 800, cursor: "pointer", fontFamily: "inherit" };
+const primaryButton: React.CSSProperties = { minHeight: 40, border: 0, borderRadius: 9, padding: "0 15px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--accent)", color: "#fff", fontWeight: 800, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 };
 const formStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 13, padding: 20, marginBottom: 14, borderRadius: 12, background: "var(--card)", border: "1px solid var(--hairline)" };
 const formHeading: React.CSSProperties = { fontSize: 17, fontWeight: 850 };
 const formGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(150px, 0.38fr) minmax(220px, 1fr)", gap: 12 };
