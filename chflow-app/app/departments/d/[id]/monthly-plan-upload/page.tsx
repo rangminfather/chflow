@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Lock, CalendarPlus, UploadCloud, Check, ChevronRight, Pencil } from "lucide-react";
 import PdfCanvasViewer from "@/components/PdfCanvasViewer";
+import { PlanMonthView, type CardsData } from "@/components/MonthlyPlanCards";
 
 const ALLOWED_EXT = /\.(jpe?g|png|webp|gif|pdf|xlsx)$/i;
 const MAX_MB = 20;
@@ -38,6 +39,7 @@ export default function MonthlyPlanUploadPage() {
   // 미리보기 상태
   const [previewUrl, setPreviewUrl] = useState<string | null>(null); // 이미지/PDF object URL
   const [xlsxHtml, setXlsxHtml] = useState<string | null>(null);
+  const [cardData, setCardData] = useState<CardsData | null>(null);
   const [previewErr, setPreviewErr] = useState("");
 
   const [saving, setSaving] = useState(false);
@@ -103,6 +105,7 @@ export default function MonthlyPlanUploadPage() {
     if (!file) return;
     setPreviewErr("");
     setXlsxHtml(null);
+    setCardData(null);
 
     // 이전 object URL 정리
     if (objectUrlRef.current) { URL.revokeObjectURL(objectUrlRef.current); objectUrlRef.current = null; }
@@ -123,6 +126,8 @@ export default function MonthlyPlanUploadPage() {
       const form = new FormData();
       form.append("dept_id", deptId);
       form.append("file", file);
+      form.append("format", "cards");
+      form.append("year", String(year));
       const res = await fetch("/api/edu/monthly-plans/render", {
         method: "POST",
         headers: { Authorization: `Bearer ${session.access_token}` },
@@ -130,7 +135,11 @@ export default function MonthlyPlanUploadPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok) { setPreviewErr(json.error || "표 변환 실패"); return; }
-      setXlsxHtml(json.html || "");
+      if (json.template) {
+        setCardData({ year: json.year, common: json.common || [], months: json.months || [] });
+      } else {
+        setXlsxHtml(json.html || "");
+      }
       return;
     }
 
@@ -312,7 +321,7 @@ export default function MonthlyPlanUploadPage() {
                 </div>
               )}
               {isXlsxName(fileName) && (
-                <XlsxPreview html={xlsxHtml} err={previewErr} />
+                <XlsxPreview cardData={cardData} html={xlsxHtml} err={previewErr} />
               )}
             </div>
 
@@ -349,8 +358,33 @@ export default function MonthlyPlanUploadPage() {
   );
 }
 
-function XlsxPreview({ html, err }: { html: string | null; err: string }) {
+function XlsxPreview({ cardData, html, err }: { cardData: CardsData | null; html: string | null; err: string }) {
   if (err) return <div style={{ padding: 16, color: "var(--danger)", fontSize: 13 }}>{err}</div>;
+
+  // 카드 미리보기: 월별 섹션으로 전부 표출
+  if (cardData) {
+    if (cardData.months.length === 0) {
+      return <div style={{ padding: 24, textAlign: "center", color: "var(--ink-faint)", fontSize: 13 }}>표시할 주일 일정이 없습니다.</div>;
+    }
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        {cardData.months.map((m, i) => (
+          <div key={m.month}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>{cardData.year}년 {m.month}월</div>
+            <PlanMonthView
+              year={cardData.year}
+              month={m.month}
+              common={i === 0 ? cardData.common : []}
+              weeks={m.weeks}
+              notes={m.notes}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // 양식 불일치 폴백: 표 HTML
   if (html === null) return <div style={{ padding: 24, textAlign: "center", color: "var(--ink-faint)", fontSize: 13 }}>표 변환 중...</div>;
   return (
     <div style={{ overflowX: "auto", border: "1px solid var(--hairline)", borderRadius: 12, background: "var(--card)", padding: 12 }}>
