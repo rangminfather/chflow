@@ -1,5 +1,8 @@
 // GET /api/edu/monthly-plans/render?path={deptId}/{name}
-// .xlsx 파일을 exceljs로 파싱해 HTML 표로 반환 (인라인 표출용)
+// .xlsx 파일을 exceljs로 파싱.
+//  - format=cards: 초등1초원 양식(주일 = 행, 12열)을 월별 카드 데이터(JSON)로 반환.
+//                  양식이 안 맞으면 template:false + 표 HTML로 폴백.
+//  - 기본: 표 HTML(인라인 표출용) 반환 (legacy)
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Workbook } from "exceljs";
@@ -17,16 +20,20 @@ function tokenFrom(req: NextRequest) {
 }
 
 function esc(v: unknown): string {
+  return cellText(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// exceljs 셀 값 → 평문(줄바꿈 보존). rich text / hyperlink / formula 결과 처리.
+function cellText(v: unknown): string {
   if (v === null || v === undefined) return "";
-  let s: string;
   if (typeof v === "object") {
-    // exceljs rich text / hyperlink / formula 결과 등
     const o = v as Record<string, unknown>;
-    s = String(o.text ?? o.result ?? o.hyperlink ?? "");
-  } else {
-    s = String(v);
+    if (Array.isArray(o.richText)) {
+      return (o.richText as Array<{ text?: string }>).map((t) => t.text ?? "").join("");
+    }
+    return String(o.text ?? o.result ?? o.hyperlink ?? "");
   }
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return String(v);
 }
 
 // "B2:C3" → {top,left,bottom,right} (1-based)
@@ -55,11 +62,10 @@ async function checkAccess(req: NextRequest, deptId: string) {
   return { ok: true as const, grade };
 }
 
-// xlsx 바이트 → 시트별 HTML 표 (병합 반영)
+// xlsx 바이트 → 시트별 HTML 표 (병합 반영) — 양식 안 맞는 파일 폴백용
 async function renderXlsxHtml(bytes: unknown): Promise<string | null> {
   const wb = new Workbook();
   try {
-    // exceljs 번들 타입의 Buffer 제네릭 충돌 회피 (런타임은 Node Buffer로 정상)
     const load = wb.xlsx.load.bind(wb.xlsx) as (d: unknown) => Promise<unknown>;
     await load(bytes);
   } catch {
@@ -70,7 +76,6 @@ async function renderXlsxHtml(bytes: unknown): Promise<string | null> {
   wb.eachSheet((ws) => {
     const merges = (ws.model?.merges || []) as string[];
     const ranges = merges.map(parseRange).filter(Boolean) as NonNullable<ReturnType<typeof parseRange>>[];
-    // covered(=병합에 흡수돼 렌더 생략) 셀 좌표 집합, master 셀의 span
     const covered = new Set<string>();
     const spanAt = new Map<string, { rs: number; cs: number }>();
     for (const r of ranges) {
@@ -107,9 +112,196 @@ async function renderXlsxHtml(bytes: unknown): Promise<string | null> {
   return sheetsHtml.join("");
 }
 
+// ───────────────────── 카드 파서 (초등1초원 양식) ─────────────────────
+// 열 매핑(1-based): 1 날짜 · 2 설교제목(+본문) · 3 사회 · 4 설교자 · 5 기도
+//   · 6 주제찬양 · 7 안내 · 8 찬양율동 · 9 여백 · 10 행사준비팀 · 11 행사내용 · 12 비고(요절)
+const ROLE_COLS: Array<{ col: number; label: string }> = [
+  { col: 3, label: "사회" },
+  { col: 4, label: "설교" },
+  { col: 5, label: "기도" },
+  { col: 6, label: "주제찬양" },
+  { col: 7, label: "안내" },
+  { col: 8, label: "율동" },
+];
+
+export interface PlanWeek {
+  date: string;            // "6/7"
+  month: number;           // 6
+  day: number;             // 7
+  title: string;           // 설교제목
+  scripture: string;       // 본문 "마5:13~16,엡5:8~14"
+  verse: string;           // 요절 "마5:16"
+  roles: Array<{ label: string; name: string }>; // 비어있지 않은 역할만
+  prep: string;            // 행사준비팀
+  event: string;           // 행사내용
+}
+export interface MonthBucket {
+  month: number;
+  weeks: PlanWeek[];
+  notes: string[];
+}
+export interface CardsResult {
+  template: true;
+  year: number;
+  common: string[];        // 모든 달 공통 안내
+  months: MonthBucket[];   // 월 오름차순
+}
+
+const DATE_RE = /^\s*(\d{1,2})\/(\d{1,2})\s*$/;
+const INLINE_DATE_RE = /(\d{1,2})\/(\d{1,2})/;
+
+function monthsFromSheetName(name: string): number[] {
+  const nums = (name.match(/\d{1,2}/g) || []).map(Number).filter((n) => n >= 1 && n <= 12);
+  return Array.from(new Set(nums)).slice(0, 2);
+}
+
+function parseTitleScripture(raw: string): { title: string; scripture: string } {
+  const text = raw.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
+  const m = text.match(/\(([^()]*)\)\s*$/);
+  if (m && m.index !== undefined) {
+    return { title: text.slice(0, m.index).trim(), scripture: m[1].trim() };
+  }
+  return { title: text, scripture: "" };
+}
+
+async function parseXlsxCards(bytes: unknown, fallbackYear: number | null): Promise<CardsResult | null> {
+  const wb = new Workbook();
+  try {
+    const load = wb.xlsx.load.bind(wb.xlsx) as (d: unknown) => Promise<unknown>;
+    await load(bytes);
+  } catch {
+    return null;
+  }
+
+  let year: number | null = fallbackYear;
+  const weekMap = new Map<string, PlanWeek>(); // key "M/D" — 셀 단위 병합(채워진 값 우선)
+  const sheetNotes: Array<{ months: number[]; lines: string[] }> = [];
+
+  wb.eachSheet((ws) => {
+    const sheetMonths = monthsFromSheetName(ws.name);
+    ws.eachRow({ includeEmpty: false }, (row) => {
+      const c1 = cellText(row.getCell(1).value).trim();
+
+      // 연도 추출 (제목 행 등 "2026년")
+      if (year === null) {
+        for (let c = 1; c <= 3; c++) {
+          const ym = cellText(row.getCell(c).value).match(/(20\d{2})\s*년/);
+          if (ym) { year = Number(ym[1]); break; }
+        }
+      }
+
+      // 기타사항 행
+      if (c1 === "기타사항") {
+        const lines = cellText(row.getCell(2).value)
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter(Boolean);
+        if (lines.length) sheetNotes.push({ months: sheetMonths, lines });
+        return;
+      }
+
+      // 데이터(주일) 행
+      const dm = c1.match(DATE_RE);
+      if (!dm) return;
+      const month = Number(dm[1]);
+      const day = Number(dm[2]);
+      if (month < 1 || month > 12) return;
+      const dateKey = `${month}/${day}`;
+
+      const { title, scripture } = parseTitleScripture(cellText(row.getCell(2).value));
+      const roles = ROLE_COLS
+        .map(({ col, label }) => ({
+          label,
+          name: cellText(row.getCell(col).value).replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim(),
+        }))
+        .filter((r) => r.name);
+      const prep = cellText(row.getCell(10).value).trim();
+      const event = cellText(row.getCell(11).value).replace(/\r?\n/g, " ").trim();
+      const verse = cellText(row.getCell(12).value).replace(/^요절\s*[:：]?\s*/, "").trim();
+
+      const next: PlanWeek = { date: dateKey, month, day, title, scripture, verse, roles, prep, event };
+      const prev = weekMap.get(dateKey);
+      weekMap.set(dateKey, prev ? mergeWeek(prev, next) : next);
+    });
+  });
+
+  if (weekMap.size === 0) return null; // 양식 불일치 → 폴백
+
+  // 안내문: 모든 시트 공통 라인 = 공통, 나머지는 날짜→해당 월, 날짜 없으면 시트 월에
+  const lineCount = new Map<string, number>();
+  for (const s of sheetNotes) for (const l of new Set(s.lines)) lineCount.set(l, (lineCount.get(l) || 0) + 1);
+  const totalSheets = sheetNotes.length;
+  const commonSet = new Set<string>();
+  const common: string[] = [];
+  if (totalSheets > 0) {
+    const seen = new Set<string>();
+    for (const s of sheetNotes) {
+      for (const l of s.lines) {
+        if (lineCount.get(l) === totalSheets && !seen.has(l)) { seen.add(l); commonSet.add(l); common.push(l); }
+      }
+    }
+  }
+
+  const monthNotes = new Map<number, string[]>();
+  const pushNote = (mo: number, line: string) => {
+    const arr = monthNotes.get(mo) || [];
+    if (!arr.includes(line)) arr.push(line);
+    monthNotes.set(mo, arr);
+  };
+  for (const s of sheetNotes) {
+    for (const l of s.lines) {
+      if (commonSet.has(l)) continue;
+      const md = l.match(INLINE_DATE_RE);
+      if (md) pushNote(Number(md[1]), l);
+      else for (const mo of s.months) pushNote(mo, l);
+    }
+  }
+
+  // 월 버킷 구성
+  const monthSet = new Set<number>();
+  for (const w of weekMap.values()) monthSet.add(w.month);
+  for (const mo of monthNotes.keys()) monthSet.add(mo);
+
+  const months: MonthBucket[] = Array.from(monthSet).sort((a, b) => a - b).map((mo) => ({
+    month: mo,
+    weeks: Array.from(weekMap.values())
+      .filter((w) => w.month === mo)
+      .sort((a, b) => a.day - b.day),
+    notes: monthNotes.get(mo) || [],
+  }));
+
+  return { template: true, year: year ?? new Date().getFullYear(), common, months };
+}
+
+// 같은 날짜가 여러 시트에 → 셀 단위 병합. 빈 값은 채워진 값으로 덮고, 둘 다 차있으면 나중(b) 우선.
+function mergeWeek(a: PlanWeek, b: PlanWeek): PlanWeek {
+  const pick = (x: string, y: string) => (y ? y : x);
+  const roleMap = new Map<string, string>();
+  for (const r of a.roles) roleMap.set(r.label, r.name);
+  for (const r of b.roles) roleMap.set(r.label, r.name); // 나중 시트 우선
+  const roles = ROLE_COLS.map(({ label }) => ({ label, name: roleMap.get(label) || "" })).filter((r) => r.name);
+  return {
+    date: a.date,
+    month: a.month,
+    day: a.day,
+    title: pick(a.title, b.title),
+    scripture: pick(a.scripture, b.scripture),
+    verse: pick(a.verse, b.verse),
+    roles,
+    prep: pick(a.prep, b.prep),
+    event: pick(a.event, b.event),
+  };
+}
+
+function yearFromPath(path: string): number | null {
+  const m = path.match(/(20\d{2})-\d{2}_/);
+  return m ? Number(m[1]) : null;
+}
+
 // GET: R2에 저장된 파일 렌더 (조회 화면용)
 export async function GET(req: NextRequest) {
   const path = req.nextUrl.searchParams.get("path") || "";
+  const format = req.nextUrl.searchParams.get("format");
   if (!path.endsWith(".xlsx")) {
     return NextResponse.json({ error: "지원하지 않는 형식" }, { status: 400 });
   }
@@ -121,6 +313,13 @@ export async function GET(req: NextRequest) {
   const { data, error } = await r2.from("monthly-plans").getObject(path);
   if (error || !data) return NextResponse.json({ error: "파일을 찾을 수 없습니다" }, { status: 404 });
 
+  if (format === "cards") {
+    const cards = await parseXlsxCards(data.body, yearFromPath(path));
+    if (cards) return NextResponse.json({ ok: true, ...cards });
+    const html = await renderXlsxHtml(data.body);
+    return NextResponse.json({ ok: true, template: false, html: html ?? "" });
+  }
+
   const html = await renderXlsxHtml(data.body);
   if (html === null) return NextResponse.json({ error: "엑셀 파싱 실패" }, { status: 422 });
   return NextResponse.json({ ok: true, html });
@@ -130,6 +329,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const form = await req.formData();
   const deptId = String(form.get("dept_id") || "");
+  const format = String(form.get("format") || "");
+  const fallbackYear = Number(form.get("year")) || null;
   const file = form.get("file");
   if (!deptId || !(file instanceof File)) {
     return NextResponse.json({ error: "필수값이 누락되었습니다" }, { status: 400 });
@@ -142,6 +343,14 @@ export async function POST(req: NextRequest) {
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status });
 
   const bytes = await file.arrayBuffer();
+
+  if (format === "cards") {
+    const cards = await parseXlsxCards(bytes, fallbackYear);
+    if (cards) return NextResponse.json({ ok: true, ...cards });
+    const html = await renderXlsxHtml(bytes);
+    return NextResponse.json({ ok: true, template: false, html: html ?? "" });
+  }
+
   const html = await renderXlsxHtml(bytes);
   if (html === null) return NextResponse.json({ error: "엑셀 파싱 실패" }, { status: 422 });
   return NextResponse.json({ ok: true, html });
