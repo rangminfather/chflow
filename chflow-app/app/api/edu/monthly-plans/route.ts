@@ -84,6 +84,28 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ ok: true, files });
 }
 
+export async function DELETE(req: NextRequest) {
+  const deptId = req.nextUrl.searchParams.get("dept_id") || "";
+  const path = req.nextUrl.searchParams.get("path") || "";
+  if (!deptId || !path) {
+    return NextResponse.json({ ok: false, error: "필수값이 누락되었습니다" }, { status: 400 });
+  }
+  // 다른 부서 객체 삭제 방지
+  if (!path.startsWith(`${deptId}/`) || path.includes("..")) {
+    return NextResponse.json({ ok: false, error: "잘못된 경로입니다" }, { status: 400 });
+  }
+
+  const verified = await verifyGrade(req, deptId);
+  if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
+  if (verified.grade > 2) {
+    return NextResponse.json({ ok: false, error: "월간교육 삭제 권한이 없습니다" }, { status: 403 });
+  }
+
+  const { error } = await r2.from(BUCKET).remove([path]);
+  if (error) return NextResponse.json({ ok: false, error: "삭제 중 오류가 발생했습니다." }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(req: NextRequest) {
   const form = await req.formData();
   const deptId = String(form.get("dept_id") || "");
