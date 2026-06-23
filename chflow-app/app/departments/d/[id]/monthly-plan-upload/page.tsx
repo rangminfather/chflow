@@ -28,6 +28,7 @@ export default function MonthlyPlanUploadPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
+  const [dragActive, setDragActive] = useState(false);
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [title, setTitle] = useState("");
@@ -89,6 +90,12 @@ export default function MonthlyPlanUploadPage() {
     setMessage("");
     setFile(next);
     setFileName(next.name);
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLLabelElement>) {
+    e.preventDefault();
+    setDragActive(false);
+    pickFile(e.dataTransfer.files?.[0] || null);
   }
 
   // Step 2 → 3: 미리보기 준비
@@ -172,11 +179,18 @@ export default function MonthlyPlanUploadPage() {
               월간 교육계획서 파일을 한 개 선택하세요.
             </div>
 
-            <label className="mt-4 flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-hairline-strong bg-surface px-4 py-10 text-center transition hover:border-accent-muted">
-              <UploadCloud size={32} strokeWidth={1.6} className="text-ink-faint" />
+            <label
+              onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+              onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
+              onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
+              onDrop={handleDrop}
+              className={`mt-4 flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed px-4 py-10 text-center transition ${dragActive ? "border-accent-strong bg-accent-soft" : "border-hairline-strong bg-surface hover:border-accent-muted"}`}
+            >
+              <UploadCloud size={32} strokeWidth={1.6} className={dragActive ? "text-accent-strong" : "text-ink-faint"} />
               <div className="text-[15px] font-bold text-ink">
-                {fileName || "여기를 눌러 파일 선택"}
+                {fileName || (dragActive ? "여기에 놓으세요" : "여기를 눌러 파일 선택")}
               </div>
+              <div className="text-[13px] font-semibold text-ink-faint sm:block">또는 파일을 끌어다 놓기 (PC)</div>
               <input
                 type="file"
                 accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.xlsx,image/*,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
