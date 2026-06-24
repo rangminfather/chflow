@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { supabase } from "@/lib/supabase";
-import { BookOpen, Download, FileText, PencilLine, Trash2, Upload, X } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Download, FileText, List, PencilLine, Plus, Settings2, Trash2, Upload, X } from "lucide-react";
 
 type StoredAttachment = {
   file_path: string;
@@ -24,6 +24,14 @@ type VerseMemoryRow = {
   author_sub_role: string | null;
   can_delete: boolean;
   created_at: string;
+};
+
+type MonthGroup = {
+  key: string; // "YYYY-MM"
+  year: number;
+  month: number;
+  label: string;
+  entries: VerseMemoryRow[];
 };
 
 const BUCKET = "dept-notice-attachments";
@@ -49,6 +57,7 @@ export default function VerseMemoryPage() {
   const params = useParams();
   const deptId = params.id as string;
   const currentYear = new Date().getFullYear();
+  const currentKey = monthValue();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [authChecked, setAuthChecked] = useState(false);
@@ -58,6 +67,13 @@ export default function VerseMemoryPage() {
   const [items, setItems] = useState<VerseMemoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // 모드
+  const [showList, setShowList] = useState(false);
+  const [managing, setManaging] = useState(false);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+
+  // 작성 폼
   const [formOpen, setFormOpen] = useState(false);
   const [targetMonth, setTargetMonth] = useState(monthValue());
   const [title, setTitle] = useState("");
@@ -94,6 +110,34 @@ export default function VerseMemoryPage() {
       await load(currentYear);
     })();
   }, [currentYear, load, router]);
+
+  // 월별 그룹 (memory_month 기준, 최신월 우선)
+  const groups: MonthGroup[] = useMemo(() => {
+    const map = new Map<string, MonthGroup>();
+    for (const item of items) {
+      const yr = Number(item.memory_month.slice(0, 4));
+      const mo = Number(item.memory_month.slice(5, 7));
+      const key = `${yr}-${String(mo).padStart(2, "0")}`;
+      const existing = map.get(key);
+      if (existing) existing.entries.push(item);
+      else map.set(key, { key, year: yr, month: mo, label: `${yr}년 ${mo}월`, entries: [item] });
+    }
+    return Array.from(map.values()).sort((a, b) => b.key.localeCompare(a.key));
+  }, [items]);
+
+  const activeGroup = useMemo(() => {
+    if (groups.length === 0) return null;
+    if (selectedKey) return groups.find((g) => g.key === selectedKey) ?? groups[0];
+    const cur = groups.find((g) => g.key === currentKey);
+    return cur ?? groups[0];
+  }, [groups, selectedKey, currentKey]);
+
+  const activeIdx = activeGroup ? groups.indexOf(activeGroup) : -1;
+
+  function selectGroup(g: MonthGroup) {
+    setSelectedKey(g.key);
+    setShowList(false);
+  }
 
   function selectFiles(event: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(event.target.files || []);
@@ -147,6 +191,7 @@ export default function VerseMemoryPage() {
       setFormOpen(false);
       const selectedYear = Number(targetMonth.slice(0, 4));
       setYear(selectedYear);
+      setSelectedKey(targetMonth); // 등록한 달을 바로 보여줌
       await load(selectedYear);
     } catch (caught) {
       await Promise.all(uploaded.map((file) =>
@@ -159,7 +204,7 @@ export default function VerseMemoryPage() {
   }
 
   async function removeItem(item: VerseMemoryRow) {
-    if (!confirm(`${Number(item.memory_month.slice(5, 7))}월 자료를 삭제하시겠습니까?`)) return;
+    if (!confirm(`${Number(item.memory_month.slice(5, 7))}월 「${item.title}」 자료를 삭제하시겠습니까?`)) return;
     const { data, error: deleteError } = await supabase.rpc("delete_dept_verse_memory", { p_id: item.id });
     if (deleteError) {
       setError(deleteError.message);
@@ -178,125 +223,283 @@ export default function VerseMemoryPage() {
 
   return (
     <div style={pageStyle}>
+      {/* 헤더 */}
       <header style={headerStyle}>
         <HeaderLogo />
-        <div style={headerTitle}><BookOpen size={19} /> 요절암송</div>
         <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backButton}>← 부서홈</button>
+        <div style={headerTitle}><BookOpen size={18} strokeWidth={1.8} /> 요절암송</div>
+        {!managing && groups.length > 1 && (
+          <button
+            onClick={() => setShowList((v) => !v)}
+            style={headerActionBtn(showList)}
+          >
+            <List size={15} strokeWidth={2} /> 목록
+          </button>
+        )}
+        {canWrite && (
+          <button
+            onClick={() => { setManaging((v) => !v); setShowList(false); setFormOpen(false); }}
+            style={headerActionBtn(managing)}
+          >
+            <Settings2 size={15} strokeWidth={2} /> 관리
+          </button>
+        )}
       </header>
 
       <main style={mainStyle}>
-        <section style={heroStyle}>
-          <div>
-            <div style={eyebrowStyle}>초등1부 · 공통게시판</div>
-            <h1 style={titleStyle}>요절암송</h1>
-            <p style={descriptionStyle}>월별 요절암송 보기</p>
-          </div>
-          {canWrite && (
-            <button onClick={() => setFormOpen((open) => !open)} style={primaryButton}>
-              {formOpen ? <X size={16} /> : <PencilLine size={16} />}
-              {formOpen ? "작성 닫기" : "글쓰기"}
-            </button>
-          )}
-        </section>
-
-        {formOpen && canWrite && (
-          <form onSubmit={submit} style={formStyle}>
-            <div style={formHeading}>요절암송 자료 등록</div>
-            <div style={formGrid}>
-              <label style={fieldStyle}>
-                <span style={labelStyle}>대상 월</span>
-                <input type="month" value={targetMonth} onChange={(event) => setTargetMonth(event.target.value)} required style={inputStyle} />
-              </label>
-              <label style={fieldStyle}>
-                <span style={labelStyle}>제목</span>
-                <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={120} placeholder="예: 6월 요절암송" required style={inputStyle} />
-              </label>
-            </div>
-            <label style={fieldStyle}>
-              <span style={labelStyle}>내용</span>
-              <textarea value={body} onChange={(event) => setBody(event.target.value)} rows={5} placeholder="암송 구절과 안내 내용을 입력하세요." style={textareaStyle} />
-            </label>
-            <input ref={fileInputRef} type="file" multiple onChange={selectFiles} style={{ display: "none" }} accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.hwp" />
-            <button type="button" onClick={() => fileInputRef.current?.click()} style={uploadButton}>
-              <Upload size={16} /> 파일 첨부 ({files.length}/{MAX_FILES})
-            </button>
-            {files.length > 0 && (
-              <div style={selectedFilesStyle}>
-                {files.map((file, index) => (
-                  <div key={`${file.name}-${index}`} style={selectedFileStyle}>
-                    <FileText size={15} />
-                    <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
-                    <span>{fileSize(file.size)}</span>
-                    <button type="button" onClick={() => setFiles((previous) => previous.filter((_, fileIndex) => fileIndex !== index))} style={iconButton}><X size={14} /></button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button type="submit" disabled={submitting} style={{ ...primaryButton, alignSelf: "flex-end", opacity: submitting ? 0.65 : 1 }}>
-              {submitting ? "등록 중..." : "등록하기"}
-            </button>
-          </form>
-        )}
-
         {error && <div style={errorStyle}>{error}</div>}
-
-        <div style={toolbarStyle}>
-          <strong>{year}년 자료</strong>
-          <select value={year} onChange={(event) => { const selected = Number(event.target.value); setYear(selected); load(selected); }} style={yearSelectStyle}>
-            {yearOptions.map((option) => <option key={option} value={option}>{option}년</option>)}
-          </select>
-        </div>
 
         {loading ? (
           <LoadingView padding={56} />
-        ) : items.length === 0 ? (
-          <div style={emptyWrap}><EmptyState icon={<BookOpen size={30} />} message={`${year}년에 등록된 요절암송 자료가 없습니다`} padding={56} /></div>
+        ) : managing ? (
+          /* ── 관리 모드 (권한자) ── */
+          <ManageMode
+            year={year}
+            yearOptions={yearOptions}
+            items={items}
+            formOpen={formOpen}
+            setFormOpen={setFormOpen}
+            onChangeYear={(y) => { setYear(y); setSelectedKey(null); load(y); }}
+            onDelete={removeItem}
+            // 폼 props
+            targetMonth={targetMonth} setTargetMonth={setTargetMonth}
+            title={title} setTitle={setTitle}
+            body={body} setBody={setBody}
+            files={files} setFiles={setFiles}
+            submitting={submitting}
+            fileInputRef={fileInputRef}
+            selectFiles={selectFiles}
+            onSubmit={submit}
+          />
+        ) : groups.length === 0 ? (
+          <div style={emptyWrap}>
+            <EmptyState
+              icon={<BookOpen size={30} />}
+              message={`${year}년에 등록된 요절암송이 없습니다`}
+              hint={canWrite ? "「관리」에서 자료를 올리면 이 화면에 월별로 표시됩니다." : undefined}
+              padding={56}
+            />
+            {year !== currentYear && (
+              <div style={{ textAlign: "center", paddingBottom: 18 }}>
+                <button onClick={() => { setYear(currentYear); load(currentYear); }} style={ghostButton}>올해로 돌아가기</button>
+              </div>
+            )}
+          </div>
+        ) : showList ? (
+          /* ── 목록 모드 ── */
+          <div>
+            <div style={toolbarStyle}>
+              <strong style={{ fontSize: 14 }}>{year}년 요절암송</strong>
+              <select value={year} onChange={(e) => { const y = Number(e.target.value); setYear(y); setSelectedKey(null); load(y); }} style={yearSelectStyle}>
+                {yearOptions.map((option) => <option key={option} value={option}>{option}년</option>)}
+              </select>
+            </div>
+            {groups.map((g) => {
+              const isCurrent = g.key === currentKey;
+              const isActive = activeGroup?.key === g.key;
+              return (
+                <button key={g.key} onClick={() => selectGroup(g)} style={listRowStyle(!!isActive)}>
+                  <div>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>{g.label}</span>
+                    {isCurrent && <span style={badgeStyle}>이번 달</span>}
+                    <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2 }}>
+                      {g.entries.length > 1 ? `자료 ${g.entries.length}개` : g.entries[0].title}
+                    </div>
+                  </div>
+                  <ChevronRight size={16} strokeWidth={2} color="var(--ink-faint)" />
+                </button>
+              );
+            })}
+          </div>
         ) : (
-          <div style={listStyle}>
-            {items.map((item) => (
-              <article key={item.id} style={cardStyle}>
-                <div style={monthBadgeStyle}>{Number(item.memory_month.slice(5, 7))}<small>월</small></div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={cardHeadStyle}>
-                    <div>
+          /* ── 뷰어 모드 (선생님 원클릭 보기) ── */
+          activeGroup && (
+            <div>
+              {/* 월 내비게이션 */}
+              <div style={navWrapStyle}>
+                <button
+                  onClick={() => activeIdx < groups.length - 1 && selectGroup(groups[activeIdx + 1])}
+                  disabled={activeIdx >= groups.length - 1}
+                  style={navBtnStyle(activeIdx >= groups.length - 1)}
+                  aria-label="이전 달"
+                >
+                  <ChevronLeft size={18} strokeWidth={2} />
+                </button>
+                <div style={navLabelStyle}>
+                  {activeGroup.label}
+                  {activeGroup.key === currentKey && <span style={badgeStyle}>이번 달</span>}
+                </div>
+                <button
+                  onClick={() => activeIdx > 0 && selectGroup(groups[activeIdx - 1])}
+                  disabled={activeIdx <= 0}
+                  style={navBtnStyle(activeIdx <= 0)}
+                  aria-label="다음 달"
+                >
+                  <ChevronRight size={18} strokeWidth={2} />
+                </button>
+              </div>
+
+              {/* 월 카드 */}
+              <div style={listStyle}>
+                {activeGroup.entries.map((item) => (
+                  <article key={item.id} style={cardStyle}>
+                    <div style={monthBadgeStyle}>{Number(item.memory_month.slice(5, 7))}<small>월</small></div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <h2 style={cardTitleStyle}>{item.title}</h2>
                       <div style={metaStyle}>{item.author_name || "작성자"}{item.author_sub_role ? ` · ${item.author_sub_role}` : ""} · {new Date(item.created_at).toLocaleDateString("ko-KR")}</div>
+                      {item.body && <div style={bodyStyle}>{item.body}</div>}
+                      {item.attachments?.length > 0 && (
+                        <div style={attachmentsStyle}>
+                          {item.attachments.map((file) => (
+                            <a key={file.file_path} href={storageUrl(file.file_path, true)} style={attachmentStyle}>
+                              <FileText size={16} />
+                              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.file_name}</span>
+                              <span style={{ color: "var(--ink-faint)" }}>{fileSize(file.size_bytes)}</span>
+                              <Download size={15} />
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {item.can_delete && <button onClick={() => removeItem(item)} title="삭제" style={deleteButton}><Trash2 size={16} /></button>}
-                  </div>
-                  {item.body && <div style={bodyStyle}>{item.body}</div>}
-                  {item.attachments?.length > 0 && (
-                    <div style={attachmentsStyle}>
-                      {item.attachments.map((file) => (
-                        <a key={file.file_path} href={storageUrl(file.file_path, true)} style={attachmentStyle}>
-                          <FileText size={16} />
-                          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.file_name}</span>
-                          <span style={{ color: "var(--ink-faint)" }}>{fileSize(file.size_bytes)}</span>
-                          <Download size={15} />
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )
         )}
       </main>
     </div>
   );
 }
 
+/* ───────────────────────── 관리 모드 ───────────────────────── */
+function ManageMode(props: {
+  year: number;
+  yearOptions: number[];
+  items: VerseMemoryRow[];
+  formOpen: boolean;
+  setFormOpen: (v: boolean | ((p: boolean) => boolean)) => void;
+  onChangeYear: (y: number) => void;
+  onDelete: (item: VerseMemoryRow) => void;
+  targetMonth: string; setTargetMonth: (v: string) => void;
+  title: string; setTitle: (v: string) => void;
+  body: string; setBody: (v: string) => void;
+  files: File[]; setFiles: (v: File[] | ((p: File[]) => File[])) => void;
+  submitting: boolean;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  selectFiles: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onSubmit: (e: React.FormEvent) => void;
+}) {
+  const {
+    year, yearOptions, items, formOpen, setFormOpen, onChangeYear, onDelete,
+    targetMonth, setTargetMonth, title, setTitle, body, setBody, files, setFiles,
+    submitting, fileInputRef, selectFiles, onSubmit,
+  } = props;
+
+  return (
+    <div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-soft)", lineHeight: 1.6, marginBottom: 12 }}>
+        요절암송을 올리거나 삭제할 수 있습니다. 선생님들은 「{"요절암송"}」 화면에서 월별 카드로 바로 봅니다.
+      </div>
+
+      <button onClick={() => setFormOpen((v) => !v)} style={addButton}>
+        {formOpen ? <X size={16} /> : <Plus size={16} />} {formOpen ? "작성 닫기" : "새 요절암송 올리기"}
+      </button>
+
+      {formOpen && (
+        <form onSubmit={onSubmit} style={formStyle}>
+          <div style={formHeading}>요절암송 자료 등록</div>
+          <div style={formGrid}>
+            <label style={fieldStyle}>
+              <span style={labelStyle}>대상 월</span>
+              <input type="month" value={targetMonth} onChange={(e) => setTargetMonth(e.target.value)} required style={inputStyle} />
+            </label>
+            <label style={fieldStyle}>
+              <span style={labelStyle}>제목</span>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="예: 6월 요절암송" required style={inputStyle} />
+            </label>
+          </div>
+          <label style={fieldStyle}>
+            <span style={labelStyle}>내용</span>
+            <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="암송 구절과 안내 내용을 입력하세요." style={textareaStyle} />
+          </label>
+          <input ref={fileInputRef} type="file" multiple onChange={selectFiles} style={{ display: "none" }} accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.hwp" />
+          <button type="button" onClick={() => fileInputRef.current?.click()} style={uploadButton}>
+            <Upload size={16} /> 파일 첨부 ({files.length}/{MAX_FILES})
+          </button>
+          {files.length > 0 && (
+            <div style={selectedFilesStyle}>
+              {files.map((file, index) => (
+                <div key={`${file.name}-${index}`} style={selectedFileStyle}>
+                  <FileText size={15} />
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
+                  <span>{fileSize(file.size)}</span>
+                  <button type="button" onClick={() => setFiles((p) => p.filter((_, i) => i !== index))} style={iconButton}><X size={14} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+          <button type="submit" disabled={submitting} style={{ ...primaryButton, alignSelf: "flex-end", opacity: submitting ? 0.65 : 1 }}>
+            <PencilLine size={16} /> {submitting ? "등록 중..." : "등록하기"}
+          </button>
+        </form>
+      )}
+
+      <div style={toolbarStyle}>
+        <strong style={{ fontSize: 14 }}>{year}년 등록 자료</strong>
+        <select value={year} onChange={(e) => onChangeYear(Number(e.target.value))} style={yearSelectStyle}>
+          {yearOptions.map((option) => <option key={option} value={option}>{option}년</option>)}
+        </select>
+      </div>
+
+      {items.length === 0 ? (
+        <div style={emptyWrap}><EmptyState icon={<BookOpen size={28} />} message={`${year}년에 등록된 자료가 없습니다`} padding={48} /></div>
+      ) : (
+        <div style={listStyle}>
+          {items.map((item) => (
+            <div key={item.id} style={manageRowStyle}>
+              <div style={monthChipStyle}>{Number(item.memory_month.slice(5, 7))}월</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", wordBreak: "break-word" }}>{item.title}</div>
+                <div style={{ fontSize: 12, color: "var(--ink-faint)", marginTop: 2 }}>
+                  {new Date(item.created_at).toLocaleDateString("ko-KR")}
+                  {item.attachments?.length ? ` · 첨부 ${item.attachments.length}개` : ""}
+                </div>
+              </div>
+              {item.can_delete && (
+                <button onClick={() => onDelete(item)} style={deleteInlineButton}>
+                  <Trash2 size={14} strokeWidth={2} /> 삭제
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ───────────────────────── 스타일 ───────────────────────── */
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", color: "var(--ink)", fontFamily: "'Noto Sans KR', sans-serif" };
-const headerStyle: React.CSSProperties = { height: 58, padding: "0 clamp(12px,4vw,24px)", display: "flex", alignItems: "center", gap: 14, background: "var(--card)", borderBottom: "1px solid var(--hairline)" };
-const headerTitle: React.CSSProperties = { flex: 1, display: "flex", alignItems: "center", gap: 7, fontSize: 18, fontWeight: 800 };
-const backButton: React.CSSProperties = { border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--card)", padding: "8px 11px", color: "var(--ink-mid)", fontWeight: 700, cursor: "pointer" };
-const mainStyle: React.CSSProperties = { width: "min(900px, calc(100% - 24px))", margin: "0 auto", padding: "22px 0 48px" };
-const heroStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: 22, borderRadius: 14, background: "linear-gradient(135deg, var(--card), var(--accent-soft))", border: "1px solid var(--hairline)", marginBottom: 14 };
-const eyebrowStyle: React.CSSProperties = { color: "var(--accent)", fontSize: 12, fontWeight: 800 };
-const titleStyle: React.CSSProperties = { margin: "5px 0 4px", fontSize: 24, fontWeight: 900 };
-const descriptionStyle: React.CSSProperties = { margin: 0, color: "var(--ink-soft)", fontSize: 13 };
+const headerStyle: React.CSSProperties = { height: 58, padding: "0 clamp(12px,4vw,24px)", display: "flex", alignItems: "center", gap: 8, background: "var(--card)", borderBottom: "1px solid var(--hairline)" };
+const headerTitle: React.CSSProperties = { flex: 1, display: "flex", alignItems: "center", gap: 7, fontSize: 18, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const backButton: React.CSSProperties = { border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--card)", padding: "8px 11px", color: "var(--ink-mid)", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 };
+function headerActionBtn(active: boolean): React.CSSProperties {
+  return { display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 8, border: "none", background: active ? "var(--accent-soft)" : "var(--bg-soft)", color: active ? "var(--accent)" : "var(--ink-mid)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 };
+}
+const mainStyle: React.CSSProperties = { width: "min(820px, calc(100% - 24px))", margin: "0 auto", padding: "18px 0 48px" };
+
+const navWrapStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 };
+function navBtnStyle(disabled: boolean): React.CSSProperties {
+  return { padding: "6px 10px", border: "none", borderRadius: 8, background: "var(--bg-soft)", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.3 : 1 };
+}
+const navLabelStyle: React.CSSProperties = { fontWeight: 800, fontSize: 17, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 };
+const badgeStyle: React.CSSProperties = { marginLeft: 8, fontSize: 11, fontWeight: 700, color: "var(--accent)", background: "var(--accent-soft)", padding: "2px 7px", borderRadius: 99 };
+
 const primaryButton: React.CSSProperties = { minHeight: 40, border: 0, borderRadius: 9, padding: "0 15px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, background: "var(--accent)", color: "#fff", fontWeight: 800, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 };
+const addButton: React.CSSProperties = { ...primaryButton, width: "100%", minHeight: 46, marginBottom: 14 };
+const ghostButton: React.CSSProperties = { border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--card)", padding: "8px 14px", color: "var(--ink-mid)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+
 const formStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 13, padding: 20, marginBottom: 14, borderRadius: 12, background: "var(--card)", border: "1px solid var(--hairline)" };
 const formHeading: React.CSSProperties = { fontSize: 17, fontWeight: 850 };
 const formGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(150px, 0.38fr) minmax(220px, 1fr)", gap: 12 };
@@ -308,17 +511,25 @@ const uploadButton: React.CSSProperties = { alignSelf: "flex-start", minHeight: 
 const selectedFilesStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 6 };
 const selectedFileStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, background: "var(--surface)", color: "var(--ink-soft)", fontSize: 12 };
 const iconButton: React.CSSProperties = { width: 26, height: 26, border: 0, borderRadius: 6, display: "grid", placeItems: "center", background: "var(--hairline)", color: "var(--ink-mid)", cursor: "pointer" };
+
 const errorStyle: React.CSSProperties = { marginBottom: 14, padding: "11px 13px", borderRadius: 9, background: "var(--danger-soft)", color: "var(--danger)", fontSize: 13, fontWeight: 700 };
-const toolbarStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, padding: "0 2px" };
+const toolbarStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", margin: "4px 0 10px", padding: "0 2px" };
 const yearSelectStyle: React.CSSProperties = { height: 38, border: "1px solid var(--hairline)", borderRadius: 8, padding: "0 10px", background: "var(--card)", color: "var(--ink)", fontWeight: 700 };
 const emptyWrap: React.CSSProperties = { borderRadius: 12, background: "var(--card)", border: "1px solid var(--hairline)" };
+
+function listRowStyle(active: boolean): React.CSSProperties {
+  return { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", marginBottom: 8, borderRadius: 12, background: active ? "var(--accent-soft)" : "var(--card)", border: `1px solid ${active ? "var(--accent)" : "var(--hairline)"}`, cursor: "pointer", fontFamily: "inherit", textAlign: "left" };
+}
+
 const listStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 10 };
 const cardStyle: React.CSSProperties = { display: "flex", alignItems: "flex-start", gap: 14, padding: 17, borderRadius: 12, background: "var(--card)", border: "1px solid var(--hairline)" };
 const monthBadgeStyle: React.CSSProperties = { width: 52, height: 52, borderRadius: 12, flexShrink: 0, display: "flex", alignItems: "baseline", justifyContent: "center", paddingTop: 12, gap: 2, background: "var(--accent-soft)", color: "var(--accent-strong)", fontSize: 20, fontWeight: 900 };
-const cardHeadStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 };
 const cardTitleStyle: React.CSSProperties = { margin: 0, fontSize: 17, fontWeight: 850 };
 const metaStyle: React.CSSProperties = { marginTop: 4, color: "var(--ink-faint)", fontSize: 11 };
-const deleteButton: React.CSSProperties = { width: 34, height: 34, border: "1px solid var(--hairline)", borderRadius: 8, display: "grid", placeItems: "center", background: "var(--card)", color: "var(--danger)", cursor: "pointer" };
 const bodyStyle: React.CSSProperties = { marginTop: 13, paddingTop: 12, borderTop: "1px solid var(--hairline)", whiteSpace: "pre-wrap", lineHeight: 1.7, color: "var(--ink-mid)", fontSize: 14 };
 const attachmentsStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 7, marginTop: 12 };
 const attachmentStyle: React.CSSProperties = { minWidth: 0, display: "flex", alignItems: "center", gap: 7, padding: "9px 10px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--hairline)", color: "var(--ink-mid)", textDecoration: "none", fontSize: 12, fontWeight: 700 };
+
+const manageRowStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderRadius: 12, background: "var(--card)", border: "1px solid var(--hairline)" };
+const monthChipStyle: React.CSSProperties = { flexShrink: 0, minWidth: 38, height: 30, padding: "0 9px", display: "grid", placeItems: "center", borderRadius: 8, background: "var(--accent-soft)", color: "var(--accent-strong)", fontSize: 13, fontWeight: 800 };
+const deleteInlineButton: React.CSSProperties = { flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5, padding: "8px 12px", borderRadius: 9, background: "color-mix(in srgb, var(--danger) 10%, transparent)", color: "var(--danger)", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 700 };
