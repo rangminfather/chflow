@@ -5,7 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { supabase } from "@/lib/supabase";
-import { BookOpen, ChevronLeft, ChevronRight, Download, FileText, List, PencilLine, Plus, Settings2, Trash2, Upload, X } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Download, FileDown, FileText, List, PencilLine, Plus, Settings2, Trash2, Upload, X } from "lucide-react";
+import PdfCanvasViewer from "@/components/PdfCanvasViewer";
+
+function isImageName(name: string) { return /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(name); }
+function isPdfName(name: string) { return /\.pdf$/i.test(name); }
 
 type StoredAttachment = {
   file_path: string;
@@ -223,28 +227,26 @@ export default function VerseMemoryPage() {
 
   return (
     <div style={pageStyle}>
-      {/* 헤더 */}
-      <header style={headerStyle}>
+      {/* 헤더 — 전역 규칙: 로고 왼쪽 / 부서홈 오른쪽 상단 / 액션 오른쪽 하단 */}
+      <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
-        <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backButton}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backButton}>← 부서홈</button>
         <div style={headerTitle}><BookOpen size={18} strokeWidth={1.8} /> 요절암송</div>
-        {!managing && groups.length > 1 && (
-          <button
-            onClick={() => setShowList((v) => !v)}
-            style={headerActionBtn(showList)}
-          >
-            <List size={15} strokeWidth={2} /> 목록
-          </button>
+        {(canWrite || groups.length > 1) && (
+          <div className="app-header-actions">
+            {!managing && groups.length > 1 && (
+              <button onClick={() => setShowList((v) => !v)} style={headerActionBtn(showList)}>
+                <List size={15} strokeWidth={2} /> 목록
+              </button>
+            )}
+            {canWrite && (
+              <button onClick={() => { setManaging((v) => !v); setShowList(false); setFormOpen(false); }} style={headerActionBtn(managing)}>
+                <Settings2 size={15} strokeWidth={2} /> 관리
+              </button>
+            )}
+          </div>
         )}
-        {canWrite && (
-          <button
-            onClick={() => { setManaging((v) => !v); setShowList(false); setFormOpen(false); }}
-            style={headerActionBtn(managing)}
-          >
-            <Settings2 size={15} strokeWidth={2} /> 관리
-          </button>
-        )}
-      </header>
+      </div>
 
       <main style={mainStyle}>
         {error && <div style={errorStyle}>{error}</div>}
@@ -349,14 +351,9 @@ export default function VerseMemoryPage() {
                       <div style={metaStyle}>{item.author_name || "작성자"}{item.author_sub_role ? ` · ${item.author_sub_role}` : ""} · {new Date(item.created_at).toLocaleDateString("ko-KR")}</div>
                       {item.body && <div style={bodyStyle}>{item.body}</div>}
                       {item.attachments?.length > 0 && (
-                        <div style={attachmentsStyle}>
+                        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 16 }}>
                           {item.attachments.map((file) => (
-                            <a key={file.file_path} href={storageUrl(file.file_path, true)} style={attachmentStyle}>
-                              <FileText size={16} />
-                              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.file_name}</span>
-                              <span style={{ color: "var(--ink-faint)" }}>{fileSize(file.size_bytes)}</span>
-                              <Download size={15} />
-                            </a>
+                            <InlineAttachment key={file.file_path} file={file} />
                           ))}
                         </div>
                       )}
@@ -369,6 +366,42 @@ export default function VerseMemoryPage() {
         )}
       </main>
     </div>
+  );
+}
+
+/* ─── 첨부 인라인 표출: 이미지·PDF는 화면에 바로, 그 외는 다운로드 카드 ─── */
+function InlineAttachment({ file }: { file: StoredAttachment }) {
+  const viewUrl = storageUrl(file.file_path);
+  const downloadUrl = storageUrl(file.file_path, true);
+
+  if (isImageName(file.file_name)) {
+    return (
+      <figure style={{ margin: 0 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={viewUrl} alt={file.file_name} style={{ width: "100%", borderRadius: 12, display: "block", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }} />
+        <a href={downloadUrl} style={downloadLinkStyle}><FileDown size={14} /> 원본 내려받기</a>
+      </figure>
+    );
+  }
+
+  if (isPdfName(file.file_name)) {
+    return (
+      <div>
+        <div style={{ width: "100%", height: "75vh", borderRadius: 12, border: "1px solid var(--hairline)", overflow: "hidden", background: "var(--card)" }}>
+          <PdfCanvasViewer key={viewUrl} url={`${viewUrl}?stream=1`} fallbackUrl={`${viewUrl}?download=1`} />
+        </div>
+        <a href={downloadUrl} style={downloadLinkStyle}><FileDown size={14} /> 원본 내려받기</a>
+      </div>
+    );
+  }
+
+  return (
+    <a href={downloadUrl} style={attachmentStyle}>
+      <FileText size={16} />
+      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.file_name}</span>
+      <span style={{ color: "var(--ink-faint)" }}>{fileSize(file.size_bytes)}</span>
+      <Download size={15} />
+    </a>
   );
 }
 
@@ -481,9 +514,9 @@ function ManageMode(props: {
 
 /* ───────────────────────── 스타일 ───────────────────────── */
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", color: "var(--ink)", fontFamily: "'Noto Sans KR', sans-serif" };
-const headerStyle: React.CSSProperties = { height: 58, padding: "0 clamp(12px,4vw,24px)", display: "flex", alignItems: "center", gap: 8, background: "var(--card)", borderBottom: "1px solid var(--hairline)" };
-const headerTitle: React.CSSProperties = { flex: 1, display: "flex", alignItems: "center", gap: 7, fontSize: 18, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
-const backButton: React.CSSProperties = { border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--card)", padding: "8px 11px", color: "var(--ink-mid)", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 };
+const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)" };
+const headerTitle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 7, fontSize: 17, fontWeight: 800, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 };
+const backButton: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" };
 function headerActionBtn(active: boolean): React.CSSProperties {
   return { display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 8, border: "none", background: active ? "var(--accent-soft)" : "var(--bg-soft)", color: active ? "var(--accent)" : "var(--ink-mid)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 };
 }
@@ -527,8 +560,8 @@ const monthBadgeStyle: React.CSSProperties = { width: 52, height: 52, borderRadi
 const cardTitleStyle: React.CSSProperties = { margin: 0, fontSize: 17, fontWeight: 850 };
 const metaStyle: React.CSSProperties = { marginTop: 4, color: "var(--ink-faint)", fontSize: 11 };
 const bodyStyle: React.CSSProperties = { marginTop: 13, paddingTop: 12, borderTop: "1px solid var(--hairline)", whiteSpace: "pre-wrap", lineHeight: 1.7, color: "var(--ink-mid)", fontSize: 14 };
-const attachmentsStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 7, marginTop: 12 };
 const attachmentStyle: React.CSSProperties = { minWidth: 0, display: "flex", alignItems: "center", gap: 7, padding: "9px 10px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--hairline)", color: "var(--ink-mid)", textDecoration: "none", fontSize: 12, fontWeight: 700 };
+const downloadLinkStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, marginTop: 8, fontSize: 12, fontWeight: 700, color: "var(--ink-soft)", textDecoration: "none" };
 
 const manageRowStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderRadius: 12, background: "var(--card)", border: "1px solid var(--hairline)" };
 const monthChipStyle: React.CSSProperties = { flexShrink: 0, minWidth: 38, height: 30, padding: "0 9px", display: "grid", placeItems: "center", borderRadius: 8, background: "var(--accent-soft)", color: "var(--accent-strong)", fontSize: 13, fontWeight: 800 };
