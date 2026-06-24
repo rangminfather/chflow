@@ -11,7 +11,7 @@ import {
   Megaphone, CalendarDays, Newspaper, GraduationCap, ClipboardCheck, ClipboardList,
   Medal, Users, Inbox, BookText, CalendarPlus, BookOpen, FileText, BarChart3,
   TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks, FileSearch,
-  Settings, Award, Lock, CircleHelp, Construction, Settings2, X,
+  Settings, Award, Lock, CircleHelp, Construction, Cog, X, Pencil,
 } from "lucide-react";
 import ModalBackdrop from "@/components/ModalBackdrop";
 
@@ -149,7 +149,8 @@ export default function DepartmentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
   const [menuSettings, setMenuSettings] = useState<MenuSettings>({});
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -358,11 +359,16 @@ export default function DepartmentDetailPage() {
               </div>
               {cat.id === "notices" && canEditMenu && (
                 <button
-                  onClick={() => setSettingsOpen(true)}
-                  title="공통메뉴 설정"
-                  style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--card)", color: "var(--ink-soft)", cursor: "pointer" }}
+                  onClick={() => setEditMode((v) => !v)}
+                  title="공통메뉴 편집"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700,
+                    border: `1px solid ${editMode ? "var(--accent)" : "var(--hairline)"}`,
+                    background: editMode ? "var(--accent-soft)" : "var(--card)",
+                    color: editMode ? "var(--accent-strong)" : "var(--ink-soft)",
+                  }}
                 >
-                  <Settings2 size={16} strokeWidth={1.9} />
+                  <Cog size={15} strokeWidth={1.9} /> {editMode ? "완료" : "편집"}
                 </button>
               )}
             </div>
@@ -378,7 +384,13 @@ export default function DepartmentDetailPage() {
                   return (!deptFilter || deptFilter === dept.name) && grade <= (item.maxGrade ?? cat.maxGrade);
                 })
                 .map((item) => (
-                  <MenuCard key={item.id} item={item} onClick={() => handleItemClick(item)} />
+                  <MenuCard
+                    key={item.id}
+                    item={item}
+                    onClick={() => handleItemClick(item)}
+                    onEdit={cat.id === "notices" && editMode && canEditMenu && COMMON_MENU_KEYS.includes(item.id)
+                      ? () => setEditingKey(item.id) : undefined}
+                  />
                 ))}
             </div>
           </div>
@@ -402,13 +414,14 @@ export default function DepartmentDetailPage() {
 
       {toast && <div style={toastStyle}>{toast}</div>}
 
-      {settingsOpen && (
-        <MenuSettingsModal
+      {editingKey && (
+        <EditMenuPopup
           deptId={deptId}
           deptName={dept.name}
-          settings={menuSettings}
-          onClose={() => setSettingsOpen(false)}
-          onSaved={(next) => { setMenuSettings(next); setSettingsOpen(false); showToast("공통메뉴 설정을 저장했습니다"); }}
+          menuKey={editingKey}
+          setting={menuSettings[editingKey]}
+          onClose={() => setEditingKey(null)}
+          onSaved={(next) => { setMenuSettings(next); setEditingKey(null); showToast("메뉴를 수정했습니다"); }}
         />
       )}
     </div>
@@ -416,57 +429,45 @@ export default function DepartmentDetailPage() {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// 공통메뉴 설정 모달 (임원진 전용)
+// 단일 공통메뉴 수정 팝업 (편집모드에서 "수정" 클릭 시)
 // ─────────────────────────────────────────────────────────────────
-function MenuSettingsModal({
-  deptId, deptName, settings, onClose, onSaved,
+function EditMenuPopup({
+  deptId, deptName, menuKey, setting, onClose, onSaved,
 }: {
   deptId: string;
   deptName: string;
-  settings: MenuSettings;
+  menuKey: string;
+  setting?: MenuSetting;
   onClose: () => void;
   onSaved: (next: MenuSettings) => void;
 }) {
   const noticesCat = MENU_CATEGORIES.find((c) => c.id === "notices")!;
-  const defaults = COMMON_MENU_KEYS
-    .map((key) => noticesCat.items.find((it) => it.id === key))
-    .filter((it): it is MenuItem => !!it);
+  const item = noticesCat.items.find((it) => it.id === menuKey);
+  const defLabel = (item?.label ?? "").replace("{dept}", deptName);
+  const defDesc = item?.desc ?? "";
+  const configurable = ACCESS_CONFIGURABLE.has(menuKey);
 
-  type Row = { label: string; description: string; maxGrade: number };
-  const [rows, setRows] = useState<Record<string, Row>>(() => {
-    const init: Record<string, Row> = {};
-    for (const it of defaults) {
-      const s = settings[it.id];
-      init[it.id] = {
-        label: s?.label ?? "",
-        description: s?.description ?? "",
-        maxGrade: ACCESS_CONFIGURABLE.has(it.id)
-          ? (s?.max_grade === 3 || s?.max_grade === 4 ? s.max_grade : (it.maxGrade ?? 4))
-          : 4,
-      };
-    }
-    return init;
-  });
+  // 옵션 C: 현재 적용값(없으면 기본값)을 채워서 시작
+  const [label, setLabel] = useState(setting?.label && setting.label.trim() ? setting.label : defLabel);
+  const [description, setDescription] = useState(setting?.description && setting.description.trim() ? setting.description : defDesc);
+  const [maxGrade, setMaxGrade] = useState<number>(
+    configurable ? (setting?.max_grade === 3 || setting?.max_grade === 4 ? setting.max_grade : (item?.maxGrade ?? 4)) : 4
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const setRow = (id: string, patch: Partial<Row>) =>
-    setRows((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
-
   async function handleSave() {
+    if (!label.trim()) { setError("메뉴 제목을 입력하세요"); return; }
     setSaving(true);
     setError("");
-    for (const it of defaults) {
-      const r = rows[it.id];
-      const { error: e } = await supabase.rpc("set_dept_menu_setting", {
-        p_department_id: deptId,
-        p_menu_key: it.id,
-        p_label: r.label.trim() || null,
-        p_description: r.description.trim() || null,
-        p_max_grade: ACCESS_CONFIGURABLE.has(it.id) ? r.maxGrade : null,
-      });
-      if (e) { setError(`저장 실패: ${e.message}`); setSaving(false); return; }
-    }
+    const { error: e } = await supabase.rpc("set_dept_menu_setting", {
+      p_department_id: deptId,
+      p_menu_key: menuKey,
+      p_label: label.trim() || null,
+      p_description: description.trim() || null,
+      p_max_grade: configurable ? maxGrade : null,
+    });
+    if (e) { setError(`저장 실패: ${e.message}`); setSaving(false); return; }
     const { data } = await supabase.rpc("get_dept_menu_settings", { p_department_id: deptId });
     setSaving(false);
     onSaved((data as MenuSettings) || {});
@@ -474,10 +475,10 @@ function MenuSettingsModal({
 
   return (
     <ModalBackdrop onClose={onClose}>
-      <div style={{ width: "100%", maxWidth: 520, maxHeight: "88vh", overflowY: "auto", background: "var(--card)", borderRadius: 18, padding: 0 }}>
-        <div style={{ position: "sticky", top: 0, background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: "18px 18px 0 0" }}>
+      <div style={{ width: "100%", maxWidth: 440, background: "var(--card)", borderRadius: 18, overflow: "hidden" }}>
+        <div style={{ borderBottom: "1px solid var(--hairline)", padding: "15px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 7 }}>
-            <Settings2 size={17} strokeWidth={1.9} /> 공통메뉴 설정
+            <Pencil size={16} strokeWidth={2} /> 메뉴 수정
           </div>
           <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "none", background: "var(--bg-soft)", color: "var(--ink-mid)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
             <X size={16} strokeWidth={2} />
@@ -485,69 +486,49 @@ function MenuSettingsModal({
         </div>
 
         <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.55 }}>
-            메뉴 이름과 설명(주석)을 수정할 수 있습니다. 접근 범위는 <b>월간 교육계획서</b>와 <b>복습문제 보기</b>만 변경 가능하며, 나머지는 항상 학부모까지 공개됩니다.
+          <div>
+            <label style={modalLabel}>메뉴 제목</label>
+            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={defLabel} maxLength={40} style={modalInput} />
+          </div>
+          <div>
+            <label style={modalLabel}>메뉴 설명</label>
+            <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={defDesc} maxLength={60} style={modalInput} />
           </div>
 
-          {defaults.map((it) => {
-            const r = rows[it.id];
-            const defLabel = it.label.replace("{dept}", deptName);
-            const configurable = ACCESS_CONFIGURABLE.has(it.id);
-            return (
-              <div key={it.id} style={{ border: "1px solid var(--hairline)", borderRadius: 12, padding: 14, background: "var(--surface)" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-faint)", marginBottom: 8 }}>
-                  {defLabel}
-                </div>
-                <label style={modalLabel}>이름</label>
-                <input
-                  value={r.label}
-                  onChange={(e) => setRow(it.id, { label: e.target.value })}
-                  placeholder={defLabel}
-                  maxLength={40}
-                  style={modalInput}
-                />
-                <label style={{ ...modalLabel, marginTop: 10 }}>설명(주석)</label>
-                <input
-                  value={r.description}
-                  onChange={(e) => setRow(it.id, { description: e.target.value })}
-                  placeholder={it.desc}
-                  maxLength={60}
-                  style={modalInput}
-                />
-                {configurable && (
-                  <div style={{ marginTop: 12 }}>
-                    <label style={modalLabel}>접근 범위</label>
-                    <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                      {[{ g: 4, t: "학부모까지" }, { g: 3, t: "선생님만" }].map((opt) => {
-                        const active = r.maxGrade === opt.g;
-                        return (
-                          <button
-                            key={opt.g}
-                            type="button"
-                            onClick={() => setRow(it.id, { maxGrade: opt.g })}
-                            style={{
-                              flex: 1, padding: "9px 10px", borderRadius: 9, cursor: "pointer", fontFamily: "inherit",
-                              fontSize: 13, fontWeight: 700,
-                              border: `1.5px solid ${active ? "var(--accent)" : "var(--hairline)"}`,
-                              background: active ? "var(--accent-soft)" : "var(--card)",
-                              color: active ? "var(--accent-strong)" : "var(--ink-soft)",
-                            }}
-                          >
-                            {opt.t}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+          {configurable ? (
+            <div>
+              <label style={modalLabel}>접근 범위</label>
+              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                {[{ g: 3, t: "선생님만" }, { g: 4, t: "학부모까지" }].map((opt) => {
+                  const active = maxGrade === opt.g;
+                  return (
+                    <button
+                      key={opt.g}
+                      type="button"
+                      onClick={() => setMaxGrade(opt.g)}
+                      style={{
+                        flex: 1, padding: "10px", borderRadius: 9, cursor: "pointer", fontFamily: "inherit", fontSize: 13.5, fontWeight: 700,
+                        border: `1.5px solid ${active ? "var(--accent)" : "var(--hairline)"}`,
+                        background: active ? "var(--accent-soft)" : "var(--card)",
+                        color: active ? "var(--accent-strong)" : "var(--ink-soft)",
+                      }}
+                    >
+                      {opt.t}
+                    </button>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: "var(--ink-faint)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Lock size={12} strokeWidth={2} /> 이 메뉴는 항상 학부모까지 공개됩니다 (접근 범위 고정)
+            </div>
+          )}
 
           {error && <div style={{ fontSize: 13, fontWeight: 700, color: "var(--danger)" }}>{error}</div>}
         </div>
 
-        <div style={{ position: "sticky", bottom: 0, background: "var(--card)", borderTop: "1px solid var(--hairline)", padding: "14px 18px", display: "flex", gap: 10, borderRadius: "0 0 18px 18px" }}>
+        <div style={{ borderTop: "1px solid var(--hairline)", padding: "14px 18px", display: "flex", gap: 10 }}>
           <button onClick={onClose} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1px solid var(--hairline-strong)", background: "var(--card)", color: "var(--ink-mid)", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>취소</button>
           <button onClick={handleSave} disabled={saving} style={{ flex: 2, padding: "12px", borderRadius: 10, border: "none", background: "var(--accent)", color: "#fff", fontWeight: 800, fontSize: 14, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1, fontFamily: "inherit" }}>
             {saving ? "저장 중..." : "저장"}
@@ -561,11 +542,11 @@ function MenuSettingsModal({
 const modalLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", letterSpacing: 0.2 };
 const modalInput: React.CSSProperties = { width: "100%", marginTop: 5, padding: "10px 12px", fontSize: 14, background: "var(--card)", border: "1.5px solid var(--hairline)", borderRadius: 9, outline: "none", fontFamily: "inherit", boxSizing: "border-box", color: "var(--ink)", fontWeight: 500 };
 
-function MenuCard({ item, onClick }: { item: MenuItem; onClick: () => void }) {
+function MenuCard({ item, onClick, onEdit }: { item: MenuItem; onClick: () => void; onEdit?: () => void }) {
   const dim = !item.implemented;
   return (
     <div
-      onClick={onClick}
+      onClick={onEdit ? onEdit : onClick}
       style={{
         background: dim ? "var(--surface)" : "#fff",
         border: `1.5px solid ${dim ? "var(--hairline)" : `color-mix(in srgb, ${item.color} 26%, transparent)`}`,
@@ -606,6 +587,15 @@ function MenuCard({ item, onClick }: { item: MenuItem; onClick: () => void }) {
         </div>
         <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 2, lineHeight: 1.3 }}>{item.desc}</div>
       </div>
+      {onEdit && (
+        <span style={{
+          position: "absolute", top: 8, right: 8, display: "inline-flex", alignItems: "center", gap: 3,
+          padding: "3px 8px", borderRadius: 99, fontSize: 11, fontWeight: 800,
+          background: "var(--accent)", color: "#fff",
+        }}>
+          <Pencil size={11} strokeWidth={2.4} /> 수정
+        </span>
+      )}
     </div>
   );
 }
