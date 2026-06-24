@@ -86,8 +86,7 @@ export default function MyClassPage() {
       setMyTeacherId(teacher?.id || null);
       setAuthChecked(true);
       if (teacher?.id) {
-        const isLeader = teacher.teacher_role !== "교사";
-        await loadStudents(teacher.id, isLeader);
+        await loadStudents(teacher.id);
       } else setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -102,16 +101,15 @@ export default function MyClassPage() {
     if (!draft && selectedStudent) setDraft({ ...selectedStudent });
   }, [draft, selectedStudent]);
 
-  async function loadStudents(teacherId: string, isLeader = false) {
+  async function loadStudents(teacherId: string) {
     setLoading(true);
 
-    let query = supabase
+    const query = supabase
       .from("edu_students")
       .select("id, department_id, student_no, name, student_type, grade, grade_year, class_no, is_active, order_no, member_id, teacher_id")
       .eq("department_id", deptId)
+      .eq("teacher_id", teacherId)
       .eq("is_active", true);
-    // 전도사·부장급은 전체 학생 조회, 교사는 본인 반만
-    if (!isLeader) query = query.eq("teacher_id", teacherId);
 
     const { data: studentRows, error: studentErr } = await query
       .order("order_no", { ascending: true })
@@ -382,9 +380,9 @@ export default function MyClassPage() {
 
 function PageHeader({ deptId, router, myClassName }: { deptId: string; router: ReturnType<typeof useRouter>; myClassName: string }) {
   return (
-    <div style={headerStyle}>
+    <div className="app-subpage-header" style={headerStyle}>
       <HeaderLogo />
-      <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+      <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
       <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
         <Baby size={18} strokeWidth={1.8} /> 우리반 아이 정보 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
       </div>

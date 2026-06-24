@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
-import { Lock, AlertTriangle, MessageSquare } from "lucide-react";
+import { Lock, AlertTriangle, MessageSquare, Reply, Trash2 } from "lucide-react";
 
 type FeedbackStatus = "submitted" | "received" | "reviewing" | "resolved" | "rejected";
 
@@ -20,9 +20,11 @@ type Author = { id: string; name: string | null; sub_role: string | null };
 
 type Comment = {
   id: string;
+  parent_comment_id: string | null;
   body: string;
   is_admin_reply: boolean;
   is_mine: boolean;
+  can_delete: boolean;
   created_at: string;
   author: Author;
   attachments: Attachment[];
@@ -79,6 +81,10 @@ export default function FeedbackDetailPage() {
   const [commentBody, setCommentBody] = useState("");
   const [commentAtts, setCommentAtts] = useState<LocalAtt[]>([]);
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [nestedReplyBody, setNestedReplyBody] = useState("");
+  const [submittingNestedReply, setSubmittingNestedReply] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -221,6 +227,48 @@ export default function FeedbackDetailPage() {
     await load();
   }
 
+  async function submitNestedReply(e: React.FormEvent, parentCommentId: string) {
+    e.preventDefault();
+    setError("");
+    if (!nestedReplyBody.trim()) return setError("대댓글 내용을 입력하세요");
+    setSubmittingNestedReply(true);
+    const { error: rpcErr } = await supabase.rpc("add_feedback_comment", {
+      p_post_id: postId,
+      p_body: nestedReplyBody.trim(),
+      p_attachments: [],
+      p_parent_comment_id: parentCommentId,
+    });
+    setSubmittingNestedReply(false);
+    if (rpcErr) {
+      setError(`대댓글 등록 실패: ${rpcErr.message}`);
+      return;
+    }
+    setNestedReplyBody("");
+    setReplyingToId(null);
+    await load();
+  }
+
+  async function deleteComment(commentId: string) {
+    const reason = window.prompt("삭제 사유를 입력하세요. (선택사항, 취소를 누르면 삭제하지 않습니다)", "");
+    if (reason === null) return;
+    setError("");
+    setDeletingCommentId(commentId);
+    const { error: rpcErr } = await supabase.rpc("delete_feedback_comment", {
+      p_comment_id: commentId,
+      p_reason: reason.trim() || null,
+    });
+    setDeletingCommentId(null);
+    if (rpcErr) {
+      setError(`댓글 삭제 실패: ${rpcErr.message}`);
+      return;
+    }
+    if (replyingToId === commentId) {
+      setReplyingToId(null);
+      setNestedReplyBody("");
+    }
+    await load();
+  }
+
   async function changeStatus(next: FeedbackStatus) {
     if (!post) return;
     if (post.status === next) return;
@@ -246,6 +294,7 @@ export default function FeedbackDetailPage() {
   );
 
   const meta = STATUS_META[post.status];
+  const topLevelComments = post.comments.filter((comment) => !comment.parent_comment_id);
 
   return (
     <div style={pageStyle}>
@@ -326,8 +375,9 @@ export default function FeedbackDetailPage() {
             </div>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {post.comments.map((c) => (
-              <div key={c.id} style={{
+            {topLevelComments.map((c) => (
+              <div key={c.id}>
+                <div style={{
                 padding: 12,
                 borderRadius: 12,
                 background: c.is_admin_reply ? "var(--accent-soft)" : "var(--surface)",
@@ -351,6 +401,53 @@ export default function FeedbackDetailPage() {
                     })}
                   </div>
                 )}
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 8 }}>
+                  {(post.is_mine || post.is_admin) && (
+                    <button type="button" onClick={() => {
+                      setReplyingToId(replyingToId === c.id ? null : c.id);
+                      setNestedReplyBody("");
+                    }} style={commentActionBtn}>
+                      <Reply size={13} strokeWidth={1.8} /> 답글
+                    </button>
+                  )}
+                  {c.can_delete && (
+                    <button type="button" disabled={deletingCommentId === c.id} onClick={() => deleteComment(c.id)} style={{ ...commentActionBtn, color: "var(--danger)" }}>
+                      <Trash2 size={13} strokeWidth={1.8} /> {deletingCommentId === c.id ? "삭제 중" : "삭제"}
+                    </button>
+                  )}
+                </div>
+                {replyingToId === c.id && (
+                  <form onSubmit={(e) => submitNestedReply(e, c.id)} style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--hairline)" }}>
+                    <textarea value={nestedReplyBody} onChange={(e) => setNestedReplyBody(e.target.value)} rows={2}
+                      placeholder={`${c.author?.name || "작성자"}님에게 답글`}
+                      style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 6 }}>
+                      <button type="button" onClick={() => { setReplyingToId(null); setNestedReplyBody(""); }} style={commentActionBtn}>취소</button>
+                      <button type="submit" disabled={submittingNestedReply} style={{ ...commentActionBtn, background: "var(--accent)", color: "#fff", borderColor: "var(--accent)" }}>
+                        {submittingNestedReply ? "등록 중" : "대댓글 등록"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+              {post.comments.filter((reply) => reply.parent_comment_id === c.id).map((child) => (
+                <div key={child.id} style={{ marginTop: 6, marginLeft: 20, padding: 12, borderRadius: 12, background: child.is_admin_reply ? "var(--accent-soft)" : "var(--card)", border: "1px solid var(--hairline)", borderLeft: "3px solid var(--accent-line)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
+                    <Reply size={12} strokeWidth={1.8} color="var(--ink-faint)" />
+                    {child.is_admin_reply && <span style={{ padding: "2px 6px", borderRadius: 6, background: "var(--accent)", color: "#fff", fontSize: 10, fontWeight: 800 }}>관리자</span>}
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>{child.author?.name || "익명"}</span>
+                    <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>· {formatDate(child.created_at)}</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "var(--ink)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{child.body}</div>
+                  {child.can_delete && (
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+                      <button type="button" disabled={deletingCommentId === child.id} onClick={() => deleteComment(child.id)} style={{ ...commentActionBtn, color: "var(--danger)" }}>
+                        <Trash2 size={13} strokeWidth={1.8} /> {deletingCommentId === child.id ? "삭제 중" : "삭제"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
               </div>
             ))}
           </div>
@@ -449,6 +546,11 @@ const inputStyle: React.CSSProperties = {
   background: "var(--card)", border: "1.5px solid var(--hairline)", borderRadius: 10,
   outline: "none", fontFamily: "inherit", boxSizing: "border-box",
   color: "var(--ink)", fontWeight: 500,
+};
+const commentActionBtn: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 8px",
+  border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--card)",
+  color: "var(--ink-soft)", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
 };
 const primaryBtn: React.CSSProperties = {
   width: "100%", padding: "12px 16px", fontSize: 14, fontWeight: 800,

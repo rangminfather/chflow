@@ -79,9 +79,7 @@ export async function POST(req: NextRequest) {
   if (studentErr || !student) {
     return NextResponse.json({ ok: false, error: "학생을 찾을 수 없습니다" }, { status: 404 });
   }
-  // 전도사·부장급은 반 구분 없이 전체 학생 수정 가능
-  const isLeader = teacher.teacher_role !== "교사";
-  if (!isLeader && student.teacher_id !== teacher.id) {
+  if (student.teacher_id !== teacher.id) {
     return NextResponse.json({ ok: false, error: "담당 반 학생만 수정할 수 있습니다" }, { status: 403 });
   }
 

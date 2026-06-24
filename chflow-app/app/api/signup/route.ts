@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { ROLES } from "@/lib/roles";
+import {
+  getClientIp,
+  logSignupAttempt,
+  normalizePhoneDigits,
+  SIGNUP_IDENTITY_COOKIE_NAME,
+  verifySignupIdentityToken,
+} from "@/lib/server/signup-security";
 
 export const runtime = "nodejs";
 
@@ -48,6 +55,7 @@ interface SignupBody {
   guardianName?: string | null;
   guardianPhone?: string | null;
   isChild?: boolean;
+  signupMethod?: "manual" | "verified";
 }
 
 function usernameToEmail(username: string): string {
@@ -70,9 +78,32 @@ function validateUsername(username: string): { valid: boolean; error?: string } 
   return { valid: true };
 }
 
+function signupResponse(
+  req: NextRequest,
+  clearIdentity: boolean,
+  body: unknown,
+  init?: ResponseInit
+) {
+  const res = NextResponse.json(body, init);
+  if (clearIdentity) {
+    res.cookies.set(SIGNUP_IDENTITY_COOKIE_NAME, "", {
+      httpOnly: true,
+      secure: req.nextUrl.protocol === "https:",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+  }
+  res.headers.set("Cache-Control", "no-store, private");
+  return res;
+}
+
 export async function POST(req: NextRequest) {
+  let consumeIdentityCookie = false;
   try {
     const body: SignupBody = await req.json();
+    const ip = getClientIp(req);
+    const userAgent = req.headers.get("user-agent");
     const {
       username,
       password,
@@ -94,7 +125,9 @@ export async function POST(req: NextRequest) {
       guardianName,
       guardianPhone,
       isChild,
+      signupMethod = "manual",
     } = body;
+    consumeIdentityCookie = signupMethod === "verified";
 
     // Validation (phone은 noPhone 체크 시 선택)
     if (!username || !password || !name) {
@@ -150,6 +183,84 @@ export async function POST(req: NextRequest) {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
+    const identity = verifySignupIdentityToken(
+      req.cookies.get(SIGNUP_IDENTITY_COOKIE_NAME)?.value
+    );
+    const identityVerified = signupMethod === "verified" && !!identity;
+    let autoApprove = false;
+
+    if (signupMethod === "verified" && !identityVerified) {
+      await logSignupAttempt(admin, {
+        route: "verified",
+        result: "invalid_request",
+        riskLevel: "medium",
+        reason: "missing or invalid identity verification token",
+        name,
+        phone,
+        ip,
+        userAgent,
+      });
+      return signupResponse(req, true, { error: "본인인증 정보가 확인되지 않았습니다. 다시 인증해 주세요." }, { status: 400 });
+    }
+
+    if (identityVerified && normalizePhoneDigits(phone) !== normalizePhoneDigits(identity.phone)) {
+      await logSignupAttempt(admin, {
+        route: "verified",
+        result: "invalid_request",
+        riskLevel: "high",
+        reason: "identity phone differs from signup phone",
+        name,
+        phone,
+        ip,
+        userAgent,
+      });
+      return signupResponse(req, true, { error: "본인인증 정보와 가입 정보가 일치하지 않습니다." }, { status: 400 });
+    }
+
+    if (identityVerified && name.trim() !== identity.name.trim()) {
+      await logSignupAttempt(admin, {
+        route: "verified",
+        result: "invalid_request",
+        riskLevel: "high",
+        reason: "identity name differs from signup name",
+        name,
+        phone,
+        ip,
+        userAgent,
+      });
+      return signupResponse(req, true, { error: "본인인증 정보와 가입 정보가 일치하지 않습니다." }, { status: 400 });
+    }
+
+    if (identityVerified && matchedMemberId) {
+      const { data: member } = await admin
+        .from("members")
+        .select("id, name, phone, app_user_id")
+        .eq("id", matchedMemberId)
+        .maybeSingle();
+
+      if (!member || member.app_user_id) {
+        return signupResponse(req, true, { error: "이미 가입되었거나 확인할 수 없는 교인 정보입니다." }, { status: 409 });
+      }
+
+      autoApprove =
+        member.name === identity.name.trim()
+        && normalizePhoneDigits(member.phone || "") === normalizePhoneDigits(identity.phone);
+
+      if (!autoApprove) {
+        await logSignupAttempt(admin, {
+          route: "verified",
+          result: "invalid_request",
+          riskLevel: "high",
+          reason: "verified identity does not match selected member row",
+          name,
+          phone,
+          ip,
+          userAgent,
+          metadata: { matchedMemberId },
+        });
+        return signupResponse(req, true, { error: "본인인증 정보와 교인 정보가 일치하지 않습니다." }, { status: 400 });
+      }
+    }
 
     // 1. Check username availability
     const { data: existing } = await admin
@@ -158,7 +269,7 @@ export async function POST(req: NextRequest) {
       .ilike("username", lower)
       .maybeSingle();
     if (existing) {
-      return NextResponse.json({ error: "이미 사용 중인 아이디입니다" }, { status: 409 });
+      return signupResponse(req, consumeIdentityCookie, { error: "이미 사용 중인 아이디입니다" }, { status: 409 });
     }
 
     // 2. Create user via admin API (no rate limit, no email confirmation)
@@ -169,7 +280,9 @@ export async function POST(req: NextRequest) {
       user_metadata: { username: lower, name },
     });
     if (createError || !created.user) {
-      return NextResponse.json(
+      return signupResponse(
+        req,
+        consumeIdentityCookie,
         { error: `가입 실패: ${createError?.message || "사용자 생성 실패"}` },
         { status: 500 }
       );
@@ -186,8 +299,16 @@ export async function POST(req: NextRequest) {
       phone: phone.replace(/[^0-9]/g, ""),
       role: storedRole,
       sub_role: subRole,
-      status: "pending",
+      status: autoApprove ? "active" : "pending",
       member_id: matchedMemberId || null,
+      approved_at: autoApprove ? new Date().toISOString() : null,
+      approved_by: null,
+      signup_method: signupMethod,
+      signup_identity_verified: identityVerified,
+      signup_identity_provider: identity?.provider || null,
+      signup_identity_subject: identity?.subject || null,
+      signup_risk_level: autoApprove ? "low" : "medium",
+      signup_risk_reason: autoApprove ? null : "manual signup requires admin approval",
       signup_birth_date: birthDate,
       signup_gender: gender,
       signup_address: cleanAddress,
@@ -204,7 +325,9 @@ export async function POST(req: NextRequest) {
     if (profileError) {
       // Rollback: delete user
       await admin.auth.admin.deleteUser(userId);
-      return NextResponse.json(
+      return signupResponse(
+        req,
+        consumeIdentityCookie,
         { error: "프로필 생성 실패" },
         { status: 500 }
       );
@@ -214,12 +337,24 @@ export async function POST(req: NextRequest) {
     if (matchedMemberId) {
       await admin.from("members").update({
         app_user_id: userId,
-        guard_status: "가입대기",
+        guard_status: autoApprove ? "회원" : "가입대기",
       }).eq("id", matchedMemberId);
     }
 
-    return NextResponse.json({ success: true, userId });
+    await logSignupAttempt(admin, {
+      route: signupMethod === "verified" ? "verified" : isChild ? "child" : "manual",
+      result: "signup_created",
+      riskLevel: autoApprove ? "low" : "medium",
+      reason: autoApprove ? "identity verified existing member auto approved" : "signup pending approval",
+      name,
+      phone,
+      ip,
+      userAgent,
+      metadata: { userId, matchedMemberId, autoApprove },
+    });
+
+    return signupResponse(req, consumeIdentityCookie, { success: true, userId, status: autoApprove ? "active" : "pending" });
   } catch (e: unknown) {
-    return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 });
+    return signupResponse(req, consumeIdentityCookie, { error: getErrorMessage(e) }, { status: 500 });
   }
 }

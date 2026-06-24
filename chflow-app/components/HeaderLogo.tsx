@@ -15,6 +15,7 @@ export default function HeaderLogo({ size = 52, showText = false }: HeaderLogoPr
   const imageSize = Math.round(size * LOGO_FILL_RATIO);
   return (
     <button
+      className="app-home-logo"
       onClick={() => router.push("/home")}
       title="홈으로"
       style={{

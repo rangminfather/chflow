@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
-import { AlertTriangle, FileText, X } from "lucide-react";
+import HeaderLogo from "@/components/HeaderLogo";
+import { AlertTriangle, FileText, X, Lock } from "lucide-react";
 
 type Attachment = {
   localId: string;
@@ -37,6 +38,7 @@ export default function NewDeptNoticePage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [teachersOnly, setTeachersOnly] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -130,6 +132,7 @@ export default function NewDeptNoticePage() {
       p_title: title.trim(),
       p_body: body.trim(),
       p_attachments: payload,
+      p_teachers_only: teachersOnly,
     });
 
     setSubmitting(false);
@@ -158,12 +161,12 @@ export default function NewDeptNoticePage() {
 
   return (
     <div style={pageStyle}>
+      <div className="app-subpage-header" style={{ maxWidth: 640, margin: "0 auto 14px", background: "var(--card)", borderRadius: 14, padding: "10px 14px" }}>
+        <HeaderLogo />
+        <div style={{ minWidth: 0, fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>공지 작성</div>
+        <button className="app-header-back" onClick={() => router.replace(boardUrl)} style={{ ...backBtnStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}>← 게시판</button>
+      </div>
       <div style={cardStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-          <button onClick={() => router.replace(boardUrl)} style={backBtnStyle}>←</button>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>공지 작성</div>
-        </div>
-
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 12 }}>
             <label style={labelStyle}>제목 *</label>
@@ -213,6 +216,30 @@ export default function NewDeptNoticePage() {
             </div>
             <input ref={fileInputRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.hwp,.txt" multiple onChange={handleFilesChange} style={{ display: "none" }} />
           </div>
+
+          <label
+            style={{
+              display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 14, cursor: "pointer",
+              padding: "12px 14px", borderRadius: 12,
+              border: `1.5px solid ${teachersOnly ? "var(--accent)" : "var(--hairline)"}`,
+              background: teachersOnly ? "var(--accent-soft)" : "var(--surface)",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={teachersOnly}
+              onChange={(e) => setTeachersOnly(e.target.checked)}
+              style={{ width: 18, height: 18, marginTop: 1, accentColor: "var(--accent)", flexShrink: 0 }}
+            />
+            <span style={{ minWidth: 0 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>
+                <Lock size={14} strokeWidth={2} /> 선생님만 보기
+              </span>
+              <span style={{ display: "block", fontSize: 12, color: "var(--ink-soft)", marginTop: 3, lineHeight: 1.5 }}>
+                체크하면 학부모에게는 보이지 않고 <b>선생님 이상</b>만 열람할 수 있습니다. 제목 옆에 “선생님만” 표시가 붙습니다.
+              </span>
+            </span>
+          </label>
 
           {error && <div style={{ ...errorStyle, display: "inline-flex", alignItems: "center", gap: 6, width: "100%" }}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>}
 

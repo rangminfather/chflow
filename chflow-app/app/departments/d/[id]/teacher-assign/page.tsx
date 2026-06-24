@@ -5,16 +5,19 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
-import { UserCog, AlertTriangle, School, Circle, CheckCircle2, ClipboardList } from "lucide-react";
+import { UserCog, AlertTriangle, School, Circle, CheckCircle2, ClipboardList, Plus, Pencil, Trash2 } from "lucide-react";
 
 interface ClassRow {
   class_no: string;
   grade_year: number | null;
+  label: string | null;
   teacher_id: string | null;
   teacher_name: string | null;
   teacher_member_id: string | null;
   is_placeholder: boolean;
   student_count: number;
+  sort_order: number;
+  in_registry: boolean;
 }
 
 interface TeacherRow {
@@ -67,13 +70,19 @@ export default function TeacherAssignPage() {
   const [pickedUserId, setPickedUserId] = useState("");
   const [mergeReason, setMergeReason] = useState("");
 
+  // 반 추가/이름변경
+  const [classModal, setClassModal] = useState<null | { mode: "add" | "edit"; oldClassNo?: string }>(null);
+  const [cfClassNo, setCfClassNo] = useState("");
+  const [cfGrade, setCfGrade] = useState("");
+  const [cfLabel, setCfLabel] = useState("");
+
   const [toast, setToast] = useState("");
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
   const load = useCallback(async () => {
     setLoading(true);
     const [c, t, l, d] = await Promise.all([
-      supabase.rpc("list_classes_with_teachers", { p_dept_id: deptId }),
+      supabase.rpc("list_dept_classes_full", { p_dept_id: deptId }),
       supabase.rpc("list_teachers_status", { p_dept_id: deptId }),
       supabase.from("teacher_assignment_log").select("id, action_type, class_no, old_teacher_name, new_teacher_name, reason, changed_by_name, changed_at").eq("department_id", deptId).order("changed_at", { ascending: false }).limit(20),
       supabase.from("departments").select("name").eq("id", deptId).maybeSingle(),
@@ -139,6 +148,47 @@ export default function TeacherAssignPage() {
     load();
   }
 
+  function openAddClass() {
+    setClassModal({ mode: "add" });
+    setCfClassNo(""); setCfGrade(""); setCfLabel("");
+  }
+  function openEditClass(c: ClassRow) {
+    setClassModal({ mode: "edit", oldClassNo: c.class_no });
+    setCfClassNo(c.class_no); setCfGrade(c.grade_year != null ? String(c.grade_year) : ""); setCfLabel(c.label || "");
+  }
+
+  async function doSaveClass() {
+    if (!classModal) return;
+    if (!cfClassNo.trim()) { showToast("반 이름을 입력하세요"); return; }
+    const gradeVal = cfGrade.trim() === "" ? null : Number(cfGrade);
+    if (gradeVal !== null && !Number.isFinite(gradeVal)) { showToast("학년은 숫자로 입력하세요"); return; }
+    setSubmitting(true);
+    let error;
+    if (classModal.mode === "add") {
+      ({ error } = await supabase.rpc("add_dept_class", {
+        p_dept_id: deptId, p_grade_year: gradeVal, p_class_no: cfClassNo.trim(), p_label: cfLabel.trim() || null,
+      }));
+    } else {
+      ({ error } = await supabase.rpc("rename_dept_class", {
+        p_dept_id: deptId, p_old_class_no: classModal.oldClassNo, p_new_class_no: cfClassNo.trim(),
+        p_grade_year: gradeVal, p_label: cfLabel.trim() || null,
+      }));
+    }
+    setSubmitting(false);
+    if (error) { showToast(error.message); return; }
+    showToast(classModal.mode === "add" ? "반을 추가했습니다" : "반 정보를 수정했습니다");
+    setClassModal(null);
+    load();
+  }
+
+  async function doDeleteClass(c: ClassRow) {
+    if (!window.confirm(`"${c.class_no}" 반을 삭제할까요?`)) return;
+    const { error } = await supabase.rpc("delete_dept_class", { p_dept_id: deptId, p_class_no: c.class_no });
+    if (error) { showToast(error.message); return; }
+    showToast(`${c.class_no} 반 삭제 완료`);
+    load();
+  }
+
   if (!authChecked) {
     return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-soft)" }}>권한 확인 중...</div>;
   }
@@ -148,30 +198,40 @@ export default function TeacherAssignPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-soft)", paddingBottom: 60, fontFamily: "'Noto Sans KR', sans-serif" }}>
-      <HeaderLogo />
+      <div className="app-subpage-header" style={{ background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)" }}>
+        <HeaderLogo />
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}><UserCog size={20} strokeWidth={1.8} /> 반 관리</h1>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{deptName}</div>
+        </div>
+        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={btnGhost}>← 부서홈</button>
+      </div>
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "16px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={btnGhost}>←</button>
-          <div>
-            <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}><UserCog size={20} strokeWidth={1.8} /> 담임선생님 지정</h1>
-            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{deptName}</div>
-          </div>
-        </div>
-
         <div style={{ background: "var(--warning-soft)", border: "1px solid #E0C893", borderRadius: 8, padding: 12, fontSize: 12, color: "var(--warning)", marginBottom: 16, lineHeight: 1.6 }}>
           <AlertTriangle size={14} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> 모든 변경은 <strong>이력으로 기록</strong>됩니다. 매년 학기 초 또는 특별 사유 발생 시 변경하세요.
         </div>
 
         {/* 반별 담임 */}
         <div style={card}>
-          <div style={{ ...sectionTitle, display: "flex", alignItems: "center", gap: 6 }}><School size={15} strokeWidth={1.8} /> 반별 담임 ({classes.length}반)</div>
-          {loading ? <div style={{ padding: 20, textAlign: "center", color: "var(--ink-faint)" }}>로딩...</div> : (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
+            <div style={{ ...sectionTitle, marginBottom: 0, display: "flex", alignItems: "center", gap: 6 }}><School size={15} strokeWidth={1.8} /> 반별 담임 ({classes.length}반)</div>
+            <button onClick={openAddClass} style={{ ...btnPrimary, padding: "8px 14px", display: "inline-flex", alignItems: "center", gap: 5 }}><Plus size={15} strokeWidth={2.2} /> 반 추가</button>
+          </div>
+          {loading ? <div style={{ padding: 20, textAlign: "center", color: "var(--ink-faint)" }}>로딩...</div> : classes.length === 0 ? (
+            <div style={{ padding: 24, textAlign: "center", color: "var(--ink-faint)", fontSize: 13 }}>아직 반이 없습니다. <strong>반 추가</strong>로 만들어 주세요.</div>
+          ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
               {classes.map((c) => (
                 <div key={c.class_no} style={{ padding: 12, background: "var(--surface)", borderRadius: 8, border: "1px solid var(--hairline)" }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
-                    {c.class_no} <span style={{ color: "var(--ink-faint)", fontWeight: 400, fontSize: 12 }}>({c.student_count}명)</span>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, marginBottom: 4 }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>
+                      {c.class_no} <span style={{ color: "var(--ink-faint)", fontWeight: 400, fontSize: 12 }}>({c.student_count}명)</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                      <button onClick={() => openEditClass(c)} title="반 이름·학년 수정" style={iconBtn}><Pencil size={13} strokeWidth={2} /></button>
+                      <button onClick={() => doDeleteClass(c)} title="반 삭제" style={{ ...iconBtn, color: "var(--danger)" }}><Trash2 size={13} strokeWidth={2} /></button>
+                    </div>
                   </div>
                   <div style={{ fontSize: 12, color: "var(--ink-mid)", marginBottom: 8 }}>
                     담임: <strong>{c.teacher_name || "(없음)"}</strong>
@@ -295,6 +355,30 @@ export default function TeacherAssignPage() {
         </ModalBackdrop>
       )}
 
+      {/* 반 추가 / 수정 모달 */}
+      {classModal && (
+        <ModalBackdrop onClose={() => setClassModal(null)}>
+          <div style={modalCard}>
+            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+              {classModal.mode === "add" ? <><Plus size={16} strokeWidth={2} /> 반 추가</> : <><Pencil size={15} strokeWidth={2} /> 반 수정</>}
+            </div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)" }}>반 이름 *</label>
+            <input value={cfClassNo} onChange={(e) => setCfClassNo(e.target.value)} placeholder="예: 1-1, a반, 새싹반" maxLength={20} style={{ ...inp, marginTop: 5 }} />
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", display: "block", marginTop: 10 }}>학년 (선택 · 숫자)</label>
+            <input value={cfGrade} onChange={(e) => setCfGrade(e.target.value)} placeholder="예: 4 (영아·유아 등은 비워두세요)" inputMode="numeric" maxLength={2} style={{ ...inp, marginTop: 5 }} />
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", display: "block", marginTop: 10 }}>설명 (선택)</label>
+            <input value={cfLabel} onChange={(e) => setCfLabel(e.target.value)} placeholder="메모" maxLength={40} style={{ ...inp, marginTop: 5 }} />
+            {classModal.mode === "edit" && (
+              <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.5 }}>반 이름을 바꾸면 이 반 학생들의 반 정보도 함께 변경됩니다.</div>
+            )}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
+              <button onClick={() => setClassModal(null)} style={btnGhost}>취소</button>
+              <button onClick={doSaveClass} disabled={submitting || !cfClassNo.trim()} style={btnPrimary}>{submitting ? "처리 중..." : "저장"}</button>
+            </div>
+          </div>
+        </ModalBackdrop>
+      )}
+
       {toast && (
         <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "var(--ink)", color: "#fff", padding: "10px 18px", borderRadius: 12, fontSize: 13, zIndex: 9999 }}>
           {toast}
@@ -310,6 +394,7 @@ const inp: React.CSSProperties = { width: "100%", padding: "10px 12px", border: 
 const btnPrimary: React.CSSProperties = { padding: "10px 18px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const btnGhost: React.CSSProperties = { padding: "10px 16px", background: "var(--bg-soft)", color: "var(--ink-mid)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const btnSm: React.CSSProperties = { padding: "6px 10px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
+const iconBtn: React.CSSProperties = { width: 26, height: 26, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--bg-soft)", color: "var(--ink-soft)", border: "none", borderRadius: 6, cursor: "pointer" };
 const chipGhost: React.CSSProperties = { padding: "6px 12px", background: "var(--warning-soft)", color: "var(--warning)", border: "1px solid #E0C893", borderRadius: 999, fontSize: 11, cursor: "pointer", fontFamily: "inherit" };
 const chipGreen: React.CSSProperties = { padding: "6px 12px", background: "var(--success-soft)", color: "var(--success)", border: "1px solid var(--success-soft)", borderRadius: 999, fontSize: 11, fontFamily: "inherit" };
 const modalCard: React.CSSProperties = { background: "var(--card)", borderRadius: 14, padding: 20, maxWidth: 420, width: "calc(100vw - 32px)", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" };

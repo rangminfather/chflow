@@ -1443,11 +1443,11 @@ export default function WeeklyBulletinPage() {
   return (
     <div style={pageStyle}>
 
-      <div style={headerStyle}>
+      <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
-        <button onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Newspaper size={18} strokeWidth={1.8} /> 주보 만들기</div>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div className="app-header-actions" style={{ display: "flex", gap: 6 }}>
           {!isDesktop && (
             <button onClick={() => setDrawerOpen(true)} style={{ ...iconBtnStyle, display: "inline-flex", alignItems: "center" }} title="임시저장 목록">
               <FolderOpen size={16} strokeWidth={1.8} />{draftList.length > 0 && <span style={{ fontSize: 11, marginLeft: 3 }}>{draftList.length}</span>}

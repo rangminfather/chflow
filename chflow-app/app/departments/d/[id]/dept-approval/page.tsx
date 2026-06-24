@@ -7,7 +7,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
-import DeptIcon from "@/components/DeptIcon";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Inbox, AlertTriangle, Folder, Phone, CheckCircle2 } from "lucide-react";
@@ -26,6 +25,7 @@ interface PendingJoin {
   dept_icon: string | null;
   requested_at: string;
   children_desc: string | null;
+  photo_url: string | null;
 }
 
 // 임원진(grade 0~2)이 승인 시 부여할 수 있는 등급: 교사·학부모만
@@ -115,17 +115,16 @@ export default function DeptApprovalPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-soft)", paddingBottom: 60, fontFamily: "'Noto Sans KR', sans-serif" }}>
-      <HeaderLogo />
+      <div className="app-subpage-header" style={{ background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)" }}>
+        <HeaderLogo />
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}><Inbox size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 사역 가입 승인</h1>
+          <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{deptName}</div>
+        </div>
+        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={btnGhost}>← 부서홈</button>
+      </div>
 
       <div style={{ maxWidth: 800, margin: "0 auto", padding: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-          <button onClick={() => router.push(`/departments/d/${deptId}`)} style={btnGhost}>←</button>
-          <div>
-            <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}><Inbox size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 사역 가입 승인</h1>
-            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{deptName}</div>
-          </div>
-        </div>
-
         <div style={{ background: "var(--warning-soft)", border: "1px solid #E0C893", borderRadius: 8, padding: 12, fontSize: 12, color: "var(--warning)", marginBottom: 16, lineHeight: 1.6 }}>
           <AlertTriangle size={14} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> 본 부서로 가입 신청한 사용자만 표시됩니다. 승인 시 등급(권한)을 선택할 수 있고, 추후 <strong>부서원 등급 관리</strong>에서 수정 가능합니다.
         </div>
@@ -143,8 +142,13 @@ export default function DeptApprovalPage() {
           ) : (
             pending.map((j) => (
               <div key={j.id} style={{ padding: "14px 18px", borderBottom: "1px solid var(--bg-soft)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                <div style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg, var(--accent-soft), #EDE7F2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
-                  <DeptIcon name={j.dept_name} size={20} />
+                <div style={{ width: 44, height: 44, borderRadius: 999, overflow: "hidden", background: "var(--bg-soft)", display: "grid", placeItems: "center", color: "var(--ink-soft)", fontSize: 16, fontWeight: 800, flexShrink: 0 }}>
+                  {j.photo_url ? (
+                    <img src={j.photo_url} alt="" loading="lazy" decoding="async"
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <span>{j.user_name?.slice(0, 1) || "?"}</span>
+                  )}
                 </div>
                 <div style={{ flex: 1, minWidth: 180 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>

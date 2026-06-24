@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type React from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, List, RefreshCw, X } from "lucide-react";
+import { List, RefreshCw, X } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import PdfCanvasViewer from "@/components/PdfCanvasViewer";
 import { supabase } from "@/lib/supabase";
@@ -122,9 +122,9 @@ export default function DepartmentBulletinPage() {
   return (
     <main style={pageStyle}>
       <section style={shellStyle}>
-        <header style={headerStyle}>
-          <button type="button" onClick={() => router.push(`/departments/d/${deptId}`)} aria-label="부서홈으로" style={iconButtonStyle}>
-            <ArrowLeft size={20} strokeWidth={1.8} />
+        <header className="app-subpage-header" style={headerStyle}>
+          <button className="app-header-back" type="button" onClick={() => router.push(`/departments/d/${deptId}`)} aria-label="부서홈으로" style={{ ...iconButtonStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}>
+            ← 부서홈
           </button>
           <HeaderLogo />
           <div style={{ minWidth: 0, flex: 1 }}>
@@ -136,14 +136,16 @@ export default function DepartmentBulletinPage() {
               )}
             </div>
           </div>
-          {items.length > 0 && (
-            <button type="button" onClick={() => setShowList((v) => !v)} aria-label="주보 목록" style={iconButtonStyle}>
-              <List size={19} strokeWidth={1.8} />
+          <div className="app-header-actions">
+            {items.length > 0 && (
+              <button type="button" onClick={() => setShowList((v) => !v)} aria-label="주보 목록" style={iconButtonStyle}>
+                <List size={19} strokeWidth={1.8} />
+              </button>
+            )}
+            <button type="button" onClick={refresh} aria-label="새로고침" disabled={refreshing} style={iconButtonStyle}>
+              <RefreshCw size={19} strokeWidth={1.8} style={{ transform: refreshing ? "rotate(28deg)" : undefined }} />
             </button>
-          )}
-          <button type="button" onClick={refresh} aria-label="새로고침" disabled={refreshing} style={iconButtonStyle}>
-            <RefreshCw size={19} strokeWidth={1.8} style={{ transform: refreshing ? "rotate(28deg)" : undefined }} />
-          </button>
+          </div>
         </header>
 
         {error ? (

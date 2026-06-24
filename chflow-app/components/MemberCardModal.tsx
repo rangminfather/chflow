@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, formatPhone } from "@/lib/supabase";
 import ModalBackdrop from "./ModalBackdrop";
-import { ArrowLeft, Camera, Trash2, Baby, Phone, MapPin, Home, Pencil, Users, User, Lightbulb } from "lucide-react";
+import { ArrowLeft, Camera, Trash2, Baby, Phone, MapPin, Home, Pencil, Users, User, Lightbulb, MessageCircle, PhoneCall } from "lucide-react";
 import { EmptyState } from "@/components/StatusViews";
 
 interface Props {
@@ -216,9 +216,15 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   const m = data.member;
   const photoUrl = m.photo_url;
   const genderColor = m.gender === "M" ? "var(--male)" : m.gender === "F" ? "var(--female)" : "var(--ink-soft)";
+  const actionPhone = normalizeDialNumber(m.phone);
 
   return (
     <ModalBackdrop onClose={onClose} style={bgStyle}>
+      <style>{`
+        @media (max-width: 760px) {
+          .member-card-mobile-phone-actions { display: inline-flex !important; }
+        }
+      `}</style>
       <div onClick={(e) => e.stopPropagation()} style={cardStyle}>
         {/* 헤더 */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid var(--hairline)" }}>
@@ -315,7 +321,20 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                     {m.sub_role || "직분 미지정"} · {m.family_church || "목원"}
                     {m.spouse_name && ` · 배우자 ${m.spouse_name}`}
                   </div>
-                  <div style={{ fontSize: 13, color: "var(--ink-mid)", marginBottom: 2, display: "inline-flex", alignItems: "center", gap: 6 }}><Phone size={15} strokeWidth={1.8} /> {m.phone || "연락처 없음"}</div>
+                  <div style={{ fontSize: 13, color: "var(--ink-mid)", marginBottom: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", minWidth: 0 }}>
+                    <Phone size={15} strokeWidth={1.8} style={{ flexShrink: 0 }} />
+                    <span style={{ minWidth: 0, overflowWrap: "anywhere", wordBreak: "keep-all" }}>{m.phone || "연락처 없음"}</span>
+                    {actionPhone && (
+                      <span className="member-card-mobile-phone-actions" style={mobilePhoneActionsStyle}>
+                        <a href={`tel:${actionPhone}`} aria-label="전화걸기" title="전화걸기" style={mobilePhoneActionStyle}>
+                          <PhoneCall size={15} strokeWidth={1.9} />
+                        </a>
+                        <a href={`sms:${actionPhone}`} aria-label="메시지 보내기" title="메시지 보내기" style={mobilePhoneActionStyle}>
+                          <MessageCircle size={15} strokeWidth={1.9} />
+                        </a>
+                      </span>
+                    )}
+                  </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
                     <div style={{ fontSize: 12, color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", gap: 6 }}>
                       <MapPin size={14} strokeWidth={1.8} /> <span>{m.plain_name ? `${m.plain_name}평원 · ${m.grassland_name}초원 · ` : ""}<strong>{m.pasture_name || "소속 없음"}</strong> 목장</span>
@@ -503,6 +522,11 @@ function kindReverseLabel(kind: string, role: string | null): string {
   if (kind === "grandparent") return "손주";
   if (kind === "spouse") return role === "husband" ? "아내" : role === "wife" ? "남편" : "배우자";
   return "관계";
+}
+
+function normalizeDialNumber(value?: string | null) {
+  const digits = (value || "").replace(/\D/g, "");
+  return digits.length >= 8 ? digits : "";
 }
 
 
@@ -736,4 +760,22 @@ const toggleStyle: React.CSSProperties = {
   padding: "6px 10px", background: "var(--bg-soft)", borderRadius: 8,
   fontSize: 11, fontWeight: 600, color: "var(--ink-mid)", cursor: "pointer",
   userSelect: "none",
+};
+const mobilePhoneActionsStyle: React.CSSProperties = {
+  display: "none",
+  alignItems: "center",
+  gap: 5,
+  flexShrink: 0,
+};
+const mobilePhoneActionStyle: React.CSSProperties = {
+  width: 30,
+  height: 30,
+  borderRadius: 8,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "var(--accent-soft)",
+  color: "var(--accent-strong)",
+  textDecoration: "none",
+  border: "1px solid var(--hairline)",
 };

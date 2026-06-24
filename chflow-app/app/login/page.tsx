@@ -13,6 +13,8 @@ function LoginContent() {
   const info =
     notice === "pending"
       ? "관리자 승인 대기 중입니다. 승인 후 이용 가능합니다."
+      : notice === "signup-active"
+        ? "회원가입과 자동 승인이 완료되었습니다. 바로 로그인할 수 있습니다."
       : notice === "signup"
         ? "회원가입 신청 완료! 관리자 승인 후 로그인 가능합니다."
         : notice === "logout"

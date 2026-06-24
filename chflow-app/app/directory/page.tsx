@@ -7,6 +7,7 @@ import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { formatPhone, supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
+import { MessageCircle, PhoneCall } from "lucide-react";
 
 type UserInfo = {
   role: string;
@@ -359,6 +360,7 @@ export default function DirectoryPage() {
           .directory-grid { grid-template-columns: 1fr !important; }
           .directory-actions { width: 100% !important; }
           .directory-actions button { flex: 1 !important; }
+          .directory-mobile-phone-actions { display: inline-flex !important; }
         }
       `}</style>
 
@@ -601,7 +603,11 @@ function DirectoryProfileModal({
               {member.is_child && <span style={tagStyle("var(--warning-soft)", "var(--warning)")}>자녀</span>}
             </div>
             <div style={profileMetaStyle}>{member.sub_role || "직분 미지정"} · {member.family_church || "목원"}</div>
-            <InfoLine label="연락처" value={member.phone || member.home_phone || member.household_home_phone || "없음"} />
+            <InfoLine
+              label="연락처"
+              value={member.phone || member.home_phone || member.household_home_phone || "없음"}
+              phoneActions={member.phone || undefined}
+            />
             <InfoLine label="배우자" value={member.spouse_name || "없음"} />
             <InfoLine label="소속" value={locationText(member)} />
             {member.address && <InfoLine label="주소" value={member.address} />}
@@ -815,13 +821,31 @@ function Avatar({ member, size }: { member: { name: string; photo_url: string | 
   );
 }
 
-function InfoLine({ label, value }: { label: string; value: string }) {
+function InfoLine({ label, value, phoneActions }: { label: string; value: string; phoneActions?: string }) {
+  const actionPhone = normalizeDialNumber(phoneActions);
   return (
     <div style={infoLineStyle}>
       <span>{label}</span>
-      <strong>{value}</strong>
+      <strong style={infoValueStyle}>
+        <span style={{ minWidth: 0, overflowWrap: "anywhere", wordBreak: "keep-all" }}>{value}</span>
+        {actionPhone && (
+          <span className="directory-mobile-phone-actions" style={mobilePhoneActionsStyle}>
+            <a href={`tel:${actionPhone}`} aria-label="전화걸기" title="전화걸기" style={mobilePhoneActionStyle}>
+              <PhoneCall size={15} strokeWidth={1.9} />
+            </a>
+            <a href={`sms:${actionPhone}`} aria-label="메시지 보내기" title="메시지 보내기" style={mobilePhoneActionStyle}>
+              <MessageCircle size={15} strokeWidth={1.9} />
+            </a>
+          </span>
+        )}
+      </strong>
     </div>
   );
+}
+
+function normalizeDialNumber(value?: string | null) {
+  const digits = (value || "").replace(/\D/g, "");
+  return digits.length >= 8 ? digits : "";
 }
 
 function ProfileSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -1161,6 +1185,35 @@ const infoLineStyle: CSSProperties = {
   marginTop: 5,
   fontSize: 12,
   color: "var(--ink-soft)",
+};
+
+const infoValueStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  gap: 7,
+  minWidth: 0,
+  color: "var(--ink)",
+};
+
+const mobilePhoneActionsStyle: CSSProperties = {
+  display: "none",
+  alignItems: "center",
+  gap: 5,
+  flexShrink: 0,
+};
+
+const mobilePhoneActionStyle: CSSProperties = {
+  width: 30,
+  height: 30,
+  borderRadius: 8,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "var(--accent-soft)",
+  color: "var(--accent-strong)",
+  textDecoration: "none",
+  border: "1px solid var(--hairline)",
 };
 
 const profileSectionStyle: CSSProperties = {

@@ -8,7 +8,6 @@ import {
   Check,
   FileText,
   Forward,
-  Image as ImageIcon,
   LogOut,
   MoreVertical,
   MessageCircle,
@@ -62,6 +61,10 @@ import {
 type NewMode = "direct" | "group";
 type PendingAttachment = MessengerAttachment & { local_url?: string };
 
+function isMobileMessengerViewport(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
+}
+
 const MAX_ATTACHMENTS = 6;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
@@ -97,6 +100,7 @@ export default function MessengerPage() {
   const [replyTarget, setReplyTarget] = useState<MessengerMessage | null>(null);
   const [editing, setEditing] = useState<MessengerMessage | null>(null);
   const [forwarding, setForwarding] = useState<MessengerMessage | null>(null);
+  const [actionMessageId, setActionMessageId] = useState<string | null>(null);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.conversation_id === activeId) || null,
@@ -118,16 +122,25 @@ export default function MessengerPage() {
     ));
   }, [conversations, searchQuery]);
 
+  const clearActiveConversation = useCallback(() => {
+    setActiveId(null);
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete("c");
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `/messenger?${query}` : "/messenger");
+  }, []);
+
   const loadConversations = useCallback(async (preferredId?: string | null) => {
     setLoadingList(true);
     setError("");
     try {
       const rows = await listMessengerConversations();
       setConversations(rows);
-      const requested = preferredId ?? activeId;
+      const requested = preferredId !== undefined ? preferredId : activeId;
       if (requested && rows.some((c) => c.conversation_id === requested)) {
         setActiveId(requested);
-      } else if (!activeId && rows.length > 0) {
+      } else if (!requested && !activeId && rows.length > 0 && !isMobileMessengerViewport()) {
         setActiveId(rows[0].conversation_id);
       }
     } catch (e) {
@@ -180,6 +193,7 @@ export default function MessengerPage() {
       setParticipants([]);
       setOnlineUserIds([]);
       setTypingUserIds([]);
+      setActionMessageId(null);
       return;
     }
     const params = new URLSearchParams(window.location.search);
@@ -373,7 +387,10 @@ export default function MessengerPage() {
         activeId,
         body,
         replyTarget?.id || null,
-        attachments.map(({ local_url: _local, ...a }) => a)
+        attachments.map(({ local_url, ...a }) => {
+          void local_url;
+          return a;
+        })
       );
       setDraft("");
       setReplyTarget(null);
@@ -411,7 +428,7 @@ export default function MessengerPage() {
     try {
       await setMessengerConversationState(activeId, state);
       if (state.archived) {
-        setActiveId(null);
+        clearActiveConversation();
       }
       await loadConversations(state.archived ? null : activeId);
     } catch (e) {
@@ -427,7 +444,7 @@ export default function MessengerPage() {
     try {
       await blockMessengerUser(peer.user_id);
       await setMessengerConversationState(activeConversation.conversation_id, { archived: true });
-      setActiveId(null);
+      clearActiveConversation();
       await loadConversations(null);
     } catch (e) {
       setError(getErrorMessage(e));
@@ -475,7 +492,7 @@ export default function MessengerPage() {
     if (!await confirm(label)) return;
     try {
       await leaveMessengerConversation(activeConversation.conversation_id);
-      setActiveId(null);
+      clearActiveConversation();
       await loadConversations(null);
     } catch (e) {
       setError(getErrorMessage(e));
@@ -605,7 +622,7 @@ export default function MessengerPage() {
                 onArchive={() => updateConversationState({ archived: true })}
                 onLeave={leaveConversation}
                 onBlockPeer={activeConversation.type === "direct" ? blockCurrentPeer : undefined}
-                onBack={() => setActiveId(null)}
+                onBack={clearActiveConversation}
               />
 
               <div style={messageListStyle}>
@@ -625,6 +642,8 @@ export default function MessengerPage() {
                       onForward={() => setForwarding(m)}
                       onReport={() => reportMessage(m)}
                       onReact={(emoji) => reactToMessage(m, emoji)}
+                      actionsOpen={actionMessageId === m.id}
+                      onToggleActions={() => setActionMessageId((current) => current === m.id ? null : m.id)}
                     />
                   ))
                 )}
@@ -869,6 +888,8 @@ function MessageBubble({
   onForward,
   onReport,
   onReact,
+  actionsOpen,
+  onToggleActions,
 }: {
   message: MessengerMessage;
   compact: boolean;
@@ -878,6 +899,8 @@ function MessageBubble({
   onForward: () => void;
   onReport: () => void;
   onReact: (emoji: string) => void;
+  actionsOpen: boolean;
+  onToggleActions: () => void;
 }) {
   const deleted = !!message.deleted_at;
   const readerNames = message.read_by.map((r) => r.name).filter(Boolean).join(", ");
@@ -900,6 +923,7 @@ function MessageBubble({
             mine={message.is_mine}
             deleted={deleted}
             hasText={!!message.body.trim()}
+            open={actionsOpen}
             onReply={onReply}
             onEdit={onEdit}
             onDelete={onDelete}
@@ -914,7 +938,7 @@ function MessageBubble({
             color: message.is_mine ? "#fff" : "var(--ink)",
             border: message.is_mine ? "none" : "1px solid var(--hairline)",
             opacity: deleted ? 0.72 : 1,
-          }}>
+          }} onClick={onToggleActions}>
             {message.reply_to && (
               <div style={{
                 ...replyPreviewStyle,
@@ -968,6 +992,7 @@ function MessageActions({
   mine,
   deleted,
   hasText,
+  open,
   onReply,
   onEdit,
   onDelete,
@@ -978,6 +1003,7 @@ function MessageActions({
   mine: boolean;
   deleted: boolean;
   hasText: boolean;
+  open: boolean;
   onReply: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -987,7 +1013,7 @@ function MessageActions({
 }) {
   if (deleted) return null;
   return (
-    <div className="message-actions" style={messageActionsStyle}>
+    <div className={`message-actions${open ? " open" : ""}`} style={messageActionsStyle}>
       <button type="button" onClick={() => onReact("👍")} title="좋아요" style={miniActionStyle}><SmilePlus size={13} /></button>
       <button type="button" onClick={() => onReact("✅")} title="확인" style={miniTextActionStyle}>✓</button>
       <button type="button" onClick={() => onReact("🙏")} title="감사" style={miniTextActionStyle}>🙏</button>
@@ -1066,6 +1092,7 @@ function Composer({
 }) {
   return (
     <form
+      className="messenger-composer"
       onSubmit={(e) => {
         e.preventDefault();
         onSend();
@@ -1380,7 +1407,11 @@ function getErrorMessage(error: unknown): string {
 
 const responsiveCss = `
   .messenger-page {
+    margin-top: calc(-1 * var(--body-safe-top, 0px));
     min-height: 100vh;
+    min-height: 100dvh;
+    height: 100dvh;
+    overflow: hidden;
     background: var(--bg-soft);
     color: var(--ink);
     font-family: var(--font-noto-sans-kr), -apple-system, BlinkMacSystemFont, sans-serif;
@@ -1389,6 +1420,7 @@ const responsiveCss = `
     display: grid;
     grid-template-columns: 340px minmax(0, 1fr);
     height: calc(100vh - 62px);
+    height: calc(100dvh - 62px);
     max-width: 1180px;
     margin: 0 auto;
     border-left: 1px solid var(--hairline);
@@ -1407,16 +1439,20 @@ const responsiveCss = `
     min-width: 0;
     display: flex;
     flex-direction: column;
+    min-height: 0;
     background: #fbfaf7;
   }
   .mobile-back { display: none; }
-  .message-actions { opacity: 0; transition: opacity .14s ease; }
-  .message-wrap:hover .message-actions { opacity: 1; }
+  .message-actions { opacity: 0; pointer-events: none; transition: opacity .14s ease; }
+  .message-wrap:hover .message-actions,
+  .message-actions.open { opacity: 1; pointer-events: auto; }
   @media (max-width: 760px) {
     .messenger-shell {
       display: block;
-      height: calc(100vh - 58px);
+      height: calc(100vh - 62px);
+      height: calc(100dvh - 62px);
       border: none;
+      min-height: 0;
     }
     .conversation-list {
       height: 100%;
@@ -1426,11 +1462,13 @@ const responsiveCss = `
     .conversation-panel {
       height: 100%;
       display: none;
+      min-height: 0;
     }
     .messenger-shell.has-active .conversation-list { display: none; }
     .messenger-shell.has-active .conversation-panel { display: flex; }
     .mobile-back { display: inline-flex; }
-    .message-actions { opacity: 1; }
+    .message-actions { display: none !important; opacity: 1; }
+    .message-actions.open { display: inline-flex !important; }
   }
 `;
 
@@ -1457,7 +1495,7 @@ const chatSubStyle: React.CSSProperties = { display: "flex", alignItems: "center
 const presenceDotStyle: React.CSSProperties = { width: 7, height: 7, borderRadius: 999, background: "#2F9E62", display: "inline-block", flexShrink: 0 };
 const conversationMenuStyle: React.CSSProperties = { position: "absolute", top: 40, right: 0, zIndex: 40, width: 180, border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--card)", boxShadow: "0 16px 44px rgba(26,22,18,0.16)", padding: 6 };
 const menuActionStyle: React.CSSProperties = { width: "100%", minHeight: 34, border: "none", borderRadius: 7, background: "transparent", display: "flex", alignItems: "center", gap: 8, padding: "0 9px", fontSize: 12, fontWeight: 850, cursor: "pointer", fontFamily: "inherit", textAlign: "left" };
-const messageListStyle: React.CSSProperties = { flex: 1, overflowY: "auto", padding: "14px clamp(12px, 3vw, 22px)" };
+const messageListStyle: React.CSSProperties = { flex: 1, minHeight: 0, overflowY: "auto", padding: "14px clamp(12px, 3vw, 22px)", overscrollBehavior: "contain" };
 const conversationButtonStyle: React.CSSProperties = { width: "100%", display: "flex", alignItems: "center", gap: 10, padding: 10, borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit" };
 const conversationTitleStyle: React.CSSProperties = { flex: 1, minWidth: 0, fontSize: 14, fontWeight: 900, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const conversationTimeStyle: React.CSSProperties = { fontSize: 11, color: "var(--ink-faint)", flexShrink: 0 };
@@ -1477,7 +1515,7 @@ const reactionButtonStyle: React.CSSProperties = { minWidth: 42, height: 25, bor
 const imageAttachmentStyle: React.CSSProperties = { display: "block", maxWidth: "min(320px, 60vw)", maxHeight: 260, borderRadius: 8, objectFit: "cover", border: "1px solid rgba(255,255,255,0.18)" };
 const fileAttachmentStyle: React.CSSProperties = { minWidth: 220, maxWidth: 320, minHeight: 42, borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 8, textDecoration: "none", fontSize: 12, fontWeight: 800 };
 const oneLineStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-const composerStyle: React.CSSProperties = { padding: 12, borderTop: "1px solid var(--hairline)", background: "var(--card)", display: "grid", gap: 8 };
+const composerStyle: React.CSSProperties = { padding: "12px 12px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: "1px solid var(--hairline)", background: "var(--card)", display: "grid", gap: 8, flexShrink: 0 };
 const composerContextStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, border: "1px solid var(--hairline)", background: "var(--accent-soft)", borderRadius: 8, padding: "7px 8px" };
 const pendingAttachmentWrapStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6 };
 const pendingAttachmentStyle: React.CSSProperties = { maxWidth: 220, height: 34, borderRadius: 8, background: "var(--bg-soft)", border: "1px solid var(--hairline)", display: "inline-flex", alignItems: "center", gap: 6, padding: "0 7px", fontSize: 12, fontWeight: 800, color: "var(--ink-mid)" };
