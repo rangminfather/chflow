@@ -213,23 +213,25 @@ export default function MonthlyPlanPage() {
         <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 6 }}>
           <CalendarDays size={17} strokeWidth={1.8} /> 월간 교육계획서
         </div>
-        {!managing && groups.length > 1 && (
-          <button
-            className="app-header-actions"
-            onClick={() => setShowList((v) => !v)}
-            style={{ padding: "7px 12px", background: showList ? "var(--accent-soft)" : "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 13, color: showList ? "var(--accent)" : "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5, fontWeight: 600 }}
-          >
-            <List size={15} strokeWidth={2} /> 목록
-          </button>
-        )}
-        {canManage && (
-          <button
-            className="app-header-actions"
-            onClick={() => { setManaging((v) => !v); setShowList(false); }}
-            style={{ padding: "7px 12px", background: managing ? "var(--accent-soft)" : "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 13, color: managing ? "var(--accent)" : "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5, fontWeight: 600 }}
-          >
-            <Settings2 size={15} strokeWidth={2} /> 관리
-          </button>
+        {((!managing && groups.length > 1) || canManage) && (
+          <div className="app-header-actions">
+            {!managing && groups.length > 1 && (
+              <button
+                onClick={() => setShowList((v) => !v)}
+                style={{ padding: "7px 12px", background: showList ? "var(--accent-soft)" : "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 13, color: showList ? "var(--accent)" : "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5, fontWeight: 600 }}
+              >
+                <List size={15} strokeWidth={2} /> 목록
+              </button>
+            )}
+            {canManage && (
+              <button
+                onClick={() => { setManaging((v) => !v); setShowList(false); }}
+                style={{ padding: "7px 12px", background: managing ? "var(--accent-soft)" : "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 13, color: managing ? "var(--accent)" : "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5, fontWeight: 600 }}
+              >
+                <Settings2 size={15} strokeWidth={2} /> 관리
+              </button>
+            )}
+          </div>
         )}
       </div>
 
