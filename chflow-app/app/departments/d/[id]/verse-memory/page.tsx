@@ -77,6 +77,9 @@ export default function VerseMemoryPage() {
   const [managing, setManaging] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
+  // 이미지 크게 보기
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+
   // 작성 폼
   const [formOpen, setFormOpen] = useState(false);
   const [targetMonth, setTargetMonth] = useState(monthValue());
@@ -114,6 +117,16 @@ export default function VerseMemoryPage() {
       await load(currentYear);
     })();
   }, [currentYear, load, router]);
+
+  // 이미지 뷰어: ESC 닫기 + 열린 동안 배경 스크롤 잠금
+  useEffect(() => {
+    if (!viewerUrl) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setViewerUrl(null); };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prevOverflow; };
+  }, [viewerUrl]);
 
   // 월별 그룹 (memory_month 기준, 최신월 우선)
   const groups: MonthGroup[] = useMemo(() => {
@@ -353,7 +366,7 @@ export default function VerseMemoryPage() {
                       {item.attachments?.length > 0 && (
                         <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 16 }}>
                           {item.attachments.map((file) => (
-                            <InlineAttachment key={file.file_path} file={file} />
+                            <InlineAttachment key={file.file_path} file={file} onZoom={setViewerUrl} />
                           ))}
                         </div>
                       )}
@@ -365,20 +378,30 @@ export default function VerseMemoryPage() {
           )
         )}
       </main>
+
+      {viewerUrl && (
+        <div onClick={() => setViewerUrl(null)} style={imageViewerStyle}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={viewerUrl} alt="요절암송 사진 크게 보기" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+          <button type="button" onClick={() => setViewerUrl(null)} style={viewerCloseStyle} aria-label="닫기"><X size={22} strokeWidth={2.4} /></button>
+        </div>
+      )}
     </div>
   );
 }
 
 /* ─── 첨부 인라인 표출: 이미지·PDF는 화면에 바로, 그 외는 다운로드 카드 ─── */
-function InlineAttachment({ file }: { file: StoredAttachment }) {
+function InlineAttachment({ file, onZoom }: { file: StoredAttachment; onZoom?: (url: string) => void }) {
   const viewUrl = storageUrl(file.file_path);
   const downloadUrl = storageUrl(file.file_path, true);
 
   if (isImageName(file.file_name)) {
     return (
       <figure style={{ margin: 0 }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={viewUrl} alt={file.file_name} style={{ width: "100%", borderRadius: 12, display: "block", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }} />
+        <button type="button" onClick={() => onZoom?.(viewUrl)} style={{ display: "block", width: "100%", padding: 0, border: "none", background: "transparent", cursor: "zoom-in" }} aria-label="사진 크게 보기">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={viewUrl} alt={file.file_name} style={{ width: "100%", borderRadius: 12, display: "block", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }} />
+        </button>
         <a href={downloadUrl} style={downloadLinkStyle}><FileDown size={14} /> 원본 내려받기</a>
       </figure>
     );
@@ -562,6 +585,8 @@ const metaStyle: React.CSSProperties = { marginTop: 4, color: "var(--ink-faint)"
 const bodyStyle: React.CSSProperties = { marginTop: 13, paddingTop: 12, borderTop: "1px solid var(--hairline)", whiteSpace: "pre-wrap", lineHeight: 1.7, color: "var(--ink-mid)", fontSize: 14 };
 const attachmentStyle: React.CSSProperties = { minWidth: 0, display: "flex", alignItems: "center", gap: 7, padding: "9px 10px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--hairline)", color: "var(--ink-mid)", textDecoration: "none", fontSize: 12, fontWeight: 700 };
 const downloadLinkStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, marginTop: 8, fontSize: 12, fontWeight: 700, color: "var(--ink-soft)", textDecoration: "none" };
+const imageViewerStyle: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16, cursor: "zoom-out" };
+const viewerCloseStyle: React.CSSProperties = { position: "fixed", top: 14, right: 14, width: 42, height: 42, display: "grid", placeItems: "center", borderRadius: 99, border: "none", background: "rgba(255,255,255,0.16)", color: "#fff", cursor: "pointer" };
 
 const manageRowStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", borderRadius: 12, background: "var(--card)", border: "1px solid var(--hairline)" };
 const monthChipStyle: React.CSSProperties = { flexShrink: 0, minWidth: 38, height: 30, padding: "0 9px", display: "grid", placeItems: "center", borderRadius: 8, background: "var(--accent-soft)", color: "var(--accent-strong)", fontSize: 13, fontWeight: 800 };
