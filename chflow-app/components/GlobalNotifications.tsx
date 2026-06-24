@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { MessagesSquare } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import FontScaleControl from "@/components/FontScaleControl";
 import { supabase } from "@/lib/supabase";
@@ -19,6 +20,7 @@ const HIDDEN_PATH_PREFIXES = [
 
 export default function GlobalNotifications() {
   const pathname = usePathname();
+  const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const hidden = useMemo(
     () =>
@@ -51,6 +53,28 @@ export default function GlobalNotifications() {
   return (
     <div className="global-notification-dock" aria-live="polite">
       <FontScaleControl />
+      <button
+        type="button"
+        className="dock-messenger-button"
+        onClick={() => router.push("/messenger")}
+        aria-label="메신저 열기"
+        title="메신저"
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          border: "1px solid rgba(43, 39, 34, 0.1)",
+          background: "var(--surface)",
+          color: "var(--accent-strong)",
+          boxShadow: "0 14px 34px rgba(43, 39, 34, 0.18)",
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <MessagesSquare size={20} strokeWidth={1.9} />
+      </button>
       <NotificationBell userId={userId} placement="dock" />
     </div>
   );
