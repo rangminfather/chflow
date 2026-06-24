@@ -43,22 +43,27 @@ export default function MessengerReportsPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [status, setStatus] = useState<MessengerReportStatus | "">("open");
   const [reports, setReports] = useState<MessengerReport[]>([]);
+  const [summaryReports, setSummaryReports] = useState<MessengerReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const counts = useMemo(() => ({
-    open: reports.filter((r) => r.status === "open").length,
-    reviewing: reports.filter((r) => r.status === "reviewing").length,
-    done: reports.filter((r) => r.status === "resolved" || r.status === "dismissed").length,
-  }), [reports]);
+    open: summaryReports.filter((r) => r.status === "open").length,
+    reviewing: summaryReports.filter((r) => r.status === "reviewing").length,
+    done: summaryReports.filter((r) => r.status === "resolved" || r.status === "dismissed").length,
+  }), [summaryReports]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const rows = await listMessengerReports(status, 80);
+      const [rows, summaryRows] = await Promise.all([
+        listMessengerReports(status, 80),
+        listMessengerReports("", 200),
+      ]);
       setReports(rows);
+      setSummaryReports(summaryRows);
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {

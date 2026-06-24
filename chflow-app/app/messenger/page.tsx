@@ -8,7 +8,6 @@ import {
   Check,
   FileText,
   Forward,
-  Image as ImageIcon,
   LogOut,
   MoreVertical,
   MessageCircle,
@@ -97,6 +96,7 @@ export default function MessengerPage() {
   const [replyTarget, setReplyTarget] = useState<MessengerMessage | null>(null);
   const [editing, setEditing] = useState<MessengerMessage | null>(null);
   const [forwarding, setForwarding] = useState<MessengerMessage | null>(null);
+  const [actionMessageId, setActionMessageId] = useState<string | null>(null);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.conversation_id === activeId) || null,
@@ -180,6 +180,7 @@ export default function MessengerPage() {
       setParticipants([]);
       setOnlineUserIds([]);
       setTypingUserIds([]);
+      setActionMessageId(null);
       return;
     }
     const params = new URLSearchParams(window.location.search);
@@ -373,7 +374,10 @@ export default function MessengerPage() {
         activeId,
         body,
         replyTarget?.id || null,
-        attachments.map(({ local_url: _local, ...a }) => a)
+        attachments.map(({ local_url, ...a }) => {
+          void local_url;
+          return a;
+        })
       );
       setDraft("");
       setReplyTarget(null);
@@ -625,6 +629,8 @@ export default function MessengerPage() {
                       onForward={() => setForwarding(m)}
                       onReport={() => reportMessage(m)}
                       onReact={(emoji) => reactToMessage(m, emoji)}
+                      actionsOpen={actionMessageId === m.id}
+                      onToggleActions={() => setActionMessageId((current) => current === m.id ? null : m.id)}
                     />
                   ))
                 )}
@@ -869,6 +875,8 @@ function MessageBubble({
   onForward,
   onReport,
   onReact,
+  actionsOpen,
+  onToggleActions,
 }: {
   message: MessengerMessage;
   compact: boolean;
@@ -878,6 +886,8 @@ function MessageBubble({
   onForward: () => void;
   onReport: () => void;
   onReact: (emoji: string) => void;
+  actionsOpen: boolean;
+  onToggleActions: () => void;
 }) {
   const deleted = !!message.deleted_at;
   const readerNames = message.read_by.map((r) => r.name).filter(Boolean).join(", ");
@@ -900,6 +910,7 @@ function MessageBubble({
             mine={message.is_mine}
             deleted={deleted}
             hasText={!!message.body.trim()}
+            open={actionsOpen}
             onReply={onReply}
             onEdit={onEdit}
             onDelete={onDelete}
@@ -914,7 +925,7 @@ function MessageBubble({
             color: message.is_mine ? "#fff" : "var(--ink)",
             border: message.is_mine ? "none" : "1px solid var(--hairline)",
             opacity: deleted ? 0.72 : 1,
-          }}>
+          }} onClick={onToggleActions}>
             {message.reply_to && (
               <div style={{
                 ...replyPreviewStyle,
@@ -968,6 +979,7 @@ function MessageActions({
   mine,
   deleted,
   hasText,
+  open,
   onReply,
   onEdit,
   onDelete,
@@ -978,6 +990,7 @@ function MessageActions({
   mine: boolean;
   deleted: boolean;
   hasText: boolean;
+  open: boolean;
   onReply: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -987,7 +1000,7 @@ function MessageActions({
 }) {
   if (deleted) return null;
   return (
-    <div className="message-actions" style={messageActionsStyle}>
+    <div className={`message-actions${open ? " open" : ""}`} style={messageActionsStyle}>
       <button type="button" onClick={() => onReact("👍")} title="좋아요" style={miniActionStyle}><SmilePlus size={13} /></button>
       <button type="button" onClick={() => onReact("✅")} title="확인" style={miniTextActionStyle}>✓</button>
       <button type="button" onClick={() => onReact("🙏")} title="감사" style={miniTextActionStyle}>🙏</button>
@@ -1410,8 +1423,9 @@ const responsiveCss = `
     background: #fbfaf7;
   }
   .mobile-back { display: none; }
-  .message-actions { opacity: 0; transition: opacity .14s ease; }
-  .message-wrap:hover .message-actions { opacity: 1; }
+  .message-actions { opacity: 0; pointer-events: none; transition: opacity .14s ease; }
+  .message-wrap:hover .message-actions,
+  .message-actions.open { opacity: 1; pointer-events: auto; }
   @media (max-width: 760px) {
     .messenger-shell {
       display: block;
@@ -1430,7 +1444,8 @@ const responsiveCss = `
     .messenger-shell.has-active .conversation-list { display: none; }
     .messenger-shell.has-active .conversation-panel { display: flex; }
     .mobile-back { display: inline-flex; }
-    .message-actions { opacity: 1; }
+    .message-actions { display: none !important; opacity: 1; }
+    .message-actions.open { display: inline-flex !important; }
   }
 `;
 

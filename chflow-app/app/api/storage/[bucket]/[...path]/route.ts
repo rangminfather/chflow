@@ -24,6 +24,7 @@ const ALLOWED_BUCKETS = new Set([
 const IMAGES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const DOCS = [
   "application/pdf",
+  "text/plain",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-excel",
@@ -37,7 +38,7 @@ const DOCS = [
 const BUCKET_RULES: Record<string, { mimes: string[]; maxBytes: number }> = {
   "member-photos":          { mimes: IMAGES,          maxBytes: 10 * 1024 * 1024 },
   "feedback-attachments":   { mimes: IMAGES,          maxBytes: 10 * 1024 * 1024 },
-  "messenger-attachments":  { mimes: [...IMAGES, ...DOCS], maxBytes: 10 * 1024 * 1024 },
+  "messenger-attachments":  { mimes: [...IMAGES, ...DOCS], maxBytes: 25 * 1024 * 1024 },
   "dept-notice-attachments":{ mimes: [...IMAGES, ...DOCS], maxBytes: 20 * 1024 * 1024 },
 };
 

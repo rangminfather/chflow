@@ -11,13 +11,32 @@ export interface Notification {
   metadata: Record<string, unknown>;
 }
 
+function isTransientFetchError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const record = error as Record<string, unknown>;
+  const message = [record.message, record.details, record.name, record.code]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toLowerCase();
+
+  return (
+    message.includes("failed to fetch") ||
+    message.includes("err_aborted") ||
+    message.includes("aborterror") ||
+    message.includes("networkerror")
+  );
+}
+
 export async function fetchNotifications(limit = 30, onlyUnread = false): Promise<Notification[]> {
   const { data, error } = await supabase.rpc("get_my_notifications", {
     p_limit: limit,
     p_only_unread: onlyUnread,
   });
   if (error) {
-    console.error("fetchNotifications error", error);
+    if (!isTransientFetchError(error)) {
+      console.error("fetchNotifications error", error);
+    }
     return [];
   }
   return data || [];
