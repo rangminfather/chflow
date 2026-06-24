@@ -6,14 +6,14 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Megaphone, Pin, PinOff, Trash2, FileText, Download, AlertTriangle, X, Send } from "lucide-react";
+import { Megaphone, Pin, PinOff, Trash2, FileText, Download, AlertTriangle, X, Send, Lock } from "lucide-react";
 
 type Att = { id: string; file_path: string; file_name: string; mime_type: string | null; size_bytes: number | null };
 type Person = { id: string; name: string | null; sub_role: string | null };
 type Comment = { id: string; parent_comment_id: string | null; body: string; is_mine: boolean; can_delete: boolean; created_at: string; author: Person; attachments: Att[] };
 type Notice = {
   id: string; notice_no: number; department_id: string; title: string; body: string;
-  is_pinned: boolean; is_mine: boolean; my_grade: number;
+  is_pinned: boolean; teachers_only: boolean; is_mine: boolean; my_grade: number;
   can_manage: boolean; can_reply: boolean;
   created_at: string; updated_at: string;
   author: Person; attachments: Att[]; comments: Comment[];
@@ -240,6 +240,11 @@ export default function DeptNoticeDetailPage() {
                 <h1 className="min-w-0 text-[20px] font-extrabold leading-snug text-ink">
                   {notice.is_pinned && <Pin size={16} strokeWidth={2} fill="currentColor" className="mr-1 inline text-accent align-[-2px]" />}
                   {notice.title}
+                  {notice.teachers_only && (
+                    <span className="ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-[2px] text-[12px] font-bold text-accent" style={{ background: "var(--accent-soft)" }}>
+                      <Lock size={11} strokeWidth={2.5} /> 선생님만
+                    </span>
+                  )}
                 </h1>
                 {notice.can_manage && (
                   <div className="flex shrink-0 gap-1">

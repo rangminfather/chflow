@@ -5,13 +5,14 @@ import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Megaphone, Pin, MessageSquare, Paperclip, PencilLine, ChevronRight } from "lucide-react";
+import { Megaphone, Pin, MessageSquare, Paperclip, PencilLine, ChevronRight, Lock } from "lucide-react";
 
 type NoticeRow = {
   id: string;
   notice_no: number;
   title: string;
   is_pinned: boolean;
+  teachers_only: boolean;
   is_mine: boolean;
   author_name: string | null;
   author_sub_role: string | null;
@@ -179,6 +180,11 @@ export default function NoticeBoardPage() {
                             <Pin size={13} strokeWidth={2} fill="currentColor" className="shrink-0 text-accent" />
                           )}
                           <span className="truncate text-[15px] font-bold text-ink">{n.title}</span>
+                          {n.teachers_only && (
+                            <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold text-accent" style={{ background: "var(--accent-soft)" }}>
+                              <Lock size={9} strokeWidth={2.5} /> 선생님만
+                            </span>
+                          )}
                         </div>
                         <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12.5px] font-medium text-ink-soft">
                           <span>{n.author_name || "작성자"}</span>

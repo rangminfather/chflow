@@ -11,8 +11,9 @@ import {
   Megaphone, CalendarDays, Newspaper, GraduationCap, ClipboardCheck, ClipboardList,
   Medal, Users, Inbox, BookText, CalendarPlus, BookOpen, FileText, BarChart3,
   TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks, FileSearch,
-  Settings, Award, Lock, CircleHelp, Construction,
+  Settings, Award, Lock, CircleHelp, Construction, Settings2, X,
 } from "lucide-react";
+import ModalBackdrop from "@/components/ModalBackdrop";
 
 interface DeptInfo {
   id: string;
@@ -64,11 +65,11 @@ const MENU_CATEGORIES: MenuCategory[] = [
     maxGrade: 4,
     desc: "부서 공통 자료 / 공지 / 주보",
     items: [
-      { id: "notices/board", label: "공지 게시판", icon: Megaphone, desc: "부서 공지·알림", color: "#4A7B96", implemented: true },
-      { id: "verse-memory", label: "요절암송", icon: BookOpen, desc: "월별 요절암송 자료", color: "#8A6D3B", implemented: true, onlyForDept: "초등1부" },
-      { id: "monthly-plan", label: "월간 교육계획서", icon: CalendarDays, desc: "월간 교육계획 파일 조회", color: "var(--accent)", implemented: true },
-      { id: "bulletin", label: "{dept} 주보보기", icon: Newspaper, desc: "초등1부 주보 열람", color: "#3E7D74", implemented: true, onlyForDept: "초등1부" },
-      { id: "review-problems", label: "복습문제 보기", icon: BookOpen, desc: "등록된 복습문제 PPT 보기", color: "#6B4F8C", implemented: true, onlyForDept: "초등1부" },
+      { id: "notices/board", label: "공지 게시판", icon: Megaphone, desc: "부서 공지·알림", color: "#4A7B96", implemented: true, maxGrade: 4 },
+      { id: "bulletin", label: "{dept} 주보보기", icon: Newspaper, desc: "초등1부 주보 열람", color: "#3E7D74", implemented: true, onlyForDept: "초등1부", maxGrade: 4 },
+      { id: "verse-memory", label: "요절암송", icon: BookOpen, desc: "월별 요절암송 자료", color: "#8A6D3B", implemented: true, onlyForDept: "초등1부", maxGrade: 4 },
+      { id: "monthly-plan", label: "월간 교육계획서", icon: CalendarDays, desc: "월간 교육계획 파일 조회", color: "var(--accent)", implemented: true, maxGrade: 4 },
+      { id: "review-problems", label: "복습문제 보기", icon: BookOpen, desc: "등록된 복습문제 PPT 보기", color: "#6B4F8C", implemented: true, onlyForDept: "초등1부", maxGrade: 3 },
     ],
   },
   {
@@ -124,6 +125,16 @@ const MENU_CATEGORIES: MenuCategory[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────
+// 공통메뉴 설정 (임원진 grade<=2 가 부서별 이름/주석/접근등급 수정)
+// ─────────────────────────────────────────────────────────────────
+type MenuSetting = { label: string | null; description: string | null; max_grade: number | null };
+type MenuSettings = Record<string, MenuSetting>;
+// 접근등급(학부모까지/선생님만) 변경 가능한 항목
+const ACCESS_CONFIGURABLE = new Set(["monthly-plan", "review-problems"]);
+// 설정 대상 공통메뉴 (순서 = 표시 순서)
+const COMMON_MENU_KEYS = ["notices/board", "bulletin", "verse-memory", "monthly-plan", "review-problems"];
+
+// ─────────────────────────────────────────────────────────────────
 // 컴포넌트
 // ─────────────────────────────────────────────────────────────────
 export default function DepartmentDetailPage() {
@@ -137,6 +148,8 @@ export default function DepartmentDetailPage() {
   const [hasHomeroom, setHasHomeroom] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
+  const [menuSettings, setMenuSettings] = useState<MenuSettings>({});
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -144,7 +157,7 @@ export default function DepartmentDetailPage() {
       if (!session) { router.replace("/login"); return; }
       setAuthChecked(true);
       setLoading(true);
-      const [deptResp, gradeResp, teacherResp] = await Promise.all([
+      const [deptResp, gradeResp, teacherResp, settingsResp] = await Promise.all([
         supabase.rpc("get_department_info", { p_dept_id: deptId }),
         supabase.rpc("get_user_grade", { p_dept_id: deptId }),
         supabase
@@ -154,7 +167,11 @@ export default function DepartmentDetailPage() {
           .eq("user_id", session.user.id)
           .eq("is_active", true)
           .maybeSingle(),
+        supabase.rpc("get_dept_menu_settings", { p_department_id: deptId }),
       ]);
+      if (!settingsResp.error && settingsResp.data) {
+        setMenuSettings(settingsResp.data as MenuSettings);
+      }
       if (!deptResp.error && deptResp.data && deptResp.data.length > 0) {
         setDept(deptResp.data[0]);
       }
@@ -235,15 +252,29 @@ export default function DepartmentDetailPage() {
 
   const isEduDept = dept.category === "교육사역국";
   const grade = myGrade ?? 99;
+  const canEditMenu = grade <= 2; // 임원진(총무·서기) 이상
+
+  // 공통메뉴 설정(이름/주석/접근등급) 반영
+  const resolveItem = (cat: MenuCategory, item: MenuItem): MenuItem => {
+    const s = cat.id === "notices" ? menuSettings[item.id] : undefined;
+    const baseMax = item.maxGrade ?? cat.maxGrade;
+    const maxGrade = s && ACCESS_CONFIGURABLE.has(item.id) && (s.max_grade === 3 || s.max_grade === 4)
+      ? s.max_grade : baseMax;
+    let label = s?.label && s.label.trim() ? s.label : item.label;
+    if (label.includes("{dept}")) label = label.replace("{dept}", dept!.name);
+    const desc = s?.description && s.description.trim() ? s.description : item.desc;
+    return { ...item, label, desc, maxGrade };
+  };
 
   // 카테고리별 표시 여부 결정
   // item.onlyForDept !== undefined 면 item 값 우선 (null = 모든 부서), 없으면 cat.onlyForDept 상속
   const visibleCategories = MENU_CATEGORIES.filter((cat) => {
     if (cat.requiresHomeroom && !hasHomeroom) return false;
     return cat.items.some((item) => {
-      const deptFilter = item.onlyForDept !== undefined ? item.onlyForDept : cat.onlyForDept;
+      const resolved = resolveItem(cat, item);
+      const deptFilter = resolved.onlyForDept !== undefined ? resolved.onlyForDept : cat.onlyForDept;
       if (deptFilter && deptFilter !== dept.name) return false;
-      return grade <= (item.maxGrade ?? cat.maxGrade);
+      return grade <= (resolved.maxGrade ?? cat.maxGrade);
     });
   });
 
@@ -325,6 +356,15 @@ export default function DepartmentDetailPage() {
                 <cat.icon size={17} strokeWidth={1.8} style={{ color: "var(--accent)" }} />
                 {cat.label}
               </div>
+              {cat.id === "notices" && canEditMenu && (
+                <button
+                  onClick={() => setSettingsOpen(true)}
+                  title="공통메뉴 설정"
+                  style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--card)", color: "var(--ink-soft)", cursor: "pointer" }}
+                >
+                  <Settings2 size={16} strokeWidth={1.9} />
+                </button>
+              )}
             </div>
             <div style={{
               display: "grid",
@@ -332,16 +372,14 @@ export default function DepartmentDetailPage() {
               gap: 10,
             }}>
               {cat.items
+                .map((item) => resolveItem(cat, item))
                 .filter((item) => {
                   const deptFilter = item.onlyForDept !== undefined ? item.onlyForDept : cat.onlyForDept;
                   return (!deptFilter || deptFilter === dept.name) && grade <= (item.maxGrade ?? cat.maxGrade);
                 })
-                .map((item) => {
-                  const resolved = item.label.includes("{dept}")
-                    ? { ...item, label: item.label.replace("{dept}", dept.name) }
-                    : item;
-                  return <MenuCard key={item.id} item={resolved} onClick={() => handleItemClick(resolved)} />;
-                })}
+                .map((item) => (
+                  <MenuCard key={item.id} item={item} onClick={() => handleItemClick(item)} />
+                ))}
             </div>
           </div>
         ))}
@@ -363,9 +401,165 @@ export default function DepartmentDetailPage() {
       </div>
 
       {toast && <div style={toastStyle}>{toast}</div>}
+
+      {settingsOpen && (
+        <MenuSettingsModal
+          deptId={deptId}
+          deptName={dept.name}
+          settings={menuSettings}
+          onClose={() => setSettingsOpen(false)}
+          onSaved={(next) => { setMenuSettings(next); setSettingsOpen(false); showToast("공통메뉴 설정을 저장했습니다"); }}
+        />
+      )}
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────
+// 공통메뉴 설정 모달 (임원진 전용)
+// ─────────────────────────────────────────────────────────────────
+function MenuSettingsModal({
+  deptId, deptName, settings, onClose, onSaved,
+}: {
+  deptId: string;
+  deptName: string;
+  settings: MenuSettings;
+  onClose: () => void;
+  onSaved: (next: MenuSettings) => void;
+}) {
+  const noticesCat = MENU_CATEGORIES.find((c) => c.id === "notices")!;
+  const defaults = COMMON_MENU_KEYS
+    .map((key) => noticesCat.items.find((it) => it.id === key))
+    .filter((it): it is MenuItem => !!it);
+
+  type Row = { label: string; description: string; maxGrade: number };
+  const [rows, setRows] = useState<Record<string, Row>>(() => {
+    const init: Record<string, Row> = {};
+    for (const it of defaults) {
+      const s = settings[it.id];
+      init[it.id] = {
+        label: s?.label ?? "",
+        description: s?.description ?? "",
+        maxGrade: ACCESS_CONFIGURABLE.has(it.id)
+          ? (s?.max_grade === 3 || s?.max_grade === 4 ? s.max_grade : (it.maxGrade ?? 4))
+          : 4,
+      };
+    }
+    return init;
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const setRow = (id: string, patch: Partial<Row>) =>
+    setRows((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+    for (const it of defaults) {
+      const r = rows[it.id];
+      const { error: e } = await supabase.rpc("set_dept_menu_setting", {
+        p_department_id: deptId,
+        p_menu_key: it.id,
+        p_label: r.label.trim() || null,
+        p_description: r.description.trim() || null,
+        p_max_grade: ACCESS_CONFIGURABLE.has(it.id) ? r.maxGrade : null,
+      });
+      if (e) { setError(`저장 실패: ${e.message}`); setSaving(false); return; }
+    }
+    const { data } = await supabase.rpc("get_dept_menu_settings", { p_department_id: deptId });
+    setSaving(false);
+    onSaved((data as MenuSettings) || {});
+  }
+
+  return (
+    <ModalBackdrop onClose={onClose}>
+      <div style={{ width: "100%", maxWidth: 520, maxHeight: "88vh", overflowY: "auto", background: "var(--card)", borderRadius: 18, padding: 0 }}>
+        <div style={{ position: "sticky", top: 0, background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "16px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", borderRadius: "18px 18px 0 0" }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 7 }}>
+            <Settings2 size={17} strokeWidth={1.9} /> 공통메뉴 설정
+          </div>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "none", background: "var(--bg-soft)", color: "var(--ink-mid)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <X size={16} strokeWidth={2} />
+          </button>
+        </div>
+
+        <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ fontSize: 12.5, color: "var(--ink-soft)", lineHeight: 1.55 }}>
+            메뉴 이름과 설명(주석)을 수정할 수 있습니다. 접근 범위는 <b>월간 교육계획서</b>와 <b>복습문제 보기</b>만 변경 가능하며, 나머지는 항상 학부모까지 공개됩니다.
+          </div>
+
+          {defaults.map((it) => {
+            const r = rows[it.id];
+            const defLabel = it.label.replace("{dept}", deptName);
+            const configurable = ACCESS_CONFIGURABLE.has(it.id);
+            return (
+              <div key={it.id} style={{ border: "1px solid var(--hairline)", borderRadius: 12, padding: 14, background: "var(--surface)" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-faint)", marginBottom: 8 }}>
+                  {defLabel}
+                </div>
+                <label style={modalLabel}>이름</label>
+                <input
+                  value={r.label}
+                  onChange={(e) => setRow(it.id, { label: e.target.value })}
+                  placeholder={defLabel}
+                  maxLength={40}
+                  style={modalInput}
+                />
+                <label style={{ ...modalLabel, marginTop: 10 }}>설명(주석)</label>
+                <input
+                  value={r.description}
+                  onChange={(e) => setRow(it.id, { description: e.target.value })}
+                  placeholder={it.desc}
+                  maxLength={60}
+                  style={modalInput}
+                />
+                {configurable && (
+                  <div style={{ marginTop: 12 }}>
+                    <label style={modalLabel}>접근 범위</label>
+                    <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                      {[{ g: 4, t: "학부모까지" }, { g: 3, t: "선생님만" }].map((opt) => {
+                        const active = r.maxGrade === opt.g;
+                        return (
+                          <button
+                            key={opt.g}
+                            type="button"
+                            onClick={() => setRow(it.id, { maxGrade: opt.g })}
+                            style={{
+                              flex: 1, padding: "9px 10px", borderRadius: 9, cursor: "pointer", fontFamily: "inherit",
+                              fontSize: 13, fontWeight: 700,
+                              border: `1.5px solid ${active ? "var(--accent)" : "var(--hairline)"}`,
+                              background: active ? "var(--accent-soft)" : "var(--card)",
+                              color: active ? "var(--accent-strong)" : "var(--ink-soft)",
+                            }}
+                          >
+                            {opt.t}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {error && <div style={{ fontSize: 13, fontWeight: 700, color: "var(--danger)" }}>{error}</div>}
+        </div>
+
+        <div style={{ position: "sticky", bottom: 0, background: "var(--card)", borderTop: "1px solid var(--hairline)", padding: "14px 18px", display: "flex", gap: 10, borderRadius: "0 0 18px 18px" }}>
+          <button onClick={onClose} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1px solid var(--hairline-strong)", background: "var(--card)", color: "var(--ink-mid)", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>취소</button>
+          <button onClick={handleSave} disabled={saving} style={{ flex: 2, padding: "12px", borderRadius: 10, border: "none", background: "var(--accent)", color: "#fff", fontWeight: 800, fontSize: 14, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1, fontFamily: "inherit" }}>
+            {saving ? "저장 중..." : "저장"}
+          </button>
+        </div>
+      </div>
+    </ModalBackdrop>
+  );
+}
+
+const modalLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", letterSpacing: 0.2 };
+const modalInput: React.CSSProperties = { width: "100%", marginTop: 5, padding: "10px 12px", fontSize: 14, background: "var(--card)", border: "1.5px solid var(--hairline)", borderRadius: 9, outline: "none", fontFamily: "inherit", boxSizing: "border-box", color: "var(--ink)", fontWeight: 500 };
 
 function MenuCard({ item, onClick }: { item: MenuItem; onClick: () => void }) {
   const dim = !item.implemented;
