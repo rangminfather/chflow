@@ -41,6 +41,7 @@ interface MenuItem {
   color: string;
   implemented: boolean;  // 구현 안 된 페이지는 클릭 시 "준비 중" 토스트
   onlyForDept?: string | null; // null = 모든 부서 (카테고리 onlyForDept 무시)
+  onlyForCategory?: string | null; // null = 카테고리 제한 없음(카테고리 onlyForCategory 무시)
   maxGrade?: number;
 }
 
@@ -53,6 +54,8 @@ interface MenuCategory {
   items: MenuItem[];
   /** 일부 부서만 표시 (없으면 모두) */
   onlyForDept?: string;
+  /** 특정 카테고리(예: 교육사역국) 부서에만 표시 */
+  onlyForCategory?: string;
   /** 실제 학생 담임 배정이 있는 사용자에게만 표시 */
   requiresHomeroom?: boolean;
 }
@@ -66,10 +69,10 @@ const MENU_CATEGORIES: MenuCategory[] = [
     desc: "부서 공통 자료 / 공지 / 주보",
     items: [
       { id: "notices/board", label: "공지 게시판", icon: Megaphone, desc: "부서 공지·알림", color: "#4A7B96", implemented: true, maxGrade: 4 },
-      { id: "bulletin", label: "{dept} 주보보기", icon: Newspaper, desc: "초등1부 주보 열람", color: "#3E7D74", implemented: true, onlyForDept: "초등1부", maxGrade: 4 },
-      { id: "verse-memory", label: "요절암송", icon: BookOpen, desc: "월별 요절암송 자료", color: "#8A6D3B", implemented: true, onlyForDept: "초등1부", maxGrade: 4 },
+      { id: "bulletin", label: "{dept} 주보보기", icon: Newspaper, desc: "주보 열람", color: "#3E7D74", implemented: true, onlyForCategory: "교육사역국", maxGrade: 4 },
+      { id: "verse-memory", label: "요절암송", icon: BookOpen, desc: "월별 요절암송 자료", color: "#8A6D3B", implemented: true, onlyForCategory: "교육사역국", maxGrade: 4 },
       { id: "monthly-plan", label: "월간 교육계획서", icon: CalendarDays, desc: "월간 교육계획 파일 조회", color: "var(--accent)", implemented: true, maxGrade: 4 },
-      { id: "review-problems", label: "복습문제 보기", icon: BookOpen, desc: "등록된 복습문제 PPT 보기", color: "#6B4F8C", implemented: true, onlyForDept: "초등1부", maxGrade: 3 },
+      { id: "review-problems", label: "복습문제 보기", icon: BookOpen, desc: "등록된 복습문제 PPT 보기", color: "#6B4F8C", implemented: true, onlyForCategory: "교육사역국", maxGrade: 3 },
     ],
   },
   {
@@ -78,7 +81,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
     icon: GraduationCap,
     maxGrade: 3,
     desc: "출결 / 달란트 / 우리반 정보",
-    onlyForDept: "초등1부",
+    onlyForCategory: "교육사역국",
     requiresHomeroom: true,
     items: [
       { id: "my-class-attendance", label: "내 반 출결", icon: ClipboardCheck, desc: "내 담당 반 학생 출석 체크", color: "var(--success)", implemented: true },
@@ -92,9 +95,9 @@ const MENU_CATEGORIES: MenuCategory[] = [
     icon: ClipboardList,
     maxGrade: 2,
     desc: "주보 / 일지 / 통계 / 등록 / 가입승인",
-    onlyForDept: "초등1부",
+    onlyForCategory: "교육사역국",
     items: [
-      { id: "dept-approval", label: "사역 가입 승인", icon: Inbox, desc: "본 부서 가입 신청 승인 · 등급 부여", color: "var(--success)", implemented: true, onlyForDept: null, maxGrade: 2 },
+      { id: "dept-approval", label: "사역 가입 승인", icon: Inbox, desc: "본 부서 가입 신청 승인 · 등급 부여", color: "var(--success)", implemented: true, onlyForDept: null, onlyForCategory: null, maxGrade: 2 },
       { id: "weekly-bulletin", label: "주보 만들기", icon: Newspaper, desc: "주보 자동 생성·UMS 등록", color: "#3E7D74", implemented: true },
       { id: "journal", label: "교육일지작성", icon: BookText, desc: "일지 · 통계 · 헌금", color: "var(--accent)", implemented: true },
       { id: "monthly-plan-upload", label: "월간교육등록", icon: CalendarPlus, desc: "월간 교육계획서 등록", color: "var(--accent)", implemented: true },
@@ -267,14 +270,21 @@ export default function DepartmentDetailPage() {
     return { ...item, label, desc, maxGrade };
   };
 
+  // 부서명/카테고리 필터 (item 값 우선, null = 제한 없음, undefined = cat 상속)
+  const itemDeptOk = (cat: MenuCategory, item: MenuItem): boolean => {
+    const deptName = item.onlyForDept !== undefined ? item.onlyForDept : cat.onlyForDept;
+    if (deptName && deptName !== dept!.name) return false;
+    const catFilter = item.onlyForCategory !== undefined ? item.onlyForCategory : cat.onlyForCategory;
+    if (catFilter && catFilter !== dept!.category) return false;
+    return true;
+  };
+
   // 카테고리별 표시 여부 결정
-  // item.onlyForDept !== undefined 면 item 값 우선 (null = 모든 부서), 없으면 cat.onlyForDept 상속
   const visibleCategories = MENU_CATEGORIES.filter((cat) => {
     if (cat.requiresHomeroom && !hasHomeroom) return false;
     return cat.items.some((item) => {
       const resolved = resolveItem(cat, item);
-      const deptFilter = resolved.onlyForDept !== undefined ? resolved.onlyForDept : cat.onlyForDept;
-      if (deptFilter && deptFilter !== dept.name) return false;
+      if (!itemDeptOk(cat, resolved)) return false;
       return grade <= (resolved.maxGrade ?? cat.maxGrade);
     });
   });
@@ -384,10 +394,7 @@ export default function DepartmentDetailPage() {
             }}>
               {cat.items
                 .map((item) => resolveItem(cat, item))
-                .filter((item) => {
-                  const deptFilter = item.onlyForDept !== undefined ? item.onlyForDept : cat.onlyForDept;
-                  return (!deptFilter || deptFilter === dept.name) && grade <= (item.maxGrade ?? cat.maxGrade);
-                })
+                .filter((item) => itemDeptOk(cat, item) && grade <= (item.maxGrade ?? cat.maxGrade))
                 .map((item) => (
                   <MenuCard
                     key={item.id}
