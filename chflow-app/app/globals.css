@@ -965,7 +965,7 @@ input::placeholder {
 }
 
 .app-subpage-header > .app-header-back {
-  grid-column: -1;
+  grid-column: 3;
   grid-row: 1;
   justify-self: end;
 }
