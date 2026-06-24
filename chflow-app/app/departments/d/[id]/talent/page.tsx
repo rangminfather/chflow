@@ -52,20 +52,21 @@ interface OtherRecord {
   note: string | null;
 }
 
-const DEFAULT_WEEKLY_RULES = [
-  { rule_key: "attendance", label: "출석", points: 1, order_no: 0 },
-  { rule_key: "bible_book", label: "성경책 지참", points: 1, order_no: 1 },
-  { rule_key: "verse_memory", label: "요절암송", points: 1, order_no: 2 },
-  { rule_key: "verse_presentation", label: "요절암송발표", points: 1, order_no: 3 },
-  { rule_key: "representative_prayer", label: "대표기도", points: 1, order_no: 4 },
-  { rule_key: "evangelism", label: "전도", points: 1, order_no: 5 },
-  { rule_key: "new_friend_promotion", label: "새친구등반", points: 1, order_no: 6 },
-  { rule_key: "lesson_homework", label: "공과숙제", points: 1, order_no: 7 },
-];
+// 출석부 boolean 자동연동 키 — 통장에선 '출석'만 자동 행으로 표시, 나머지 자동키는 칩에서 제외
+const SYSTEM_AUTO_KEYS = new Set(["attendance", "prayer", "church_school", "worship", "lesson", "bible"]);
 
-const CHECK_RULE_KEYS = DEFAULT_WEEKLY_RULES
-  .map((rule) => rule.rule_key)
-  .filter((key) => key !== "attendance");
+// 부서 미설정 시 최초 시드용 기본 weekly 규칙 (점수는 부서별 편집 가능 · 초등1부 기준값)
+const DEFAULT_WEEKLY_RULES = [
+  { rule_key: "attendance", label: "출석", points: 2, order_no: 0 },
+  { rule_key: "bible_book", label: "성경책 지참", points: 1, order_no: 1 },
+  { rule_key: "verse_memory", label: "요절암송", points: 2, order_no: 2 },
+  { rule_key: "verse_presentation", label: "요절암송발표", points: 5, order_no: 3 },
+  { rule_key: "bulletin_quiz", label: "주보퀴즈", points: 2, order_no: 4 },
+  { rule_key: "lesson_homework", label: "숙제", points: 2, order_no: 5 },
+  { rule_key: "evangelism", label: "전도", points: 5, order_no: 6 },
+  { rule_key: "representative_prayer", label: "대표기도", points: 5, order_no: 7 },
+  { rule_key: "new_friend_promotion", label: "새친구등반", points: 5, order_no: 8 },
+];
 
 export default function TalentPage() {
   const router = useRouter();
@@ -176,9 +177,7 @@ export default function TalentPage() {
       return;
     }
 
-    const wanted = new Set(["attendance", ...CHECK_RULE_KEYS]);
-
-    // 자동 적립 — 학생별 RPC(전체기간). 기존 get_student_auto_talent 사용.
+    // 자동 적립 — 학생별 RPC(전체기간). 활성 weekly 규칙 전체(출석 자동 + 수동 칩)를 점수 반영해 합산.
     const autoEntries = await Promise.all(
       classStudents.map(async (student) => {
         const { data } = await supabase.rpc("get_student_auto_talent", {
@@ -188,8 +187,7 @@ export default function TalentPage() {
           p_year_to: 2100,
           p_month_to: 12,
         });
-        const sum = ((data || []) as { rule_key: string; total: number }[])
-          .filter((row) => wanted.has(row.rule_key))
+        const sum = ((data || []) as { total: number }[])
           .reduce((acc, row) => acc + (row.total || 0), 0);
         return [student.id, sum] as const;
       })
@@ -323,6 +321,15 @@ export default function TalentPage() {
     return map;
   }, [rules]);
 
+  // 통장 체크 칩 = 활성 weekly 규칙 중 출석부 자동연동키 제외 (규칙 화면에서 추가/삭제 시 그대로 반영)
+  const checkRules = useMemo(
+    () =>
+      rules
+        .filter((rule) => rule.rule_kind === "weekly" && rule.is_active && !SYSTEM_AUTO_KEYS.has(rule.rule_key))
+        .sort((a, b) => (a.order_no || 0) - (b.order_no || 0)),
+    [rules]
+  );
+
   function getAttendance(studentId: string, date: string) {
     return attendanceMap[studentId]?.[date];
   }
@@ -341,10 +348,10 @@ export default function TalentPage() {
 
   function studentWeekTotal(studentId: string, date: string) {
     const attendancePoints = isPresent(studentId, date) ? getRulePoints("attendance") : 0;
-    const checkPoints = CHECK_RULE_KEYS.reduce((sum, key) => {
-      const rule = ruleMap[key];
-      return sum + (rule && isChecked(studentId, date, rule) ? getRulePoints(key) : 0);
-    }, 0);
+    const checkPoints = checkRules.reduce(
+      (sum, rule) => sum + (isChecked(studentId, date, rule) ? rule.points : 0),
+      0
+    );
     return attendancePoints + checkPoints + (getOther(studentId, date)?.pts_other || 0);
   }
 
@@ -639,25 +646,24 @@ export default function TalentPage() {
                           </div>
 
                           <div className="grid grid-cols-2 gap-2.5">
-                            {CHECK_RULE_KEYS.map((ruleKey) => {
-                              const rule = ruleMap[ruleKey];
-                              const selected = rule ? isChecked(student.id, date, rule) : false;
-                              const key = rule ? extraKey(student.id, date, rule.id) : `${student.id}-${date}-${ruleKey}`;
-                              const label = rule?.label || DEFAULT_WEEKLY_RULES.find((item) => item.rule_key === ruleKey)?.label;
-                              const pts = rule?.points ?? 1;
-                              const disabled = !rule || !isEditableWeek || saving === key;
+                            {checkRules.map((rule) => {
+                              const selected = isChecked(student.id, date, rule);
+                              const key = extraKey(student.id, date, rule.id);
+                              const label = rule.label;
+                              const pts = rule.points;
+                              const disabled = !isEditableWeek || saving === key;
 
                               return (
                                 <button
-                                  key={ruleKey}
+                                  key={rule.id}
                                   type="button"
-                                  onClick={() => rule && toggleWeeklyItem(student, date, rule)}
+                                  onClick={() => toggleWeeklyItem(student, date, rule)}
                                   disabled={disabled}
                                   className={[
                                     "coin-chip flex min-h-[50px] items-center gap-2 rounded-full px-3 py-2 text-[14px] font-extrabold leading-tight",
                                     selected ? "coin-on" : "",
                                     disabled ? "cursor-not-allowed" : "cursor-pointer",
-                                    (!rule || !isEditableWeek) && !selected ? "opacity-60" : "",
+                                    !isEditableWeek && !selected ? "opacity-60" : "",
                                   ].join(" ")}
                                   style={selected
                                     ? { background: COIN_GRAD, color: "#fff", border: "1.5px solid transparent", boxShadow: "0 6px 15px color-mix(in srgb, var(--brass) 42%, transparent)" }
