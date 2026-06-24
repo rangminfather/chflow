@@ -360,15 +360,20 @@ export default function DepartmentDetailPage() {
               {cat.id === "notices" && canEditMenu && (
                 <button
                   onClick={() => setEditMode((v) => !v)}
-                  title="공통메뉴 편집"
+                  title={editMode ? "편집 종료" : "공통메뉴 편집"}
                   style={{
-                    display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 8, cursor: "pointer",
                     border: `1px solid ${editMode ? "var(--accent)" : "var(--hairline)"}`,
                     background: editMode ? "var(--accent-soft)" : "var(--card)",
                     color: editMode ? "var(--accent-strong)" : "var(--ink-soft)",
                   }}
                 >
-                  <Cog size={15} strokeWidth={1.9} /> {editMode ? "완료" : "편집"}
+                  <Cog
+                    size={17}
+                    strokeWidth={1.9}
+                    className={editMode ? "animate-spin" : ""}
+                    style={editMode ? { animationDuration: "3s" } : undefined}
+                  />
                 </button>
               )}
             </div>
@@ -589,7 +594,8 @@ function MenuCard({ item, onClick, onEdit }: { item: MenuItem; onClick: () => vo
       </div>
       {onEdit && (
         <span style={{
-          position: "absolute", top: 8, right: 8, display: "inline-flex", alignItems: "center", gap: 3,
+          position: "absolute", top: "50%", right: 10, transform: "translateY(-50%)",
+          display: "inline-flex", alignItems: "center", gap: 3,
           padding: "3px 8px", borderRadius: 99, fontSize: 11, fontWeight: 800,
           background: "var(--accent)", color: "#fff",
         }}>
