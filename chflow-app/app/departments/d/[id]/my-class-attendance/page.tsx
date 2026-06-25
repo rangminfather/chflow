@@ -547,6 +547,8 @@ function StudentAvatar({ name, gender, photoUrl }: {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const normalizedGender = normalizeGender(gender);
   const tone = avatarTone(gender);
+  const defaultFace = normalizedGender === "female" ? "/avatars/child-female.png" : "/avatars/child-male.png";
+  const showPhoto = !!photoUrl && failedUrl !== photoUrl;
 
   return (
     <div
@@ -559,54 +561,17 @@ function StudentAvatar({ name, gender, photoUrl }: {
         border: `1px solid color-mix(in srgb, ${tone} 28%, var(--hairline))`,
       }}
     >
-      {photoUrl && failedUrl !== photoUrl ? (
-        // 외부/스토리지 URL을 그대로 표시하며 실패 시 동일 크기의 실루엣으로 전환한다.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={photoUrl}
-          alt={`${name} 프로필 사진`}
-          loading="lazy"
-          decoding="async"
-          onError={() => setFailedUrl(photoUrl)}
-          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
-        />
-      ) : (
-        <ChildSilhouette gender={normalizedGender} name={name} tone={tone} />
-      )}
+      {/* 등록 사진이 있으면 사진, 없거나 로드 실패하면 성별별 기본 얼굴 이미지 */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={showPhoto ? photoUrl! : defaultFace}
+        alt={showPhoto ? `${name} 프로필 사진` : `${name} 기본 프로필`}
+        loading="lazy"
+        decoding="async"
+        onError={() => { if (showPhoto) setFailedUrl(photoUrl!); }}
+        style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
+      />
     </div>
-  );
-}
-
-function ChildSilhouette({ gender, name, tone }: {
-  gender: NormalizedGender;
-  name: string;
-  tone: string;
-}) {
-  return (
-    <svg
-      viewBox="0 0 48 48"
-      width="46"
-      height="46"
-      role="img"
-      aria-label={`${name} 기본 프로필`}
-    >
-      <circle cx="24" cy="24" r="24" fill={`color-mix(in srgb, ${tone} 12%, #f7f2e8)`} />
-      {gender === "female" ? (
-        <path d="M13 24c0-10 4.8-16 11-16s11 6 11 16v9H13z" fill={`color-mix(in srgb, ${tone} 58%, #8f8174)`} />
-      ) : gender === "male" ? (
-        <path d="M14 20c.5-8 4.7-12 10-12 6.5 0 10 5 10.5 12-3.5-1.2-6.8-3.4-9.4-6.2-2.7 3.2-6.4 5.3-11.1 6.2z" fill={`color-mix(in srgb, ${tone} 58%, #81766d)`} />
-      ) : (
-        <path d="M14 20c.7-7.6 4.6-12 10-12s9.3 4.4 10 12c-3.7-1.2-7-3.2-10-6-2.7 2.8-6 4.8-10 6z" fill="#a69c91" />
-      )}
-      <circle cx="24" cy="22" r="9" fill="#f1c9aa" />
-      <circle cx="20.5" cy="22" r=".8" fill="#655c56" />
-      <circle cx="27.5" cy="22" r=".8" fill="#655c56" />
-      <path d="M21.5 26c1.5 1.1 3.5 1.1 5 0" fill="none" stroke="#b6756f" strokeWidth="1" strokeLinecap="round" />
-      <path d="M9 48c1.2-10 6.3-15 15-15s13.8 5 15 15z" fill={`color-mix(in srgb, ${tone} 66%, #d9d1c7)`} />
-      {gender === "female" && (
-        <path d="M14 17c2.2-6 5.5-9 10-9s7.8 3 10 9c-4.6-.5-8-2.4-10-5.5-2.2 3.1-5.5 5-10 5.5z" fill={`color-mix(in srgb, ${tone} 58%, #8f8174)`} />
-      )}
-    </svg>
   );
 }
 
