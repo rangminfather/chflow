@@ -16,6 +16,11 @@ interface FriendSummary {
   mobile: string | null;
   join_date: string | null;
   guide_name: string | null;
+  guide_kind: string | null;
+  guide_display: string | null;
+  enroll_class_no: string | null;
+  student_id: string | null;
+  promoted: boolean | null;
   created_at: string;
 }
 
@@ -33,14 +38,33 @@ interface FriendDetail extends FriendSummary {
   school_district: string | null;
   special_notes: string | null;
   memo: string | null;
+  guide_student_id: string | null;
+  guide_student_name: string | null;
+  enroll_grade_year: number | null;
 }
 
-const EMPTY_FORM: Omit<FriendDetail, "id" | "department_id" | "created_at"> = {
+// 인도자 유형 — 학생선택 / 자진(스스로 옴) / 기타(어른 등 직접입력)
+type GuideKind = "student" | "self" | "other";
+
+interface DeptStudent { id: string; name: string; class_no?: string | null; grade_year?: number | null }
+interface DeptClass { class_no: string; grade_year: number | null; teacher_id: string | null }
+
+interface FormState {
+  name: string; gender: string | null; birth_date: string | null; photo_url: string | null;
+  phone: string; mobile: string; address: string; email: string;
+  group_pa: string; group_jik: string; group_gun: string; group_cheo: string;
+  family_name: string; guide_name: string; school_district: string; join_date: string | null;
+  special_notes: string; memo: string;
+  guide_kind: GuideKind; guide_student_id: string | null; enroll_class_no: string;
+}
+
+const EMPTY_FORM: FormState = {
   name: "", gender: null, birth_date: null, photo_url: null,
   phone: "", mobile: "", address: "", email: "",
   group_pa: "", group_jik: "", group_gun: "", group_cheo: "",
   family_name: "", guide_name: "", school_district: "", join_date: null,
   special_notes: "", memo: "",
+  guide_kind: "other", guide_student_id: null, enroll_class_no: "",
 };
 
 export default function NewFriendPage() {
@@ -51,20 +75,23 @@ export default function NewFriendPage() {
 
   const [friends, setFriends] = useState<FriendSummary[]>([]);
   const [selected, setSelected] = useState<FriendDetail | null>(null);
-  const [form, setForm] = useState<typeof EMPTY_FORM>({ ...EMPTY_FORM });
+  const [form, setForm] = useState<FormState>({ ...EMPTY_FORM });
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
   const [toast, setToast] = useState("");
   const [search, setSearch] = useState("");
+  const [deptStudents, setDeptStudents] = useState<DeptStudent[]>([]);
+  const [deptClasses, setDeptClasses] = useState<DeptClass[]>([]);
+  const [myClassNo, setMyClassNo] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/login"); return; }
       setAuthChecked(true);
-      await loadList();
+      await Promise.all([loadList(), loadStudentsAndClasses(session.user.id)]);
     })();
   }, []);
 
@@ -75,10 +102,24 @@ export default function NewFriendPage() {
     setLoading(false);
   };
 
+  // 인도자 학생 선택 + 반 편입 선택지 + 내 담임반(있으면 신규 등록 기본 반)
+  const loadStudentsAndClasses = async (userId: string) => {
+    const [{ data: studs }, { data: cls }, { data: teacher }] = await Promise.all([
+      supabase.rpc("edu_list_students", { p_dept_id: deptId }),
+      supabase.rpc("list_dept_classes_full", { p_dept_id: deptId }),
+      supabase.from("edu_teachers").select("id").eq("department_id", deptId).eq("user_id", userId).eq("is_active", true).maybeSingle(),
+    ]);
+    setDeptStudents(((studs || []) as DeptStudent[]).filter((s) => s.name));
+    const classList = ((cls || []) as DeptClass[]).filter((c) => c.class_no);
+    setDeptClasses(classList);
+    const mine = teacher?.id ? classList.find((c) => c.teacher_id === teacher.id) : null;
+    setMyClassNo(mine?.class_no ?? null);
+  };
+
   const selectFriend = async (id: string) => {
     const { data } = await supabase.rpc("edu_get_new_friend", { p_id: id });
     if (data && data[0]) {
-      const f = data[0];
+      const f = data[0] as FriendDetail;
       setSelected(f);
       setForm({
         name: f.name || "", gender: f.gender, birth_date: f.birth_date,
@@ -89,6 +130,9 @@ export default function NewFriendPage() {
         family_name: f.family_name || "", guide_name: f.guide_name || "",
         school_district: f.school_district || "", join_date: f.join_date,
         special_notes: f.special_notes || "", memo: f.memo || "",
+        guide_kind: (f.guide_kind as GuideKind) || "other",
+        guide_student_id: f.guide_student_id || null,
+        enroll_class_no: f.enroll_class_no || "",
       });
       setIsNew(false);
     }
@@ -96,14 +140,17 @@ export default function NewFriendPage() {
 
   const newFriend = () => {
     setSelected(null);
-    setForm({ ...EMPTY_FORM });
+    // 담임이면 본인 반을 기본 편입반으로 미리 채움 (행정·임원은 직접 선택)
+    setForm({ ...EMPTY_FORM, enroll_class_no: myClassNo ?? "" });
     setIsNew(true);
   };
 
   const handleSave = async () => {
     if (!form.name.trim()) { showToast("이름을 입력하세요"); return; }
+    if (form.guide_kind === "student" && !form.guide_student_id) { showToast("인도자 학생을 선택하세요"); return; }
     setSaving(true);
     try {
+      const chosenClass = deptClasses.find((c) => c.class_no === form.enroll_class_no);
       const { error } = await supabase.rpc("edu_save_new_friend", {
         p_id:          isNew ? null : selected?.id,
         p_dept_id:     deptId,
@@ -119,11 +166,15 @@ export default function NewFriendPage() {
         p_group_gun:   form.group_gun,
         p_group_cheo:  form.group_cheo,
         p_family_name: form.family_name,
-        p_guide_name:  form.guide_name,
+        p_guide_name:  form.guide_kind === "other" ? form.guide_name : null,
         p_school_dist: form.school_district,
         p_join_date:   form.join_date,
         p_special:     form.special_notes,
         p_memo:        form.memo,
+        p_guide_kind:       form.guide_kind,
+        p_guide_student_id: form.guide_kind === "student" ? form.guide_student_id : null,
+        p_enroll_grade_year: chosenClass?.grade_year ?? null,
+        p_enroll_class_no:  form.enroll_class_no || null,
       });
       if (error) throw error;
       showToast("저장되었습니다");
@@ -217,12 +268,17 @@ export default function NewFriendPage() {
                       <User size={18} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{fr.name}</div>
-                      {fr.guide_name && (
-                        <div style={{ fontSize: 10, color: "var(--ink-faint)" }}>인도자: {fr.guide_name}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{fr.name}</div>
+                        {fr.promoted && (
+                          <span style={{ fontSize: 9, fontWeight: 700, color: "var(--success)", background: "color-mix(in srgb, var(--success) 14%, #fff)", border: "1px solid color-mix(in srgb, var(--success) 32%, transparent)", borderRadius: 999, padding: "1px 6px" }}>등반완료</span>
+                        )}
+                      </div>
+                      {fr.guide_display && (
+                        <div style={{ fontSize: 10, color: "var(--ink-faint)" }}>인도자: {fr.guide_display}</div>
                       )}
-                      {fr.join_date && (
-                        <div style={{ fontSize: 10, color: "var(--ink-faint)" }}>{fr.join_date.slice(0, 7)}</div>
+                      {fr.enroll_class_no && (
+                        <div style={{ fontSize: 10, color: "var(--ink-faint)" }}>{fr.enroll_class_no}반</div>
                       )}
                     </div>
                   </div>
@@ -343,12 +399,73 @@ export default function NewFriendPage() {
                   <input type="text" value={f("family_name")} onChange={(e) => set("family_name", e.target.value)} placeholder="가족 이름" style={inputStyle} />
                 </FormField>
 
-                <FormField label="인도자">
-                  <input type="text" value={f("guide_name")} onChange={(e) => set("guide_name", e.target.value)} placeholder="인도자 이름" style={inputStyle} />
-                </FormField>
-
                 <FormField label="학원구">
                   <input type="text" value={f("school_district")} onChange={(e) => set("school_district", e.target.value)} placeholder="학원구" style={inputStyle} />
+                </FormField>
+
+                {/* 반 편입 — 등록 즉시 '체험' 학생으로 출석부·통장에 편입 */}
+                <FormField label="편입 반" fullWidth>
+                  <select
+                    value={form.enroll_class_no}
+                    onChange={(e) => set("enroll_class_no", e.target.value)}
+                    style={{ ...inputStyle, appearance: "auto" }}
+                  >
+                    <option value="">반 선택 안 함 (미배정)</option>
+                    {deptClasses.map((c) => (
+                      <option key={c.class_no} value={c.class_no}>
+                        {c.grade_year ? `${c.grade_year}학년 ` : ""}{c.class_no}반
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 4 }}>
+                    반을 선택하면 등록 즉시 ‘체험’ 학생으로 출석부·달란트통장에 나타납니다.
+                  </div>
+                </FormField>
+
+                {/* 인도자 — 선택형: 학생선택 / 자진 / 기타(어른) */}
+                <FormField label="인도자" fullWidth>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    {([
+                      { k: "student", label: "학생 선택" },
+                      { k: "self", label: "자진" },
+                      { k: "other", label: "기타(어른)" },
+                    ] as { k: GuideKind; label: string }[]).map(({ k, label }) => (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setForm((p) => ({ ...p, guide_kind: k, guide_student_id: k === "student" ? p.guide_student_id : null }))}
+                        style={{
+                          flex: 1, padding: "9px", borderRadius: 8, border: "1.5px solid",
+                          borderColor: form.guide_kind === k ? "var(--accent)" : "var(--hairline)",
+                          background: form.guide_kind === k ? "var(--accent-soft)" : "#fff",
+                          color: form.guide_kind === k ? "var(--accent)" : "var(--ink-soft)",
+                          fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+                        }}
+                      >{label}</button>
+                    ))}
+                  </div>
+                  {form.guide_kind === "student" && (
+                    <select
+                      value={form.guide_student_id ?? ""}
+                      onChange={(e) => set("guide_student_id", e.target.value || null)}
+                      style={{ ...inputStyle, appearance: "auto" }}
+                    >
+                      <option value="">인도자 학생 선택…</option>
+                      {deptStudents.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}{s.class_no ? ` (${s.class_no}반)` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {form.guide_kind === "other" && (
+                    <input type="text" value={f("guide_name")} onChange={(e) => set("guide_name", e.target.value)} placeholder="인도자 이름 (어른 등)" style={inputStyle} />
+                  )}
+                  {form.guide_kind === "student" && (
+                    <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 4 }}>
+                      등반 확정 시 인도자 학생에게 새친구등반 달란트가 지급됩니다.
+                    </div>
+                  )}
                 </FormField>
 
                 <FormField label="특기사항" fullWidth>

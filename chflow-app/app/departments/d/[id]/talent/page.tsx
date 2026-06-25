@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Check, ChevronUp, Info, Medal, PiggyBank, Star } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { Check, ChevronUp, Info, Medal, PiggyBank, Rocket, Star } from "lucide-react";
 
 interface Student {
   id: string;
@@ -52,20 +53,36 @@ interface OtherRecord {
   note: string | null;
 }
 
-const DEFAULT_WEEKLY_RULES = [
-  { rule_key: "attendance", label: "출석", points: 1, order_no: 0 },
-  { rule_key: "bible_book", label: "성경책 지참", points: 1, order_no: 1 },
-  { rule_key: "verse_memory", label: "요절암송", points: 1, order_no: 2 },
-  { rule_key: "verse_presentation", label: "요절암송발표", points: 1, order_no: 3 },
-  { rule_key: "representative_prayer", label: "대표기도", points: 1, order_no: 4 },
-  { rule_key: "evangelism", label: "전도", points: 1, order_no: 5 },
-  { rule_key: "new_friend_promotion", label: "새친구등반", points: 1, order_no: 6 },
-  { rule_key: "lesson_homework", label: "공과숙제", points: 1, order_no: 7 },
-];
+interface PendingPromotion {
+  new_friend_id: string;
+  student_id: string;
+  name: string;
+  class_no: string | null;
+  grade_year: number | null;
+  teacher_id: string | null;
+  attend_count: number;
+  guide_kind: string | null;
+  guide_student_id: string | null;
+  guide_student_name: string | null;
+}
 
-const CHECK_RULE_KEYS = DEFAULT_WEEKLY_RULES
-  .map((rule) => rule.rule_key)
-  .filter((key) => key !== "attendance");
+// 출석부 boolean 자동연동 키 — 통장에선 '출석'만 자동 행으로 표시, 나머지 자동키는 칩에서 제외
+const SYSTEM_AUTO_KEYS = new Set(["attendance", "prayer", "church_school", "worship", "lesson", "bible"]);
+// 새친구등반 — 수동 칩이 아니라 등반 확정(반자동)으로 인도자에게 자동 적립 → 칩에서 제외
+const PROMOTION_KEY = "new_friend_promotion";
+
+// 부서 미설정 시 최초 시드용 기본 weekly 규칙 (점수는 부서별 편집 가능 · 초등1부 기준값)
+const DEFAULT_WEEKLY_RULES = [
+  { rule_key: "attendance", label: "출석", points: 2, order_no: 0 },
+  { rule_key: "bible_book", label: "성경책 지참", points: 1, order_no: 1 },
+  { rule_key: "verse_memory", label: "요절암송", points: 2, order_no: 2 },
+  { rule_key: "verse_presentation", label: "요절암송발표", points: 5, order_no: 3 },
+  { rule_key: "bulletin_quiz", label: "주보퀴즈", points: 2, order_no: 4 },
+  { rule_key: "lesson_homework", label: "숙제", points: 2, order_no: 5 },
+  { rule_key: "evangelism", label: "전도", points: 5, order_no: 6 },
+  { rule_key: "representative_prayer", label: "대표기도", points: 5, order_no: 7 },
+  { rule_key: "new_friend_promotion", label: "새친구등반", points: 5, order_no: 8 },
+];
 
 // 항목별 이모지 — 아이들 화면이라 친근하게 (콘텐츠성 이모지, lucide 예외)
 const RULE_EMOJI: Record<string, string> = {
@@ -83,6 +100,7 @@ const OTHER_EMOJI = "🎁";
 export default function TalentPage() {
   const router = useRouter();
   const params = useParams();
+  const { confirm } = useConfirm();
   const deptId = params.id as string;
   const weekCardRefs = useRef<Record<string, HTMLElement | null>>({});
 
@@ -105,6 +123,8 @@ export default function TalentPage() {
   const [otherNote, setOtherNote] = useState("");
   const [otherAmount, setOtherAmount] = useState("1");
   const [otherSaving, setOtherSaving] = useState(false);
+  const [pending, setPending] = useState<PendingPromotion[]>([]); // 내 반 등반 대기 새친구
+  const [promoting, setPromoting] = useState("");
 
   const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
   const currentSundayKey = useMemo(() => getCurrentSundayKey(), []);
@@ -178,7 +198,14 @@ export default function TalentPage() {
     setExtras(((extraRows || []) as WeeklyExtra[]).filter((row) => studentIds.includes(row.student_id)));
     await loadOtherRecords(studentIds);
     await loadCumulative(classStudents);
+    await loadPending(teacherId);
     setLoading(false);
+  }
+
+  // 등반 대기 새친구 — 내 반(teacher_id) 것만. 닫아도 안 사라지고, '등반 확정' 눌러야 사라짐.
+  async function loadPending(teacherId: string) {
+    const { data } = await supabase.rpc("edu_pending_promotions", { p_dept_id: deptId });
+    setPending(((data || []) as PendingPromotion[]).filter((row) => row.teacher_id === teacherId));
   }
 
   // 학생별 전체기간 누적 잔액 = 자동적립(출석×규칙 + 주간적립×규칙) + 기타(pts_other)
@@ -189,9 +216,7 @@ export default function TalentPage() {
       return;
     }
 
-    const wanted = new Set(["attendance", ...CHECK_RULE_KEYS]);
-
-    // 자동 적립 — 학생별 RPC(전체기간). 기존 get_student_auto_talent 사용.
+    // 자동 적립 — 학생별 RPC(전체기간). 활성 weekly 규칙 전체(출석 자동 + 수동 칩)를 점수 반영해 합산.
     const autoEntries = await Promise.all(
       classStudents.map(async (student) => {
         const { data } = await supabase.rpc("get_student_auto_talent", {
@@ -201,8 +226,7 @@ export default function TalentPage() {
           p_year_to: 2100,
           p_month_to: 12,
         });
-        const sum = ((data || []) as { rule_key: string; total: number }[])
-          .filter((row) => wanted.has(row.rule_key))
+        const sum = ((data || []) as { total: number }[])
           .reduce((acc, row) => acc + (row.total || 0), 0);
         return [student.id, sum] as const;
       })
@@ -221,8 +245,20 @@ export default function TalentPage() {
       otherSum[row.student_id] = (otherSum[row.student_id] || 0) + (row.pts_other || 0);
     });
 
+    // 공과퀴즈 달란트(서기 입력) 전체기간 합
+    const { data: quizRows } = await supabase
+      .from("edu_quiz_talent")
+      .select("student_id, points")
+      .eq("department_id", deptId)
+      .in("student_id", ids);
+
+    const quizSum: Record<string, number> = {};
+    ((quizRows || []) as { student_id: string; points: number }[]).forEach((row) => {
+      quizSum[row.student_id] = (quizSum[row.student_id] || 0) + (row.points || 0);
+    });
+
     const map: Record<string, number> = {};
-    autoEntries.forEach(([id, sum]) => { map[id] = sum + (otherSum[id] || 0); });
+    autoEntries.forEach(([id, sum]) => { map[id] = sum + (otherSum[id] || 0) + (quizSum[id] || 0); });
     setCumulative(map);
   }
 
@@ -336,6 +372,41 @@ export default function TalentPage() {
     return map;
   }, [rules]);
 
+  // 통장 체크 칩 = 활성 weekly 규칙 중 출석부 자동연동키·새친구등반(반자동) 제외
+  const checkRules = useMemo(
+    () =>
+      rules
+        .filter(
+          (rule) =>
+            rule.rule_kind === "weekly" &&
+            rule.is_active &&
+            !SYSTEM_AUTO_KEYS.has(rule.rule_key) &&
+            rule.rule_key !== PROMOTION_KEY
+        )
+        .sort((a, b) => (a.order_no || 0) - (b.order_no || 0)),
+    [rules]
+  );
+
+  async function confirmPromotion(p: PendingPromotion) {
+    const guideNote =
+      p.guide_kind === "student" && p.guide_student_name
+        ? `인도자 ${p.guide_student_name} 학생에게 새친구등반 달란트가 적립됩니다.`
+        : "인도자가 학생이 아니어서 달란트 적립 대상은 없습니다.";
+    const ok = await confirm(`${p.name} 학생을 정원으로 등반 확정할까요?\n\n${guideNote}`);
+    if (!ok) return;
+
+    setPromoting(p.new_friend_id);
+    const { error } = await supabase.rpc("edu_confirm_promotion", { p_new_friend_id: p.new_friend_id });
+    setPromoting("");
+    if (error) {
+      showToast("등반 확정 실패: " + error.message);
+      return;
+    }
+    setPending((prev) => prev.filter((row) => row.new_friend_id !== p.new_friend_id));
+    showToast(`${p.name} 등반 확정 🎉`);
+    if (myTeacherId) loadAll(myTeacherId);
+  }
+
   function getAttendance(studentId: string, date: string) {
     return attendanceMap[studentId]?.[date];
   }
@@ -354,10 +425,10 @@ export default function TalentPage() {
 
   function studentWeekTotal(studentId: string, date: string) {
     const attendancePoints = isPresent(studentId, date) ? getRulePoints("attendance") : 0;
-    const checkPoints = CHECK_RULE_KEYS.reduce((sum, key) => {
-      const rule = ruleMap[key];
-      return sum + (rule && isChecked(studentId, date, rule) ? getRulePoints(key) : 0);
-    }, 0);
+    const checkPoints = checkRules.reduce(
+      (sum, rule) => sum + (isChecked(studentId, date, rule) ? rule.points : 0),
+      0
+    );
     return attendancePoints + checkPoints + (getOther(studentId, date)?.pts_other || 0);
   }
 
@@ -547,6 +618,55 @@ export default function TalentPage() {
           </div>
         </section>
 
+        {/* 등반 대기 배너 — 4회 이상 출석한 새친구. 닫기 없음: '등반 확정'을 눌러야만 사라짐(기회 유실 방지) */}
+        {pending.length > 0 && (
+          <section className="mx-4 mb-4 md:mx-0">
+            <div
+              className="overflow-hidden rounded-[22px] p-4"
+              style={{
+                background: "linear-gradient(135deg, color-mix(in srgb, var(--success) 16%, #fff), color-mix(in srgb, var(--brass) 16%, #fff))",
+                border: "1.5px solid color-mix(in srgb, var(--success) 38%, transparent)",
+              }}
+            >
+              <div className="mb-2.5 flex items-center gap-2 text-[15px] font-extrabold" style={{ color: "var(--ink)" }}>
+                <span className="grid h-8 w-8 place-items-center rounded-full" style={{ background: "color-mix(in srgb, var(--success) 22%, #fff)", color: "var(--success)" }}>
+                  <Rocket size={16} strokeWidth={2.2} />
+                </span>
+                새친구 등반 대상 {pending.length}명
+              </div>
+              <div className="flex flex-col gap-2">
+                {pending.map((p) => (
+                  <div
+                    key={p.new_friend_id}
+                    className="flex items-center justify-between gap-3 rounded-2xl px-3.5 py-2.5"
+                    style={{ background: "var(--card)", border: "1px solid color-mix(in srgb, var(--success) 24%, transparent)" }}
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-[15px] font-extrabold" style={{ color: "var(--ink)" }}>
+                        {p.name}
+                        <span className="ml-1.5 text-[12px] font-bold" style={{ color: "var(--success)" }}>출석 {p.attend_count}회</span>
+                      </div>
+                      <div className="mt-0.5 truncate text-[11px] font-semibold" style={{ color: "var(--ink-faint)" }}>
+                        인도자 {p.guide_kind === "student" ? (p.guide_student_name ?? "—") : p.guide_kind === "self" ? "자진" : "기타"}
+                        {p.guide_kind === "student" && " · 등반 확정 시 +달란트"}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => confirmPromotion(p)}
+                      disabled={promoting === p.new_friend_id}
+                      className="shrink-0 rounded-full px-4 py-2 text-[13px] font-extrabold text-white disabled:opacity-60"
+                      style={{ background: "linear-gradient(135deg, var(--success), color-mix(in srgb, var(--success) 70%, var(--brass)))" }}
+                    >
+                      {promoting === p.new_friend_id ? "확정 중..." : "등반 확정"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
         <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-hairline bg-white px-4 py-3 md:mx-0">
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
           <div className="min-w-[140px] text-center text-[19px] font-extrabold text-ink">
@@ -684,30 +804,29 @@ export default function TalentPage() {
                           </div>
 
                           <div className="grid grid-cols-2 gap-2.5">
-                            {CHECK_RULE_KEYS.map((ruleKey) => {
-                              const rule = ruleMap[ruleKey];
-                              const selected = rule ? isChecked(student.id, date, rule) : false;
-                              const key = rule ? extraKey(student.id, date, rule.id) : `${student.id}-${date}-${ruleKey}`;
-                              const label = rule?.label || DEFAULT_WEEKLY_RULES.find((item) => item.rule_key === ruleKey)?.label;
-                              const disabled = !rule || !isEditableWeek || saving === key;
+                            {checkRules.map((rule) => {
+                              const selected = isChecked(student.id, date, rule);
+                              const key = extraKey(student.id, date, rule.id);
+                              const label = rule.label;
+                              const disabled = !isEditableWeek || saving === key;
 
                               return (
                                 <button
-                                  key={ruleKey}
+                                  key={rule.id}
                                   type="button"
-                                  onClick={() => rule && toggleWeeklyItem(student, date, rule)}
+                                  onClick={() => toggleWeeklyItem(student, date, rule)}
                                   disabled={disabled}
                                   className={[
                                     "coin-chip flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[13.5px] font-bold leading-tight",
                                     selected ? "coin-on" : "",
                                     disabled ? "cursor-not-allowed" : "cursor-pointer",
-                                    (!rule || !isEditableWeek) && !selected ? "opacity-60" : "",
+                                    !isEditableWeek && !selected ? "opacity-60" : "",
                                   ].join(" ")}
                                   style={selected
                                     ? { background: "color-mix(in srgb, var(--accent) 18%, #fff)", color: "color-mix(in srgb, var(--accent) 75%, var(--ink))", border: "1.5px solid color-mix(in srgb, var(--accent) 45%, transparent)" }
                                     : { background: "color-mix(in srgb, var(--bg-soft) 70%, #fff)", color: "var(--ink-soft)", border: "1px solid var(--hairline)" }}
                                 >
-                                  <span className="shrink-0 text-[17px] leading-none" aria-hidden>{RULE_EMOJI[ruleKey] || "⭐"}</span>
+                                  <span className="shrink-0 text-[17px] leading-none" aria-hidden>{RULE_EMOJI[rule.rule_key] || "⭐"}</span>
                                   <span className="flex-1 truncate">{label}</span>
                                   {selected && <Check size={14} strokeWidth={3} className="shrink-0" />}
                                 </button>

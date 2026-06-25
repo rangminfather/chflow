@@ -76,7 +76,7 @@ export default function TalentRulesPage() {
     })();
   }, [deptId, load, router]);
 
-  const canEdit = myGrade !== null && myGrade <= 1;
+  const canEdit = myGrade !== null && myGrade <= 2;
 
   function openNew(kind: Rule["rule_kind"]) {
     setEditing({
@@ -134,7 +134,7 @@ export default function TalentRulesPage() {
           <div style={{ background: "var(--card)", borderRadius: 16, padding: 28, textAlign: "center" }}>
             <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><Medal size={40} strokeWidth={1.8} color="var(--ink-faint)" /></div>
             <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>달란트 규칙 미설정</div>
-            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>부장(grade 0~1) 만 규칙을 등록·수정할 수 있습니다</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>임원진(등급 0~2: 부장·총무·서기)만 규칙을 등록·수정할 수 있습니다</div>
             <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtn}>← 부서홈</button>
           </div>
         </div>
@@ -229,7 +229,7 @@ export default function TalentRulesPage() {
 
         {!canEdit && (
           <div style={{ marginTop: 14, fontSize: 11, color: "var(--ink-faint)", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-            <Lock size={12} strokeWidth={1.8} /> 규칙 편집은 부장(등급 0~1) 권한이 필요합니다.
+            <Lock size={12} strokeWidth={1.8} /> 규칙 편집은 임원진(등급 0~2) 권한이 필요합니다.
           </div>
         )}
       </div>
