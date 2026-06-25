@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Check, ChevronUp, Info, Medal, PiggyBank, Star } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { Check, ChevronUp, Info, Medal, PiggyBank, Rocket, Star } from "lucide-react";
 
 interface Student {
   id: string;
@@ -52,8 +53,23 @@ interface OtherRecord {
   note: string | null;
 }
 
+interface PendingPromotion {
+  new_friend_id: string;
+  student_id: string;
+  name: string;
+  class_no: string | null;
+  grade_year: number | null;
+  teacher_id: string | null;
+  attend_count: number;
+  guide_kind: string | null;
+  guide_student_id: string | null;
+  guide_student_name: string | null;
+}
+
 // 출석부 boolean 자동연동 키 — 통장에선 '출석'만 자동 행으로 표시, 나머지 자동키는 칩에서 제외
 const SYSTEM_AUTO_KEYS = new Set(["attendance", "prayer", "church_school", "worship", "lesson", "bible"]);
+// 새친구등반 — 수동 칩이 아니라 등반 확정(반자동)으로 인도자에게 자동 적립 → 칩에서 제외
+const PROMOTION_KEY = "new_friend_promotion";
 
 // 부서 미설정 시 최초 시드용 기본 weekly 규칙 (점수는 부서별 편집 가능 · 초등1부 기준값)
 const DEFAULT_WEEKLY_RULES = [
@@ -84,6 +100,7 @@ const OTHER_EMOJI = "🎁";
 export default function TalentPage() {
   const router = useRouter();
   const params = useParams();
+  const { confirm } = useConfirm();
   const deptId = params.id as string;
   const weekCardRefs = useRef<Record<string, HTMLElement | null>>({});
 
@@ -106,6 +123,8 @@ export default function TalentPage() {
   const [otherNote, setOtherNote] = useState("");
   const [otherAmount, setOtherAmount] = useState("1");
   const [otherSaving, setOtherSaving] = useState(false);
+  const [pending, setPending] = useState<PendingPromotion[]>([]); // 내 반 등반 대기 새친구
+  const [promoting, setPromoting] = useState("");
 
   const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
   const currentSundayKey = useMemo(() => getCurrentSundayKey(), []);
@@ -179,7 +198,14 @@ export default function TalentPage() {
     setExtras(((extraRows || []) as WeeklyExtra[]).filter((row) => studentIds.includes(row.student_id)));
     await loadOtherRecords(studentIds);
     await loadCumulative(classStudents);
+    await loadPending(teacherId);
     setLoading(false);
+  }
+
+  // 등반 대기 새친구 — 내 반(teacher_id) 것만. 닫아도 안 사라지고, '등반 확정' 눌러야 사라짐.
+  async function loadPending(teacherId: string) {
+    const { data } = await supabase.rpc("edu_pending_promotions", { p_dept_id: deptId });
+    setPending(((data || []) as PendingPromotion[]).filter((row) => row.teacher_id === teacherId));
   }
 
   // 학생별 전체기간 누적 잔액 = 자동적립(출석×규칙 + 주간적립×규칙) + 기타(pts_other)
@@ -346,14 +372,40 @@ export default function TalentPage() {
     return map;
   }, [rules]);
 
-  // 통장 체크 칩 = 활성 weekly 규칙 중 출석부 자동연동키 제외 (규칙 화면에서 추가/삭제 시 그대로 반영)
+  // 통장 체크 칩 = 활성 weekly 규칙 중 출석부 자동연동키·새친구등반(반자동) 제외
   const checkRules = useMemo(
     () =>
       rules
-        .filter((rule) => rule.rule_kind === "weekly" && rule.is_active && !SYSTEM_AUTO_KEYS.has(rule.rule_key))
+        .filter(
+          (rule) =>
+            rule.rule_kind === "weekly" &&
+            rule.is_active &&
+            !SYSTEM_AUTO_KEYS.has(rule.rule_key) &&
+            rule.rule_key !== PROMOTION_KEY
+        )
         .sort((a, b) => (a.order_no || 0) - (b.order_no || 0)),
     [rules]
   );
+
+  async function confirmPromotion(p: PendingPromotion) {
+    const guideNote =
+      p.guide_kind === "student" && p.guide_student_name
+        ? `인도자 ${p.guide_student_name} 학생에게 새친구등반 달란트가 적립됩니다.`
+        : "인도자가 학생이 아니어서 달란트 적립 대상은 없습니다.";
+    const ok = await confirm(`${p.name} 학생을 정원으로 등반 확정할까요?\n\n${guideNote}`);
+    if (!ok) return;
+
+    setPromoting(p.new_friend_id);
+    const { error } = await supabase.rpc("edu_confirm_promotion", { p_new_friend_id: p.new_friend_id });
+    setPromoting("");
+    if (error) {
+      showToast("등반 확정 실패: " + error.message);
+      return;
+    }
+    setPending((prev) => prev.filter((row) => row.new_friend_id !== p.new_friend_id));
+    showToast(`${p.name} 등반 확정 🎉`);
+    if (myTeacherId) loadAll(myTeacherId);
+  }
 
   function getAttendance(studentId: string, date: string) {
     return attendanceMap[studentId]?.[date];
@@ -565,6 +617,55 @@ export default function TalentPage() {
             )}
           </div>
         </section>
+
+        {/* 등반 대기 배너 — 4회 이상 출석한 새친구. 닫기 없음: '등반 확정'을 눌러야만 사라짐(기회 유실 방지) */}
+        {pending.length > 0 && (
+          <section className="mx-4 mb-4 md:mx-0">
+            <div
+              className="overflow-hidden rounded-[22px] p-4"
+              style={{
+                background: "linear-gradient(135deg, color-mix(in srgb, var(--success) 16%, #fff), color-mix(in srgb, var(--brass) 16%, #fff))",
+                border: "1.5px solid color-mix(in srgb, var(--success) 38%, transparent)",
+              }}
+            >
+              <div className="mb-2.5 flex items-center gap-2 text-[15px] font-extrabold" style={{ color: "var(--ink)" }}>
+                <span className="grid h-8 w-8 place-items-center rounded-full" style={{ background: "color-mix(in srgb, var(--success) 22%, #fff)", color: "var(--success)" }}>
+                  <Rocket size={16} strokeWidth={2.2} />
+                </span>
+                새친구 등반 대상 {pending.length}명
+              </div>
+              <div className="flex flex-col gap-2">
+                {pending.map((p) => (
+                  <div
+                    key={p.new_friend_id}
+                    className="flex items-center justify-between gap-3 rounded-2xl px-3.5 py-2.5"
+                    style={{ background: "var(--card)", border: "1px solid color-mix(in srgb, var(--success) 24%, transparent)" }}
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-[15px] font-extrabold" style={{ color: "var(--ink)" }}>
+                        {p.name}
+                        <span className="ml-1.5 text-[12px] font-bold" style={{ color: "var(--success)" }}>출석 {p.attend_count}회</span>
+                      </div>
+                      <div className="mt-0.5 truncate text-[11px] font-semibold" style={{ color: "var(--ink-faint)" }}>
+                        인도자 {p.guide_kind === "student" ? (p.guide_student_name ?? "—") : p.guide_kind === "self" ? "자진" : "기타"}
+                        {p.guide_kind === "student" && " · 등반 확정 시 +달란트"}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => confirmPromotion(p)}
+                      disabled={promoting === p.new_friend_id}
+                      className="shrink-0 rounded-full px-4 py-2 text-[13px] font-extrabold text-white disabled:opacity-60"
+                      style={{ background: "linear-gradient(135deg, var(--success), color-mix(in srgb, var(--success) 70%, var(--brass)))" }}
+                    >
+                      {promoting === p.new_friend_id ? "확정 중..." : "등반 확정"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-hairline bg-white px-4 py-3 md:mx-0">
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
