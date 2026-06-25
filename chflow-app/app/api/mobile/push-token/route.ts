@@ -51,6 +51,17 @@ export async function POST(req: NextRequest) {
 
   const now = new Date().toISOString();
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+  if (deviceId) {
+    await admin
+      .from("user_push_tokens")
+      .update({ enabled: false, updated_at: now })
+      .eq("user_id", user.uid)
+      .eq("platform", platform)
+      .eq("app_id", appId)
+      .eq("device_id", deviceId)
+      .neq("expo_push_token", expoPushToken);
+  }
+
   const { data, error } = await admin
     .from("user_push_tokens")
     .upsert(
@@ -72,4 +83,42 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ ok: false, error: "처리 중 오류가 발생했습니다." }, { status: 500 });
 
   return NextResponse.json({ ok: true, token_id: data.id, last_seen_at: data.last_seen_at });
+}
+
+export async function DELETE(req: NextRequest) {
+  const user = await getAuthUser(req);
+  if (!user) return NextResponse.json({ ok: false, error: "Unauthenticated" }, { status: 401 });
+
+  let body: PushTokenRequest = {};
+  try {
+    body = await req.json();
+  } catch {
+    body = {};
+  }
+
+  const expoPushToken = (body.expoPushToken || "").trim();
+  const platform = (body.platform || "").trim().toLowerCase();
+  const deviceId = body.deviceId ? String(body.deviceId).trim() : null;
+  const appId = (body.appId || "smart-myungsung").trim();
+  const now = new Date().toISOString();
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+
+  let query = admin
+    .from("user_push_tokens")
+    .update({ enabled: false, updated_at: now })
+    .eq("user_id", user.uid)
+    .eq("app_id", appId);
+
+  if (expoPushToken) {
+    query = query.eq("expo_push_token", expoPushToken);
+  } else if (deviceId && platform) {
+    query = query.eq("device_id", deviceId).eq("platform", platform);
+  } else {
+    return NextResponse.json({ ok: false, error: "Missing token or device" }, { status: 400 });
+  }
+
+  const { error } = await query;
+  if (error) return NextResponse.json({ ok: false, error: "처리 중 오류가 발생했습니다." }, { status: 500 });
+
+  return NextResponse.json({ ok: true });
 }

@@ -227,6 +227,7 @@ function AppWebView() {
   const registerPushToken = async (accessToken: string, token: string) => {
     const registerKey = `${accessToken.slice(-12)}:${token}`;
     if (registeredKeyRef.current === registerKey) return;
+    const deviceId = await getStableDeviceId();
 
     const response = await fetch(`${TARGET_URL}/api/mobile/push-token`, {
       method: 'POST',
@@ -237,7 +238,7 @@ function AppWebView() {
       body: JSON.stringify({
         expoPushToken: token,
         platform: Platform.OS,
-        deviceId: Constants.sessionId || null,
+        deviceId,
         appId: 'smart-myungsung',
       }),
     });
@@ -245,6 +246,26 @@ function AppWebView() {
     if (response.ok) {
       registeredKeyRef.current = registerKey;
     }
+  };
+
+  const unregisterPushToken = async () => {
+    const accessToken = pendingAccessTokenRef.current;
+    if (!accessToken || !expoPushToken) return;
+    const deviceId = await getStableDeviceId();
+
+    await fetch(`${TARGET_URL}/api/mobile/push-token`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        expoPushToken,
+        platform: Platform.OS,
+        deviceId,
+        appId: 'smart-myungsung',
+      }),
+    });
   };
 
   useEffect(() => {
@@ -301,6 +322,14 @@ function AppWebView() {
     // 웹이 '루트(홈)에서 뒤로가기' 라고 알려줌 → 종료 확인
     if (message.type === 'CHFLOW_BACK_AT_ROOT') {
       promptExit();
+      return;
+    }
+
+    if (message.type === 'CHFLOW_SIGN_OUT') {
+      unregisterPushToken().catch(() => {});
+      pendingAccessTokenRef.current = null;
+      registeredKeyRef.current = null;
+      Notifications.setBadgeCountAsync(0).catch(() => {});
       return;
     }
 
@@ -418,6 +447,20 @@ async function registerForPushNotifications(): Promise<string | null> {
 
   const token = await Notifications.getExpoPushTokenAsync({ projectId });
   return token.data;
+}
+
+async function getStableDeviceId(): Promise<string | null> {
+  try {
+    if (Platform.OS === 'android') {
+      return Application.getAndroidId();
+    }
+    if (Platform.OS === 'ios') {
+      return await Application.getIosIdForVendorAsync();
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 type NotificationData = {

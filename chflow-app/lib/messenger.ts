@@ -174,6 +174,30 @@ export async function createGroupConversation(title: string, participantIds: str
   return data as string;
 }
 
+export async function renameGroupConversation(conversationId: string, title: string): Promise<void> {
+  const { error } = await supabase.rpc("rename_group_conversation", {
+    p_conversation_id: conversationId,
+    p_title: title,
+  });
+  if (error) throw error;
+}
+
+export async function addGroupParticipants(conversationId: string, participantIds: string[]): Promise<void> {
+  const { error } = await supabase.rpc("add_group_participants", {
+    p_conversation_id: conversationId,
+    p_participant_ids: participantIds,
+  });
+  if (error) throw error;
+}
+
+export async function removeGroupParticipant(conversationId: string, userId: string): Promise<void> {
+  const { error } = await supabase.rpc("remove_group_participant", {
+    p_conversation_id: conversationId,
+    p_user_id: userId,
+  });
+  if (error) throw error;
+}
+
 export async function sendMessengerMessage(
   conversationId: string,
   body: string,

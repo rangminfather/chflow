@@ -14,7 +14,25 @@ function createSupabaseBrowserClient() {
     );
   }
 
-  return createBrowserClient(url, anonKey);
+  const client = createBrowserClient(url, anonKey);
+
+  if (typeof window !== "undefined") {
+    const auth = client.auth as typeof client.auth & { signOut: typeof client.auth.signOut };
+    const originalSignOut = auth.signOut.bind(auth);
+    auth.signOut = async (...args: Parameters<typeof originalSignOut>) => {
+      try {
+        const nativeWebView = (window as Window & {
+          ReactNativeWebView?: { postMessage: (message: string) => void };
+        }).ReactNativeWebView;
+        nativeWebView?.postMessage(JSON.stringify({ type: "CHFLOW_SIGN_OUT" }));
+      } catch {
+        // Native bridge is optional.
+      }
+      return originalSignOut(...args);
+    };
+  }
+
+  return client;
 }
 
 type BrowserSupabaseClient = ReturnType<typeof createSupabaseBrowserClient>;
