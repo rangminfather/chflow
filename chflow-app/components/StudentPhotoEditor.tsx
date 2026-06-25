@@ -9,8 +9,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import Cropper, { Area } from "react-easy-crop";
 import { supabase } from "@/lib/supabase";
-import { Camera, AlertTriangle, ZoomIn, Crop as CropIcon, Undo2 } from "lucide-react";
-import { kidDefaultFace } from "@/lib/kidAvatar";
+import { Camera, AlertTriangle, ZoomIn, Crop as CropIcon, Undo2, Plus, Check } from "lucide-react";
+import { kidDefaultFace, isKidDefaultFace, kidFaceChoices, kidFaceTransform } from "@/lib/kidAvatar";
 
 interface StudentPhotoEditorProps {
   deptId: string;
@@ -40,7 +40,10 @@ export default function StudentPhotoEditor({
   const [failed, setFailed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const defaultFace = kidDefaultFace(gender, studentId);
+  // currentUrl 이 /avatars/kids/.. 이면 '직접 고른 기본 얼굴', 비어있으면 'ID 자동 기본 얼굴'.
+  const storedDefault = isKidDefaultFace(currentUrl);
+  const defaultFace = storedDefault ? currentUrl! : kidDefaultFace(gender, studentId);
+  const faceChoices = kidFaceChoices(gender);
 
   useEffect(() => { setCurrentUrl(photoUrl ?? null); setFailed(false); }, [photoUrl]);
 
@@ -54,8 +57,10 @@ export default function StudentPhotoEditor({
     setCroppedAreaPixels(pixels);
   }, []);
 
-  const showPhoto = !!currentUrl && !failed;
+  // 실제 등록 사진 여부(기본 얼굴 일러스트는 사진 아님). 사진이면 + 배지를 숨긴다.
+  const showPhoto = !!currentUrl && !failed && !storedDefault;
   const displaySrc = showPhoto ? currentUrl! : defaultFace;
+  const displayTransform = showPhoto ? "" : kidFaceTransform(defaultFace);
 
   const openModal = () => { setShowModal(true); setError(""); };
 
@@ -139,39 +144,80 @@ export default function StudentPhotoEditor({
     setShowModal(false);
   };
 
+  // 기본 얼굴 일러스트 선택 → members.photo_url 에 경로 저장(사진 아님, + 배지 유지).
+  const handlePickDefault = async (face: string) => {
+    if (!memberId) { setError("연결된 성도 정보가 없어 저장할 수 없습니다"); return; }
+    if (face === currentUrl) { setShowModal(false); return; }
+    setUploading(true);
+    setError("");
+    const { error: rpcError } = await supabase.rpc("edu_set_student_photo", {
+      p_dept_id: deptId,
+      p_student_id: studentId,
+      p_photo_url: face,
+    });
+    setUploading(false);
+    if (rpcError) { setError(`저장 실패: ${rpcError.message}`); return; }
+    setCurrentUrl(face);
+    setFailed(false);
+    onUpdate?.(face);
+    setShowModal(false);
+  };
+
   return (
     <>
       {/* === 아바타 (클릭 → 편집) === */}
-      <button
-        type="button"
-        onClick={openModal}
-        aria-label={`${name} 사진 변경`}
-        className="kid-avatar group relative grid shrink-0 place-items-center overflow-hidden p-0"
-        style={{
-          width: size,
-          height: size,
-          borderRadius: 999,
-          background: "color-mix(in srgb, var(--accent-muted) 14%, #f7f2e8)",
-          border: "1px solid var(--hairline)",
-          cursor: "pointer",
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={displaySrc}
-          alt={showPhoto ? `${name} 프로필 사진` : `${name} 기본 프로필`}
-          loading="lazy"
-          decoding="async"
-          onError={() => { if (showPhoto) setFailed(true); }}
-          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
-        />
-        <span
-          className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition-opacity group-hover:opacity-100"
-          style={{ background: "rgba(0,0,0,0.4)" }}
+      <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>
+        <button
+          type="button"
+          onClick={openModal}
+          aria-label={`${name} 사진 변경`}
+          className="kid-avatar group relative grid place-items-center overflow-hidden p-0"
+          style={{
+            width: size,
+            height: size,
+            borderRadius: 999,
+            background: "color-mix(in srgb, var(--accent-muted) 14%, #f7f2e8)",
+            border: "1px solid var(--hairline)",
+            cursor: "pointer",
+          }}
         >
-          <Camera size={size * 0.4} strokeWidth={2} color="#fff" />
-        </span>
-      </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={displaySrc}
+            alt={showPhoto ? `${name} 프로필 사진` : `${name} 기본 프로필`}
+            loading="lazy"
+            decoding="async"
+            onError={() => { if (showPhoto) setFailed(true); }}
+            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", transform: displayTransform || undefined }}
+          />
+          <span
+            className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition-opacity group-hover:opacity-100"
+            style={{ background: "rgba(0,0,0,0.4)" }}
+          >
+            <Camera size={size * 0.4} strokeWidth={2} color="#fff" />
+          </span>
+        </button>
+
+        {/* 기본 얼굴일 때만 + 배지: '사진 등록 가능' 안내. 사진 등록되면 사라짐 */}
+        {!showPhoto && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute grid place-items-center"
+            style={{
+              right: -1,
+              bottom: -1,
+              width: Math.max(15, Math.round(size * 0.34)),
+              height: Math.max(15, Math.round(size * 0.34)),
+              borderRadius: 999,
+              background: "var(--accent)",
+              border: "1.5px solid var(--card)",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+            }}
+          >
+            <Plus size={Math.max(9, Math.round(size * 0.2))} strokeWidth={3} color="#fff" />
+          </span>
+        )}
+      </span>
 
       {/* === 메인 모달 === */}
       {showModal && !cropImageSrc && (
@@ -182,12 +228,14 @@ export default function StudentPhotoEditor({
             </div>
 
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={displaySrc}
-                alt={`${name} 사진`}
-                style={{ width: 180, height: 180, borderRadius: 999, objectFit: "cover", border: "3px solid var(--hairline)", boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}
-              />
+              <div style={{ width: 180, height: 180, borderRadius: 999, overflow: "hidden", border: "3px solid var(--hairline)", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", background: "color-mix(in srgb, var(--accent-muted) 14%, #f7f2e8)" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={displaySrc}
+                  alt={`${name} 사진`}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", transform: displayTransform || undefined }}
+                />
+              </div>
             </div>
 
             {!showPhoto && (
@@ -195,6 +243,58 @@ export default function StudentPhotoEditor({
                 기본 얼굴을 표시 중입니다
               </div>
             )}
+
+            {/* === 기본 얼굴 고르기 === */}
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 8 }}>기본 얼굴 고르기</div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(5, 1fr)",
+                gap: 8,
+                marginBottom: 16,
+                maxHeight: 200,
+                overflowY: "auto",
+                padding: 2,
+              }}
+            >
+              {faceChoices.map((face) => {
+                const active = face === defaultFace && !showPhoto;
+                return (
+                  <button
+                    key={face}
+                    type="button"
+                    onClick={() => handlePickDefault(face)}
+                    disabled={!memberId || uploading}
+                    aria-label="기본 얼굴 선택"
+                    className="relative grid place-items-center overflow-hidden p-0"
+                    style={{
+                      aspectRatio: "1",
+                      borderRadius: 999,
+                      background: "color-mix(in srgb, var(--accent-muted) 14%, #f7f2e8)",
+                      border: active ? "2.5px solid var(--accent)" : "1px solid var(--hairline)",
+                      cursor: memberId && !uploading ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={face}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      style={{ width: "100%", height: "100%", objectFit: "cover", transform: kidFaceTransform(face) || undefined }}
+                    />
+                    {active && (
+                      <span
+                        className="pointer-events-none absolute grid place-items-center"
+                        style={{ right: 1, bottom: 1, width: 16, height: 16, borderRadius: 999, background: "var(--accent)", border: "1.5px solid var(--card)" }}
+                      >
+                        <Check size={9} strokeWidth={3.5} color="#fff" />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
             {!memberId && (
               <div style={{ ...noticeStyle }}>
                 <AlertTriangle size={14} strokeWidth={1.8} /> 연결된 성도 정보가 없어 사진을 저장할 수 없습니다

@@ -31,3 +31,48 @@ export function kidDefaultFace(gender: string | null | undefined, seed: string):
   if (g === "female") return `/avatars/kids/girl-${(h % KID_GIRL_COUNT) + 1}.png`;
   return `/avatars/kids/boy-${(h % KID_BOY_COUNT) + 1}.png`;
 }
+
+// 저장된 photo_url 이 "기본 얼굴 일러스트" 경로인지 여부.
+// (null/빈값=자동 기본얼굴, /avatars/kids/..=직접 고른 기본얼굴 → 둘 다 '기본 얼굴'로 취급)
+export function isKidDefaultFace(url: string | null | undefined): boolean {
+  return typeof url === "string" && url.startsWith("/avatars/kids/");
+}
+
+const BOY_FACES = Array.from({ length: KID_BOY_COUNT }, (_, i) => `/avatars/kids/boy-${i + 1}.png`);
+const GIRL_FACES = Array.from({ length: KID_GIRL_COUNT }, (_, i) => `/avatars/kids/girl-${i + 1}.png`);
+
+// 성별별 선택 가능한 기본 얼굴 목록. 성별 미상이면 남아+여아 모두 제공.
+export function kidFaceChoices(gender: string | null | undefined): string[] {
+  const g = normalizeGender(gender);
+  if (g === "female") return GIRL_FACES;
+  if (g === "male") return BOY_FACES;
+  return [...BOY_FACES, ...GIRL_FACES];
+}
+
+// 일러스트마다 얼굴이 원형 안에서 정중앙에 오도록 보정하는 CSS transform.
+// 이미지·컨테이너가 모두 정사각형이라 objectPosition 은 효과가 없어 transform(확대/상하이동)으로 맞춘다.
+// scale 로 장식 테두리를 살짝 잘라 얼굴을 키우고, translateY(+면 아래로) 로 머리장식/모자로 치우친 얼굴을 가운데로.
+const FACE_ADJUST: Record<string, string> = {
+  "boy-1": "scale(1.1)",
+  "boy-2": "scale(1.1)",
+  "boy-3": "scale(1.1)",
+  "boy-4": "scale(1.1)",
+  "boy-5": "scale(1.1)",
+  "boy-6": "translateY(4%) scale(1.12)",
+  "boy-7": "scale(1.1)",
+  "boy-8": "scale(1.1)",
+  "boy-9": "translateY(-2%) scale(1.1)",
+  "girl-1": "translateY(3%) scale(1.12)",
+  "girl-2": "scale(1.1)",
+  "girl-3": "scale(1.08)",
+  "girl-4": "translateY(2%) scale(1.1)",
+  "girl-5": "scale(1.1)",
+  "girl-6": "scale(1.08)",
+};
+
+// 기본 얼굴 경로에 맞는 transform 반환(실제 사진은 빈 문자열 → 변형 없음).
+export function kidFaceTransform(url: string | null | undefined): string {
+  if (!isKidDefaultFace(url)) return "";
+  const m = (url as string).match(/\/avatars\/kids\/([a-z]+-\d+)\.png/);
+  return (m && FACE_ADJUST[m[1]]) || "scale(1.1)";
+}
