@@ -45,6 +45,11 @@ const BUCKET_RULES: Record<string, { mimes: string[]; maxBytes: number }> = {
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function adminClient() {
+  return createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+}
 
 async function getAuthUserId(req: NextRequest): Promise<string | null> {
   const auth = req.headers.get("Authorization") || "";
@@ -68,6 +73,51 @@ async function getAuthUserId(req: NextRequest): Promise<string | null> {
   return null;
 }
 
+async function requireMessengerParticipant(conversationId: string, uid: string): Promise<boolean> {
+  const admin = adminClient();
+  const { data } = await admin
+    .from("messenger_participants")
+    .select("id")
+    .eq("conversation_id", conversationId)
+    .eq("user_id", uid)
+    .maybeSingle();
+
+  return !!data?.id;
+}
+
+async function canReadMessengerAttachment(storagePath: string, uid: string): Promise<boolean | null> {
+  const admin = adminClient();
+  const { data: attachment } = await admin
+    .from("messenger_message_attachments")
+    .select("conversation_id")
+    .eq("file_path", storagePath)
+    .maybeSingle();
+
+  if (!attachment?.conversation_id) return null;
+  return requireMessengerParticipant(attachment.conversation_id, uid);
+}
+
+async function canUploadMessengerAttachment(storagePath: string, uid: string): Promise<boolean> {
+  const [ownerId, conversationId] = storagePath.split("/");
+  if (ownerId !== uid || !UUID_RE.test(conversationId || "")) return false;
+  return requireMessengerParticipant(conversationId, uid);
+}
+
+async function canDeleteMessengerAttachment(storagePath: string, uid: string): Promise<boolean> {
+  const admin = adminClient();
+  const { data: attachment } = await admin
+    .from("messenger_message_attachments")
+    .select("uploaded_by")
+    .eq("file_path", storagePath)
+    .maybeSingle();
+
+  if (attachment?.uploaded_by) return attachment.uploaded_by === uid;
+
+  const [ownerId, conversationId] = storagePath.split("/");
+  if (ownerId !== uid || !UUID_RE.test(conversationId || "")) return false;
+  return requireMessengerParticipant(conversationId, uid);
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ bucket: string; path: string[] }> }
@@ -85,23 +135,9 @@ export async function GET(
 
   // messenger-attachments: 대화 참여자만 접근 가능
   if (bucket === "messenger-attachments") {
-    const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
-    const { data: attachment } = await admin
-      .from("messenger_message_attachments")
-      .select("conversation_id")
-      .eq("file_path", storagePath)
-      .maybeSingle();
-
-    if (!attachment?.conversation_id) return new NextResponse(null, { status: 404 });
-
-    const { data: participant } = await admin
-      .from("messenger_participants")
-      .select("id")
-      .eq("conversation_id", attachment.conversation_id)
-      .eq("user_id", uid)
-      .maybeSingle();
-
-    if (!participant?.id) return new NextResponse(null, { status: 403 });
+    const allowed = await canReadMessengerAttachment(storagePath, uid);
+    if (allowed === null) return new NextResponse(null, { status: 404 });
+    if (!allowed) return new NextResponse(null, { status: 403 });
   }
 
   const isStream = req.nextUrl.searchParams.get("stream") === "1";
@@ -168,6 +204,10 @@ export async function POST(
   }
 
   const storagePath = path.join("/");
+  if (bucket === "messenger-attachments" && !await canUploadMessengerAttachment(storagePath, uid)) {
+    return new NextResponse(null, { status: 403 });
+  }
+
   const bytes = await file.arrayBuffer();
   const { error } = await r2.from(bucket).upload(storagePath, bytes, {
     contentType: file.type || "application/octet-stream",
@@ -191,6 +231,10 @@ export async function DELETE(
   if (!uid) return new NextResponse(null, { status: 401 });
 
   const storagePath = path.join("/");
+  if (bucket === "messenger-attachments" && !await canDeleteMessengerAttachment(storagePath, uid)) {
+    return new NextResponse(null, { status: 403 });
+  }
+
   const { error } = await r2.from(bucket).remove([storagePath]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

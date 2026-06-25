@@ -26,7 +26,10 @@ export default function GlobalNotifications() {
     () =>
       HIDDEN_PATH_PREFIXES.some((prefix) => pathname?.startsWith(prefix)) ||
       // 주보 보기 화면(메인/부서)에서는 종 숨김
-      !!pathname?.endsWith("/bulletin"),
+      !!pathname?.endsWith("/bulletin") ||
+      // 달란트통장·내반출결 화면에서는 도크(가·메신저·종) 전체 숨김
+      !!pathname?.endsWith("/talent") ||
+      !!pathname?.endsWith("/my-class-attendance"),
     [pathname]
   );
 

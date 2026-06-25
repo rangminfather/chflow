@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
+import StudentPhotoEditor from "@/components/StudentPhotoEditor";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Baby } from "lucide-react";
@@ -292,10 +293,25 @@ export default function MyClassPage() {
           ) : (
             <>
               <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
-                <div>
-                  <div className="text-[19px] font-extrabold text-ink">{draft.name || "이름 없음"}</div>
-                  <div className="mt-1 text-[13px] font-semibold text-ink-faint">
-                    {draft.grade_year ? `${draft.grade_year}학년 · ` : ""}{draft.class_no ? `${draft.class_no}반` : "반 정보 없음"}
+                <div className="flex min-w-0 items-center gap-3">
+                  <StudentPhotoEditor
+                    deptId={deptId}
+                    studentId={draft.id}
+                    memberId={draft.member_id}
+                    name={draft.name}
+                    gender={draft.gender}
+                    photoUrl={draft.photo_url}
+                    size={52}
+                    onUpdate={(url) => {
+                      setDraft((current) => (current ? { ...current, photo_url: url } : current));
+                      setStudents((current) => current.map((s) => (s.id === draft.id ? { ...s, photo_url: url } : s)));
+                    }}
+                  />
+                  <div className="min-w-0">
+                    <div className="truncate text-[19px] font-extrabold text-ink">{draft.name || "이름 없음"}</div>
+                    <div className="mt-1 text-[13px] font-semibold text-ink-faint">
+                      {draft.grade_year ? `${draft.grade_year}학년 · ` : ""}{draft.class_no ? `${draft.class_no}반` : "반 정보 없음"}
+                    </div>
                   </div>
                 </div>
                 <button

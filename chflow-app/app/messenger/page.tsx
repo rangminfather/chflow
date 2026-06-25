@@ -34,6 +34,7 @@ import { storageProxyUrl } from "@/lib/storage-url";
 import { supabase } from "@/lib/supabase";
 import {
   createGroupConversation,
+  addGroupParticipants,
   blockMessengerUser,
   deleteMessengerMessage,
   editMessengerMessage,
@@ -43,6 +44,8 @@ import {
   leaveMessengerConversation,
   listMessengerConversations,
   markMessengerRead,
+  removeGroupParticipant,
+  renameGroupConversation,
   reportMessengerMessage,
   searchMessengerMessages,
   searchMessengerUsers,
@@ -86,6 +89,7 @@ export default function MessengerPage() {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
+  const [groupManageOpen, setGroupManageOpen] = useState(false);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [messageResults, setMessageResults] = useState<MessengerSearchResult[]>([]);
@@ -101,6 +105,8 @@ export default function MessengerPage() {
   const [editing, setEditing] = useState<MessengerMessage | null>(null);
   const [forwarding, setForwarding] = useState<MessengerMessage | null>(null);
   const [actionMessageId, setActionMessageId] = useState<string | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [readStatusMessage, setReadStatusMessage] = useState<MessengerMessage | null>(null);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.conversation_id === activeId) || null,
@@ -154,10 +160,10 @@ export default function MessengerPage() {
     setLoadingMessages(true);
     setError("");
     try {
+      await markMessengerRead(conversationId);
       const [messageRows, participantRows] = await Promise.all([
         getMessengerMessages(conversationId),
         getMessengerParticipants(conversationId),
-        markMessengerRead(conversationId),
       ]);
       setMessages(messageRows);
       setParticipants(participantRows);
@@ -304,6 +310,15 @@ export default function MessengerPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, activeId]);
+
+  useEffect(() => {
+    if (!highlightedMessageId || loadingMessages) return;
+    const element = document.getElementById(`messenger-message-${highlightedMessageId}`);
+    if (!element) return;
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timer = window.setTimeout(() => setHighlightedMessageId(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [highlightedMessageId, loadingMessages, messages]);
 
   const emitTyping = () => {
     const now = Date.now();
@@ -499,6 +514,42 @@ export default function MessengerPage() {
     }
   };
 
+  const renameGroup = async (title: string) => {
+    if (!activeId) return;
+    try {
+      await renameGroupConversation(activeId, title);
+      await loadConversations(activeId);
+      await loadConversationBody(activeId);
+    } catch (e) {
+      setError(getErrorMessage(e));
+      throw e;
+    }
+  };
+
+  const addGroupMembers = async (userIds: string[]) => {
+    if (!activeId) return;
+    try {
+      await addGroupParticipants(activeId, userIds);
+      await loadConversations(activeId);
+      await loadConversationBody(activeId);
+    } catch (e) {
+      setError(getErrorMessage(e));
+      throw e;
+    }
+  };
+
+  const removeGroupMember = async (userId: string) => {
+    if (!activeId) return;
+    try {
+      await removeGroupParticipant(activeId, userId);
+      await loadConversations(activeId);
+      await loadConversationBody(activeId);
+    } catch (e) {
+      setError(getErrorMessage(e));
+      throw e;
+    }
+  };
+
   const cancelComposerContext = () => {
     setEditing(null);
     setReplyTarget(null);
@@ -570,7 +621,10 @@ export default function MessengerPage() {
                   <SearchResults
                     loading={searchingMessages}
                     results={messageResults}
-                    onOpen={(conversationId) => setActiveId(conversationId)}
+                    onOpen={(result) => {
+                      setActiveId(result.conversation_id);
+                      setHighlightedMessageId(result.message_id);
+                    }}
                   />
                 )}
                 <div style={sidebarLabelStyle}>
@@ -622,6 +676,7 @@ export default function MessengerPage() {
                 onArchive={() => updateConversationState({ archived: true })}
                 onLeave={leaveConversation}
                 onBlockPeer={activeConversation.type === "direct" ? blockCurrentPeer : undefined}
+                onManageGroup={activeConversation.type === "group" ? () => setGroupManageOpen(true) : undefined}
                 onBack={clearActiveConversation}
               />
 
@@ -636,12 +691,15 @@ export default function MessengerPage() {
                       key={m.id}
                       message={m}
                       compact={idx > 0 && messages[idx - 1].sender_id === m.sender_id}
+                      participants={participants}
+                      highlighted={highlightedMessageId === m.id}
                       onReply={() => setReplyTarget(m)}
                       onEdit={() => startEdit(m)}
                       onDelete={() => removeMessage(m)}
                       onForward={() => setForwarding(m)}
                       onReport={() => reportMessage(m)}
                       onReact={(emoji) => reactToMessage(m, emoji)}
+                      onShowReadStatus={() => setReadStatusMessage(m)}
                       actionsOpen={actionMessageId === m.id}
                       onToggleActions={() => setActionMessageId((current) => current === m.id ? null : m.id)}
                     />
@@ -705,6 +763,25 @@ export default function MessengerPage() {
           onForward={forwardMessage}
         />
       )}
+      {groupManageOpen && activeConversation?.type === "group" && (
+        <GroupManagementModal
+          conversation={activeConversation}
+          participants={participants}
+          myUserId={myUserId}
+          onClose={() => setGroupManageOpen(false)}
+          onRename={renameGroup}
+          onAddMembers={addGroupMembers}
+          onRemoveMember={removeGroupMember}
+          onError={setError}
+        />
+      )}
+      {readStatusMessage && (
+        <ReadStatusModal
+          message={readStatusMessage}
+          participants={participants}
+          onClose={() => setReadStatusMessage(null)}
+        />
+      )}
     </div>
   );
 }
@@ -720,6 +797,7 @@ function ChatHeader({
   onArchive,
   onLeave,
   onBlockPeer,
+  onManageGroup,
   onBack,
 }: {
   conversation: MessengerConversation;
@@ -732,6 +810,7 @@ function ChatHeader({
   onArchive: () => void;
   onLeave: () => void;
   onBlockPeer?: () => void;
+  onManageGroup?: () => void;
   onBack: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -763,6 +842,7 @@ function ChatHeader({
         </button>
         {menuOpen && (
           <div style={conversationMenuStyle}>
+            {onManageGroup && <MenuAction icon={<Users size={14} />} label="그룹 관리" onClick={() => { setMenuOpen(false); onManageGroup(); }} />}
             <MenuAction icon={<LogOut size={14} />} label={conversation.type === "group" ? "대화방 나가기" : "대화 숨기기"} onClick={() => { setMenuOpen(false); onLeave(); }} />
             <MenuAction icon={<Pin size={14} />} label={conversation.is_pinned ? "고정 해제" : "대화 고정"} onClick={() => { setMenuOpen(false); onTogglePinned(); }} />
             <MenuAction icon={<Star size={14} />} label={conversation.is_favorite ? "즐겨찾기 해제" : "즐겨찾기"} onClick={() => { setMenuOpen(false); onToggleFavorite(); }} />
@@ -802,7 +882,7 @@ function SearchResults({
 }: {
   loading: boolean;
   results: MessengerSearchResult[];
-  onOpen: (conversationId: string) => void;
+  onOpen: (result: MessengerSearchResult) => void;
 }) {
   return (
     <div style={searchResultsWrapStyle}>
@@ -817,7 +897,7 @@ function SearchResults({
         <ul style={{ ...listStyle, gap: 5 }}>
           {results.slice(0, 8).map((r) => (
             <li key={r.message_id}>
-              <button type="button" onClick={() => onOpen(r.conversation_id)} style={searchResultButtonStyle}>
+              <button type="button" onClick={() => onOpen(r)} style={searchResultButtonStyle}>
                 <div style={oneLineStyle}>
                   <span style={{ fontWeight: 900 }}>{r.conversation_title}</span>
                   <span style={{ color: "var(--ink-faint)" }}> · {formatShortTime(r.created_at)}</span>
@@ -882,37 +962,49 @@ function ConversationButton({
 function MessageBubble({
   message,
   compact,
+  participants,
+  highlighted,
   onReply,
   onEdit,
   onDelete,
   onForward,
   onReport,
   onReact,
+  onShowReadStatus,
   actionsOpen,
   onToggleActions,
 }: {
   message: MessengerMessage;
   compact: boolean;
+  participants: MessengerParticipant[];
+  highlighted: boolean;
   onReply: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onForward: () => void;
   onReport: () => void;
   onReact: (emoji: string) => void;
+  onShowReadStatus: () => void;
   actionsOpen: boolean;
   onToggleActions: () => void;
 }) {
   const deleted = !!message.deleted_at;
   const readerNames = message.read_by.map((r) => r.name).filter(Boolean).join(", ");
+  const readCount = message.read_by.length;
+  const trackableCount = Math.max(participants.filter((p) => p.user_id !== message.sender_id).length, readCount);
 
   return (
-    <div style={{ display: "flex", justifyContent: message.is_mine ? "flex-end" : "flex-start", marginTop: compact ? 4 : 12 }}>
+    <div id={`messenger-message-${message.id}`} style={{ display: "flex", justifyContent: message.is_mine ? "flex-end" : "flex-start", marginTop: compact ? 4 : 12 }}>
       <div className="message-wrap" style={{
         maxWidth: "min(76%, 620px)",
         display: "flex",
         flexDirection: "column",
         alignItems: message.is_mine ? "flex-end" : "flex-start",
         gap: 4,
+        outline: highlighted ? "2px solid rgba(62,90,74,0.36)" : "none",
+        outlineOffset: 4,
+        borderRadius: 18,
+        transition: "outline-color .2s ease",
       }}>
         {!message.is_mine && !compact && (
           <div style={senderNameStyle}>{message.sender_name || "이름 없음"}</div>
@@ -981,7 +1073,11 @@ function MessageBubble({
         <div style={messageMetaStyle} title={readerNames ? `읽은 사람: ${readerNames}` : undefined}>
           {formatMessageTime(message.created_at)}
           {message.edited_at && !deleted ? " · 수정됨" : ""}
-          {message.is_mine && !deleted ? ` · 읽음 ${message.read_by.length}` : ""}
+          {!deleted && trackableCount > 0 && (
+            <button type="button" onClick={onShowReadStatus} style={readStatusButtonStyle}>
+              {` · 읽음 ${readCount}/${trackableCount}`}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1312,6 +1408,277 @@ function NewConversationModal({
   );
 }
 
+function GroupManagementModal({
+  conversation,
+  participants,
+  myUserId,
+  onClose,
+  onRename,
+  onAddMembers,
+  onRemoveMember,
+  onError,
+}: {
+  conversation: MessengerConversation;
+  participants: MessengerParticipant[];
+  myUserId: string | null;
+  onClose: () => void;
+  onRename: (title: string) => Promise<void>;
+  onAddMembers: (userIds: string[]) => Promise<void>;
+  onRemoveMember: (userId: string) => Promise<void>;
+  onError: (message: string) => void;
+}) {
+  const [title, setTitle] = useState(conversation.title || conversation.display_title);
+  const [query, setQuery] = useState("");
+  const [users, setUsers] = useState<MessengerUser[]>([]);
+  const [selected, setSelected] = useState<MessengerUser[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [savingTitle, setSavingTitle] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const participantIds = useMemo(() => new Set(participants.map((p) => p.user_id)), [participants]);
+  const filteredUsers = users.filter((u) => !participantIds.has(u.user_id));
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setLoading(true);
+      try {
+        const rows = await searchMessengerUsers(query, 30);
+        if (!cancelled) setUsers(rows);
+      } catch (e) {
+        if (!cancelled) onError(getErrorMessage(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 180);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [onError, query]);
+
+  const toggleUser = (user: MessengerUser) => {
+    setSelected((prev) => (
+      prev.some((u) => u.user_id === user.user_id)
+        ? prev.filter((u) => u.user_id !== user.user_id)
+        : [...prev, user]
+    ));
+  };
+
+  const saveTitle = async () => {
+    const nextTitle = title.trim();
+    if (!nextTitle || savingTitle) return;
+    setSavingTitle(true);
+    try {
+      await onRename(nextTitle);
+    } catch {
+      // Parent already surfaces the error.
+    } finally {
+      setSavingTitle(false);
+    }
+  };
+
+  const addSelected = async () => {
+    if (selected.length === 0 || adding) return;
+    setAdding(true);
+    try {
+      await onAddMembers(selected.map((u) => u.user_id));
+      setSelected([]);
+      setQuery("");
+    } catch {
+      // Parent already surfaces the error.
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const removeMember = async (participant: MessengerParticipant) => {
+    if (participant.user_id === myUserId || removingId) return;
+    if (!window.confirm(`${participant.name || "이 멤버"}님을 대화방에서 내보낼까요?`)) return;
+    setRemovingId(participant.user_id);
+    try {
+      await onRemoveMember(participant.user_id);
+    } catch {
+      // Parent already surfaces the error.
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  return (
+    <div onClick={onClose} style={modalOverlayStyle}>
+      <div onClick={(e) => e.stopPropagation()} style={modalStyle}>
+        <div style={modalHeaderStyle}>
+          <div style={sectionTitleStyle}><Users size={18} strokeWidth={2} /> 그룹 관리</div>
+          <button type="button" onClick={onClose} style={smallIconButtonStyle}><X size={17} /></button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, marginBottom: 14 }}>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="그룹 이름" maxLength={80} style={{ ...inputStyle, marginBottom: 0 }} />
+          <button type="button" onClick={saveTitle} disabled={!title.trim() || savingTitle} style={{
+            ...primaryButtonStyle,
+            opacity: !title.trim() || savingTitle ? 0.45 : 1,
+          }}>
+            저장
+          </button>
+        </div>
+
+        <div style={sidebarLabelStyle}>참여자 {participants.length}명</div>
+        <div style={{ ...userListStyle, maxHeight: 260, marginBottom: 14 }}>
+          {participants.map((p) => (
+            <div key={p.user_id} style={{ ...userRowStyle, cursor: "default" }}>
+              <Avatar title={p.name || "U"} src={p.avatar_url} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={userNameStyle}>{p.name || "이름 없음"} {p.user_id === myUserId ? "(나)" : ""}</div>
+                <div style={userMetaStyle}>{p.role === "owner" ? "방장" : p.sub_role || "참여자"}</div>
+              </div>
+              {p.user_id !== myUserId && (
+                <button
+                  type="button"
+                  onClick={() => removeMember(p)}
+                  disabled={removingId === p.user_id}
+                  style={{ ...secondaryButtonStyle, height: 32, padding: "0 10px", color: "var(--danger)" }}
+                >
+                  내보내기
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div style={sidebarLabelStyle}>참여자 추가</div>
+        <div style={searchBoxStyle}>
+          <Search size={16} strokeWidth={1.8} color="var(--ink-faint)" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="이름 또는 직분 검색" style={searchInputStyle} />
+        </div>
+
+        {selected.length > 0 && (
+          <div style={selectedWrapStyle}>
+            {selected.map((u) => (
+              <span key={u.user_id} style={selectedChipStyle}>
+                {u.name || "이름 없음"}
+                <button type="button" onClick={() => setSelected((prev) => prev.filter((x) => x.user_id !== u.user_id))} style={chipRemoveStyle}>
+                  <X size={12} strokeWidth={2} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div style={userListStyle}>
+          {loading ? (
+            <LoadingView padding={28} />
+          ) : filteredUsers.length === 0 ? (
+            <EmptyState message="추가할 사용자가 없습니다." padding={34} />
+          ) : (
+            filteredUsers.map((u) => {
+              const picked = selected.some((s) => s.user_id === u.user_id);
+              return (
+                <button key={u.user_id} type="button" onClick={() => toggleUser(u)} style={userRowStyle}>
+                  <Avatar title={u.name || "U"} src={u.avatar_url} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={userNameStyle}>{u.name || "이름 없음"}</div>
+                    <div style={userMetaStyle}>{u.sub_role || roleLabel(u.role)}</div>
+                  </div>
+                  {picked && <Check size={17} strokeWidth={2.4} color="var(--accent)" />}
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        <div style={modalFooterStyle}>
+          <button type="button" onClick={onClose} style={secondaryButtonStyle}>닫기</button>
+          <button type="button" onClick={addSelected} disabled={selected.length === 0 || adding} style={{
+            ...primaryButtonStyle,
+            opacity: selected.length === 0 || adding ? 0.45 : 1,
+          }}>
+            추가
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReadStatusModal({
+  message,
+  participants,
+  onClose,
+}: {
+  message: MessengerMessage;
+  participants: MessengerParticipant[];
+  onClose: () => void;
+}) {
+  const readUserIds = new Set(message.read_by.map((r) => r.user_id));
+  const sender = participants.find((p) => p.user_id === message.sender_id);
+  const readableParticipants = participants.filter((p) => p.user_id !== message.sender_id);
+  const readRows = message.read_by
+    .map((receipt) => {
+      const participant = participants.find((p) => p.user_id === receipt.user_id);
+      return {
+        user_id: receipt.user_id,
+        name: receipt.name || participant?.name || "이름 없음",
+        avatar_url: participant?.avatar_url || null,
+        sub_role: participant?.sub_role || null,
+        read_at: receipt.read_at,
+      };
+    })
+    .sort((a, b) => String(a.read_at || "").localeCompare(String(b.read_at || "")));
+  const unreadRows = readableParticipants.filter((p) => !readUserIds.has(p.user_id));
+
+  return (
+    <div onClick={onClose} style={modalOverlayStyle}>
+      <div onClick={(e) => e.stopPropagation()} style={modalStyle}>
+        <div style={modalHeaderStyle}>
+          <div style={sectionTitleStyle}><Check size={18} strokeWidth={2} /> 읽음 현황</div>
+          <button type="button" onClick={onClose} style={smallIconButtonStyle}><X size={17} /></button>
+        </div>
+
+        <div style={{ ...replyPreviewStyle, maxWidth: "none", background: "var(--bg-soft)", color: "var(--ink-soft)", marginBottom: 14 }}>
+          <div style={{ fontWeight: 900 }}>{sender?.name || message.sender_name || "보낸 사람"}</div>
+          <div style={oneLineStyle}>{message.body || "첨부 메시지"}</div>
+        </div>
+
+        <div style={sidebarLabelStyle}>읽은 사람 {readRows.length}명</div>
+        <div style={{ ...userListStyle, maxHeight: 220, marginBottom: 14 }}>
+          {readRows.length === 0 ? (
+            <EmptyState message="아직 읽은 사람이 없습니다." padding={24} />
+          ) : (
+            readRows.map((row) => (
+              <div key={row.user_id} style={{ ...userRowStyle, cursor: "default" }}>
+                <Avatar title={row.name || "U"} src={row.avatar_url} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={userNameStyle}>{row.name}</div>
+                  <div style={userMetaStyle}>{row.read_at ? formatMessageTime(row.read_at) : row.sub_role || "읽음"}</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div style={sidebarLabelStyle}>안 읽은 사람 {unreadRows.length}명</div>
+        <div style={{ ...userListStyle, maxHeight: 220 }}>
+          {unreadRows.length === 0 ? (
+            <EmptyState message="모두 읽었습니다." padding={24} />
+          ) : (
+            unreadRows.map((row) => (
+              <div key={row.user_id} style={{ ...userRowStyle, cursor: "default" }}>
+                <Avatar title={row.name || "U"} src={row.avatar_url} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={userNameStyle}>{row.name || "이름 없음"}</div>
+                  <div style={userMetaStyle}>{row.sub_role || "미읽음"}</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ForwardModal({
   conversations,
   onClose,
@@ -1507,6 +1874,7 @@ const senderNameStyle: React.CSSProperties = { fontSize: 12, fontWeight: 800, co
 const bubbleStyle: React.CSSProperties = { padding: "9px 12px", fontSize: 14, lineHeight: 1.55, boxShadow: "0 1px 4px rgba(26,22,18,0.04)" };
 const replyPreviewStyle: React.CSSProperties = { borderLeft: "3px solid currentColor", borderRadius: 7, padding: "6px 8px", marginBottom: 7, maxWidth: 300 };
 const messageMetaStyle: React.CSSProperties = { fontSize: 10, color: "var(--ink-faint)" };
+const readStatusButtonStyle: React.CSSProperties = { border: "none", background: "transparent", color: "inherit", padding: 0, font: "inherit", cursor: "pointer" };
 const messageActionsStyle: React.CSSProperties = { display: "inline-flex", gap: 3, paddingBottom: 3 };
 const miniActionStyle: React.CSSProperties = { width: 25, height: 25, borderRadius: 7, border: "1px solid var(--hairline)", background: "var(--card)", color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
 const miniTextActionStyle: React.CSSProperties = { ...miniActionStyle, fontSize: 12, fontWeight: 900, lineHeight: 1 };
