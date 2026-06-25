@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Check, ChevronUp, Info, Medal, PiggyBank, Plus, Star } from "lucide-react";
+import { Check, ChevronUp, Info, Medal, PiggyBank, Star } from "lucide-react";
 
 interface Student {
   id: string;
@@ -66,6 +66,19 @@ const DEFAULT_WEEKLY_RULES = [
 const CHECK_RULE_KEYS = DEFAULT_WEEKLY_RULES
   .map((rule) => rule.rule_key)
   .filter((key) => key !== "attendance");
+
+// 항목별 이모지 — 아이들 화면이라 친근하게 (콘텐츠성 이모지, lucide 예외)
+const RULE_EMOJI: Record<string, string> = {
+  attendance: "🙋",
+  bible_book: "📖",
+  verse_memory: "💭",
+  verse_presentation: "🎤",
+  representative_prayer: "🙏",
+  evangelism: "📣",
+  new_friend_promotion: "🤝",
+  lesson_homework: "✏️",
+};
+const OTHER_EMOJI = "🎁";
 
 export default function TalentPage() {
   const router = useRouter();
@@ -502,6 +515,38 @@ export default function TalentPage() {
       </div>
 
       <main className="mx-auto w-full max-w-6xl px-0 py-4 md:px-4">
+        {/* 파스텔 일러스트 배너 */}
+        <section className="mx-4 mb-4 md:mx-0">
+          <div
+            className="relative overflow-hidden rounded-[28px] px-5 pb-6 pt-7 text-center"
+            style={{
+              background: "linear-gradient(160deg, color-mix(in srgb, var(--info) 20%, #fff) 0%, color-mix(in srgb, var(--accent) 14%, #fff) 50%, color-mix(in srgb, var(--warning) 18%, #fff) 100%)",
+              border: "1px solid color-mix(in srgb, var(--accent) 22%, transparent)",
+            }}
+          >
+            <span aria-hidden className="pointer-events-none absolute left-4 top-3 text-[22px]" style={{ opacity: 0.55 }}>☁️</span>
+            <span aria-hidden className="pointer-events-none absolute right-5 top-5 text-[18px]" style={{ opacity: 0.5 }}>☁️</span>
+            <span aria-hidden className="pointer-events-none absolute bottom-2 left-6 text-[18px]" style={{ opacity: 0.6 }}>🌷</span>
+            <span aria-hidden className="pointer-events-none absolute bottom-3 right-7 text-[16px]" style={{ opacity: 0.6 }}>🌿</span>
+
+            <div
+              className="mx-auto mb-2 grid h-16 w-16 place-items-center rounded-full text-[34px]"
+              style={{ background: "rgba(255,255,255,0.7)", boxShadow: "0 6px 16px color-mix(in srgb, var(--accent) 22%, transparent)" }}
+              aria-hidden
+            >
+              🐵
+            </div>
+            <h1 className="text-[26px] font-extrabold leading-tight" style={{ color: "var(--ink)", letterSpacing: "-0.02em" }}>
+              달란트 통장
+            </h1>
+            {myClassName && (
+              <div className="mt-1 text-[13px] font-bold" style={{ color: "color-mix(in srgb, var(--accent) 70%, var(--ink-mid))" }}>
+                {myClassName}반
+              </div>
+            )}
+          </div>
+        </section>
+
         <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-hairline bg-white px-4 py-3 md:mx-0">
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
           <div className="min-w-[140px] text-center text-[19px] font-extrabold text-ink">
@@ -625,7 +670,7 @@ export default function TalentPage() {
                               : { background: "var(--card)", border: "1.5px dashed var(--hairline-strong)", color: "var(--ink-faint)" }}
                           >
                             <span className="flex items-center gap-2">
-                              <Check size={16} strokeWidth={2.6} className="shrink-0" />
+                              <span className="shrink-0 text-[18px] leading-none" aria-hidden>{RULE_EMOJI.attendance}</span>
                               <span className="flex flex-col leading-tight">
                                 <span>출석</span>
                                 <span className="text-[11px] font-semibold" style={{ opacity: 0.75 }}>출석체크 자동체크</span>
@@ -644,7 +689,6 @@ export default function TalentPage() {
                               const selected = rule ? isChecked(student.id, date, rule) : false;
                               const key = rule ? extraKey(student.id, date, rule.id) : `${student.id}-${date}-${ruleKey}`;
                               const label = rule?.label || DEFAULT_WEEKLY_RULES.find((item) => item.rule_key === ruleKey)?.label;
-                              const pts = rule?.points ?? 1;
                               const disabled = !rule || !isEditableWeek || saving === key;
 
                               return (
@@ -654,23 +698,18 @@ export default function TalentPage() {
                                   onClick={() => rule && toggleWeeklyItem(student, date, rule)}
                                   disabled={disabled}
                                   className={[
-                                    "coin-chip flex min-h-[50px] items-center gap-2 rounded-full px-3 py-2 text-[14px] font-extrabold leading-tight",
+                                    "coin-chip flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[13.5px] font-bold leading-tight",
                                     selected ? "coin-on" : "",
                                     disabled ? "cursor-not-allowed" : "cursor-pointer",
                                     (!rule || !isEditableWeek) && !selected ? "opacity-60" : "",
                                   ].join(" ")}
                                   style={selected
-                                    ? { background: COIN_GRAD, color: "#fff", border: "1.5px solid transparent", boxShadow: "0 6px 15px color-mix(in srgb, var(--brass) 42%, transparent)" }
-                                    : { background: "var(--card)", color: "var(--ink-soft)", border: "1.5px dashed var(--hairline-strong)" }}
+                                    ? { background: "color-mix(in srgb, var(--accent) 18%, #fff)", color: "color-mix(in srgb, var(--accent) 75%, var(--ink))", border: "1.5px solid color-mix(in srgb, var(--accent) 45%, transparent)" }
+                                    : { background: "color-mix(in srgb, var(--bg-soft) 70%, #fff)", color: "var(--ink-soft)", border: "1px solid var(--hairline)" }}
                                 >
-                                  <span
-                                    className="grid h-6 w-6 shrink-0 place-items-center rounded-full"
-                                    style={selected ? { background: "rgba(255,255,255,0.3)", color: "#fff" } : { background: "var(--bg-soft)", color: "var(--ink-faint)" }}
-                                  >
-                                    {selected ? <Star size={13} fill="currentColor" strokeWidth={0} /> : <Plus size={13} strokeWidth={2.8} />}
-                                  </span>
+                                  <span className="shrink-0 text-[17px] leading-none" aria-hidden>{RULE_EMOJI[ruleKey] || "⭐"}</span>
                                   <span className="flex-1 truncate">{label}</span>
-                                  {selected && <span className="shrink-0 text-[12px]" style={{ opacity: 0.95 }}>+{pts}</span>}
+                                  {selected && <Check size={14} strokeWidth={3} className="shrink-0" />}
                                 </button>
                               );
                             })}
@@ -681,22 +720,17 @@ export default function TalentPage() {
                               onClick={() => openOther(student, date)}
                               disabled={!isEditableWeek}
                               className={[
-                                "coin-chip flex min-h-[50px] items-center gap-2 rounded-full px-3 py-2 text-[14px] font-extrabold leading-tight",
+                                "coin-chip flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[13.5px] font-bold leading-tight",
                                 other ? "coin-on" : "",
                                 !isEditableWeek ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                               ].join(" ")}
                               style={other
-                                ? { background: COIN_GRAD, color: "#fff", border: "1.5px solid transparent", boxShadow: "0 6px 15px color-mix(in srgb, var(--brass) 42%, transparent)" }
-                                : { background: "var(--card)", color: "var(--ink-soft)", border: "1.5px dashed var(--hairline-strong)" }}
+                                ? { background: "color-mix(in srgb, var(--warning) 20%, #fff)", color: "color-mix(in srgb, var(--warning) 78%, var(--ink))", border: "1.5px solid color-mix(in srgb, var(--warning) 48%, transparent)" }
+                                : { background: "color-mix(in srgb, var(--bg-soft) 70%, #fff)", color: "var(--ink-soft)", border: "1px solid var(--hairline)" }}
                             >
-                              <span
-                                className="grid h-6 w-6 shrink-0 place-items-center rounded-full"
-                                style={other ? { background: "rgba(255,255,255,0.3)", color: "#fff" } : { background: "var(--bg-soft)", color: "var(--ink-faint)" }}
-                              >
-                                <Plus size={13} strokeWidth={2.8} />
-                              </span>
+                              <span className="shrink-0 text-[17px] leading-none" aria-hidden>{OTHER_EMOJI}</span>
                               <span className="flex-1 truncate">기타 (직접입력)</span>
-                              {other && <span className="shrink-0 text-[12px]" style={{ opacity: 0.95 }}>+{other.pts_other}</span>}
+                              {other && <span className="shrink-0 text-[12px] font-extrabold">{other.pts_other}</span>}
                             </button>
                           </div>
                         </div>
@@ -894,7 +928,7 @@ function Avatar({ name }: { name: string }) {
   );
 }
 
-const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
+const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "linear-gradient(180deg, color-mix(in srgb, var(--info) 9%, var(--bg-soft)) 0%, var(--bg-soft) 320px)", fontFamily: "'Noto Sans KR', sans-serif" };
 const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)",
   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
