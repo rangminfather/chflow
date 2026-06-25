@@ -219,8 +219,20 @@ export default function TalentPage() {
       otherSum[row.student_id] = (otherSum[row.student_id] || 0) + (row.pts_other || 0);
     });
 
+    // 공과퀴즈 달란트(서기 입력) 전체기간 합
+    const { data: quizRows } = await supabase
+      .from("edu_quiz_talent")
+      .select("student_id, points")
+      .eq("department_id", deptId)
+      .in("student_id", ids);
+
+    const quizSum: Record<string, number> = {};
+    ((quizRows || []) as { student_id: string; points: number }[]).forEach((row) => {
+      quizSum[row.student_id] = (quizSum[row.student_id] || 0) + (row.points || 0);
+    });
+
     const map: Record<string, number> = {};
-    autoEntries.forEach(([id, sum]) => { map[id] = sum + (otherSum[id] || 0); });
+    autoEntries.forEach(([id, sum]) => { map[id] = sum + (otherSum[id] || 0) + (quizSum[id] || 0); });
     setCumulative(map);
   }
 

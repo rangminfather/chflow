@@ -106,6 +106,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
       { id: "attendance-stats", label: "출결통계", icon: BarChart3, desc: "선생님·학생 출석 통계", color: "#7A8C3D", implemented: false },
       { id: "talent-stats", label: "달란트통계", icon: TrendingUp, desc: "달란트 누적·랭킹", color: "#7E5F9E", implemented: false },
       { id: "talent-rules", label: "달란트 규칙", icon: ScrollText, desc: "매주 적립 규칙·특별·보너스", color: "var(--warning)", implemented: true },
+      { id: "quiz-talent", label: "공과퀴즈 달란트", icon: ClipboardCheck, desc: "월별 공과시험 달란트 입력 (서기)", color: "#7E5F9E", implemented: true, onlyForCategory: "교육사역국", maxGrade: 2 },
       { id: "new-friend", label: "새친구등록", icon: Sparkles, desc: "새친구 등록카드 · 생활기록부", color: "#C26D8C", implemented: true },
       { id: "teacher-attendance", label: "선생님 등록 / 출석", icon: UserCheck, desc: "교사 출석부 · 월별 관리", color: "#4A7B96", implemented: true },
       { id: "teacher-assign", label: "반 관리", icon: UserCog, desc: "반 추가·삭제 · 담임 지정 (전도사·부장)", color: "var(--accent-muted)", implemented: true },
