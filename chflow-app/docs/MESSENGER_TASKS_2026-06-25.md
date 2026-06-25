@@ -1,5 +1,40 @@
 # Messenger Tasks - 2026-06-25
 
+## Start Here For The Next Agent
+
+If the user says "메신저 기능 작업 이어서 수행해야할것 알려줘" or asks to continue messenger work, do this first:
+
+1. Read this file completely.
+2. Check the current branch and dirty worktree:
+
+```powershell
+git status --short --branch
+```
+
+3. Do not revert or include unrelated user changes.
+4. Confirm whether the remote Supabase database has the messenger migrations applied:
+
+```powershell
+cd C:\csh\project\chflow\MS_AX\chflow-project
+npx supabase migration list
+```
+
+5. If messenger migrations are still pending, start with "Phase 1 - Database Rollout Gate".
+6. If DB rollout is already done, start with "Phase 2 - Real Account QA".
+7. If the user wants another implementation task instead of QA, the best next feature is "Phase 3 - Admin Diagnostics".
+
+Recommended first response to the user:
+
+> 현재 메신저는 MVP 이후 단계까지 구현되어 있고, 다음 우선순위는 원격 DB 마이그레이션 반영 상태 확인입니다. 먼저 `npx supabase migration list`로 미적용 마이그레이션 범위를 확인한 뒤, 적용 가능하면 알림 중복 방지/푸시 토큰 정리/그룹 관리 RPC부터 DB에 반영하겠습니다. DB가 이미 반영되어 있으면 3인 그룹방 실계정 QA와 관리자 진단 화면 구현으로 넘어가겠습니다.
+
+Important context:
+
+- The messenger code was committed in `a2d2fb1 feat(messenger): harden messaging rollout`.
+- The attendance layout follow-up was committed in `b0275b8 fix(attendance): move class summary above checklist`.
+- `main` on GitHub contains these commits if the other laptop has pulled after 2026-06-25.
+- Do not run a blind `npx supabase db push` until the pending migration list is reviewed.
+- The most useful next implementation after DB/QA is `/admin/messenger-diagnostics`.
+
 ## Current Position
 
 The messenger is past a basic MVP. It now covers direct chats, group chats, attachments, replies, edits, deletes, forwarding, reactions, read status, search, conversation state, reporting, blocking, group management, mobile push registration, logout push cleanup, and attachment authorization hardening.
