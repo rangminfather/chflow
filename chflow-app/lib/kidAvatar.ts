@@ -55,21 +55,21 @@ export function kidFaceChoices(gender: string | null | undefined): string[] {
 // 기준: boy-3 프레이밍(눈높이·얼굴 크기·중심). 실제 브라우저 렌더로 15종 전부 눈/코 중심을
 // 원형 가운데(눈높이 ~42%)에 맞춰 정렬했다. translate 백분율은 컨테이너(=이미지) 크기 기준.
 const FACE_ADJUST: Record<string, string> = {
-  "boy-1": "translateY(10%) scale(1.1)",
-  "boy-2": "translate(14%, 6%) scale(1.1)",
-  "boy-3": "translateX(-3%) scale(1.1)",
-  "boy-4": "translate(9%, 10%) scale(1.1)",
-  "boy-5": "translate(11%, 9%) scale(1.1)",
-  "boy-6": "translate(-8%, -8%) scale(1.12)",
-  "boy-7": "translate(-5%, -6%) scale(1.1)",
-  "boy-8": "translateY(-8%) scale(1.1)",
-  "boy-9": "translate(4%, -5%) scale(1.1)",
-  "girl-1": "translate(-6%, 6%) scale(1.12)",
-  "girl-2": "translate(-4%, 4%) scale(1.1)",
-  "girl-3": "translate(6%, 5%) scale(1.08)",
-  "girl-4": "translate(-4%, -3%) scale(1.1)",
-  "girl-5": "translate(-3%, 8%) scale(1.1)",
-  "girl-6": "translate(-1%, 4%) scale(1.08)",
+  "boy-1": "translateX(-1%) scale(1.04)",
+  "boy-2": "translate(13%, 4%) scale(1.06)",
+  "boy-3": "translate(-3%, -6%) scale(0.99)",
+  "boy-4": "translate(13%, -6%) scale(0.98)",
+  "boy-5": "translate(22%, -12%) scale(1.01)",
+  "boy-6": "translate(-30%, -10%) scale(1.08)",
+  "boy-7": "translate(-10%, -10%) scale(0.99)",
+  "boy-8": "translateY(-12%) scale(1.10)",
+  "boy-9": "translate(24%, -17%) scale(1.10)",
+  "girl-1": "translate(-22%, 2%) scale(0.98)",
+  "girl-2": "translate(-16%, -3%) scale(0.92)",
+  "girl-3": "translate(16%, -1%) scale(0.94)",
+  "girl-4": "translate(-19%, -7%) scale(0.98)",
+  "girl-5": "translate(-9%, -3%) scale(0.90)",
+  "girl-6": "translate(15%, -11%) scale(1.11)",
 };
 
 // 기본 얼굴 경로에 맞는 transform 반환(실제 사진은 빈 문자열 → 변형 없음).
