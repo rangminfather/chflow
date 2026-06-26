@@ -55,20 +55,20 @@ export function kidFaceChoices(gender: string | null | undefined): string[] {
 // scale 로 장식 테두리를 살짝 잘라 얼굴을 키운다. translate 백분율은 컨테이너(=이미지) 크기 기준.
 const FACE_ADJUST: Record<string, string> = {
   "boy-1": "scale(1.1)",
-  "boy-2": "translateX(10%) scale(1.1)",
-  "boy-3": "translateX(3%) scale(1.1)",
-  "boy-4": "translateX(4%) scale(1.1)",
-  "boy-5": "translateX(12%) scale(1.1)",
-  "boy-6": "translate(2%, 4%) scale(1.12)",
-  "boy-7": "translateX(6%) scale(1.1)",
-  "boy-8": "translateX(2%) scale(1.1)",
+  "boy-2": "translateX(7%) scale(1.1)",
+  "boy-3": "translateX(-3%) scale(1.1)",
+  "boy-4": "translateX(3%) scale(1.1)",
+  "boy-5": "translateX(9%) scale(1.1)",
+  "boy-6": "translate(-8%, 4%) scale(1.12)",
+  "boy-7": "translateX(-3%) scale(1.1)",
+  "boy-8": "scale(1.1)",
   "boy-9": "translate(4%, -2%) scale(1.1)",
-  "girl-1": "translate(4%, 3%) scale(1.12)",
-  "girl-2": "translateX(-2%) scale(1.1)",
-  "girl-3": "scale(1.08)",
-  "girl-4": "translate(2%, 2%) scale(1.1)",
-  "girl-5": "translateX(-1%) scale(1.1)",
-  "girl-6": "translateX(2%) scale(1.08)",
+  "girl-1": "translate(-4%, 3%) scale(1.12)",
+  "girl-2": "translateX(-5%) scale(1.1)",
+  "girl-3": "translateX(7%) scale(1.08)",
+  "girl-4": "translate(1%, 2%) scale(1.1)",
+  "girl-5": "translateX(-4%) scale(1.1)",
+  "girl-6": "translateX(3%) scale(1.08)",
 };
 
 // 기본 얼굴 경로에 맞는 transform 반환(실제 사진은 빈 문자열 → 변형 없음).
