@@ -3,10 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
-import StudentPhotoEditor from "@/components/StudentPhotoEditor";
-import { supabase } from "@/lib/supabase";
+import { supabase, formatPhone } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Baby } from "lucide-react";
+import { Baby, Save, UserPlus } from "lucide-react";
 
 interface StudentRow {
   id: string;
@@ -27,31 +26,61 @@ interface MemberRow {
   id: string;
   name: string;
   phone: string | null;
-  email: string | null;
   birth_date: string | null;
   gender: string | null;
   address: string | null;
-  notes: string | null;
-  photo_url: string | null;
 }
 
 interface EditableStudent {
   id: string;
   member_id: string | null;
-  student_no: string;
   name: string;
   student_type: string;
   grade: string;
   grade_year: number | null;
   class_no: string | null;
   phone: string;
-  email: string;
   birth_date: string;
   gender: string;
   address: string;
-  notes: string;
-  photo_url: string | null;
 }
+
+interface FamilyRow {
+  relative_id: string;
+  relative_name: string;
+  relative_phone: string | null;
+  kind: string | null;
+  role: string | null;
+  direction: string | null;
+}
+
+type GuideKind = "student" | "self" | "other";
+
+interface NewFriendForm {
+  name: string;
+  gender: string;
+  birth_date: string;
+  mobile: string;
+  address: string;
+  family_name: string;
+  guide_kind: GuideKind;
+  guide_student_id: string;
+  guide_name: string;
+}
+
+const EMPTY_NEW_FRIEND: NewFriendForm = {
+  name: "",
+  gender: "",
+  birth_date: "",
+  mobile: "",
+  address: "",
+  family_name: "",
+  guide_kind: "student",
+  guide_student_id: "",
+  guide_name: "",
+};
+
+const STUDENT_TYPE_OPTIONS = ["정", "체험", "소"];
 
 export default function MyClassPage() {
   const router = useRouter();
@@ -62,11 +91,16 @@ export default function MyClassPage() {
   const [loading, setLoading] = useState(true);
   const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
   const [myClassName, setMyClassName] = useState("");
+  const [myGradeYear, setMyGradeYear] = useState<number | null>(null);
   const [students, setStudents] = useState<EditableStudent[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [draft, setDraft] = useState<EditableStudent | null>(null);
+  const [families, setFamilies] = useState<Record<string, FamilyRow[]>>({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
+  const [showNewFriend, setShowNewFriend] = useState(false);
+  const [newFriend, setNewFriend] = useState<NewFriendForm>({ ...EMPTY_NEW_FRIEND });
+  const [newSaving, setNewSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -78,7 +112,7 @@ export default function MyClassPage() {
 
       const { data: teacher } = await supabase
         .from("edu_teachers")
-        .select("id, teacher_role")
+        .select("id")
         .eq("department_id", deptId)
         .eq("user_id", user.id)
         .eq("is_active", true)
@@ -86,9 +120,8 @@ export default function MyClassPage() {
 
       setMyTeacherId(teacher?.id || null);
       setAuthChecked(true);
-      if (teacher?.id) {
-        await loadStudents(teacher.id);
-      } else setLoading(false);
+      if (teacher?.id) await loadStudents(teacher.id);
+      else setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deptId, router]);
@@ -99,26 +132,24 @@ export default function MyClassPage() {
   );
 
   useEffect(() => {
-    if (!draft && selectedStudent) setDraft({ ...selectedStudent });
-  }, [draft, selectedStudent]);
+    if (selectedStudent) setDraft({ ...selectedStudent });
+  }, [selectedStudent]);
 
   async function loadStudents(teacherId: string) {
     setLoading(true);
 
-    const query = supabase
+    const { data: studentRows, error: studentErr } = await supabase
       .from("edu_students")
       .select("id, department_id, student_no, name, student_type, grade, grade_year, class_no, is_active, order_no, member_id, teacher_id")
       .eq("department_id", deptId)
       .eq("teacher_id", teacherId)
-      .eq("is_active", true);
-
-    const { data: studentRows, error: studentErr } = await query
+      .eq("is_active", true)
       .order("order_no", { ascending: true })
       .order("student_no", { ascending: true })
       .order("name", { ascending: true });
 
     if (studentErr) {
-      showToast("조회 실패: " + studentErr.message);
+      showToast("학생 목록을 불러오지 못했습니다: " + studentErr.message);
       setLoading(false);
       return;
     }
@@ -130,7 +161,7 @@ export default function MyClassPage() {
     if (memberIds.length > 0) {
       const { data: members } = await supabase
         .from("members")
-        .select("id, name, phone, email, birth_date, gender, address, notes, photo_url")
+        .select("id, name, phone, birth_date, gender, address")
         .in("id", memberIds);
 
       ((members || []) as MemberRow[]).forEach((member) => {
@@ -143,19 +174,15 @@ export default function MyClassPage() {
       return {
         id: student.id,
         member_id: student.member_id,
-        student_no: student.student_no ? String(student.student_no) : "",
         name: student.name,
-        student_type: student.student_type || "정",
+        student_type: normalizeStudentType(student.student_type),
         grade: student.grade || "",
         grade_year: student.grade_year,
         class_no: student.class_no,
         phone: member?.phone || "",
-        email: member?.email || "",
         birth_date: member?.birth_date || "",
         gender: member?.gender || "",
         address: member?.address || "",
-        notes: member?.notes || "",
-        photo_url: member?.photo_url || null,
       };
     });
 
@@ -163,7 +190,20 @@ export default function MyClassPage() {
     setSelectedId((current) => current || editable[0]?.id || "");
     setDraft(editable[0] ? { ...editable[0] } : null);
     setMyClassName(editable[0]?.class_no || "");
+    setMyGradeYear(editable[0]?.grade_year ?? null);
+    await loadFamilies(editable);
     setLoading(false);
+  }
+
+  async function loadFamilies(list: EditableStudent[]) {
+    const entries = await Promise.all(
+      list.map(async (student) => {
+        if (!student.member_id) return [student.id, []] as const;
+        const { data } = await supabase.rpc("get_family_tree", { p_member_id: student.member_id });
+        return [student.id, (data || []) as FamilyRow[]] as const;
+      }),
+    );
+    setFamilies(Object.fromEntries(entries));
   }
 
   function selectStudent(student: EditableStudent) {
@@ -172,7 +212,7 @@ export default function MyClassPage() {
   }
 
   function updateDraft<K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) {
-    setDraft((current) => current ? { ...current, [key]: value } : current);
+    setDraft((current) => (current ? { ...current, [key]: value } : current));
   }
 
   async function handleSave() {
@@ -200,18 +240,15 @@ export default function MyClassPage() {
         student_id: draft.id,
         student: {
           name: draft.name,
-          student_no: draft.student_no ? Number(draft.student_no) : null,
           student_type: draft.student_type,
           grade: draft.grade || null,
         },
         member: {
           id: draft.member_id,
           phone: draft.phone || null,
-          email: draft.email || null,
           birth_date: draft.birth_date || null,
           gender: draft.gender || null,
           address: draft.address || null,
-          notes: draft.notes || null,
         },
       }),
     });
@@ -220,12 +257,69 @@ export default function MyClassPage() {
     setSaving(false);
 
     if (!response.ok || !result.ok) {
-      showToast(result.error || "저장 실패");
+      showToast(result.error || "저장에 실패했습니다");
       return;
     }
 
-    setStudents((current) => current.map((student) => student.id === draft.id ? { ...draft } : student));
+    setStudents((current) => current.map((student) => (student.id === draft.id ? { ...draft } : student)));
     showToast("저장되었습니다");
+  }
+
+  function openNewFriend() {
+    setNewFriend({
+      ...EMPTY_NEW_FRIEND,
+      guide_kind: students.length > 0 ? "student" : "other",
+      guide_student_id: students[0]?.id || "",
+    });
+    setShowNewFriend(true);
+  }
+
+  async function saveNewFriend() {
+    if (!newFriend.name.trim()) {
+      showToast("새친구 이름을 입력하세요");
+      return;
+    }
+    if (newFriend.guide_kind === "student" && !newFriend.guide_student_id) {
+      showToast("인도자 학생을 선택하세요");
+      return;
+    }
+
+    setNewSaving(true);
+    const { error } = await supabase.rpc("edu_save_new_friend", {
+      p_id: null,
+      p_dept_id: deptId,
+      p_name: newFriend.name.trim(),
+      p_gender: newFriend.gender || null,
+      p_birth_date: newFriend.birth_date || null,
+      p_phone: "",
+      p_mobile: newFriend.mobile,
+      p_address: newFriend.address,
+      p_email: "",
+      p_group_pa: "",
+      p_group_jik: "",
+      p_group_gun: "",
+      p_group_cheo: "",
+      p_family_name: newFriend.family_name,
+      p_guide_name: newFriend.guide_kind === "other" ? newFriend.guide_name : null,
+      p_school_dist: "",
+      p_join_date: new Date().toISOString().slice(0, 10),
+      p_special: "",
+      p_memo: "",
+      p_guide_kind: newFriend.guide_kind,
+      p_guide_student_id: newFriend.guide_kind === "student" ? newFriend.guide_student_id : null,
+      p_enroll_grade_year: myGradeYear,
+      p_enroll_class_no: myClassName || null,
+    });
+    setNewSaving(false);
+
+    if (error) {
+      showToast("새친구 등록 실패: " + error.message);
+      return;
+    }
+
+    setShowNewFriend(false);
+    showToast("새친구가 등록되었습니다");
+    if (myTeacherId) await loadStudents(myTeacherId);
   }
 
   function showToast(message: string) {
@@ -238,7 +332,7 @@ export default function MyClassPage() {
   if (!myTeacherId) {
     return (
       <div style={pageStyle}>
-        <PageHeader deptId={deptId} router={router} myClassName="" />
+        <PageHeader deptId={deptId} router={router} myClassName="" onNewFriend={openNewFriend} />
         <main className="mx-auto max-w-lg px-4 py-14">
           <div className="rounded-lg border border-hairline bg-white text-center">
             <EmptyState message="본인이 담임으로 등록된 반이 없습니다" hint="부장 또는 전도사에게 담임 등록을 요청하세요." />
@@ -250,13 +344,19 @@ export default function MyClassPage() {
 
   return (
     <div style={pageStyle}>
-      <PageHeader deptId={deptId} router={router} myClassName={myClassName} />
+      <PageHeader deptId={deptId} router={router} myClassName={myClassName} onNewFriend={openNewFriend} />
 
-      <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-4 md:grid-cols-[300px_1fr]">
+      <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-4 md:grid-cols-[280px_1fr]">
         <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-white">
-          <div className="border-b border-hairline px-4 py-3">
-            <div className="text-[17px] font-extrabold text-ink">우리반 학생</div>
-            <div className="mt-1 text-[13px] font-semibold text-ink-faint">{students.length}명</div>
+          <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
+            <div>
+              <div className="text-[17px] font-extrabold text-ink">우리반 학생</div>
+              <div className="mt-1 text-[13px] font-semibold text-ink-faint">{students.length}명</div>
+            </div>
+            <button type="button" onClick={openNewFriend} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-ink px-3 text-[13px] font-extrabold text-white">
+              <UserPlus size={15} strokeWidth={2.2} />
+              새친구등록
+            </button>
           </div>
 
           {loading ? (
@@ -264,22 +364,20 @@ export default function MyClassPage() {
           ) : students.length === 0 ? (
             <div className="px-4 py-12 text-center text-[15px] leading-6 text-ink-faint">담당 반 학생이 없습니다.</div>
           ) : (
-            <div className="flex w-full snap-x snap-mandatory gap-3 overflow-x-auto p-3 pb-4 scrollbar-hide md:block md:snap-none md:space-y-2 md:overflow-visible md:pb-3">
+            <div className="flex flex-col gap-2 p-3">
               {students.map((student) => (
                 <button
                   key={student.id}
                   type="button"
                   onClick={() => selectStudent(student)}
                   className={[
-                    "w-[72vw] max-w-[260px] shrink-0 snap-center rounded-lg border px-3 py-3 text-left md:w-full md:max-w-none md:shrink md:snap-align-none",
-                    selectedId === student.id
-                      ? "border-amber-400 bg-amber-50"
-                      : "border-hairline bg-white",
+                    "w-full rounded-lg border px-3 py-3 text-left",
+                    selectedId === student.id ? "border-amber-400 bg-amber-50" : "border-hairline bg-white",
                   ].join(" ")}
                 >
-                  <div className="text-[16px] font-extrabold text-ink">{student.name}</div>
-                  <div className="mt-1 text-[13px] font-semibold text-ink-faint">
-                    {student.student_no ? `${student.student_no}번 · ` : ""}{student.student_type}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-[16px] font-extrabold text-ink">{student.name}</span>
+                    <span className="shrink-0 text-[12px] font-bold text-ink-faint">{genderLabel(student.gender)}</span>
                   </div>
                 </button>
               ))}
@@ -293,61 +391,44 @@ export default function MyClassPage() {
           ) : (
             <>
               <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <StudentPhotoEditor
-                    deptId={deptId}
-                    studentId={draft.id}
-                    memberId={draft.member_id}
-                    name={draft.name}
-                    gender={draft.gender}
-                    photoUrl={draft.photo_url}
-                    size={52}
-                    onUpdate={(url) => {
-                      setDraft((current) => (current ? { ...current, photo_url: url } : current));
-                      setStudents((current) => current.map((s) => (s.id === draft.id ? { ...s, photo_url: url } : s)));
-                    }}
-                  />
-                  <div className="min-w-0">
-                    <div className="truncate text-[19px] font-extrabold text-ink">{draft.name || "이름 없음"}</div>
-                    <div className="mt-1 text-[13px] font-semibold text-ink-faint">
-                      {draft.grade_year ? `${draft.grade_year}학년 · ` : ""}{draft.class_no ? `${draft.class_no}반` : "반 정보 없음"}
-                    </div>
+                <div className="min-w-0">
+                  <div className="truncate text-[19px] font-extrabold text-ink">{draft.name}</div>
+                  <div className="mt-1 text-[13px] font-semibold text-ink-faint">
+                    {myGradeYear ? `${myGradeYear}학년 · ` : ""}{myClassName ? `${myClassName}반` : "반 정보 없음"}
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={handleSave}
                   disabled={saving}
-                  className="min-h-11 rounded-md bg-ink px-5 text-[16px] font-extrabold text-white disabled:opacity-60"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-md bg-ink px-5 text-[16px] font-extrabold text-white disabled:opacity-60"
                 >
+                  <Save size={17} strokeWidth={2.2} />
                   {saving ? "저장 중..." : "저장"}
                 </button>
               </div>
 
               <div className="grid gap-4 p-4 lg:grid-cols-2">
                 <div className="rounded-lg border border-hairline bg-surface p-4">
-                  <div className="mb-3 text-[16px] font-extrabold text-ink">기본 정보</div>
+                  <div className="mb-3 text-[16px] font-extrabold text-ink">학생 정보</div>
                   <Field label="이름">
                     <input value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} className={inputClass} />
                   </Field>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="번호">
-                      <input type="number" value={draft.student_no} onChange={(event) => updateDraft("student_no", event.target.value)} className={inputClass} />
-                    </Field>
-                    <Field label="구분">
-                      <select value={draft.student_type} onChange={(event) => updateDraft("student_type", event.target.value)} className={inputClass}>
-                        <option value="정">정</option>
-                        <option value="체험">체험</option>
-                        <option value="소">소</option>
-                      </select>
-                    </Field>
-                  </div>
-                  <Field label="학년/메모">
-                    <input value={draft.grade} onChange={(event) => updateDraft("grade", event.target.value)} placeholder="예: 초1, 1학년" className={inputClass} />
+                  <Field label="성별">
+                    <select value={draft.gender} onChange={(event) => updateDraft("gender", event.target.value)} className={inputClass} disabled={!draft.member_id}>
+                      <option value="">미등록</option>
+                      <option value="M">남</option>
+                      <option value="F">여</option>
+                    </select>
                   </Field>
-                  <div className="grid grid-cols-2 gap-3">
-                    <ReadOnly label="현재 학년" value={draft.grade_year ? `${draft.grade_year}학년` : ""} />
-                    <ReadOnly label="현재 반" value={draft.class_no ? `${draft.class_no}반` : ""} />
+                  <Field label="구분">
+                    <select value={draft.student_type} onChange={(event) => updateDraft("student_type", event.target.value)} className={inputClass}>
+                      {STUDENT_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
+                    </select>
+                  </Field>
+                  <div className="rounded-md border border-hairline bg-white px-3 py-2 text-[13px] leading-6 text-ink-soft">
+                    정: 정식 등록 학생, 체험: 새친구/방문 후 반에 편입된 학생, 소: 소속은 두지만 정규 출석·등반 관리와 분리할 학생입니다.
+                    실제 운영에서 소 구분을 쓰지 않는다면 정/체험만 남겨도 됩니다.
                   </div>
                 </div>
 
@@ -355,33 +436,34 @@ export default function MyClassPage() {
                   <div className="mb-3 text-[16px] font-extrabold text-ink">인적사항</div>
                   {!draft.member_id && (
                     <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[14px] leading-6 text-amber-900">
-                      연결된 성도 정보가 없어 기본 정보만 저장됩니다.
+                      연결된 교적 정보가 없어 이름과 구분만 저장됩니다.
                     </div>
                   )}
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="성별">
-                      <select value={draft.gender} onChange={(event) => updateDraft("gender", event.target.value)} className={inputClass} disabled={!draft.member_id}>
-                        <option value="">공란</option>
-                        <option value="M">남</option>
-                        <option value="F">여</option>
-                      </select>
-                    </Field>
-                    <Field label="생년월일">
-                      <input type="date" value={draft.birth_date} onChange={(event) => updateDraft("birth_date", event.target.value)} className={inputClass} disabled={!draft.member_id} />
-                    </Field>
-                  </div>
-                  <Field label="연락처">
-                    <input value={draft.phone} onChange={(event) => updateDraft("phone", event.target.value)} placeholder="010-0000-0000" className={inputClass} disabled={!draft.member_id} />
+                  <Field label="생년월일">
+                    <input type="date" value={draft.birth_date} onChange={(event) => updateDraft("birth_date", event.target.value)} className={inputClass} disabled={!draft.member_id} />
                   </Field>
-                  <Field label="이메일">
-                    <input value={draft.email} onChange={(event) => updateDraft("email", event.target.value)} className={inputClass} disabled={!draft.member_id} />
+                  <Field label="본인 연락처">
+                    <input value={draft.phone} onChange={(event) => updateDraft("phone", event.target.value)} placeholder="010-0000-0000" className={inputClass} disabled={!draft.member_id} />
                   </Field>
                   <Field label="주소">
                     <input value={draft.address} onChange={(event) => updateDraft("address", event.target.value)} className={inputClass} disabled={!draft.member_id} />
                   </Field>
-                  <Field label="메모">
-                    <textarea value={draft.notes} onChange={(event) => updateDraft("notes", event.target.value)} rows={4} className={`${inputClass} min-h-[110px] resize-y`} disabled={!draft.member_id} />
-                  </Field>
+                </div>
+
+                <div className="rounded-lg border border-hairline bg-surface p-4 lg:col-span-2">
+                  <div className="mb-3 text-[16px] font-extrabold text-ink">가족관계</div>
+                  {(families[draft.id] || []).length === 0 ? (
+                    <div className="rounded-md border border-hairline bg-white px-3 py-4 text-[14px] font-semibold text-ink-faint">등록된 가족관계가 없습니다.</div>
+                  ) : (
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {(families[draft.id] || []).map((family) => (
+                        <div key={`${family.relative_id}-${family.kind}-${family.direction}`} className="rounded-md border border-hairline bg-white px-3 py-2">
+                          <div className="text-[14px] font-extrabold text-ink">{relationLabel(family)} · {family.relative_name}</div>
+                          <div className="mt-1 text-[13px] font-semibold text-ink-faint">{family.relative_phone ? formatPhone(family.relative_phone) : "연락처 없음"}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </>
@@ -389,20 +471,123 @@ export default function MyClassPage() {
         </section>
       </main>
 
+      {showNewFriend && (
+        <NewFriendModal
+          form={newFriend}
+          students={students}
+          saving={newSaving}
+          onChange={setNewFriend}
+          onCancel={() => !newSaving && setShowNewFriend(false)}
+          onSave={saveNewFriend}
+        />
+      )}
+
       {toast && <div style={toastStyle}>{toast}</div>}
     </div>
   );
 }
 
-function PageHeader({ deptId, router, myClassName }: { deptId: string; router: ReturnType<typeof useRouter>; myClassName: string }) {
+function NewFriendModal({
+  form,
+  students,
+  saving,
+  onChange,
+  onCancel,
+  onSave,
+}: {
+  form: NewFriendForm;
+  students: EditableStudent[];
+  saving: boolean;
+  onChange: (next: NewFriendForm) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const set = <K extends keyof NewFriendForm>(key: K, value: NewFriendForm[K]) => onChange({ ...form, [key]: value });
+
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-ink/50 p-4" onClick={onCancel}>
+      <div className="w-full max-w-lg rounded-lg bg-white p-5" onClick={(event) => event.stopPropagation()}>
+        <div className="mb-4 text-[19px] font-extrabold text-ink">새친구 등록</div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="이름">
+            <input value={form.name} onChange={(event) => set("name", event.target.value)} className={inputClass} />
+          </Field>
+          <Field label="성별">
+            <select value={form.gender} onChange={(event) => set("gender", event.target.value)} className={inputClass}>
+              <option value="">미등록</option>
+              <option value="남">남</option>
+              <option value="여">여</option>
+            </select>
+          </Field>
+          <Field label="생년월일">
+            <input type="date" value={form.birth_date} onChange={(event) => set("birth_date", event.target.value)} className={inputClass} />
+          </Field>
+          <Field label="본인 연락처">
+            <input value={form.mobile} onChange={(event) => set("mobile", event.target.value)} className={inputClass} />
+          </Field>
+          <Field label="주소">
+            <input value={form.address} onChange={(event) => set("address", event.target.value)} className={inputClass} />
+          </Field>
+          <Field label="가족 이름">
+            <input value={form.family_name} onChange={(event) => set("family_name", event.target.value)} className={inputClass} />
+          </Field>
+        </div>
+
+        <div className="mt-2 rounded-lg border border-hairline bg-surface p-3">
+          <div className="mb-2 text-[14px] font-extrabold text-ink">인도자</div>
+          <div className="mb-3 grid grid-cols-3 gap-2">
+            {[
+              { value: "student", label: "학생" },
+              { value: "self", label: "자진" },
+              { value: "other", label: "기타" },
+            ].map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => set("guide_kind", option.value as GuideKind)}
+                className={[
+                  "min-h-10 rounded-md border text-[13px] font-extrabold",
+                  form.guide_kind === option.value ? "border-amber-400 bg-amber-50 text-ink" : "border-hairline bg-white text-ink-soft",
+                ].join(" ")}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          {form.guide_kind === "student" && (
+            <select value={form.guide_student_id} onChange={(event) => set("guide_student_id", event.target.value)} className={inputClass}>
+              <option value="">인도자 학생 선택</option>
+              {students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
+            </select>
+          )}
+          {form.guide_kind === "other" && (
+            <input value={form.guide_name} onChange={(event) => set("guide_name", event.target.value)} placeholder="인도자 이름" className={inputClass} />
+          )}
+        </div>
+
+        <div className="mt-5 flex gap-2">
+          <button type="button" onClick={onCancel} disabled={saving} className="min-h-12 flex-1 rounded-md bg-bg-soft text-[16px] font-extrabold text-ink-mid">취소</button>
+          <button type="button" onClick={onSave} disabled={saving} className="min-h-12 flex-[1.4] rounded-md bg-ink text-[16px] font-extrabold text-white disabled:opacity-60">
+            {saving ? "저장 중..." : "저장"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PageHeader({ deptId, router, myClassName, onNewFriend }: { deptId: string; router: ReturnType<typeof useRouter>; myClassName: string; onNewFriend: () => void }) {
   return (
     <div className="app-subpage-header" style={headerStyle}>
       <HeaderLogo />
       <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
       <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
-        <Baby size={18} strokeWidth={1.8} /> 우리반 아이 정보 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
+        <Baby size={18} strokeWidth={1.8} /> 우리반 아이정보 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
       </div>
-      <div className="hidden md:block" style={{ width: 80 }} />
+      <button type="button" onClick={onNewFriend} className="app-header-actions inline-flex min-h-9 items-center gap-1.5 rounded-md bg-ink px-3 text-[13px] font-extrabold text-white">
+        <UserPlus size={15} strokeWidth={2.2} />
+        새친구등록
+      </button>
     </div>
   );
 }
@@ -416,27 +601,29 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function ReadOnly({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="mb-3">
-      <div className="mb-1 text-[14px] font-bold text-ink-soft">{label}</div>
-      <div className="min-h-11 rounded-md border border-hairline bg-white px-3 py-2 text-[16px] font-bold text-ink-faint">
-        {value || "공란"}
-      </div>
-    </div>
-  );
+function normalizeStudentType(value: string | null | undefined) {
+  return STUDENT_TYPE_OPTIONS.includes(value || "") ? (value as string) : "정";
+}
+
+function genderLabel(value: string | null | undefined) {
+  if (value === "M" || value === "남") return "남";
+  if (value === "F" || value === "여") return "여";
+  return "미등록";
+}
+
+function relationLabel(row: FamilyRow) {
+  if (row.role === "father") return "부";
+  if (row.role === "mother") return "모";
+  if (row.kind === "spouse") return "배우자";
+  if (row.direction === "descendant") return "자녀";
+  if (row.direction === "sibling") return "형제";
+  return row.role || row.kind || "가족";
 }
 
 const inputClass = "min-h-11 w-full rounded-md border border-hairline-strong bg-white px-3 py-2 text-[16px] font-bold text-ink outline-none focus:border-amber-400 disabled:bg-bg-soft disabled:text-ink-faint";
 
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif", overflowX: "hidden" };
 const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between" };
-const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)",
-  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-  flex: 1,
-  minWidth: 0,
-};
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit",
-  whiteSpace: "nowrap", flexShrink: 0,
-};
+const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 };
+const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 };
 const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 14, fontWeight: 700, zIndex: 1100, fontFamily: "inherit", whiteSpace: "nowrap" };

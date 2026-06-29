@@ -9,48 +9,47 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+type StudentType = "정" | "체험" | "소";
+
 interface SaveBody {
   dept_id: string;
   student_id: string;
   student: {
     name: string;
-    student_no: number | null;
-    student_type: string;
-    grade: string | null;
+    student_type: StudentType;
+    grade?: string | null;
   };
   member?: {
     id: string | null;
     phone: string | null;
-    email: string | null;
     birth_date: string | null;
     gender: string | null;
     address: string | null;
-    notes: string | null;
   };
 }
+
+const STUDENT_TYPES: StudentType[] = ["정", "체험", "소"];
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get("Authorization") || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (!token) {
-    return NextResponse.json({ ok: false, error: "Unauthenticated" }, { status: 401 });
-  }
+  if (!token) return NextResponse.json({ ok: false, error: "로그인이 필요합니다" }, { status: 401 });
 
   const userClient = createClient(SUPABASE_URL, ANON_KEY);
   const { data: authData, error: authErr } = await userClient.auth.getUser(token);
   if (authErr || !authData.user) {
-    return NextResponse.json({ ok: false, error: "Invalid token" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "로그인이 필요합니다" }, { status: 401 });
   }
 
   let body: SaveBody;
   try {
     body = (await req.json()) as SaveBody;
   } catch {
-    return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "잘못된 요청입니다" }, { status: 400 });
   }
 
   if (!body.dept_id || !body.student_id || !body.student?.name?.trim()) {
-    return NextResponse.json({ ok: false, error: "필수값이 누락되었습니다" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "이름을 입력하세요" }, { status: 400 });
   }
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
@@ -59,7 +58,7 @@ export async function POST(req: NextRequest) {
 
   const { data: teacher, error: teacherErr } = await admin
     .from("edu_teachers")
-    .select("id, teacher_role")
+    .select("id")
     .eq("department_id", body.dept_id)
     .eq("user_id", authData.user.id)
     .eq("is_active", true)
@@ -71,7 +70,7 @@ export async function POST(req: NextRequest) {
 
   const { data: student, error: studentErr } = await admin
     .from("edu_students")
-    .select("id, department_id, teacher_id, member_id")
+    .select("id, teacher_id, member_id")
     .eq("id", body.student_id)
     .eq("department_id", body.dept_id)
     .maybeSingle();
@@ -83,15 +82,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "담당 반 학생만 수정할 수 있습니다" }, { status: 403 });
   }
 
-  const studentType = ["정", "체험", "소"].includes(body.student.student_type)
-    ? body.student.student_type
-    : "정";
-
+  const studentType = STUDENT_TYPES.includes(body.student.student_type) ? body.student.student_type : "정";
   const { error: updateStudentErr } = await admin
     .from("edu_students")
     .update({
       name: body.student.name.trim(),
-      student_no: body.student.student_no,
       student_type: studentType,
       grade: body.student.grade?.trim() || null,
     })
@@ -100,10 +95,7 @@ export async function POST(req: NextRequest) {
     .eq("teacher_id", teacher.id);
 
   if (updateStudentErr) {
-    return NextResponse.json(
-      { ok: false, error: "학생 정보 저장 실패" },
-      { status: 500 },
-    );
+    return NextResponse.json({ ok: false, error: "학생 정보 저장에 실패했습니다" }, { status: 500 });
   }
 
   const memberBody = body.member;
@@ -114,19 +106,14 @@ export async function POST(req: NextRequest) {
       .update({
         name: body.student.name.trim(),
         phone: memberBody.phone?.trim() || null,
-        email: memberBody.email?.trim() || null,
         birth_date: memberBody.birth_date || null,
         gender,
         address: memberBody.address?.trim() || null,
-        notes: memberBody.notes?.trim() || null,
       })
       .eq("id", student.member_id);
 
     if (updateMemberErr) {
-      return NextResponse.json(
-        { ok: false, error: "인적사항 저장 실패" },
-        { status: 500 },
-      );
+      return NextResponse.json({ ok: false, error: "인적사항 저장에 실패했습니다" }, { status: 500 });
     }
   }
 
