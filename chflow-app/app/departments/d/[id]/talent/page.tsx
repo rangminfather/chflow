@@ -6,7 +6,8 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { Check, ChevronUp, Info, Medal, PiggyBank, Rocket, Star } from "lucide-react";
+import { Check, ChevronDown, Info, Medal, PiggyBank, Rocket, Star } from "lucide-react";
+import { kidDefaultFace, kidFaceTransform, isKidDefaultFace } from "@/lib/kidAvatar";
 
 interface Student {
   id: string;
@@ -19,6 +20,8 @@ interface Student {
   member_id: string | null;
   teacher_id: string | null;
   teacher_name: string | null;
+  gender?: string | null;
+  photo_url?: string | null;
 }
 
 interface AttendRow {
@@ -125,6 +128,7 @@ export default function TalentPage() {
   const [otherSaving, setOtherSaving] = useState(false);
   const [pending, setPending] = useState<PendingPromotion[]>([]); // 내 반 등반 대기 새친구
   const [promoting, setPromoting] = useState("");
+  const [expandedStudents, setExpandedStudents] = useState<Record<string, boolean>>({});
 
   const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
   const currentSundayKey = useMemo(() => getCurrentSundayKey(), []);
@@ -268,21 +272,40 @@ export default function TalentPage() {
     const mine = all
       .filter((student) => student.teacher_id === teacherId)
       .sort((a, b) => (a.order_no || 0) - (b.order_no || 0) || (a.student_no || 0) - (b.student_no || 0));
+    const memberIds = mine.map((student) => student.member_id).filter(Boolean) as string[];
+    const memberInfo: Record<string, { gender: string | null; photo_url: string | null }> = {};
 
-    setStudents(mine);
+    if (memberIds.length > 0) {
+      const { data: members } = await supabase
+        .from("members")
+        .select("id, gender, photo_url")
+        .in("id", memberIds);
 
-    if (mine.length > 0) {
+      (members || []).forEach((member: { id: string; gender: string | null; photo_url: string | null }) => {
+        memberInfo[member.id] = { gender: member.gender, photo_url: member.photo_url };
+      });
+    }
+
+    const enriched = mine.map((student) => ({
+      ...student,
+      gender: student.member_id ? memberInfo[student.member_id]?.gender ?? null : null,
+      photo_url: student.member_id ? memberInfo[student.member_id]?.photo_url ?? null : null,
+    }));
+
+    setStudents(enriched);
+
+    if (enriched.length > 0) {
       const { data: cls } = await supabase
         .from("edu_students")
         .select("class_no")
-        .eq("id", mine[0].id)
+        .eq("id", enriched[0].id)
         .maybeSingle();
       setMyClassName(cls?.class_no || "");
     } else {
       setMyClassName("");
     }
 
-    return mine;
+    return enriched;
   }
 
   async function ensureDefaultRules() {
@@ -589,36 +612,34 @@ export default function TalentPage() {
         {/* 파스텔 일러스트 배너 */}
         <section className="mx-4 mb-4 md:mx-0">
           <div
-            className="relative overflow-hidden rounded-[28px] px-5 pb-6 pt-7 text-center"
-            style={{
-              background: "linear-gradient(160deg, color-mix(in srgb, var(--info) 20%, #fff) 0%, color-mix(in srgb, var(--accent) 14%, #fff) 50%, color-mix(in srgb, var(--warning) 18%, #fff) 100%)",
-              border: "1px solid color-mix(in srgb, var(--accent) 22%, transparent)",
-            }}
+            className="rounded-[22px] border border-hairline bg-white px-4 py-3"
+            style={{ boxShadow: "0 4px 16px rgba(43,39,34,0.06)" }}
           >
-            <span aria-hidden className="pointer-events-none absolute left-4 top-3 text-[22px]" style={{ opacity: 0.55 }}>☁️</span>
-            <span aria-hidden className="pointer-events-none absolute right-5 top-5 text-[18px]" style={{ opacity: 0.5 }}>☁️</span>
-            <span aria-hidden className="pointer-events-none absolute bottom-2 left-6 text-[18px]" style={{ opacity: 0.6 }}>🌷</span>
-            <span aria-hidden className="pointer-events-none absolute bottom-3 right-7 text-[16px]" style={{ opacity: 0.6 }}>🌿</span>
-
-            <div
-              className="mx-auto mb-2 grid h-16 w-16 place-items-center rounded-full text-[34px]"
-              style={{ background: "rgba(255,255,255,0.7)", boxShadow: "0 6px 16px color-mix(in srgb, var(--accent) 22%, transparent)" }}
-              aria-hidden
-            >
-              🐵
-            </div>
-            <h1 className="text-[26px] font-extrabold leading-tight" style={{ color: "var(--ink)", letterSpacing: "-0.02em" }}>
-              달란트 통장
-            </h1>
-            {myClassName && (
-              <div className="mt-1 text-[13px] font-bold" style={{ color: "color-mix(in srgb, var(--accent) 70%, var(--ink-mid))" }}>
-                {myClassName}반
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>이전</button>
+              <div className="min-w-[140px] text-center text-[19px] font-extrabold text-ink">
+                {year}년 {month}월
               </div>
-            )}
+              <button onClick={() => nextMonth(year, month, setYear, setMonth)} style={navBtnStyle}>다음</button>
+              <div className="w-full text-center text-[13px] font-semibold text-ink-faint">
+                주일 {todayWeekIndex >= 0 ? todayWeekIndex + 1 : Math.min(1, sundays.length)}주차/{sundays.length}주차
+              </div>
+            </div>
+
+            <div className="mt-3 border-t border-hairline pt-3 text-center">
+              <h1 className="inline-flex items-center justify-center gap-2 text-[24px] font-extrabold leading-tight" style={{ color: "var(--ink)" }}>
+                <Medal size={22} strokeWidth={1.9} />
+                달란트통장
+              </h1>
+              {myClassName && (
+                <div className="mt-1 text-[13px] font-bold" style={{ color: "var(--accent)" }}>
+                  {myClassName}반
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
-        {/* 등반 대기 배너 — 4회 이상 출석한 새친구. 닫기 없음: '등반 확정'을 눌러야만 사라짐(기회 유실 방지) */}
         {pending.length > 0 && (
           <section className="mx-4 mb-4 md:mx-0">
             <div
@@ -667,17 +688,6 @@ export default function TalentPage() {
           </section>
         )}
 
-        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-hairline bg-white px-4 py-3 md:mx-0">
-          <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
-          <div className="min-w-[140px] text-center text-[19px] font-extrabold text-ink">
-            {year}년 {month}월
-          </div>
-          <button onClick={() => nextMonth(year, month, setYear, setMonth)} style={navBtnStyle}>▶</button>
-          <div className="w-full text-center text-[13px] font-semibold text-ink-faint">
-            주일 {todayWeekIndex >= 0 ? todayWeekIndex + 1 : Math.min(1, sundays.length)}주차/{sundays.length}주차
-          </div>
-        </div>
-
         {loading ? (
           <div className="mx-4 rounded-lg border border-hairline bg-white py-16 text-center text-[17px] text-ink-faint md:mx-0">
             불러오는 중...
@@ -692,6 +702,7 @@ export default function TalentPage() {
               const editState = getWeekEditState(date, currentSundayKey);
               const isEditableWeek = editState === "current";
               const isTodayWeek = index === todayWeekIndex;
+              const dateTotal = weekTotal(date);
 
               return (
                 <article
@@ -717,27 +728,26 @@ export default function TalentPage() {
                       </span>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2 text-[20px] font-extrabold leading-tight">
-                          {index + 1}주차
+                          {index + 1}{"\uC8FC\uCC28"}
                           {isTodayWeek && (
                             <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-extrabold" style={{ background: "rgba(255,255,255,0.28)" }}>
-                              <Star size={11} fill="currentColor" strokeWidth={0} /> 오늘
+                              <Star size={11} fill="currentColor" strokeWidth={0} /> {"\uC624\uB298"}
                             </span>
                           )}
                           {!isEditableWeek && (
                             <span className="rounded-full px-2 py-0.5 text-[11px] font-extrabold" style={{ background: "rgba(255,255,255,0.24)" }}>
-                              {editState === "past" ? "수정 마감" : "예정"}
+                              {editState === "past" ? "\uC218\uC815 \uB9C8\uAC10" : "\uC608\uC815"}
                             </span>
                           )}
                         </div>
-                        <div className="mt-0.5 text-[12px] font-semibold" style={{ opacity: 0.9 }}>{formatMD(date)} 주일</div>
+                        <div className="mt-0.5 text-[12px] font-semibold" style={{ opacity: 0.9 }}>{formatMD(date)} {"\uC8FC\uC77C"}</div>
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-col items-end leading-tight">
-                      <span className="text-[10px] font-bold" style={{ opacity: 0.9 }}>이번 주</span>
-                      <span className="text-[20px] font-extrabold">+{weekTotal(date)}</span>
+                      <span className="text-[10px] font-bold" style={{ opacity: 0.9 }}>{"\uC774\uBC88\uC8FC"}</span>
+                      <span className="text-[20px] font-extrabold">+{dateTotal}</span>
                     </div>
                   </header>
-                  {/* 절취선 */}
                   <div style={{ borderTop: "2px dotted color-mix(in srgb, var(--brass) 45%, transparent)" }} />
 
                   <section className="flex flex-col gap-2.5 px-3.5 py-3.5">
@@ -745,6 +755,8 @@ export default function TalentPage() {
                       const studentTotal = studentWeekTotal(student.id, date);
                       const present = isPresent(student.id, date);
                       const other = getOther(student.id, date);
+                      const rowKey = `${date}_${student.id}`;
+                      const expanded = !!expandedStudents[rowKey];
 
                       return (
                         <div
@@ -753,105 +765,101 @@ export default function TalentPage() {
                           style={{ background: "var(--surface)", border: "1.5px solid var(--hairline)" }}
                         >
                           <div className="mb-2.5 flex items-center gap-2.5">
-                            <Avatar name={student.name} />
+                            <Avatar student={student} />
                             <div className="min-w-0 flex-1 truncate text-[16px] font-extrabold" style={{ color: "var(--ink)" }}>{student.name}</div>
-                            <span
-                              className="flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-extrabold"
-                              style={studentTotal > 0
-                                ? { color: "var(--success)", background: "color-mix(in srgb, var(--success) 13%, #fff)", border: "1px solid color-mix(in srgb, var(--success) 32%, transparent)" }
-                                : { color: "var(--ink-faint)", background: "var(--bg-soft)", border: "1px solid var(--hairline-strong)" }}
-                            >
-                              {studentTotal > 0 && <ChevronUp size={13} strokeWidth={2.6} />} 이번 주 +{studentTotal}
-                            </span>
                           </div>
 
-                          {/* 총 달란트 (전체기간 누적, 실시간) */}
-                          <div
-                            className="mb-3 flex items-end justify-between gap-2 rounded-2xl px-3 py-2.5"
+                          <div className="mb-2.5 grid grid-cols-2 gap-2.5">
+                            <TalentSummaryBox label={"\uC774\uBC88\uC8FC \uB2EC\uB780\uD2B8"} value={studentTotal} tone="week" />
+                            <TalentSummaryBox label={"\uCD1D \uB2EC\uB780\uD2B8"} value={cumulative[student.id] ?? 0} tone="total" />
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setExpandedStudents((prev) => ({ ...prev, [rowKey]: !expanded }))}
+                            className="mb-3 flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border text-[13px] font-extrabold"
                             style={{
-                              border: "1.5px solid color-mix(in srgb, var(--brass) 30%, transparent)",
-                              background: "linear-gradient(135deg, color-mix(in srgb, var(--brass) 14%, #fff), color-mix(in srgb, var(--warning) 12%, #fff))",
+                              borderColor: expanded ? "color-mix(in srgb, var(--brass) 44%, transparent)" : "var(--hairline)",
+                              background: expanded ? "color-mix(in srgb, var(--brass) 10%, #fff)" : "var(--card)",
+                              color: expanded ? "var(--warning)" : "var(--ink-soft)",
                             }}
                           >
-                            <span className="flex items-center gap-1.5 text-[12px] font-extrabold" style={{ color: "var(--warning)" }}>
-                              <PiggyBank size={14} strokeWidth={2.2} /> 총 달란트
-                            </span>
-                            <span className="flex items-baseline gap-1">
-                              <span className="text-[24px] font-extrabold leading-none" style={{ color: "var(--ink)", letterSpacing: "-0.02em" }}>{fmt(cumulative[student.id] ?? 0)}</span>
-                              <span className="text-[13px] font-extrabold" style={{ color: "var(--warning)" }}>달란트</span>
-                            </span>
-                          </div>
+                            {expanded ? "\uC811\uAE30" : "\uD3BC\uCCD0\uC11C \uCCB4\uD06C"}
+                            <ChevronDown size={15} strokeWidth={2.4} className={expanded ? "rotate-180 transition-transform" : "transition-transform"} />
+                          </button>
 
-                          {/* 출석 — 내반출결에서 자동 체크 */}
-                          <div
-                            className="mb-2.5 flex items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-[14px] font-extrabold leading-tight"
-                            style={present
-                              ? { background: "color-mix(in srgb, var(--success) 12%, var(--card))", border: "1.5px solid color-mix(in srgb, var(--success) 36%, transparent)", color: "var(--success)" }
-                              : { background: "var(--card)", border: "1.5px dashed var(--hairline-strong)", color: "var(--ink-faint)" }}
-                          >
-                            <span className="flex items-center gap-2">
-                              <span className="shrink-0 text-[18px] leading-none" aria-hidden>{RULE_EMOJI.attendance}</span>
-                              <span className="flex flex-col leading-tight">
-                                <span>출석</span>
-                                <span className="text-[11px] font-semibold" style={{ opacity: 0.75 }}>출석체크 자동체크</span>
-                              </span>
-                            </span>
-                            <span className="shrink-0">{present ? `자동 +${getRulePoints("attendance")}` : "-"}</span>
-                          </div>
+                          {expanded && (
+                            <>
+                              <div
+                                className="mb-2.5 flex items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-[14px] font-extrabold leading-tight"
+                                style={present
+                                  ? { background: "color-mix(in srgb, var(--success) 12%, var(--card))", border: "1.5px solid color-mix(in srgb, var(--success) 36%, transparent)", color: "var(--success)" }
+                                  : { background: "var(--card)", border: "1.5px dashed var(--hairline-strong)", color: "var(--ink-faint)" }}
+                              >
+                                <span className="flex items-center gap-2">
+                                  <span className="shrink-0 text-[18px] leading-none" aria-hidden>{RULE_EMOJI.attendance}</span>
+                                  <span className="flex flex-col leading-tight">
+                                    <span>{"\uCD9C\uC11D"}</span>
+                                    <span className="text-[11px] font-semibold" style={{ opacity: 0.75 }}>{"\uCD9C\uC11D\uCCB4\uD06C \uC790\uB3D9\uCCB4\uD06C"}</span>
+                                  </span>
+                                </span>
+                                <span className="shrink-0">{present ? `\uC790\uB3D9 +${getRulePoints("attendance")}` : "-"}</span>
+                              </div>
 
-                          <div className="mb-2 flex items-center gap-1.5 px-1 text-[11px] font-bold" style={{ color: "var(--ink-faint)" }}>
-                            <Star size={12} fill="var(--warning)" strokeWidth={0} /> 누르면 달란트가 차곡차곡 모여요
-                          </div>
+                              <div className="mb-2 flex items-center gap-1.5 px-1 text-[11px] font-bold" style={{ color: "var(--ink-faint)" }}>
+                                <Star size={12} fill="var(--warning)" strokeWidth={0} /> {"\uB204\uB974\uBA74 \uB2EC\uB780\uD2B8\uAC00 \uCC28\uACE1\uCC28\uACE1 \uBAA8\uC5EC\uC694"}
+                              </div>
 
-                          <div className="grid grid-cols-2 gap-2.5">
-                            {checkRules.map((rule) => {
-                              const selected = isChecked(student.id, date, rule);
-                              const key = extraKey(student.id, date, rule.id);
-                              const label = rule.label;
-                              const disabled = !isEditableWeek || saving === key;
+                              <div className="grid grid-cols-2 gap-2.5">
+                                {checkRules.map((rule) => {
+                                  const selected = isChecked(student.id, date, rule);
+                                  const key = extraKey(student.id, date, rule.id);
+                                  const label = rule.label;
+                                  const disabled = !isEditableWeek || saving === key;
 
-                              return (
+                                  return (
+                                    <button
+                                      key={rule.id}
+                                      type="button"
+                                      onClick={() => toggleWeeklyItem(student, date, rule)}
+                                      disabled={disabled}
+                                      className={[
+                                        "coin-chip flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[13.5px] font-bold leading-tight",
+                                        selected ? "coin-on" : "",
+                                        disabled ? "cursor-not-allowed" : "cursor-pointer",
+                                        !isEditableWeek && !selected ? "opacity-60" : "",
+                                      ].join(" ")}
+                                      style={selected
+                                        ? { background: "color-mix(in srgb, var(--accent) 18%, #fff)", color: "color-mix(in srgb, var(--accent) 75%, var(--ink))", border: "1.5px solid color-mix(in srgb, var(--accent) 45%, transparent)" }
+                                        : { background: "color-mix(in srgb, var(--bg-soft) 70%, #fff)", color: "var(--ink-soft)", border: "1px solid var(--hairline)" }}
+                                    >
+                                      <span className="shrink-0 text-[17px] leading-none" aria-hidden>{RULE_EMOJI[rule.rule_key] || "?"}</span>
+                                      <span className="flex-1 truncate">{label}</span>
+                                      {selected && <Check size={14} strokeWidth={3} className="shrink-0" />}
+                                    </button>
+                                  );
+                                })}
+
                                 <button
-                                  key={rule.id}
                                   type="button"
-                                  onClick={() => toggleWeeklyItem(student, date, rule)}
-                                  disabled={disabled}
+                                  onClick={() => openOther(student, date)}
+                                  disabled={!isEditableWeek}
                                   className={[
                                     "coin-chip flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[13.5px] font-bold leading-tight",
-                                    selected ? "coin-on" : "",
-                                    disabled ? "cursor-not-allowed" : "cursor-pointer",
-                                    !isEditableWeek && !selected ? "opacity-60" : "",
+                                    other ? "coin-on" : "",
+                                    !isEditableWeek ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                                   ].join(" ")}
-                                  style={selected
-                                    ? { background: "color-mix(in srgb, var(--accent) 18%, #fff)", color: "color-mix(in srgb, var(--accent) 75%, var(--ink))", border: "1.5px solid color-mix(in srgb, var(--accent) 45%, transparent)" }
+                                  style={other
+                                    ? { background: "color-mix(in srgb, var(--warning) 20%, #fff)", color: "color-mix(in srgb, var(--warning) 78%, var(--ink))", border: "1.5px solid color-mix(in srgb, var(--warning) 48%, transparent)" }
                                     : { background: "color-mix(in srgb, var(--bg-soft) 70%, #fff)", color: "var(--ink-soft)", border: "1px solid var(--hairline)" }}
                                 >
-                                  <span className="shrink-0 text-[17px] leading-none" aria-hidden>{RULE_EMOJI[rule.rule_key] || "⭐"}</span>
-                                  <span className="flex-1 truncate">{label}</span>
-                                  {selected && <Check size={14} strokeWidth={3} className="shrink-0" />}
+                                  <span className="shrink-0 text-[17px] leading-none" aria-hidden>{OTHER_EMOJI}</span>
+                                  <span className="flex-1 truncate">{"\uAE30\uD0C0 (\uC9C1\uC811\uC785\uB825)"}</span>
+                                  {other && <span className="shrink-0 text-[12px] font-extrabold">{other.pts_other}</span>}
                                 </button>
-                              );
-                            })}
-
-                            {/* 기타(직접입력) — 동전 칩과 동일 스타일, 그리드 마지막 칸 */}
-                            <button
-                              type="button"
-                              onClick={() => openOther(student, date)}
-                              disabled={!isEditableWeek}
-                              className={[
-                                "coin-chip flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[13.5px] font-bold leading-tight",
-                                other ? "coin-on" : "",
-                                !isEditableWeek ? "cursor-not-allowed opacity-60" : "cursor-pointer",
-                              ].join(" ")}
-                              style={other
-                                ? { background: "color-mix(in srgb, var(--warning) 20%, #fff)", color: "color-mix(in srgb, var(--warning) 78%, var(--ink))", border: "1.5px solid color-mix(in srgb, var(--warning) 48%, transparent)" }
-                                : { background: "color-mix(in srgb, var(--bg-soft) 70%, #fff)", color: "var(--ink-soft)", border: "1px solid var(--hairline)" }}
-                            >
-                              <span className="shrink-0 text-[17px] leading-none" aria-hidden>{OTHER_EMOJI}</span>
-                              <span className="flex-1 truncate">기타 (직접입력)</span>
-                              {other && <span className="shrink-0 text-[12px] font-extrabold">{other.pts_other}</span>}
-                            </button>
-                          </div>
+                              </div>
+                            </>
+                          )}
                         </div>
                       );
                     })}
@@ -1016,37 +1024,65 @@ function fmt(n: number) {
 const COIN_GRAD = "linear-gradient(135deg, #E7C25A, #C9923B)";
 
 // 아이별 둥근 아바타 — 이름 해시로 톤을 고정 배정(장식용, 성별 데이터 미사용)
-const AVATAR_TONES = ["var(--accent)", "var(--info)", "var(--warning)", "var(--accent-muted)", "var(--male)", "var(--female)"];
+function TalentSummaryBox({ label, value, tone }: { label: string; value: number; tone: "week" | "total" }) {
+  const isTotal = tone === "total";
 
-function avatarTone(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  return AVATAR_TONES[hash % AVATAR_TONES.length];
-}
-
-function Avatar({ name }: { name: string }) {
-  const clean = (name || "").replace(/\s/g, "");
-  const label = clean.length >= 3 ? clean.slice(-2) : clean || "?";
-  const tone = avatarTone(clean || "?");
   return (
     <div
-      className="kid-avatar grid shrink-0 place-items-center font-extrabold text-white"
+      className="flex min-h-[76px] flex-col justify-between rounded-2xl px-3 py-2.5"
       style={{
-        width: 44,
-        height: 44,
-        borderRadius: 999,
-        fontSize: label.length >= 2 ? 14 : 17,
-        background: `linear-gradient(140deg, color-mix(in srgb, ${tone} 70%, #fff), ${tone})`,
-        border: "2.5px solid #fff",
-        boxShadow: `0 4px 10px color-mix(in srgb, ${tone} 34%, transparent), 0 0 0 1.5px color-mix(in srgb, ${tone} 30%, transparent)`,
+        border: isTotal
+          ? "1.5px solid color-mix(in srgb, var(--brass) 30%, transparent)"
+          : "1.5px solid color-mix(in srgb, var(--success) 30%, transparent)",
+        background: isTotal
+          ? "linear-gradient(135deg, color-mix(in srgb, var(--brass) 14%, #fff), color-mix(in srgb, var(--warning) 12%, #fff))"
+          : "linear-gradient(135deg, color-mix(in srgb, var(--success) 12%, #fff), color-mix(in srgb, var(--info) 8%, #fff))",
       }}
-      aria-hidden
     >
-      {label}
+      <span className="flex items-center gap-1.5 text-[12px] font-extrabold" style={{ color: isTotal ? "var(--warning)" : "var(--success)" }}>
+        <PiggyBank size={14} strokeWidth={2.2} /> {label}
+      </span>
+      <span className="flex items-baseline justify-end gap-1">
+        <span className="text-[24px] font-extrabold leading-none" style={{ color: "var(--ink)" }}>{fmt(value)}</span>
+        <span className="text-[13px] font-extrabold" style={{ color: isTotal ? "var(--warning)" : "var(--success)" }}>달란트</span>
+      </span>
     </div>
   );
 }
 
+function Avatar({ student }: { student: Student }) {
+  const displaySrc = student.photo_url || kidDefaultFace(student.gender, student.id);
+  const transform = isKidDefaultFace(displaySrc) ? kidFaceTransform(displaySrc) : undefined;
+
+  return (
+    <div
+      className="kid-avatar grid shrink-0 place-items-center overflow-hidden"
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 999,
+        background: "color-mix(in srgb, var(--accent-muted) 14%, #f7f2e8)",
+        border: "2.5px solid #fff",
+        boxShadow: "0 4px 10px rgba(43,39,34,0.12), 0 0 0 1.5px var(--hairline)",
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={displaySrc}
+        alt={`${student.name} 얼굴`}
+        loading="lazy"
+        decoding="async"
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          objectPosition: "center",
+          transform,
+        }}
+      />
+    </div>
+  );
+}
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "linear-gradient(180deg, color-mix(in srgb, var(--info) 9%, var(--bg-soft)) 0%, var(--bg-soft) 320px)", fontFamily: "'Noto Sans KR', sans-serif" };
 const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)",

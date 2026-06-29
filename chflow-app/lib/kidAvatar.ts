@@ -50,24 +50,26 @@ export function kidFaceChoices(gender: string | null | undefined): string[] {
 }
 
 // 일러스트마다 얼굴이 원형 안에서 정중앙에 오도록 보정하는 CSS transform.
-// 이미지·컨테이너가 모두 정사각형이라 objectPosition 은 효과가 없어 transform(확대/상하이동)으로 맞춘다.
-// scale 로 장식 테두리를 살짝 잘라 얼굴을 키우고, translateY(+면 아래로) 로 머리장식/모자로 치우친 얼굴을 가운데로.
+// 이미지·컨테이너가 모두 정사각형이라 objectPosition 은 효과가 없어 transform(확대/이동)으로 맞춘다.
+// translate(X%,Y%) → X+면 오른쪽·Y+면 아래로 이동. scale 로 장식 테두리를 살짝 잘라 얼굴을 키운다.
+// 기준: boy-3 프레이밍(눈높이·얼굴 크기·중심). 실제 브라우저 렌더로 15종 전부 눈/코 중심을
+// 원형 가운데(눈높이 ~42%)에 맞춰 정렬했다. translate 백분율은 컨테이너(=이미지) 크기 기준.
 const FACE_ADJUST: Record<string, string> = {
-  "boy-1": "scale(1.1)",
-  "boy-2": "scale(1.1)",
-  "boy-3": "scale(1.1)",
-  "boy-4": "scale(1.1)",
-  "boy-5": "scale(1.1)",
-  "boy-6": "translateY(4%) scale(1.12)",
-  "boy-7": "scale(1.1)",
-  "boy-8": "scale(1.1)",
-  "boy-9": "translateY(-2%) scale(1.1)",
-  "girl-1": "translateY(3%) scale(1.12)",
-  "girl-2": "scale(1.1)",
-  "girl-3": "scale(1.08)",
-  "girl-4": "translateY(2%) scale(1.1)",
-  "girl-5": "scale(1.1)",
-  "girl-6": "scale(1.08)",
+  "boy-1": "translateX(-1%) scale(1.04)",
+  "boy-2": "translate(13%, 4%) scale(1.06)",
+  "boy-3": "translate(-3%, -6%) scale(0.99)",
+  "boy-4": "translate(13%, -6%) scale(0.98)",
+  "boy-5": "translate(22%, -12%) scale(1.01)",
+  "boy-6": "translate(-30%, -10%) scale(1.08)",
+  "boy-7": "translate(-10%, -10%) scale(0.99)",
+  "boy-8": "translateY(-12%) scale(1.10)",
+  "boy-9": "translate(24%, -17%) scale(1.10)",
+  "girl-1": "translate(-22%, 2%) scale(0.98)",
+  "girl-2": "translate(-16%, -3%) scale(0.92)",
+  "girl-3": "translate(16%, -1%) scale(0.94)",
+  "girl-4": "translate(-19%, -7%) scale(0.98)",
+  "girl-5": "translate(-9%, -3%) scale(0.90)",
+  "girl-6": "translate(15%, -11%) scale(1.11)",
 };
 
 // 기본 얼굴 경로에 맞는 transform 반환(실제 사진은 빈 문자열 → 변형 없음).
