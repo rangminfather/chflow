@@ -1,18 +1,19 @@
 "use client";
 
+import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase, formatPhone } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Baby, Save, UserPlus } from "lucide-react";
+import { Baby, Cog, Save, UserPlus, X } from "lucide-react";
 
 interface StudentRow {
   id: string;
   department_id: string;
   student_no: number | null;
   name: string;
-  student_type: string;
+  student_type: string | null;
   grade: string | null;
   grade_year: number | null;
   class_no: string | null;
@@ -96,6 +97,7 @@ export default function MyClassPage() {
   const [selectedId, setSelectedId] = useState("");
   const [draft, setDraft] = useState<EditableStudent | null>(null);
   const [families, setFamilies] = useState<Record<string, FamilyRow[]>>({});
+  const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
   const [showNewFriend, setShowNewFriend] = useState(false);
@@ -132,8 +134,8 @@ export default function MyClassPage() {
   );
 
   useEffect(() => {
-    if (selectedStudent) setDraft({ ...selectedStudent });
-  }, [selectedStudent]);
+    if (selectedStudent && !editMode) setDraft({ ...selectedStudent });
+  }, [selectedStudent, editMode]);
 
   async function loadStudents(teacherId: string) {
     setLoading(true);
@@ -186,11 +188,16 @@ export default function MyClassPage() {
       };
     });
 
+    const nextSelectedId = selectedId && editable.some((student) => student.id === selectedId)
+      ? selectedId
+      : editable[0]?.id || "";
+
     setStudents(editable);
-    setSelectedId((current) => current || editable[0]?.id || "");
-    setDraft(editable[0] ? { ...editable[0] } : null);
+    setSelectedId(nextSelectedId);
+    setDraft(editable.find((student) => student.id === nextSelectedId) || editable[0] || null);
     setMyClassName(editable[0]?.class_no || "");
     setMyGradeYear(editable[0]?.grade_year ?? null);
+    setEditMode(false);
     await loadFamilies(editable);
     setLoading(false);
   }
@@ -209,6 +216,7 @@ export default function MyClassPage() {
   function selectStudent(student: EditableStudent) {
     setSelectedId(student.id);
     setDraft({ ...student });
+    setEditMode(false);
   }
 
   function updateDraft<K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) {
@@ -262,6 +270,7 @@ export default function MyClassPage() {
     }
 
     setStudents((current) => current.map((student) => (student.id === draft.id ? { ...draft } : student)));
+    setEditMode(false);
     showToast("저장되었습니다");
   }
 
@@ -322,6 +331,11 @@ export default function MyClassPage() {
     if (myTeacherId) await loadStudents(myTeacherId);
   }
 
+  function cancelEdit() {
+    if (selectedStudent) setDraft({ ...selectedStudent });
+    setEditMode(false);
+  }
+
   function showToast(message: string) {
     setToast(message);
     window.setTimeout(() => setToast(""), 2400);
@@ -332,10 +346,10 @@ export default function MyClassPage() {
   if (!myTeacherId) {
     return (
       <div style={pageStyle}>
-        <PageHeader deptId={deptId} router={router} myClassName="" onNewFriend={openNewFriend} />
+        <PageHeader deptId={deptId} router={router} myClassName="" />
         <main className="mx-auto max-w-lg px-4 py-14">
           <div className="rounded-lg border border-hairline bg-white text-center">
-            <EmptyState message="본인이 담임으로 등록된 반이 없습니다" hint="부장 또는 전도사에게 담임 등록을 요청하세요." />
+            <EmptyState message="본인이 담임으로 등록된 반이 없습니다" hint="부장 또는 전도사에게 담임 등록을 요청하세요" />
           </div>
         </main>
       </div>
@@ -344,7 +358,7 @@ export default function MyClassPage() {
 
   return (
     <div style={pageStyle}>
-      <PageHeader deptId={deptId} router={router} myClassName={myClassName} onNewFriend={openNewFriend} />
+      <PageHeader deptId={deptId} router={router} myClassName={myClassName} />
 
       <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-4 md:grid-cols-[280px_1fr]">
         <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-white">
@@ -362,7 +376,7 @@ export default function MyClassPage() {
           {loading ? (
             <div className="py-12 text-center text-[15px] text-ink-faint">불러오는 중...</div>
           ) : students.length === 0 ? (
-            <div className="px-4 py-12 text-center text-[15px] leading-6 text-ink-faint">담당 반 학생이 없습니다.</div>
+            <div className="px-4 py-12 text-center text-[15px] leading-6 text-ink-faint">해당 반 학생이 없습니다.</div>
           ) : (
             <div className="flex flex-col gap-2 p-3">
               {students.map((student) => (
@@ -399,33 +413,35 @@ export default function MyClassPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-md bg-ink px-5 text-[16px] font-extrabold text-white disabled:opacity-60"
+                  onClick={() => setEditMode((value) => !value)}
+                  title={editMode ? "수정 종료" : "학생 정보 수정"}
+                  className={[
+                    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border",
+                    editMode ? "border-amber-400 bg-amber-50 text-amber-700" : "border-hairline bg-white text-ink-soft",
+                  ].join(" ")}
                 >
-                  <Save size={17} strokeWidth={2.2} />
-                  {saving ? "저장 중..." : "저장"}
+                  <Cog size={18} strokeWidth={1.9} className={editMode ? "animate-spin" : ""} style={editMode ? { animationDuration: "3s" } : undefined} />
                 </button>
               </div>
 
               <div className="grid gap-4 p-4 lg:grid-cols-2">
                 <div className="rounded-lg border border-hairline bg-surface p-4">
                   <div className="mb-3 text-[16px] font-extrabold text-ink">학생 정보</div>
-                  <Field label="이름">
+                  <InfoField label="이름" editMode={editMode} value={draft.name || "미등록"}>
                     <input value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} className={inputClass} />
-                  </Field>
-                  <Field label="성별">
+                  </InfoField>
+                  <InfoField label="성별" editMode={editMode} value={genderLabel(draft.gender)}>
                     <select value={draft.gender} onChange={(event) => updateDraft("gender", event.target.value)} className={inputClass} disabled={!draft.member_id}>
                       <option value="">미등록</option>
                       <option value="M">남</option>
                       <option value="F">여</option>
                     </select>
-                  </Field>
-                  <Field label="구분">
+                  </InfoField>
+                  <InfoField label="구분" editMode={editMode} value={draft.student_type}>
                     <select value={draft.student_type} onChange={(event) => updateDraft("student_type", event.target.value)} className={inputClass}>
                       {STUDENT_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
                     </select>
-                  </Field>
+                  </InfoField>
                   <div className="rounded-md border border-hairline bg-white px-3 py-2 text-[13px] leading-6 text-ink-soft">
                     정: 정식 등록 학생, 체험: 새친구/방문 후 반에 편입된 학생, 소: 소속은 두지만 정규 출석·등반 관리와 분리할 학생입니다.
                     실제 운영에서 소 구분을 쓰지 않는다면 정/체험만 남겨도 됩니다.
@@ -434,20 +450,20 @@ export default function MyClassPage() {
 
                 <div className="rounded-lg border border-hairline bg-surface p-4">
                   <div className="mb-3 text-[16px] font-extrabold text-ink">인적사항</div>
-                  {!draft.member_id && (
+                  {!draft.member_id && editMode && (
                     <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[14px] leading-6 text-amber-900">
                       연결된 교적 정보가 없어 이름과 구분만 저장됩니다.
                     </div>
                   )}
-                  <Field label="생년월일">
+                  <InfoField label="생년월일" editMode={editMode} value={draft.birth_date || "미등록"}>
                     <input type="date" value={draft.birth_date} onChange={(event) => updateDraft("birth_date", event.target.value)} className={inputClass} disabled={!draft.member_id} />
-                  </Field>
-                  <Field label="본인 연락처">
+                  </InfoField>
+                  <InfoField label="본인연락처" editMode={editMode} value={draft.phone ? formatPhone(draft.phone) : "미등록"}>
                     <input value={draft.phone} onChange={(event) => updateDraft("phone", event.target.value)} placeholder="010-0000-0000" className={inputClass} disabled={!draft.member_id} />
-                  </Field>
-                  <Field label="주소">
+                  </InfoField>
+                  <InfoField label="주소" editMode={editMode} value={draft.address || "미등록"}>
                     <input value={draft.address} onChange={(event) => updateDraft("address", event.target.value)} className={inputClass} disabled={!draft.member_id} />
-                  </Field>
+                  </InfoField>
                 </div>
 
                 <div className="rounded-lg border border-hairline bg-surface p-4 lg:col-span-2">
@@ -465,6 +481,19 @@ export default function MyClassPage() {
                     </div>
                   )}
                 </div>
+
+                {editMode && (
+                  <div className="flex gap-2 lg:col-span-2">
+                    <button type="button" onClick={cancelEdit} disabled={saving} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-bg-soft text-[15px] font-extrabold text-ink-mid">
+                      <X size={16} strokeWidth={2.2} />
+                      취소
+                    </button>
+                    <button type="button" onClick={handleSave} disabled={saving} className="inline-flex min-h-11 flex-[1.5] items-center justify-center gap-2 rounded-md bg-ink text-[15px] font-extrabold text-white disabled:opacity-60">
+                      <Save size={16} strokeWidth={2.2} />
+                      {saving ? "저장 중..." : "저장"}
+                    </button>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -515,14 +544,14 @@ function NewFriendModal({
           <Field label="성별">
             <select value={form.gender} onChange={(event) => set("gender", event.target.value)} className={inputClass}>
               <option value="">미등록</option>
-              <option value="남">남</option>
-              <option value="여">여</option>
+              <option value="M">남</option>
+              <option value="F">여</option>
             </select>
           </Field>
           <Field label="생년월일">
             <input type="date" value={form.birth_date} onChange={(event) => set("birth_date", event.target.value)} className={inputClass} />
           </Field>
-          <Field label="본인 연락처">
+          <Field label="본인연락처">
             <input value={form.mobile} onChange={(event) => set("mobile", event.target.value)} className={inputClass} />
           </Field>
           <Field label="주소">
@@ -576,7 +605,7 @@ function NewFriendModal({
   );
 }
 
-function PageHeader({ deptId, router, myClassName, onNewFriend }: { deptId: string; router: ReturnType<typeof useRouter>; myClassName: string; onNewFriend: () => void }) {
+function PageHeader({ deptId, router, myClassName }: { deptId: string; router: ReturnType<typeof useRouter>; myClassName: string }) {
   return (
     <div className="app-subpage-header" style={headerStyle}>
       <HeaderLogo />
@@ -584,20 +613,27 @@ function PageHeader({ deptId, router, myClassName, onNewFriend }: { deptId: stri
       <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
         <Baby size={18} strokeWidth={1.8} /> 우리반 아이정보 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
       </div>
-      <button type="button" onClick={onNewFriend} className="app-header-actions inline-flex min-h-9 items-center gap-1.5 rounded-md bg-ink px-3 text-[13px] font-extrabold text-white">
-        <UserPlus size={15} strokeWidth={2.2} />
-        새친구등록
-      </button>
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="mb-3 block">
       <div className="mb-1 text-[14px] font-bold text-ink-soft">{label}</div>
       {children}
     </label>
+  );
+}
+
+function InfoField({ label, value, editMode, children }: { label: string; value: string; editMode: boolean; children: ReactNode }) {
+  if (editMode) return <Field label={label}>{children}</Field>;
+
+  return (
+    <div className="mb-3">
+      <div className="mb-1 text-[14px] font-bold text-ink-soft">{label}</div>
+      <div className="min-h-11 rounded-md border border-hairline bg-white px-3 py-2 text-[16px] font-bold leading-7 text-ink">{value}</div>
+    </div>
   );
 }
 
@@ -622,8 +658,8 @@ function relationLabel(row: FamilyRow) {
 
 const inputClass = "min-h-11 w-full rounded-md border border-hairline-strong bg-white px-3 py-2 text-[16px] font-bold text-ink outline-none focus:border-amber-400 disabled:bg-bg-soft disabled:text-ink-faint";
 
-const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif", overflowX: "hidden" };
-const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between" };
-const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 };
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 };
-const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 14, fontWeight: 700, zIndex: 1100, fontFamily: "inherit", whiteSpace: "nowrap" };
+const pageStyle: CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif", overflowX: "hidden" };
+const headerStyle: CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 };
+const titleStyle: CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 };
+const backBtnStyle: CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 };
+const toastStyle: CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 14, fontWeight: 700, zIndex: 1100, fontFamily: "inherit", whiteSpace: "nowrap" };
