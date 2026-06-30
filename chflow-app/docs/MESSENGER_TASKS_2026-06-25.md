@@ -208,6 +208,21 @@ Potential features:
 
 These should wait until Phases 1 and 2 are complete.
 
+## Deferred Direction - PC Desktop Messenger
+
+Priority: Strategic, after messenger QA and core completion
+
+Decision note:
+
+- Do not finalize the PC messenger launch model while core messenger QA is still in progress.
+- The long-term product direction is not just opening `/messenger` in the browser.
+- Desired PC experience: a PC user clicks the messenger entry, installs a dedicated messenger app/shortcut, and then uses messenger in a separate app-like window from the desktop.
+- Consider PWA install first for a lightweight desktop shortcut and standalone window.
+- Consider Tauri/Electron later if the product needs a real Windows installer, tray behavior, auto-start, richer desktop notifications, or a stronger native-app feel.
+- Existing bottom-right dock and `/messenger` page behavior should be treated as current interim entry points, not the final PC desktop UX.
+
+Use this note when deciding future PC messenger architecture.
+
 ## Validation Commands
 
 Run before merging or deploying:
