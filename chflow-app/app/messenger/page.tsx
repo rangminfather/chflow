@@ -91,6 +91,7 @@ export default function MessengerPage() {
   const previousActiveIdRef = useRef<string | null>(null);
   const shouldStickToBottomRef = useRef(true);
   const draftsByConversationRef = useRef<Record<string, string>>({});
+  const unreadAtOpenRef = useRef<Record<string, number>>({});
   const lastTypingAtRef = useRef(0);
   const typingTimersRef = useRef<Record<string, number>>({});
 
@@ -106,6 +107,7 @@ export default function MessengerPage() {
   const [hasOlderMessages, setHasOlderMessages] = useState(false);
   const [newMessageNotice, setNewMessageNotice] = useState(false);
   const [showJumpLatest, setShowJumpLatest] = useState(false);
+  const [unreadBoundaryMessageId, setUnreadBoundaryMessageId] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [groupManageOpen, setGroupManageOpen] = useState(false);
   const [error, setError] = useState("");
@@ -176,8 +178,10 @@ export default function MessengerPage() {
       setConversations(rows);
       const requested = preferredId !== undefined ? preferredId : activeId;
       if (requested && rows.some((c) => c.conversation_id === requested)) {
+        unreadAtOpenRef.current[requested] = rows.find((c) => c.conversation_id === requested)?.unread_count || 0;
         setActiveId(requested);
       } else if (!requested && !activeId && rows.length > 0 && !isMobileMessengerViewport()) {
+        unreadAtOpenRef.current[rows[0].conversation_id] = rows[0].unread_count || 0;
         setActiveId(rows[0].conversation_id);
       }
     } catch (e) {
@@ -204,6 +208,9 @@ export default function MessengerPage() {
       ]);
       setMessages(messageRows);
       setHasOlderMessages(messageRows.length >= MESSAGE_PAGE_SIZE);
+      const unreadAtOpen = unreadAtOpenRef.current[conversationId] || 0;
+      const boundaryIndex = unreadAtOpen > 0 && unreadAtOpen <= messageRows.length ? messageRows.length - unreadAtOpen : -1;
+      setUnreadBoundaryMessageId(boundaryIndex >= 0 ? messageRows[boundaryIndex].id : null);
       setParticipants(participantRows);
       setConversations((prev) => prev.map((c) => (
         c.conversation_id === conversationId ? { ...c, unread_count: 0 } : c
@@ -212,6 +219,7 @@ export default function MessengerPage() {
       setError(getErrorMessage(e));
       setMessages([]);
       setHasOlderMessages(false);
+      setUnreadBoundaryMessageId(null);
       setParticipants([]);
     } finally {
       setLoadingMessages(false);
@@ -289,6 +297,7 @@ export default function MessengerPage() {
       setLoadingOlderMessages(false);
       setNewMessageNotice(false);
       setShowJumpLatest(false);
+      setUnreadBoundaryMessageId(null);
       setOnlineUserIds([]);
       setTypingUserIds([]);
       setActionMessageId(null);
@@ -804,7 +813,10 @@ export default function MessengerPage() {
                           active={c.conversation_id === activeId}
                           mine={myUserId}
                           draftText={draftsByConversation[c.conversation_id] || ""}
-                          onClick={() => setActiveId(c.conversation_id)}
+                          onClick={() => {
+                            unreadAtOpenRef.current[c.conversation_id] = c.unread_count || 0;
+                            setActiveId(c.conversation_id);
+                          }}
                         />
                       </li>
                     ))}
@@ -881,6 +893,7 @@ export default function MessengerPage() {
                       return (
                         <Fragment key={m.id}>
                           {showDay && <DateDivider label={formatDayLabel(m.created_at)} />}
+                          {unreadBoundaryMessageId === m.id && <UnreadDivider />}
                           <MessageBubble
                             message={m}
                             compact={!!previous && previous.sender_id === m.sender_id && isSameMessageDay(previous.created_at, m.created_at)}
@@ -916,6 +929,20 @@ export default function MessengerPage() {
                       style={newMessageNoticeButtonStyle}
                     >
                       {newMessageNotice ? "새 메시지 보기" : "최신으로"}
+                    </button>
+                  </div>
+                )}
+                {unreadBoundaryMessageId && (
+                  <div style={unreadJumpWrapStyle}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHighlightedMessageId(unreadBoundaryMessageId);
+                        document.getElementById(`messenger-message-${unreadBoundaryMessageId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }}
+                      style={unreadJumpButtonStyle}
+                    >
+                      처음 안 읽은 메시지
                     </button>
                   </div>
                 )}
@@ -1110,6 +1137,16 @@ function DateDivider({ label }: { label: string }) {
   return (
     <div style={dateDividerWrapStyle}>
       <span style={dateDividerStyle}>{label}</span>
+    </div>
+  );
+}
+
+function UnreadDivider() {
+  return (
+    <div style={unreadDividerWrapStyle}>
+      <span style={unreadDividerLineStyle} />
+      <span style={unreadDividerLabelStyle}>안 읽은 메시지</span>
+      <span style={unreadDividerLineStyle} />
     </div>
   );
 }
@@ -2367,6 +2404,8 @@ const olderMessagesWrapStyle: React.CSSProperties = { display: "flex", justifyCo
 const olderMessagesButtonStyle: React.CSSProperties = { minHeight: 32, borderRadius: 999, border: "1px solid var(--hairline)", background: "rgba(255,255,255,0.86)", color: "var(--ink-soft)", padding: "0 12px", fontSize: 12, fontWeight: 850, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 4px 14px rgba(26,22,18,0.06)" };
 const newMessageNoticeWrapStyle: React.CSSProperties = { position: "sticky", bottom: 10, display: "flex", justifyContent: "center", pointerEvents: "none", zIndex: 5 };
 const newMessageNoticeButtonStyle: React.CSSProperties = { minHeight: 34, borderRadius: 999, border: "none", background: "var(--accent)", color: "#fff", padding: "0 14px", fontSize: 12, fontWeight: 900, fontFamily: "inherit", cursor: "pointer", pointerEvents: "auto", boxShadow: "0 10px 24px rgba(62,90,74,0.28)" };
+const unreadJumpWrapStyle: React.CSSProperties = { position: "sticky", bottom: 52, display: "flex", justifyContent: "center", pointerEvents: "none", zIndex: 5 };
+const unreadJumpButtonStyle: React.CSSProperties = { minHeight: 32, borderRadius: 999, border: "1px solid rgba(62,90,74,0.24)", background: "rgba(255,255,255,0.94)", color: "var(--accent)", padding: "0 13px", fontSize: 12, fontWeight: 900, fontFamily: "inherit", cursor: "pointer", pointerEvents: "auto", boxShadow: "0 8px 22px rgba(26,22,18,0.12)" };
 const conversationButtonStyle: React.CSSProperties = { width: "100%", display: "flex", alignItems: "center", gap: 10, padding: 10, borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit" };
 const conversationTitleStyle: React.CSSProperties = { flex: 1, minWidth: 0, fontSize: 14, fontWeight: 900, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const conversationTimeStyle: React.CSSProperties = { fontSize: 11, color: "var(--ink-faint)", flexShrink: 0 };
@@ -2382,6 +2421,9 @@ const messageMetaStyle: React.CSSProperties = { fontSize: 10, color: "var(--ink-
 const readStatusButtonStyle: React.CSSProperties = { border: "none", background: "transparent", color: "inherit", padding: 0, font: "inherit", cursor: "pointer" };
 const dateDividerWrapStyle: React.CSSProperties = { display: "flex", justifyContent: "center", margin: "10px 0 14px" };
 const dateDividerStyle: React.CSSProperties = { minHeight: 24, padding: "0 10px", borderRadius: 999, background: "rgba(43,39,34,0.07)", color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 850, boxShadow: "0 1px 0 rgba(255,255,255,0.5) inset" };
+const unreadDividerWrapStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, margin: "14px 0" };
+const unreadDividerLineStyle: React.CSSProperties = { height: 1, flex: 1, background: "rgba(160,55,55,0.22)" };
+const unreadDividerLabelStyle: React.CSSProperties = { minHeight: 24, padding: "0 10px", borderRadius: 999, background: "var(--danger-soft)", color: "var(--danger)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 900 };
 const messageActionsStyle: React.CSSProperties = { display: "inline-flex", gap: 3, padding: 4, marginBottom: 2, borderRadius: 999, border: "1px solid rgba(43,39,34,0.08)", background: "rgba(255,255,255,0.94)", boxShadow: "0 8px 22px rgba(26,22,18,0.12)", backdropFilter: "blur(8px)" };
 const miniActionStyle: React.CSSProperties = { width: 28, height: 28, borderRadius: 999, border: "none", background: "transparent", color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 };
 const miniTextActionStyle: React.CSSProperties = { ...miniActionStyle, fontSize: 12, fontWeight: 900, lineHeight: 1 };
