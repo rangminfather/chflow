@@ -221,11 +221,11 @@ Recommended order:
    - Done: replaced tiny inline action buttons with a cleaner contextual action pill/menu.
    - Done: added message copy action.
    - Done: linkified URL text in message bodies.
-   - Tighten read-time/read-status typography.
+   - Done: tightened read-time/read-status typography.
    - Partial: improved chat surface spacing, date dividers, and message-list background.
 2. Conversation list polish
    - Done: added all/unread/favorite conversation filters.
-   - Clarify unread emphasis further.
+   - Done: clarified unread/active/hover emphasis in the conversation list.
    - Show attachment/file/photo labels in the last-message preview.
    - Partial: added pin/favorite/mute state badges in the active chat header.
    - Improve selected/hover states.
