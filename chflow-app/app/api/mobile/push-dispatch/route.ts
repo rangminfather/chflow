@@ -8,6 +8,7 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const DISPATCH_SECRET = process.env.PUSH_DISPATCH_SECRET || process.env.CRON_SECRET || "";
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const MAX_BATCH = 100;
+const MAX_ATTEMPTS = 3;
 
 type DeliveryRow = {
   id: string;
@@ -65,6 +66,10 @@ function buildExpoMessage(row: DeliveryRow, badgeCount: number) {
   };
 }
 
+function isDeviceNotRegistered(ticket: ExpoTicket | undefined): boolean {
+  return ticket?.details?.error === "DeviceNotRegistered";
+}
+
 async function getUnreadCounts(
   admin: SupabaseClient,
   userIds: string[]
@@ -118,7 +123,7 @@ async function dispatchPush(req: NextRequest) {
       )
     `)
     .in("status", ["queued", "failed"])
-    .lt("attempts", 3)
+    .lt("attempts", MAX_ATTEMPTS)
     .order("created_at", { ascending: true })
     .limit(limit)
     .returns<DeliveryRow[]>();
@@ -139,6 +144,7 @@ async function dispatchPush(req: NextRequest) {
 
   let sent = 0;
   let failed = 0;
+  let disabledTokens = 0;
   const unreadCounts = await getUnreadCounts(admin, rows.map((row) => row.user_id));
 
   for (const batch of chunk(rows, MAX_BATCH)) {
@@ -163,7 +169,7 @@ async function dispatchPush(req: NextRequest) {
         admin
           .from("notification_push_deliveries")
           .update({
-            status: row.attempts + 1 >= 3 ? "failed" : "queued",
+            status: row.attempts + 1 >= MAX_ATTEMPTS ? "failed" : "queued",
             attempts: row.attempts + 1,
             error_message: message,
             updated_at: new Date().toISOString(),
@@ -173,17 +179,27 @@ async function dispatchPush(req: NextRequest) {
       continue;
     }
 
-    await Promise.all(batch.map((row, index) => {
+    await Promise.all(batch.map(async (row, index) => {
       const ticket = tickets[index];
       const ok = ticket?.status === "ok";
       if (ok) sent += 1;
       else failed += 1;
 
+      const disableToken = isDeviceNotRegistered(ticket);
+      if (disableToken) {
+        const { error: disableError } = await admin
+          .from("user_push_tokens")
+          .update({ enabled: false, updated_at: new Date().toISOString() })
+          .eq("user_id", row.user_id)
+          .eq("expo_push_token", row.expo_push_token);
+        if (!disableError) disabledTokens += 1;
+      }
+
       const errorMessage = ok
         ? null
         : ticket?.message || JSON.stringify(ticket?.details || {}) || "Expo push ticket failed";
 
-      return admin
+      await admin
         .from("notification_push_deliveries")
         .update({
           status: ok ? "sent" : "failed",
@@ -202,5 +218,6 @@ async function dispatchPush(req: NextRequest) {
     picked: rows.length,
     sent,
     failed,
+    disabled_tokens: disabledTokens,
   });
 }
