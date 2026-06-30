@@ -1432,11 +1432,11 @@ function MessageBubble({
         )}
 
         <div style={messageMetaStyle} title={readerNames ? `읽은 사람: ${readerNames}` : undefined}>
-          {formatMessageTime(message.created_at)}
+          <span>{formatMessageTime(message.created_at)}</span>
           {message.edited_at && !deleted ? " · 수정됨" : ""}
           {!deleted && trackableCount > 0 && (
             <button type="button" onClick={onShowReadStatus} style={readStatusButtonStyle}>
-              {` · 읽음 ${readCount}/${trackableCount}`}
+              {`읽음 ${readCount}/${trackableCount}`}
             </button>
           )}
         </div>
@@ -2502,8 +2502,8 @@ const senderNameStyle: React.CSSProperties = { fontSize: 12, fontWeight: 800, co
 const bubbleStyle: React.CSSProperties = { padding: "9px 12px", fontSize: 14, lineHeight: 1.55, boxShadow: "0 1px 4px rgba(26,22,18,0.04)" };
 const messageLinkStyle: React.CSSProperties = { fontWeight: 850, textDecoration: "underline", textUnderlineOffset: 3 };
 const replyPreviewStyle: React.CSSProperties = { borderLeft: "3px solid currentColor", borderRadius: 7, padding: "6px 8px", marginBottom: 7, maxWidth: 300 };
-const messageMetaStyle: React.CSSProperties = { fontSize: 10, color: "var(--ink-faint)" };
-const readStatusButtonStyle: React.CSSProperties = { border: "none", background: "transparent", color: "inherit", padding: 0, font: "inherit", cursor: "pointer" };
+const messageMetaStyle: React.CSSProperties = { minHeight: 18, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, color: "var(--ink-faint)" };
+const readStatusButtonStyle: React.CSSProperties = { minHeight: 18, border: "1px solid rgba(43,39,34,0.08)", borderRadius: 999, background: "rgba(255,255,255,0.72)", color: "var(--ink-soft)", padding: "0 6px", font: "inherit", fontWeight: 850, cursor: "pointer" };
 const dateDividerWrapStyle: React.CSSProperties = { display: "flex", justifyContent: "center", margin: "10px 0 14px" };
 const dateDividerStyle: React.CSSProperties = { minHeight: 24, padding: "0 10px", borderRadius: 999, background: "rgba(43,39,34,0.07)", color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 850, boxShadow: "0 1px 0 rgba(255,255,255,0.5) inset" };
 const unreadDividerWrapStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, margin: "14px 0" };
