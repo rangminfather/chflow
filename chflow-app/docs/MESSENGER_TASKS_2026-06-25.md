@@ -139,6 +139,8 @@ Current implementation:
 - Added `/admin/messenger-diagnostics` UI and linked it from the admin home menu.
 - The diagnostics view searches by message ID, conversation ID, notification ID, or message text.
 - It shows related messages, conversation participants, message notifications, push delivery rows, push tokens, and generated risk flags.
+- Diagnostics now also supports user name/username/user ID lookup for real-account QA.
+- Added flags for multiple active push tokens on one user/device and push delivery rows created while a conversation is muted.
 
 Recommended capabilities:
 

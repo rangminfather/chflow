@@ -130,6 +130,19 @@ async function loadProfiles(admin: SupabaseClient, userIds: string[]) {
   return new Map(((data || []) as ProfileRow[]).map((row) => [row.id, row]));
 }
 
+async function searchProfiles(admin: SupabaseClient, query: string, uuid: boolean): Promise<ProfileRow[]> {
+  const base = admin
+    .from("profiles")
+    .select("id, name, username, role, sub_role, avatar_url")
+    .limit(20);
+
+  const { data } = uuid
+    ? await base.eq("id", query)
+    : await base.or(`name.ilike.%${query}%,username.ilike.%${query}%`);
+
+  return (data || []) as ProfileRow[];
+}
+
 function metadataValue(row: NotificationRow, key: string): string | null {
   const value = row.metadata?.[key];
   return typeof value === "string" ? value : null;
@@ -179,6 +192,28 @@ function buildFlags(
   const queued = deliveries.filter((row) => row.status === "queued" || row.status === "sending");
   if (queued.length > 0) flags.push({ level: "info", text: `${queued.length} push delivery rows are still pending dispatch` });
 
+  const activeDeviceKeys = new Map<string, number>();
+  for (const token of tokens.filter((row) => row.enabled && row.device_id)) {
+    const key = `${token.user_id}:${token.platform}:${token.app_id}:${token.device_id}`;
+    activeDeviceKeys.set(key, (activeDeviceKeys.get(key) || 0) + 1);
+  }
+  for (const [key, count] of activeDeviceKeys) {
+    if (count > 1) flags.push({ level: "warn", text: `multiple active push tokens for one user/device: ${key} (${count})` });
+  }
+
+  const participantByUserConversation = new Map(
+    participants.map((row) => [`${row.user_id}:${row.conversation_id}`, row])
+  );
+  for (const delivery of deliveries.filter((row) => row.status !== "skipped")) {
+    const notification = notifications.find((row) => row.id === delivery.notification_id);
+    const conversationId = notification ? metadataValue(notification, "conversation_id") : null;
+    if (!conversationId) continue;
+    const participant = participantByUserConversation.get(`${delivery.user_id}:${conversationId}`);
+    if (participant?.muted_until && new Date(participant.muted_until).getTime() > Date.now()) {
+      flags.push({ level: "warn", text: `push delivery exists while recipient is muted: ${delivery.user_id}:${conversationId}` });
+    }
+  }
+
   return flags;
 }
 
@@ -193,13 +228,15 @@ export async function GET(req: NextRequest) {
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
   const uuid = isUuid(q);
+  const matchedProfiles = await searchProfiles(admin, q, uuid);
+  const matchedUserIds = matchedProfiles.map((row) => row.id);
 
   let messages: MessageRow[] = [];
   if (uuid) {
     const { data } = await admin
       .from("messenger_messages")
       .select("id, conversation_id, sender_id, kind, body, created_at, edited_at, deleted_at")
-      .or(`id.eq.${q},conversation_id.eq.${q}`)
+      .or(`id.eq.${q},conversation_id.eq.${q},sender_id.eq.${q}`)
       .order("created_at", { ascending: false })
       .limit(30);
     messages = (data || []) as MessageRow[];
@@ -215,7 +252,7 @@ export async function GET(req: NextRequest) {
 
   let notifications: NotificationRow[] = [];
   if (uuid) {
-    const [byId, byMessage, byConversation] = await Promise.all([
+    const [byId, byMessage, byConversation, byUser] = await Promise.all([
       admin
         .from("notifications")
         .select("id, user_id, type, title, body, link_url, is_read, created_by, metadata, created_at, read_at")
@@ -233,23 +270,43 @@ export async function GET(req: NextRequest) {
         .contains("metadata", { conversation_id: q })
         .order("created_at", { ascending: false })
         .limit(100),
+      admin
+        .from("notifications")
+        .select("id, user_id, type, title, body, link_url, is_read, created_by, metadata, created_at, read_at")
+        .eq("user_id", q)
+        .order("created_at", { ascending: false })
+        .limit(100),
     ]);
     notifications = uniqueRows<NotificationRow>([
       ...((byId.data || []) as NotificationRow[]),
       ...((byMessage.data || []) as NotificationRow[]),
       ...((byConversation.data || []) as NotificationRow[]),
+      ...((byUser.data || []) as NotificationRow[]),
     ]);
   } else {
-    const { data } = await admin
+    const [byText, byUsers] = await Promise.all([
+      admin
       .from("notifications")
       .select("id, user_id, type, title, body, link_url, is_read, created_by, metadata, created_at, read_at")
       .or(`title.ilike.%${q}%,body.ilike.%${q}%`)
       .order("created_at", { ascending: false })
-      .limit(50);
-    notifications = (data || []) as NotificationRow[];
+      .limit(50),
+      matchedUserIds.length > 0
+        ? admin
+          .from("notifications")
+          .select("id, user_id, type, title, body, link_url, is_read, created_by, metadata, created_at, read_at")
+          .in("user_id", matchedUserIds)
+          .order("created_at", { ascending: false })
+          .limit(100)
+        : Promise.resolve({ data: [] }),
+    ]);
+    notifications = uniqueRows<NotificationRow>([
+      ...((byText.data || []) as NotificationRow[]),
+      ...((byUsers.data || []) as NotificationRow[]),
+    ]);
   }
 
-  const conversationIds = unique([
+  let conversationIds = unique([
     ...messages.map((row) => row.conversation_id),
     ...notifications.map((row) => metadataValue(row, "conversation_id")).filter((value): value is string => !!value),
     uuid ? q : "",
@@ -260,6 +317,20 @@ export async function GET(req: NextRequest) {
     uuid ? q : "",
   ]);
 
+  if (matchedUserIds.length > 0) {
+    const { data: userParticipantRows } = await admin
+      .from("messenger_participants")
+      .select("conversation_id")
+      .in("user_id", matchedUserIds)
+      .order("joined_at", { ascending: false })
+      .limit(100);
+
+    conversationIds = unique([
+      ...conversationIds,
+      ...((userParticipantRows || []) as Pick<ParticipantRow, "conversation_id">[]).map((row) => row.conversation_id),
+    ]);
+  }
+
   if (messages.length === 0 && messageIds.length > 0) {
     const { data } = await admin
       .from("messenger_messages")
@@ -268,6 +339,19 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(30);
     messages = (data || []) as MessageRow[];
+  }
+
+  if (conversationIds.length > 0) {
+    const { data } = await admin
+      .from("messenger_messages")
+      .select("id, conversation_id, sender_id, kind, body, created_at, edited_at, deleted_at")
+      .in("conversation_id", conversationIds)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    messages = uniqueRows<MessageRow>([
+      ...messages,
+      ...((data || []) as MessageRow[]),
+    ]);
   }
 
   const [conversationResult, participantResult] = await Promise.all([
@@ -299,6 +383,7 @@ export async function GET(req: NextRequest) {
   const participants = (participantResult.data || []) as ParticipantRow[];
   const deliveries = (deliveryData || []) as DeliveryRow[];
   const userIds = unique([
+    ...matchedUserIds,
     ...messages.map((row) => row.sender_id),
     ...participants.map((row) => row.user_id),
     ...notifications.map((row) => row.user_id),
