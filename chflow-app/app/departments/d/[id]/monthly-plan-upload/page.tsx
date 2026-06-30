@@ -68,7 +68,7 @@ export default function MonthlyPlanUploadPage() {
       <div style={pageStyle}>
         <PageHeader deptId={deptId} router={router} />
         <main className="mx-auto max-w-lg px-4 py-14">
-          <div className="rounded-lg border border-hairline bg-white text-center">
+          <div className="rounded-lg border border-hairline bg-card text-center">
             <EmptyState icon={<Lock size={24} strokeWidth={1.8} />} message="월간교육등록 권한이 없습니다" hint="부서 행정 권한이 필요합니다." />
           </div>
         </main>
@@ -182,7 +182,7 @@ export default function MonthlyPlanUploadPage() {
 
         {/* ─────────── STEP 1: 업로드 ─────────── */}
         {step === 1 && (
-          <section className="rounded-lg border border-hairline bg-white p-5">
+          <section className="rounded-lg border border-hairline bg-card p-5">
             <div className="text-[19px] font-extrabold text-ink">파일 올리기</div>
             <div className="mt-1 text-[14px] font-semibold text-ink-soft">
               월간 교육계획서 파일을 한 개 선택하세요.
@@ -231,7 +231,7 @@ export default function MonthlyPlanUploadPage() {
 
         {/* ─────────── STEP 2: 월 확인 ─────────── */}
         {step === 2 && (
-          <section className="rounded-lg border border-hairline bg-white p-5">
+          <section className="rounded-lg border border-hairline bg-card p-5">
             <div className="text-[19px] font-extrabold text-ink">언제 것인가요?</div>
             <div className="mt-1 text-[14px] font-semibold text-ink-soft">
               어느 달 교육계획서로 등록할지 확인하세요.
@@ -283,7 +283,7 @@ export default function MonthlyPlanUploadPage() {
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="min-h-12 flex-1 rounded-md border border-hairline-strong bg-white text-[15px] font-bold text-ink-mid"
+                className="min-h-12 flex-1 rounded-md border border-hairline-strong bg-card text-[15px] font-bold text-ink-mid"
               >
                 뒤로
               </button>
@@ -300,7 +300,7 @@ export default function MonthlyPlanUploadPage() {
 
         {/* ─────────── STEP 3: 미리보기 + 확인 ─────────── */}
         {step === 3 && (
-          <section className="rounded-lg border border-hairline bg-white p-5">
+          <section className="rounded-lg border border-hairline bg-card p-5">
             <div className="text-[19px] font-extrabold text-ink">이 화면이 맞습니까?</div>
             <div className="mt-1 text-[14px] font-semibold text-ink-soft">
               선생님들이 「월간 교육계획서」에서 보게 될 화면입니다.
@@ -331,14 +331,14 @@ export default function MonthlyPlanUploadPage() {
               <button
                 type="button"
                 onClick={() => router.push(`/departments/d/${deptId}`)}
-                className="min-h-12 flex-1 rounded-md border border-hairline-strong bg-white text-[15px] font-bold text-ink-mid"
+                className="min-h-12 flex-1 rounded-md border border-hairline-strong bg-card text-[15px] font-bold text-ink-mid"
               >
                 취소
               </button>
               <button
                 type="button"
                 onClick={() => setStep(2)}
-                className="min-h-12 flex-1 rounded-md border border-hairline-strong bg-white text-[15px] font-bold text-ink-mid"
+                className="min-h-12 flex-1 rounded-md border border-hairline-strong bg-card text-[15px] font-bold text-ink-mid"
               >
                 뒤로
               </button>
@@ -446,7 +446,7 @@ function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typ
   );
 }
 
-const inputClass = "min-h-11 w-full rounded-md border border-hairline-strong bg-white px-3 py-2 text-[16px] font-bold text-ink outline-none focus:border-accent-muted";
+const inputClass = "min-h-11 w-full rounded-md border border-hairline-strong bg-card px-3 py-2 text-[16px] font-bold text-ink outline-none focus:border-accent-muted";
 const pageStyle: React.CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
 const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const titleStyle: React.CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)",

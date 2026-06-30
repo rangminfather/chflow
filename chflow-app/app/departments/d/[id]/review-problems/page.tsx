@@ -121,7 +121,7 @@ export default function ReviewProblemsPage() {
       </div>
 
       <main className="mx-auto w-full max-w-4xl px-4 py-5">
-        <section className="rounded-lg border border-hairline bg-white">
+        <section className="rounded-lg border border-hairline bg-card">
           <div className="border-b border-hairline px-5 py-4 flex items-center justify-between gap-3">
             <div>
               <div className="text-[20px] font-extrabold text-ink">복습문제 보기</div>

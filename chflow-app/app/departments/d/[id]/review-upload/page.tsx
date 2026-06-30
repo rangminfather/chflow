@@ -126,7 +126,7 @@ export default function ReviewUploadPage() {
       <div style={pageStyle}>
         <PageHeader deptId={deptId} router={router} />
         <main className="mx-auto max-w-lg px-4 py-14">
-          <div className="rounded-lg border border-hairline bg-white text-center">
+          <div className="rounded-lg border border-hairline bg-card text-center">
             <EmptyState icon={<Lock size={24} strokeWidth={1.8} />} message="복습문제 관리 권한이 없습니다" hint="교육사 / 전도사 이상 권한이 필요합니다." />
           </div>
         </main>
@@ -144,7 +144,7 @@ export default function ReviewUploadPage() {
       <main className="mx-auto w-full max-w-4xl px-4 py-5 flex flex-col gap-4">
 
         {/* 업로드 섹션 */}
-        <section className="rounded-lg border border-hairline bg-white">
+        <section className="rounded-lg border border-hairline bg-card">
           <div className="border-b border-hairline px-5 py-4">
             <div className="text-[20px] font-extrabold text-ink">복습문제 업로드</div>
             <div className="mt-1 text-[14px] text-ink-soft leading-5">
@@ -183,7 +183,7 @@ export default function ReviewUploadPage() {
         )}
 
         {/* 목록 */}
-        <section className="rounded-lg border border-hairline bg-white">
+        <section className="rounded-lg border border-hairline bg-card">
           <div className="border-b border-hairline px-5 py-4 flex justify-between items-center">
             <div>
               <div className="text-[18px] font-extrabold text-ink">
@@ -236,7 +236,7 @@ export default function ReviewUploadPage() {
                   <button
                     onClick={() => handleDelete(file)}
                     disabled={deletingPath === file.path}
-                    className="flex-shrink-0 rounded-md border border-red-200 bg-white px-3 py-1.5 text-[12px] font-bold text-red-600 hover:bg-red-50 disabled:opacity-40"
+                    className="flex-shrink-0 rounded-md border border-red-200 bg-card px-3 py-1.5 text-[12px] font-bold text-red-600 hover:bg-red-50 disabled:opacity-40"
                   >
                     {deletingPath === file.path ? "삭제 중..." : "삭제"}
                   </button>

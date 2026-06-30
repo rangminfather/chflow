@@ -258,7 +258,7 @@ export default function MyClassAttendancePage() {
 
       <main className="mx-auto w-full max-w-6xl px-0 py-4 md:px-4">
         {/* 월 선택 */}
-        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-hairline bg-white px-4 py-3 md:mx-0">
+        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-hairline bg-card px-4 py-3 md:mx-0">
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
           <div className="min-w-[140px] text-center text-[19px] font-extrabold text-ink">
             {year}년 {month}월
@@ -270,11 +270,11 @@ export default function MyClassAttendancePage() {
         </div>
 
         {loading ? (
-          <div className="mx-4 rounded-lg border border-hairline bg-white py-16 text-center text-[17px] text-ink-faint md:mx-0">
+          <div className="mx-4 rounded-lg border border-hairline bg-card py-16 text-center text-[17px] text-ink-faint md:mx-0">
             불러오는 중...
           </div>
         ) : students.length === 0 ? (
-          <div className="mx-4 rounded-lg border border-hairline bg-white py-16 text-center text-[17px] text-ink-faint md:mx-0">
+          <div className="mx-4 rounded-lg border border-hairline bg-card py-16 text-center text-[17px] text-ink-faint md:mx-0">
             담당 반 학생이 없습니다. 부장 또는 전도사에게 학생 배정을 요청하세요.
           </div>
         ) : (
