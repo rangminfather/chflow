@@ -260,8 +260,9 @@ Tasks:
 - Done: preserved scroll position when older messages are inserted.
 - Partial: added "new messages" / jump-to-latest notice when the user is reading older messages.
 - Done: added latest-jump affordance and auto-load older messages near the top.
-- Add "jump to first unread".
-- Avoid full conversation reload for every realtime event where possible.
+- Done: added "jump to first unread" with an unread boundary marker.
+- Done: debounced realtime refreshes to avoid reloading on every burst event.
+- Done: search results can backfill older pages before jumping to the target message.
 
 Exit criteria:
 
@@ -276,10 +277,10 @@ Goal: make "why did I get/no get a notification?" answerable and self-healing.
 
 Tasks:
 
-- Fetch Expo push receipts after ticket creation.
+- Done: added `/api/mobile/push-receipts` to fetch Expo push receipts after ticket creation.
 - Done: mark Expo `DeviceNotRegistered` tokens disabled during dispatch.
-- Surface receipt failures in `/admin/messenger-diagnostics`.
-- Add a controlled retry path for failed push deliveries.
+- Done: receipt failures are written back to push delivery rows for diagnostics visibility.
+- Done: failed delivery rows remain eligible for controlled dispatch retry while below max attempts.
 - Confirm Supabase Vault dispatch URL/secret values in production.
 
 Exit criteria:
