@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
   ArrowLeft,
+  ArrowDown,
   Check,
   Copy,
   Download,
@@ -78,6 +79,7 @@ export default function MessengerPage() {
   const router = useRouter();
   const { confirm, prompt, alert } = useConfirm();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const messageListRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const skipNextAutoScrollRef = useRef(false);
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -94,6 +96,7 @@ export default function MessengerPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [showLatestJump, setShowLatestJump] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [groupManageOpen, setGroupManageOpen] = useState(false);
   const [error, setError] = useState("");
@@ -218,6 +221,7 @@ export default function MessengerPage() {
     setEditing(null);
     setDraft("");
     setAttachments([]);
+    setShowLatestJump(false);
     loadConversationBody(activeId);
   }, [activeId, loadConversationBody]);
 
@@ -321,8 +325,21 @@ export default function MessengerPage() {
       skipNextAutoScrollRef.current = false;
       return;
     }
+    if (showLatestJump) return;
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages.length, activeId]);
+  }, [messages.length, activeId, showLatestJump]);
+
+  const scrollToLatest = (behavior: ScrollBehavior = "smooth") => {
+    bottomRef.current?.scrollIntoView({ behavior, block: "end" });
+    setShowLatestJump(false);
+  };
+
+  const handleMessageListScroll = () => {
+    const el = messageListRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowLatestJump(distanceFromBottom > 220);
+  };
 
   const loadOlderMessages = async () => {
     if (!activeId || loadingOlder || messages.length === 0) return;
@@ -723,7 +740,7 @@ export default function MessengerPage() {
                 onBack={clearActiveConversation}
               />
 
-              <div style={messageListStyle}>
+              <div ref={messageListRef} onScroll={handleMessageListScroll} style={messageListStyle}>
                 {loadingMessages ? (
                   <LoadingView padding={40} />
                 ) : messages.length === 0 ? (
@@ -761,6 +778,11 @@ export default function MessengerPage() {
                 )}
                 <div ref={bottomRef} />
               </div>
+              {showLatestJump && (
+                <button type="button" onClick={() => scrollToLatest()} style={latestJumpButtonStyle}>
+                  <ArrowDown size={15} strokeWidth={2.1} /> 최신 메시지
+                </button>
+              )}
 
               <Composer
                 draft={draft}
@@ -1987,6 +2009,7 @@ const responsiveCss = `
     .messenger-shell.has-active .conversation-list { display: none; }
     .messenger-shell.has-active .conversation-panel { display: flex; }
     .mobile-back { display: inline-flex; }
+    .message-wrap { max-width: min(88%, 620px) !important; }
     .message-actions { display: none !important; opacity: 1; }
     .message-actions.open { display: inline-flex !important; }
   }
@@ -2016,6 +2039,7 @@ const presenceDotStyle: React.CSSProperties = { width: 7, height: 7, borderRadiu
 const conversationMenuStyle: React.CSSProperties = { position: "absolute", top: 40, right: 0, zIndex: 40, width: 180, border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--card)", boxShadow: "0 16px 44px rgba(26,22,18,0.16)", padding: 6 };
 const menuActionStyle: React.CSSProperties = { width: "100%", minHeight: 34, border: "none", borderRadius: 7, background: "transparent", display: "flex", alignItems: "center", gap: 8, padding: "0 9px", fontSize: 12, fontWeight: 850, cursor: "pointer", fontFamily: "inherit", textAlign: "left" };
 const messageListStyle: React.CSSProperties = { flex: 1, minHeight: 0, overflowY: "auto", padding: "14px clamp(12px, 3vw, 22px)", overscrollBehavior: "contain" };
+const latestJumpButtonStyle: React.CSSProperties = { position: "absolute", right: 18, bottom: 92, zIndex: 25, minHeight: 36, border: "1px solid rgba(62,90,74,0.22)", borderRadius: 999, background: "var(--card)", color: "var(--accent)", padding: "0 13px", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 900, cursor: "pointer", boxShadow: "0 12px 34px rgba(26,22,18,0.14)", fontFamily: "inherit" };
 const olderButtonWrapStyle: React.CSSProperties = { display: "flex", justifyContent: "center", padding: "2px 0 12px" };
 const olderButtonStyle: React.CSSProperties = { minHeight: 34, border: "1px solid var(--hairline)", borderRadius: 999, background: "var(--card)", color: "var(--ink-soft)", padding: "0 14px", fontSize: 12, fontWeight: 900, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 8px rgba(26,22,18,0.04)" };
 const conversationButtonStyle: React.CSSProperties = { width: "100%", display: "flex", alignItems: "center", gap: 10, padding: 10, borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit" };
@@ -2037,7 +2061,7 @@ const reactionRowStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap
 const reactionButtonStyle: React.CSSProperties = { minWidth: 42, height: 25, borderRadius: 999, border: "1px solid var(--hairline)", background: "var(--card)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "0 8px", fontSize: 12, fontWeight: 900, cursor: "pointer", fontFamily: "inherit" };
 const imageAttachmentButtonStyle: React.CSSProperties = { display: "block", width: "fit-content", maxWidth: "100%", border: "none", background: "transparent", padding: 0, cursor: "zoom-in", borderRadius: 8, overflow: "hidden" };
 const imageAttachmentStyle: React.CSSProperties = { display: "block", maxWidth: "min(320px, 60vw)", maxHeight: 260, borderRadius: 8, objectFit: "cover", border: "1px solid rgba(255,255,255,0.18)" };
-const fileAttachmentStyle: React.CSSProperties = { minWidth: 220, maxWidth: 320, minHeight: 42, borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 8, textDecoration: "none", fontSize: 12, fontWeight: 800 };
+const fileAttachmentStyle: React.CSSProperties = { minWidth: 0, width: "min(320px, 68vw)", minHeight: 42, borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 8, textDecoration: "none", fontSize: 12, fontWeight: 800 };
 const imagePreviewOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 260, background: "rgba(15, 13, 11, 0.82)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14 };
 const imagePreviewShellStyle: React.CSSProperties = { width: "min(1040px, 100%)", maxHeight: "calc(100dvh - 28px)", display: "flex", flexDirection: "column", gap: 10 };
 const imagePreviewHeaderStyle: React.CSSProperties = { minHeight: 42, borderRadius: 8, background: "rgba(255,255,255,0.08)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "0 8px 0 12px", fontSize: 13 };
