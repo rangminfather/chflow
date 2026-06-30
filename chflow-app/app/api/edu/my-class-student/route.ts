@@ -11,6 +11,8 @@ const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 type StudentType = "정" | "체험" | "소";
 
+type MgmtStatus = "정상" | "장기결석";
+
 interface SaveBody {
   dept_id: string;
   student_id: string;
@@ -18,6 +20,7 @@ interface SaveBody {
     name: string;
     student_type: StudentType;
     grade?: string | null;
+    mgmt_status?: MgmtStatus;
   };
   member?: {
     id: string | null;
@@ -29,6 +32,7 @@ interface SaveBody {
 }
 
 const STUDENT_TYPES: StudentType[] = ["정", "체험", "소"];
+const MGMT_STATUSES: MgmtStatus[] = ["정상", "장기결석"];
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get("Authorization") || "";
@@ -83,11 +87,15 @@ export async function POST(req: NextRequest) {
   }
 
   const studentType = STUDENT_TYPES.includes(body.student.student_type) ? body.student.student_type : "정";
+  const mgmtStatus = body.student.mgmt_status && MGMT_STATUSES.includes(body.student.mgmt_status)
+    ? body.student.mgmt_status
+    : "정상";
   const { error: updateStudentErr } = await admin
     .from("edu_students")
     .update({
       name: body.student.name.trim(),
       student_type: studentType,
+      mgmt_status: mgmtStatus,
       grade: body.student.grade?.trim() || null,
     })
     .eq("id", body.student_id)

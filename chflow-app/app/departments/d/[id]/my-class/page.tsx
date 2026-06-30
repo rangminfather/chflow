@@ -14,6 +14,7 @@ interface StudentRow {
   student_no: number | null;
   name: string;
   student_type: string | null;
+  mgmt_status: string | null;
   grade: string | null;
   grade_year: number | null;
   class_no: string | null;
@@ -37,6 +38,7 @@ interface EditableStudent {
   member_id: string | null;
   name: string;
   student_type: string;
+  mgmt_status: string;
   grade: string;
   grade_year: number | null;
   class_no: string | null;
@@ -81,7 +83,7 @@ const EMPTY_NEW_FRIEND: NewFriendForm = {
   guide_name: "",
 };
 
-const STUDENT_TYPE_OPTIONS = ["정", "체험", "소"];
+const MGMT_STATUS_OPTIONS = ["정상", "장기결석"];
 
 export default function MyClassPage() {
   const router = useRouter();
@@ -142,7 +144,7 @@ export default function MyClassPage() {
 
     const { data: studentRows, error: studentErr } = await supabase
       .from("edu_students")
-      .select("id, department_id, student_no, name, student_type, grade, grade_year, class_no, is_active, order_no, member_id, teacher_id")
+      .select("id, department_id, student_no, name, student_type, mgmt_status, grade, grade_year, class_no, is_active, order_no, member_id, teacher_id")
       .eq("department_id", deptId)
       .eq("teacher_id", teacherId)
       .eq("is_active", true)
@@ -178,6 +180,7 @@ export default function MyClassPage() {
         member_id: student.member_id,
         name: student.name,
         student_type: normalizeStudentType(student.student_type),
+        mgmt_status: student.mgmt_status === "장기결석" ? "장기결석" : "정상",
         grade: student.grade || "",
         grade_year: student.grade_year,
         class_no: student.class_no,
@@ -249,6 +252,7 @@ export default function MyClassPage() {
         student: {
           name: draft.name,
           student_type: draft.student_type,
+          mgmt_status: draft.mgmt_status,
           grade: draft.grade || null,
         },
         member: {
@@ -437,14 +441,13 @@ export default function MyClassPage() {
                       <option value="F">여</option>
                     </select>
                   </InfoField>
-                  <InfoField label="구분" editMode={editMode} value={draft.student_type}>
-                    <select value={draft.student_type} onChange={(event) => updateDraft("student_type", event.target.value)} className={inputClass}>
-                      {STUDENT_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
+                  <InfoField label="상태" editMode={editMode} value={draft.mgmt_status}>
+                    <select value={draft.mgmt_status} onChange={(event) => updateDraft("mgmt_status", event.target.value)} className={inputClass}>
+                      {MGMT_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
                     </select>
                   </InfoField>
                   <div className="rounded-md border border-hairline bg-card px-3 py-2 text-[13px] leading-6 text-ink-soft">
-                    정: 정식 등록 학생, 체험: 새친구/방문 후 반에 편입된 학생, 소: 소속은 두지만 정규 출석·등반 관리와 분리할 학생입니다.
-                    실제 운영에서 소 구분을 쓰지 않는다면 정/체험만 남겨도 됩니다.
+                    장기결석으로 바꾸면 등반예정 알림과 출석부 등반 안내가 표시되지 않습니다. 다시 출석을 시작하면 정상으로 되돌리세요.
                   </div>
                 </div>
 
@@ -452,7 +455,7 @@ export default function MyClassPage() {
                   <div className="mb-3 text-[16px] font-extrabold text-ink">인적사항</div>
                   {!draft.member_id && editMode && (
                     <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[14px] leading-6 text-amber-900">
-                      연결된 교적 정보가 없어 이름과 구분만 저장됩니다.
+                      연결된 교적 정보가 없어 이름과 상태만 저장됩니다.
                     </div>
                   )}
                   <InfoField label="생년월일" editMode={editMode} value={draft.birth_date || "미등록"}>
@@ -638,7 +641,7 @@ function InfoField({ label, value, editMode, children }: { label: string; value:
 }
 
 function normalizeStudentType(value: string | null | undefined) {
-  return STUDENT_TYPE_OPTIONS.includes(value || "") ? (value as string) : "정";
+  return ["정", "체험", "소"].includes(value || "") ? (value as string) : "정";
 }
 
 function genderLabel(value: string | null | undefined) {
