@@ -1275,7 +1275,12 @@ function ConversationButton({
   const hasDraft = !!draftText.trim();
   const preview = formatConversationPreview(conversation, fromMe, draftText);
   return (
-    <button type="button" onClick={onClick} style={{
+    <button
+      type="button"
+      className={`conversation-row${active ? " active" : ""}${conversation.unread_count > 0 ? " unread" : ""}`}
+      aria-current={active ? "true" : undefined}
+      onClick={onClick}
+      style={{
       ...conversationButtonStyle,
       border: active ? "1px solid rgba(62,90,74,0.35)" : "1px solid transparent",
       background: active ? "var(--accent-soft)" : "transparent",
@@ -2396,6 +2401,19 @@ const responsiveCss = `
     overflow: hidden;
     display: flex;
     flex-direction: column;
+  }
+  .conversation-row {
+    transition: background .14s ease, border-color .14s ease, transform .14s ease, box-shadow .14s ease;
+  }
+  .conversation-row:hover {
+    background: rgba(62,90,74,0.06) !important;
+    border-color: rgba(62,90,74,0.16) !important;
+  }
+  .conversation-row.active {
+    box-shadow: 0 8px 22px rgba(62,90,74,0.10);
+  }
+  .conversation-row.unread:not(.active) {
+    background: rgba(160,55,55,0.045);
   }
   .conversation-panel {
     min-width: 0;
