@@ -218,19 +218,21 @@ Goal: raise the messenger from "internal tool" to a product-quality UI before ad
 Recommended order:
 
 1. Message surface polish
-   - Replace tiny inline action buttons with a cleaner contextual action pill/menu.
-   - Add message copy action.
+   - Done: replaced tiny inline action buttons with a cleaner contextual action pill/menu.
+   - Done: added message copy action.
    - Tighten read-time/read-status typography.
-   - Improve bubble spacing, max-width, and attachment spacing on mobile.
+   - Partial: improved chat surface spacing, date dividers, and message-list background.
 2. Conversation list polish
-   - Clarify unread emphasis.
+   - Done: added all/unread/favorite conversation filters.
+   - Clarify unread emphasis further.
    - Show attachment/file/photo labels in the last-message preview.
-   - Align pin/favorite/mute icons consistently.
+   - Partial: added pin/favorite/mute state badges in the active chat header.
    - Improve selected/hover states.
 3. Composer polish
    - Improve reply/edit context preview.
-   - Improve pending attachment chips.
-   - Make send/attach controls feel stable on small screens.
+   - Done: improved pending attachment chips with size metadata.
+   - Done: made send/attach controls stable on small screens.
+   - Done: added drag-and-drop attachment support and composer status row.
 4. Modal/bottom-sheet consistency
    - Unify new conversation, forwarding, group management, read status, and image preview surface rules.
    - Prefer bottom-sheet behavior on narrow screens where appropriate.
@@ -249,10 +251,11 @@ Goal: keep large active group rooms usable.
 
 Tasks:
 
-- Add message pagination with `p_before`.
-- Add "load older messages" or scroll-top infinite load.
-- Preserve scroll position when older messages are inserted.
-- Add "jump to latest" and "jump to first unread".
+- Done: added message pagination with `p_before`.
+- Done: added "load older messages".
+- Done: preserved scroll position when older messages are inserted.
+- Partial: added "new messages" / jump-to-latest notice when the user is reading older messages.
+- Add "jump to first unread".
 - Avoid full conversation reload for every realtime event where possible.
 
 Exit criteria:
@@ -269,7 +272,7 @@ Goal: make "why did I get/no get a notification?" answerable and self-healing.
 Tasks:
 
 - Fetch Expo push receipts after ticket creation.
-- Mark permanently invalid tokens disabled.
+- Done: mark Expo `DeviceNotRegistered` tokens disabled during dispatch.
 - Surface receipt failures in `/admin/messenger-diagnostics`.
 - Add a controlled retry path for failed push deliveries.
 - Confirm Supabase Vault dispatch URL/secret values in production.
