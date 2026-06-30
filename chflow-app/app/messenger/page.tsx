@@ -1090,7 +1090,8 @@ function ConversationButton({
   mine: string | null;
   onClick: () => void;
 }) {
-  const fromMe = conversation.last_sender_id && conversation.last_sender_id === mine;
+  const fromMe = !!conversation.last_sender_id && conversation.last_sender_id === mine;
+  const preview = formatConversationPreview(conversation, fromMe);
   return (
     <button type="button" onClick={onClick} style={{
       ...conversationButtonStyle,
@@ -1112,7 +1113,7 @@ function ConversationButton({
             color: conversation.unread_count > 0 ? "var(--ink)" : "var(--ink-soft)",
             fontWeight: conversation.unread_count > 0 ? 800 : 600,
           }}>
-            {conversation.last_message_body ? `${fromMe ? "나: " : ""}${conversation.last_message_body}` : "새 대화"}
+            {preview}
           </div>
           {conversation.unread_count > 0 && (
             <span style={unreadBadgeStyle}>{conversation.unread_count > 99 ? "99+" : conversation.unread_count}</span>
@@ -2047,6 +2048,13 @@ function isSameMessageDay(a: string, b: string): boolean {
 function formatDayLabel(iso: string): string {
   const d = new Date(iso);
   return new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" }).format(d);
+}
+
+function formatConversationPreview(conversation: MessengerConversation, fromMe: boolean): string {
+  if (!conversation.last_message_id) return "새 대화";
+  const body = (conversation.last_message_body || "").trim();
+  const content = body || "첨부 메시지";
+  return fromMe ? `나: ${content}` : content;
 }
 
 function formatBytes(bytes?: number | null): string {
