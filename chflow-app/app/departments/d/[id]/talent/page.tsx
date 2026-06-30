@@ -6,7 +6,7 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { Check, ChevronDown, Info, Medal, PiggyBank, Rocket, Star } from "lucide-react";
+import { Check, ChevronDown, Medal, PiggyBank, Rocket, Star } from "lucide-react";
 import { kidDefaultFace, kidFaceTransform, isKidDefaultFace } from "@/lib/kidAvatar";
 
 interface Student {
@@ -864,16 +864,6 @@ export default function TalentPage() {
                       );
                     })}
                   </section>
-
-                  <footer className="px-3.5 pb-4">
-                    <div
-                      className="flex gap-2 rounded-xl px-3 py-2.5 text-[13px] leading-6"
-                      style={{ border: "1px solid color-mix(in srgb, var(--warning) 26%, transparent)", background: "var(--warning-soft)", color: "var(--ink-mid)" }}
-                    >
-                      <Info size={15} strokeWidth={2.2} className="mt-0.5 shrink-0" />
-                      <span>총 달란트는 출석·주간적립·기타를 모두 합한, 지금까지 모은 달란트예요. 출석은 내반출결에서 자동 반영됩니다.</span>
-                    </div>
-                  </footer>
                 </article>
               );
             })}
