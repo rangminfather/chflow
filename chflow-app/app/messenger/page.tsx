@@ -94,6 +94,7 @@ export default function MessengerPage() {
   const unreadAtOpenRef = useRef<Record<string, number>>({});
   const lastTypingAtRef = useRef(0);
   const typingTimersRef = useRef<Record<string, number>>({});
+  const refreshTimerRef = useRef<number | null>(null);
 
   const [authChecked, setAuthChecked] = useState(false);
   const [myUserId, setMyUserId] = useState<string | null>(null);
@@ -356,6 +357,19 @@ export default function MessengerPage() {
     };
   }, [searchQuery]);
 
+  const scheduleConversationRefresh = useCallback((conversationId: string, includeList: boolean) => {
+    if (refreshTimerRef.current) {
+      window.clearTimeout(refreshTimerRef.current);
+    }
+    refreshTimerRef.current = window.setTimeout(async () => {
+      refreshTimerRef.current = null;
+      await loadConversationBody(conversationId);
+      if (includeList) {
+        await loadConversations(conversationId);
+      }
+    }, 160);
+  }, [loadConversationBody, loadConversations]);
+
   useEffect(() => {
     if (!activeId || !myUserId) return;
     const channel = supabase
@@ -393,8 +407,7 @@ export default function MessengerPage() {
           const nearBottom = isMessageListNearBottom();
           shouldStickToBottomRef.current = nearBottom;
           if (!nearBottom) setNewMessageNotice(true);
-          await loadConversationBody(activeId);
-          await loadConversations(activeId);
+          scheduleConversationRefresh(activeId, true);
         }
       )
       .on(
@@ -409,7 +422,7 @@ export default function MessengerPage() {
           const nearBottom = isMessageListNearBottom();
           shouldStickToBottomRef.current = nearBottom;
           if (!nearBottom) setNewMessageNotice(true);
-          await loadConversationBody(activeId);
+          scheduleConversationRefresh(activeId, false);
         }
       )
       .subscribe((status) => {
@@ -423,12 +436,16 @@ export default function MessengerPage() {
     return () => {
       Object.values(typingTimersRef.current).forEach((timer) => window.clearTimeout(timer));
       typingTimersRef.current = {};
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
       setTypingUserIds([]);
       setOnlineUserIds([]);
       realtimeChannelRef.current = null;
       supabase.removeChannel(channel);
     };
-  }, [activeId, isMessageListNearBottom, loadConversationBody, loadConversations, myUserId]);
+  }, [activeId, isMessageListNearBottom, myUserId, scheduleConversationRefresh]);
 
   useEffect(() => {
     const activeChanged = previousActiveIdRef.current !== activeId;
