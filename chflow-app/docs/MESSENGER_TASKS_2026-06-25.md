@@ -133,6 +133,13 @@ Recommended route:
 
 - `/admin/messenger-diagnostics`
 
+Current implementation:
+
+- Added `/api/admin/messenger-diagnostics` for admin/office/pastor diagnostics.
+- Added `/admin/messenger-diagnostics` UI and linked it from the admin home menu.
+- The diagnostics view searches by message ID, conversation ID, notification ID, or message text.
+- It shows related messages, conversation participants, message notifications, push delivery rows, push tokens, and generated risk flags.
+
 Recommended capabilities:
 
 - Search by conversation ID, message ID, or user.
