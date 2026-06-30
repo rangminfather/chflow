@@ -576,7 +576,7 @@ export default function TalentPage() {
           <div className="hidden md:block" style={{ width: 80 }} />
         </div>
         <div className="mx-auto max-w-lg px-4 py-14">
-          <div className="rounded-lg border border-hairline bg-white text-center">
+          <div className="rounded-lg border border-hairline bg-card text-center">
             <EmptyState message="본인이 담임으로 등록된 반이 없습니다" hint="부장 또는 전도사에게 담임 등록을 요청하세요." />
           </div>
         </div>
@@ -612,7 +612,7 @@ export default function TalentPage() {
         {/* 파스텔 일러스트 배너 */}
         <section className="mx-4 mb-4 md:mx-0">
           <div
-            className="rounded-[22px] border border-hairline bg-white px-4 py-3"
+            className="rounded-[22px] border border-hairline bg-card px-4 py-3"
             style={{ boxShadow: "0 4px 16px rgba(43,39,34,0.06)" }}
           >
             <div className="flex flex-wrap items-center justify-center gap-3">
@@ -689,11 +689,11 @@ export default function TalentPage() {
         )}
 
         {loading ? (
-          <div className="mx-4 rounded-lg border border-hairline bg-white py-16 text-center text-[17px] text-ink-faint md:mx-0">
+          <div className="mx-4 rounded-lg border border-hairline bg-card py-16 text-center text-[17px] text-ink-faint md:mx-0">
             불러오는 중...
           </div>
         ) : students.length === 0 ? (
-          <div className="mx-4 rounded-lg border border-hairline bg-white py-16 text-center text-[17px] text-ink-faint md:mx-0">
+          <div className="mx-4 rounded-lg border border-hairline bg-card py-16 text-center text-[17px] text-ink-faint md:mx-0">
             담당 반 학생이 없습니다.
           </div>
         ) : (
@@ -883,7 +883,7 @@ export default function TalentPage() {
 
       {otherModal && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-ink/50 p-4" onClick={() => !otherSaving && setOtherModal(null)}>
-          <div className="w-full max-w-sm rounded-lg bg-white p-5" onClick={(event) => event.stopPropagation()}>
+          <div className="w-full max-w-sm rounded-lg bg-card p-5" onClick={(event) => event.stopPropagation()}>
             <div className="mb-1 text-[19px] font-extrabold text-ink">
               기타 달란트
             </div>

@@ -348,7 +348,7 @@ export default function MyClassPage() {
       <div style={pageStyle}>
         <PageHeader deptId={deptId} router={router} myClassName="" />
         <main className="mx-auto max-w-lg px-4 py-14">
-          <div className="rounded-lg border border-hairline bg-white text-center">
+          <div className="rounded-lg border border-hairline bg-card text-center">
             <EmptyState message="본인이 담임으로 등록된 반이 없습니다" hint="부장 또는 전도사에게 담임 등록을 요청하세요" />
           </div>
         </main>
@@ -361,7 +361,7 @@ export default function MyClassPage() {
       <PageHeader deptId={deptId} router={router} myClassName={myClassName} />
 
       <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-4 md:grid-cols-[280px_1fr]">
-        <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-white">
+        <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-card">
           <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
             <div>
               <div className="text-[17px] font-extrabold text-ink">우리반 학생</div>
@@ -386,7 +386,7 @@ export default function MyClassPage() {
                   onClick={() => selectStudent(student)}
                   className={[
                     "w-full rounded-lg border px-3 py-3 text-left",
-                    selectedId === student.id ? "border-amber-400 bg-amber-50" : "border-hairline bg-white",
+                    selectedId === student.id ? "border-amber-400 bg-amber-50" : "border-hairline bg-card",
                   ].join(" ")}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -399,7 +399,7 @@ export default function MyClassPage() {
           )}
         </section>
 
-        <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-white">
+        <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-card">
           {!draft ? (
             <div className="py-20 text-center text-[16px] text-ink-faint">학생을 선택하세요</div>
           ) : (
@@ -417,7 +417,7 @@ export default function MyClassPage() {
                   title={editMode ? "수정 종료" : "학생 정보 수정"}
                   className={[
                     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border",
-                    editMode ? "border-amber-400 bg-amber-50 text-amber-700" : "border-hairline bg-white text-ink-soft",
+                    editMode ? "border-amber-400 bg-amber-50 text-amber-700" : "border-hairline bg-card text-ink-soft",
                   ].join(" ")}
                 >
                   <Cog size={18} strokeWidth={1.9} className={editMode ? "animate-spin" : ""} style={editMode ? { animationDuration: "3s" } : undefined} />
@@ -442,7 +442,7 @@ export default function MyClassPage() {
                       {STUDENT_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
                     </select>
                   </InfoField>
-                  <div className="rounded-md border border-hairline bg-white px-3 py-2 text-[13px] leading-6 text-ink-soft">
+                  <div className="rounded-md border border-hairline bg-card px-3 py-2 text-[13px] leading-6 text-ink-soft">
                     정: 정식 등록 학생, 체험: 새친구/방문 후 반에 편입된 학생, 소: 소속은 두지만 정규 출석·등반 관리와 분리할 학생입니다.
                     실제 운영에서 소 구분을 쓰지 않는다면 정/체험만 남겨도 됩니다.
                   </div>
@@ -469,11 +469,11 @@ export default function MyClassPage() {
                 <div className="rounded-lg border border-hairline bg-surface p-4 lg:col-span-2">
                   <div className="mb-3 text-[16px] font-extrabold text-ink">가족관계</div>
                   {(families[draft.id] || []).length === 0 ? (
-                    <div className="rounded-md border border-hairline bg-white px-3 py-4 text-[14px] font-semibold text-ink-faint">등록된 가족관계가 없습니다.</div>
+                    <div className="rounded-md border border-hairline bg-card px-3 py-4 text-[14px] font-semibold text-ink-faint">등록된 가족관계가 없습니다.</div>
                   ) : (
                     <div className="grid gap-2 md:grid-cols-2">
                       {(families[draft.id] || []).map((family) => (
-                        <div key={`${family.relative_id}-${family.kind}-${family.direction}`} className="rounded-md border border-hairline bg-white px-3 py-2">
+                        <div key={`${family.relative_id}-${family.kind}-${family.direction}`} className="rounded-md border border-hairline bg-card px-3 py-2">
                           <div className="text-[14px] font-extrabold text-ink">{relationLabel(family)} · {family.relative_name}</div>
                           <div className="mt-1 text-[13px] font-semibold text-ink-faint">{family.relative_phone ? formatPhone(family.relative_phone) : "연락처 없음"}</div>
                         </div>
@@ -535,7 +535,7 @@ function NewFriendModal({
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-ink/50 p-4" onClick={onCancel}>
-      <div className="w-full max-w-lg rounded-lg bg-white p-5" onClick={(event) => event.stopPropagation()}>
+      <div className="w-full max-w-lg rounded-lg bg-card p-5" onClick={(event) => event.stopPropagation()}>
         <div className="mb-4 text-[19px] font-extrabold text-ink">새친구 등록</div>
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="이름">
@@ -576,7 +576,7 @@ function NewFriendModal({
                 onClick={() => set("guide_kind", option.value as GuideKind)}
                 className={[
                   "min-h-10 rounded-md border text-[13px] font-extrabold",
-                  form.guide_kind === option.value ? "border-amber-400 bg-amber-50 text-ink" : "border-hairline bg-white text-ink-soft",
+                  form.guide_kind === option.value ? "border-amber-400 bg-amber-50 text-ink" : "border-hairline bg-card text-ink-soft",
                 ].join(" ")}
               >
                 {option.label}
@@ -632,7 +632,7 @@ function InfoField({ label, value, editMode, children }: { label: string; value:
   return (
     <div className="mb-3">
       <div className="mb-1 text-[14px] font-bold text-ink-soft">{label}</div>
-      <div className="min-h-11 rounded-md border border-hairline bg-white px-3 py-2 text-[16px] font-bold leading-7 text-ink">{value}</div>
+      <div className="min-h-11 rounded-md border border-hairline bg-card px-3 py-2 text-[16px] font-bold leading-7 text-ink">{value}</div>
     </div>
   );
 }
@@ -656,7 +656,7 @@ function relationLabel(row: FamilyRow) {
   return row.role || row.kind || "가족";
 }
 
-const inputClass = "min-h-11 w-full rounded-md border border-hairline-strong bg-white px-3 py-2 text-[16px] font-bold text-ink outline-none focus:border-amber-400 disabled:bg-bg-soft disabled:text-ink-faint";
+const inputClass = "min-h-11 w-full rounded-md border border-hairline-strong bg-card px-3 py-2 text-[16px] font-bold text-ink outline-none focus:border-amber-400 disabled:bg-bg-soft disabled:text-ink-faint";
 
 const pageStyle: CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif", overflowX: "hidden" };
 const headerStyle: CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 };

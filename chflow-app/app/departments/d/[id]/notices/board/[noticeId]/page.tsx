@@ -235,7 +235,7 @@ export default function DeptNoticeDetailPage() {
         ) : (
           <>
             {/* 원문 */}
-            <article className="rounded-lg border border-hairline bg-white p-5">
+            <article className="rounded-lg border border-hairline bg-card p-5">
               <div className="flex items-start justify-between gap-3">
                 <h1 className="min-w-0 text-[20px] font-extrabold leading-snug text-ink">
                   {notice.is_pinned && <Pin size={16} strokeWidth={2} fill="currentColor" className="mr-1 inline text-accent align-[-2px]" />}
@@ -282,10 +282,10 @@ export default function DeptNoticeDetailPage() {
               <div className="mb-2 px-1 text-[14px] font-bold text-ink-soft">답글 {notice.comments.length}</div>
               <div className="flex flex-col gap-2">
                 {notice.comments.length === 0 ? (
-                  <div className="rounded-lg border border-hairline bg-white px-4 py-6 text-center text-[14px] text-ink-faint">첫 답글을 남겨보세요.</div>
+                  <div className="rounded-lg border border-hairline bg-card px-4 py-6 text-center text-[14px] text-ink-faint">첫 답글을 남겨보세요.</div>
                 ) : notice.comments.filter((comment) => !comment.parent_comment_id).map((c) => (
                   <div key={c.id}>
-                  <div className="rounded-lg border border-hairline bg-white p-4">
+                  <div className="rounded-lg border border-hairline bg-card p-4">
                     <div className="flex flex-wrap items-center gap-x-2 text-[13px] font-semibold text-ink-soft">
                       <span className="text-ink-mid">{c.author.name || "멤버"}</span>
                       {c.author.sub_role && <span className="text-ink-faint">· {c.author.sub_role}</span>}
@@ -354,7 +354,7 @@ export default function DeptNoticeDetailPage() {
 
             {/* 답글 작성 */}
             {notice.can_reply && (
-              <form onSubmit={submitReply} className="mt-4 rounded-lg border border-hairline bg-white p-4">
+              <form onSubmit={submitReply} className="mt-4 rounded-lg border border-hairline bg-card p-4">
                 <textarea
                   value={reply}
                   onChange={(e) => setReply(e.target.value)}
