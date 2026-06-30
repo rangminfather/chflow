@@ -1433,12 +1433,30 @@ function ImagePreviewModal({
 }) {
   const safeIndex = Math.min(Math.max(index, 0), Math.max(images.length - 1, 0));
   const current = images[safeIndex];
-  if (!current) return null;
 
-  const go = (delta: number) => {
+  const go = useCallback((delta: number) => {
     if (images.length <= 1) return;
     onChange((safeIndex + delta + images.length) % images.length);
-  };
+  }, [images.length, onChange, safeIndex]);
+
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        go(-1);
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        go(1);
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [go, onClose]);
+
+  if (!current) return null;
 
   return (
     <div onClick={onClose} style={imagePreviewOverlayStyle}>
