@@ -75,13 +75,17 @@ function isMobileMessengerViewport(): boolean {
 
 const MAX_ATTACHMENTS = 6;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const MESSAGE_PAGE_SIZE = 60;
 
 export default function MessengerPage() {
   const router = useRouter();
   const { confirm, prompt, alert } = useConfirm();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const messageListRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const previousActiveIdRef = useRef<string | null>(null);
+  const shouldStickToBottomRef = useRef(true);
   const lastTypingAtRef = useRef(0);
   const typingTimersRef = useRef<Record<string, number>>({});
 
@@ -93,6 +97,8 @@ export default function MessengerPage() {
   const [participants, setParticipants] = useState<MessengerParticipant[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [groupManageOpen, setGroupManageOpen] = useState(false);
   const [error, setError] = useState("");
@@ -162,16 +168,23 @@ export default function MessengerPage() {
     }
   }, [activeId]);
 
+  const isMessageListNearBottom = useCallback(() => {
+    const el = messageListRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+  }, []);
+
   const loadConversationBody = useCallback(async (conversationId: string) => {
     setLoadingMessages(true);
     setError("");
     try {
       await markMessengerRead(conversationId);
       const [messageRows, participantRows] = await Promise.all([
-        getMessengerMessages(conversationId),
+        getMessengerMessages(conversationId, MESSAGE_PAGE_SIZE),
         getMessengerParticipants(conversationId),
       ]);
       setMessages(messageRows);
+      setHasOlderMessages(messageRows.length >= MESSAGE_PAGE_SIZE);
       setParticipants(participantRows);
       setConversations((prev) => prev.map((c) => (
         c.conversation_id === conversationId ? { ...c, unread_count: 0 } : c
@@ -179,11 +192,38 @@ export default function MessengerPage() {
     } catch (e) {
       setError(getErrorMessage(e));
       setMessages([]);
+      setHasOlderMessages(false);
       setParticipants([]);
     } finally {
       setLoadingMessages(false);
     }
   }, []);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!activeId || loadingOlderMessages || !hasOlderMessages || messages.length === 0) return;
+    const list = messageListRef.current;
+    const previousHeight = list?.scrollHeight ?? 0;
+    const previousTop = list?.scrollTop ?? 0;
+    setLoadingOlderMessages(true);
+    setError("");
+    try {
+      const rows = await getMessengerMessages(activeId, MESSAGE_PAGE_SIZE, messages[0].created_at);
+      setHasOlderMessages(rows.length >= MESSAGE_PAGE_SIZE);
+      setMessages((prev) => {
+        const seen = new Set(prev.map((m) => m.id));
+        return [...rows.filter((m) => !seen.has(m.id)), ...prev];
+      });
+      window.requestAnimationFrame(() => {
+        const nextList = messageListRef.current;
+        if (!nextList) return;
+        nextList.scrollTop = nextList.scrollHeight - previousHeight + previousTop;
+      });
+    } catch (e) {
+      setError(getErrorMessage(e));
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }, [activeId, hasOlderMessages, loadingOlderMessages, messages]);
 
   useEffect(() => {
     (async () => {
@@ -203,6 +243,8 @@ export default function MessengerPage() {
     if (!activeId) {
       setMessages([]);
       setParticipants([]);
+      setHasOlderMessages(false);
+      setLoadingOlderMessages(false);
       setOnlineUserIds([]);
       setTypingUserIds([]);
       setActionMessageId(null);
@@ -279,6 +321,7 @@ export default function MessengerPage() {
           filter: `conversation_id=eq.${activeId}`,
         },
         async () => {
+          shouldStickToBottomRef.current = isMessageListNearBottom();
           await loadConversationBody(activeId);
           await loadConversations(activeId);
         }
@@ -292,6 +335,7 @@ export default function MessengerPage() {
           filter: `conversation_id=eq.${activeId}`,
         },
         async () => {
+          shouldStickToBottomRef.current = isMessageListNearBottom();
           await loadConversationBody(activeId);
         }
       )
@@ -311,10 +355,14 @@ export default function MessengerPage() {
       realtimeChannelRef.current = null;
       supabase.removeChannel(channel);
     };
-  }, [activeId, loadConversationBody, loadConversations, myUserId]);
+  }, [activeId, isMessageListNearBottom, loadConversationBody, loadConversations, myUserId]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const activeChanged = previousActiveIdRef.current !== activeId;
+    previousActiveIdRef.current = activeId;
+    if (activeChanged || shouldStickToBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: activeChanged ? "auto" : "smooth", block: "end" });
+    }
   }, [messages.length, activeId]);
 
   useEffect(() => {
@@ -697,38 +745,58 @@ export default function MessengerPage() {
                 onBack={clearActiveConversation}
               />
 
-              <div style={messageListStyle}>
+              <div
+                ref={messageListRef}
+                style={messageListStyle}
+                onScroll={() => {
+                  shouldStickToBottomRef.current = isMessageListNearBottom();
+                }}
+              >
                 {loadingMessages ? (
                   <LoadingView padding={40} />
                 ) : messages.length === 0 ? (
                   <EmptyState icon={<MessageCircle size={26} strokeWidth={1.7} />} message="첫 메시지를 보내세요." padding={56} />
                 ) : (
-                  messages.map((m, idx) => {
-                    const previous = idx > 0 ? messages[idx - 1] : null;
-                    const showDay = !previous || !isSameMessageDay(previous.created_at, m.created_at);
-                    return (
-                      <Fragment key={m.id}>
-                        {showDay && <DateDivider label={formatDayLabel(m.created_at)} />}
-                        <MessageBubble
-                          message={m}
-                          compact={!!previous && previous.sender_id === m.sender_id && isSameMessageDay(previous.created_at, m.created_at)}
-                          participants={participants}
-                          highlighted={highlightedMessageId === m.id}
-                          onReply={() => setReplyTarget(m)}
-                          onEdit={() => startEdit(m)}
-                          onDelete={() => removeMessage(m)}
-                          onForward={() => setForwarding(m)}
-                          onReport={() => reportMessage(m)}
-                          onReact={(emoji) => reactToMessage(m, emoji)}
-                          onCopy={() => copyMessage(m)}
-                          onShowReadStatus={() => setReadStatusMessage(m)}
-                          onPreviewImages={(images, index) => setImagePreview({ images, index })}
-                          actionsOpen={actionMessageId === m.id}
-                          onToggleActions={() => setActionMessageId((current) => current === m.id ? null : m.id)}
-                        />
-                      </Fragment>
-                    );
-                  })
+                  <>
+                    {hasOlderMessages && (
+                      <div style={olderMessagesWrapStyle}>
+                        <button
+                          type="button"
+                          onClick={loadOlderMessages}
+                          disabled={loadingOlderMessages}
+                          style={olderMessagesButtonStyle}
+                        >
+                          {loadingOlderMessages ? "불러오는 중..." : "이전 메시지 더 보기"}
+                        </button>
+                      </div>
+                    )}
+                    {messages.map((m, idx) => {
+                      const previous = idx > 0 ? messages[idx - 1] : null;
+                      const showDay = !previous || !isSameMessageDay(previous.created_at, m.created_at);
+                      return (
+                        <Fragment key={m.id}>
+                          {showDay && <DateDivider label={formatDayLabel(m.created_at)} />}
+                          <MessageBubble
+                            message={m}
+                            compact={!!previous && previous.sender_id === m.sender_id && isSameMessageDay(previous.created_at, m.created_at)}
+                            participants={participants}
+                            highlighted={highlightedMessageId === m.id}
+                            onReply={() => setReplyTarget(m)}
+                            onEdit={() => startEdit(m)}
+                            onDelete={() => removeMessage(m)}
+                            onForward={() => setForwarding(m)}
+                            onReport={() => reportMessage(m)}
+                            onReact={(emoji) => reactToMessage(m, emoji)}
+                            onCopy={() => copyMessage(m)}
+                            onShowReadStatus={() => setReadStatusMessage(m)}
+                            onPreviewImages={(images, index) => setImagePreview({ images, index })}
+                            actionsOpen={actionMessageId === m.id}
+                            onToggleActions={() => setActionMessageId((current) => current === m.id ? null : m.id)}
+                          />
+                        </Fragment>
+                      );
+                    })}
+                  </>
                 )}
                 <div ref={bottomRef} />
               </div>
@@ -1205,7 +1273,7 @@ function AttachmentList({
               title={a.file_name}
               style={imageAttachmentButtonStyle}
             >
-              <img src={url} alt={a.file_name} style={imageAttachmentStyle} />
+              <img src={url} alt={a.file_name} loading="lazy" decoding="async" style={imageAttachmentStyle} />
             </button>
           );
         }
@@ -2031,6 +2099,8 @@ const presenceDotStyle: React.CSSProperties = { width: 7, height: 7, borderRadiu
 const conversationMenuStyle: React.CSSProperties = { position: "absolute", top: 40, right: 0, zIndex: 40, width: 180, border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--card)", boxShadow: "0 16px 44px rgba(26,22,18,0.16)", padding: 6 };
 const menuActionStyle: React.CSSProperties = { width: "100%", minHeight: 34, border: "none", borderRadius: 7, background: "transparent", display: "flex", alignItems: "center", gap: 8, padding: "0 9px", fontSize: 12, fontWeight: 850, cursor: "pointer", fontFamily: "inherit", textAlign: "left" };
 const messageListStyle: React.CSSProperties = { flex: 1, minHeight: 0, overflowY: "auto", padding: "18px clamp(12px, 3vw, 24px)", overscrollBehavior: "contain", backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.58), rgba(251,250,247,0.96))" };
+const olderMessagesWrapStyle: React.CSSProperties = { display: "flex", justifyContent: "center", marginBottom: 12 };
+const olderMessagesButtonStyle: React.CSSProperties = { minHeight: 32, borderRadius: 999, border: "1px solid var(--hairline)", background: "rgba(255,255,255,0.86)", color: "var(--ink-soft)", padding: "0 12px", fontSize: 12, fontWeight: 850, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 4px 14px rgba(26,22,18,0.06)" };
 const conversationButtonStyle: React.CSSProperties = { width: "100%", display: "flex", alignItems: "center", gap: 10, padding: 10, borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit" };
 const conversationTitleStyle: React.CSSProperties = { flex: 1, minWidth: 0, fontSize: 14, fontWeight: 900, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const conversationTimeStyle: React.CSSProperties = { fontSize: 11, color: "var(--ink-faint)", flexShrink: 0 };
