@@ -140,6 +140,7 @@ Current implementation:
 - The diagnostics view searches by message ID, conversation ID, notification ID, or message text.
 - It shows related messages, conversation participants, message notifications, push delivery rows, push tokens, and generated risk flags.
 - Diagnostics now also supports user name/username/user ID lookup for real-account QA.
+- Diagnostics UI shows matched user profiles so QA can verify the searched real account before reading delivery rows.
 - Added flags for multiple active push tokens on one user/device and push delivery rows created while a conversation is muted.
 
 Recommended capabilities:

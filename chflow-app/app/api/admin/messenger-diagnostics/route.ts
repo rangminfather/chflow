@@ -417,6 +417,7 @@ export async function GET(req: NextRequest) {
       tokens: tokens.length,
     },
     flags: buildFlags(messages, participants, notifications, deliveries, tokens),
+    matched_users: matchedProfiles,
     profiles: profileObject,
     conversations: (conversationResult.data || []) as ConversationRow[],
     participants,

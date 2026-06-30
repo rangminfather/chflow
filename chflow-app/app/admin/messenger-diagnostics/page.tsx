@@ -26,6 +26,7 @@ type Diagnostics = {
   error?: string;
   counts: Record<string, number>;
   flags: { level: Level; text: string }[];
+  matched_users: Array<{ id: string; name: string | null; username: string | null; role: string | null; sub_role: string | null }>;
   profiles: Record<string, { name: string | null; username: string | null; role: string | null; sub_role: string | null }>;
   conversations: Array<{ id: string; type: string; title: string | null; updated_at: string; last_message_id: string | null }>;
   participants: Array<{ conversation_id: string; user_id: string; role: string; last_read_at: string | null; archived_at: string | null; muted_until: string | null }>;
@@ -128,7 +129,7 @@ export default function MessengerDiagnosticsPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Enter") runSearch(); }}
-              placeholder="message id, conversation id, notification id, 본문 검색"
+              placeholder="message id, conversation id, notification id, 이름, 아이디, 본문 검색"
               style={inputStyle}
             />
             <button type="button" onClick={runSearch} disabled={loading} style={primaryButtonStyle}>
@@ -168,6 +169,16 @@ export default function MessengerDiagnosticsPage() {
             </section>
 
             <section className="diag-grid" style={gridStyle}>
+              <DataPanel title="검색된 사용자" icon={<Users size={17} />}>
+                {(result.matched_users || []).map((row) => (
+                  <div key={row.id} style={rowStyle}>
+                    <strong>{row.name || row.username || row.id.slice(0, 8)}</strong>
+                    <span>{row.username || "아이디 없음"} · {row.sub_role || row.role || "역할 없음"}</span>
+                    <small>{row.id}</small>
+                  </div>
+                ))}
+              </DataPanel>
+
               <DataPanel title="메시지" icon={<MessageSquare size={17} />}>
                 {result.messages.map((row) => (
                   <div key={row.id} style={rowStyle}>
