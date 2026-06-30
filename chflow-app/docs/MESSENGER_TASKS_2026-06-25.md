@@ -220,6 +220,7 @@ Recommended order:
 1. Message surface polish
    - Done: replaced tiny inline action buttons with a cleaner contextual action pill/menu.
    - Done: added message copy action.
+   - Done: linkified URL text in message bodies.
    - Tighten read-time/read-status typography.
    - Partial: improved chat surface spacing, date dividers, and message-list background.
 2. Conversation list polish
@@ -233,8 +234,11 @@ Recommended order:
    - Done: improved pending attachment chips with size metadata.
    - Done: made send/attach controls stable on small screens.
    - Done: added drag-and-drop attachment support and composer status row.
+   - Done: added auto-growing message textarea and attachment limit feedback.
+   - Done: preserved per-conversation drafts.
 4. Modal/bottom-sheet consistency
    - Unify new conversation, forwarding, group management, read status, and image preview surface rules.
+   - Done: added keyboard navigation and zoom controls to image preview.
    - Prefer bottom-sheet behavior on narrow screens where appropriate.
 
 Exit criteria:
@@ -255,6 +259,7 @@ Tasks:
 - Done: added "load older messages".
 - Done: preserved scroll position when older messages are inserted.
 - Partial: added "new messages" / jump-to-latest notice when the user is reading older messages.
+- Done: added latest-jump affordance and auto-load older messages near the top.
 - Add "jump to first unread".
 - Avoid full conversation reload for every realtime event where possible.
 
