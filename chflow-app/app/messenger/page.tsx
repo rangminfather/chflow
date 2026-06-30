@@ -66,6 +66,7 @@ import {
 } from "@/lib/messenger";
 
 type NewMode = "direct" | "group";
+type ConversationFilter = "all" | "unread" | "favorite";
 type PendingAttachment = MessengerAttachment & { local_url?: string };
 type ImagePreviewItem = MessengerAttachment & { url: string };
 
@@ -103,6 +104,7 @@ export default function MessengerPage() {
   const [groupManageOpen, setGroupManageOpen] = useState(false);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [conversationFilter, setConversationFilter] = useState<ConversationFilter>("all");
   const [messageResults, setMessageResults] = useState<MessengerSearchResult[]>([]);
   const [searchingMessages, setSearchingMessages] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
@@ -111,6 +113,7 @@ export default function MessengerPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [draggingFiles, setDraggingFiles] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [replyTarget, setReplyTarget] = useState<MessengerMessage | null>(null);
   const [editing, setEditing] = useState<MessengerMessage | null>(null);
@@ -133,12 +136,14 @@ export default function MessengerPage() {
 
   const filteredConversations = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return conversations;
-    return conversations.filter((c) => (
+    const searched = !q ? conversations : conversations.filter((c) => (
       c.display_title.toLowerCase().includes(q)
       || (c.last_message_body || "").toLowerCase().includes(q)
     ));
-  }, [conversations, searchQuery]);
+    if (conversationFilter === "unread") return searched.filter((c) => c.unread_count > 0);
+    if (conversationFilter === "favorite") return searched.filter((c) => c.is_favorite);
+    return searched;
+  }, [conversationFilter, conversations, searchQuery]);
 
   const clearActiveConversation = useCallback(() => {
     setActiveId(null);
@@ -256,6 +261,7 @@ export default function MessengerPage() {
     setReplyTarget(null);
     setEditing(null);
     setDraft("");
+    setDraggingFiles(false);
     setAttachments([]);
     loadConversationBody(activeId);
   }, [activeId, loadConversationBody]);
@@ -670,6 +676,23 @@ export default function MessengerPage() {
             )}
           </div>
 
+          <div style={conversationFilterStyle}>
+            {([
+              ["all", "전체"],
+              ["unread", "안 읽음"],
+              ["favorite", "즐겨찾기"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setConversationFilter(value)}
+                style={conversationFilter === value ? conversationFilterActiveButtonStyle : conversationFilterButtonStyle}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           <div style={{ flex: 1, overflowY: "auto", padding: 10 }}>
             {loadingList ? (
               <LoadingView padding={36} />
@@ -806,6 +829,7 @@ export default function MessengerPage() {
                 setDraft={setDraft}
                 sending={sending}
                 uploading={uploading}
+                draggingFiles={draggingFiles}
                 attachments={attachments}
                 setAttachments={setAttachments}
                 replyTarget={replyTarget}
@@ -815,6 +839,8 @@ export default function MessengerPage() {
                 onTyping={emitTyping}
                 onPickFiles={() => fileInputRef.current?.click()}
                 onPasteFiles={(files) => uploadFiles(files)}
+                onDropFiles={(files) => uploadFiles(files)}
+                onDragFiles={setDraggingFiles}
               />
               <input
                 ref={fileInputRef}
@@ -1363,6 +1389,7 @@ function Composer({
   setDraft,
   sending,
   uploading,
+  draggingFiles,
   attachments,
   setAttachments,
   replyTarget,
@@ -1372,11 +1399,14 @@ function Composer({
   onTyping,
   onPickFiles,
   onPasteFiles,
+  onDropFiles,
+  onDragFiles,
 }: {
   draft: string;
   setDraft: (value: string) => void;
   sending: boolean;
   uploading: boolean;
+  draggingFiles: boolean;
   attachments: PendingAttachment[];
   setAttachments: React.Dispatch<React.SetStateAction<PendingAttachment[]>>;
   replyTarget: MessengerMessage | null;
@@ -1386,7 +1416,12 @@ function Composer({
   onTyping: () => void;
   onPickFiles: () => void;
   onPasteFiles: (files: File[]) => void;
+  onDropFiles: (files: File[]) => void;
+  onDragFiles: (dragging: boolean) => void;
 }) {
+  const canSend = !sending && !uploading && (!!draft.trim() || attachments.length > 0);
+  const attachmentBytes = attachments.reduce((total, item) => total + (item.size_bytes || 0), 0);
+
   return (
     <form
       className="messenger-composer"
@@ -1394,8 +1429,30 @@ function Composer({
         e.preventDefault();
         onSend();
       }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!editing) onDragFiles(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+        onDragFiles(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDragFiles(false);
+        if (editing) return;
+        const files = Array.from(e.dataTransfer.files || []);
+        if (files.length > 0) onDropFiles(files);
+      }}
       style={composerStyle}
     >
+      {draggingFiles && !editing && (
+        <div style={composerDropHintStyle}>
+          <Paperclip size={16} strokeWidth={2} />
+          <span>파일을 놓아 첨부</span>
+        </div>
+      )}
+
       {(replyTarget || editing) && (
         <div style={composerContextStyle}>
           <div style={{ minWidth: 0, flex: 1 }}>
@@ -1416,6 +1473,7 @@ function Composer({
             <div key={a.file_path} style={pendingAttachmentStyle}>
               {a.local_url ? <img src={a.local_url} alt="" style={pendingThumbStyle} /> : <FileText size={17} />}
               <span style={oneLineStyle}>{a.file_name}</span>
+              {a.size_bytes ? <span style={pendingMetaStyle}>{formatBytes(a.size_bytes)}</span> : null}
               <button
                 type="button"
                 onClick={() => setAttachments((prev) => prev.filter((x) => x.file_path !== a.file_path))}
@@ -1462,14 +1520,21 @@ function Composer({
         />
         <button
           type="submit"
-          disabled={sending || uploading || (!draft.trim() && attachments.length === 0)}
+          disabled={!canSend}
           style={{
             ...sendButtonStyle,
-            opacity: sending || uploading || (!draft.trim() && attachments.length === 0) ? 0.45 : 1,
+            opacity: canSend ? 1 : 0.45,
           }}
         >
-          <Send size={18} strokeWidth={2} />
+          {sending ? "..." : <Send size={18} strokeWidth={2} />}
         </button>
+      </div>
+
+      <div style={composerStatusRowStyle}>
+        <span>
+          {uploading ? "첨부 업로드 중" : attachments.length > 0 ? `${attachments.length}/${MAX_ATTACHMENTS}개 · ${formatBytes(attachmentBytes)}` : "메시지 작성 중"}
+        </span>
+        <span>{draft.length}/4000</span>
       </div>
     </form>
   );
@@ -2090,6 +2155,9 @@ const smallIconButtonStyle: React.CSSProperties = { width: 34, height: 34, borde
 const sectionTitleStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, fontSize: 17, fontWeight: 900 };
 const listHeaderStyle: React.CSSProperties = { padding: 14, borderBottom: "1px solid var(--hairline)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 };
 const newButtonStyle: React.CSSProperties = { height: 34, padding: "0 10px", border: "none", borderRadius: 8, background: "var(--accent)", color: "#fff", fontSize: 12, fontWeight: 900, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "inherit" };
+const conversationFilterStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, padding: "10px 14px 0" };
+const conversationFilterButtonStyle: React.CSSProperties = { minHeight: 30, borderRadius: 999, border: "1px solid var(--hairline)", background: "var(--surface)", color: "var(--ink-soft)", fontSize: 12, fontWeight: 850, cursor: "pointer", fontFamily: "inherit" };
+const conversationFilterActiveButtonStyle: React.CSSProperties = { ...conversationFilterButtonStyle, borderColor: "rgba(62,90,74,0.34)", background: "var(--accent-soft)", color: "var(--accent)" };
 const chatHeaderStyle: React.CSSProperties = { minHeight: 68, padding: "10px 14px", borderBottom: "1px solid var(--hairline)", background: "rgba(255,255,255,0.94)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 1px 0 rgba(43,39,34,0.03)" };
 const chatTitleRowStyle: React.CSSProperties = { minWidth: 0, display: "flex", alignItems: "center", gap: 5 };
 const chatTitleStyle: React.CSSProperties = { minWidth: 0, fontSize: 16, fontWeight: 900, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
@@ -2125,13 +2193,16 @@ const imageAttachmentStyle: React.CSSProperties = { display: "block", maxWidth: 
 const fileAttachmentStyle: React.CSSProperties = { minWidth: 220, maxWidth: 320, minHeight: 42, borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 8, textDecoration: "none", fontSize: 12, fontWeight: 800 };
 const oneLineStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const composerStyle: React.CSSProperties = { padding: "12px 12px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: "1px solid var(--hairline)", background: "rgba(255,255,255,0.96)", backdropFilter: "blur(10px)", display: "grid", gap: 8, flexShrink: 0, transition: "box-shadow .16s ease, border-color .16s ease" };
+const composerDropHintStyle: React.CSSProperties = { minHeight: 38, border: "1px dashed rgba(62,90,74,0.42)", borderRadius: 12, background: "var(--accent-soft)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, fontSize: 12, fontWeight: 900 };
 const composerContextStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, border: "1px solid var(--hairline)", background: "var(--accent-soft)", borderRadius: 8, padding: "7px 8px" };
 const pendingAttachmentWrapStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6 };
 const pendingAttachmentStyle: React.CSSProperties = { maxWidth: 220, height: 34, borderRadius: 8, background: "var(--bg-soft)", border: "1px solid var(--hairline)", display: "inline-flex", alignItems: "center", gap: 6, padding: "0 7px", fontSize: 12, fontWeight: 800, color: "var(--ink-mid)" };
+const pendingMetaStyle: React.CSSProperties = { flexShrink: 0, color: "var(--ink-faint)", fontSize: 10, fontWeight: 800 };
 const pendingThumbStyle: React.CSSProperties = { width: 24, height: 24, borderRadius: 5, objectFit: "cover" };
 const composerIconButtonStyle: React.CSSProperties = { width: 44, height: 44, border: "1px solid var(--hairline)", borderRadius: 999, background: "var(--surface)", color: "var(--ink-mid)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 };
 const textareaStyle: React.CSSProperties = { flex: 1, minHeight: 44, maxHeight: 140, resize: "none", border: "1px solid var(--hairline)", borderRadius: 18, padding: "11px 14px", fontSize: 14, lineHeight: 1.45, color: "var(--ink)", outline: "none", fontFamily: "inherit", background: "var(--surface)", boxShadow: "0 1px 0 rgba(255,255,255,0.6) inset" };
 const sendButtonStyle: React.CSSProperties = { width: 44, height: 44, border: "none", borderRadius: 999, background: "var(--accent)", color: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 8px 20px rgba(62,90,74,0.22)" };
+const composerStatusRowStyle: React.CSSProperties = { minHeight: 16, display: "flex", justifyContent: "space-between", gap: 10, color: "var(--ink-faint)", fontSize: 10, fontWeight: 750, padding: "0 4px" };
 const chipRemoveStyle: React.CSSProperties = { width: 18, height: 18, border: "none", background: "transparent", color: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 };
 const modalOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 200, background: "rgba(43,39,34,0.48)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 };
 const modalStyle: React.CSSProperties = { width: "min(560px, 100%)", maxHeight: "min(720px, calc(100vh - 32px))", overflowY: "auto", background: "var(--card)", borderRadius: 10, border: "1px solid var(--hairline)", boxShadow: "0 24px 70px rgba(26,22,18,0.22)", padding: 16 };
