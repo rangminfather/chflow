@@ -100,6 +100,7 @@ export default function MessengerPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [newMessageNotice, setNewMessageNotice] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [groupManageOpen, setGroupManageOpen] = useState(false);
   const [error, setError] = useState("");
@@ -250,6 +251,7 @@ export default function MessengerPage() {
       setParticipants([]);
       setHasOlderMessages(false);
       setLoadingOlderMessages(false);
+      setNewMessageNotice(false);
       setOnlineUserIds([]);
       setTypingUserIds([]);
       setActionMessageId(null);
@@ -327,7 +329,9 @@ export default function MessengerPage() {
           filter: `conversation_id=eq.${activeId}`,
         },
         async () => {
-          shouldStickToBottomRef.current = isMessageListNearBottom();
+          const nearBottom = isMessageListNearBottom();
+          shouldStickToBottomRef.current = nearBottom;
+          if (!nearBottom) setNewMessageNotice(true);
           await loadConversationBody(activeId);
           await loadConversations(activeId);
         }
@@ -341,7 +345,9 @@ export default function MessengerPage() {
           filter: `conversation_id=eq.${activeId}`,
         },
         async () => {
-          shouldStickToBottomRef.current = isMessageListNearBottom();
+          const nearBottom = isMessageListNearBottom();
+          shouldStickToBottomRef.current = nearBottom;
+          if (!nearBottom) setNewMessageNotice(true);
           await loadConversationBody(activeId);
         }
       )
@@ -772,7 +778,9 @@ export default function MessengerPage() {
                 ref={messageListRef}
                 style={messageListStyle}
                 onScroll={() => {
-                  shouldStickToBottomRef.current = isMessageListNearBottom();
+                  const nearBottom = isMessageListNearBottom();
+                  shouldStickToBottomRef.current = nearBottom;
+                  if (nearBottom) setNewMessageNotice(false);
                 }}
               >
                 {loadingMessages ? (
@@ -820,6 +828,21 @@ export default function MessengerPage() {
                       );
                     })}
                   </>
+                )}
+                {newMessageNotice && (
+                  <div style={newMessageNoticeWrapStyle}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewMessageNotice(false);
+                        shouldStickToBottomRef.current = true;
+                        bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+                      }}
+                      style={newMessageNoticeButtonStyle}
+                    >
+                      새 메시지 보기
+                    </button>
+                  </div>
                 )}
                 <div ref={bottomRef} />
               </div>
@@ -2169,6 +2192,8 @@ const menuActionStyle: React.CSSProperties = { width: "100%", minHeight: 34, bor
 const messageListStyle: React.CSSProperties = { flex: 1, minHeight: 0, overflowY: "auto", padding: "18px clamp(12px, 3vw, 24px)", overscrollBehavior: "contain", backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.58), rgba(251,250,247,0.96))" };
 const olderMessagesWrapStyle: React.CSSProperties = { display: "flex", justifyContent: "center", marginBottom: 12 };
 const olderMessagesButtonStyle: React.CSSProperties = { minHeight: 32, borderRadius: 999, border: "1px solid var(--hairline)", background: "rgba(255,255,255,0.86)", color: "var(--ink-soft)", padding: "0 12px", fontSize: 12, fontWeight: 850, fontFamily: "inherit", cursor: "pointer", boxShadow: "0 4px 14px rgba(26,22,18,0.06)" };
+const newMessageNoticeWrapStyle: React.CSSProperties = { position: "sticky", bottom: 10, display: "flex", justifyContent: "center", pointerEvents: "none", zIndex: 5 };
+const newMessageNoticeButtonStyle: React.CSSProperties = { minHeight: 34, borderRadius: 999, border: "none", background: "var(--accent)", color: "#fff", padding: "0 14px", fontSize: 12, fontWeight: 900, fontFamily: "inherit", cursor: "pointer", pointerEvents: "auto", boxShadow: "0 10px 24px rgba(62,90,74,0.28)" };
 const conversationButtonStyle: React.CSSProperties = { width: "100%", display: "flex", alignItems: "center", gap: 10, padding: 10, borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit" };
 const conversationTitleStyle: React.CSSProperties = { flex: 1, minWidth: 0, fontSize: 14, fontWeight: 900, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const conversationTimeStyle: React.CSSProperties = { fontSize: 11, color: "var(--ink-faint)", flexShrink: 0 };
