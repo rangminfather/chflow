@@ -1130,6 +1130,7 @@ const pagerStyle: CSSProperties = {
 const modalBgStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
+  height: "100dvh",
   background: "rgba(43, 39, 34,0.58)",
   display: "flex",
   alignItems: "center",
@@ -1141,7 +1142,7 @@ const modalBgStyle: CSSProperties = {
 const modalCardStyle: CSSProperties = {
   width: "100%",
   maxWidth: 620,
-  maxHeight: "90vh",
+  maxHeight: "90dvh",
   overflowY: "auto",
   background: "var(--card)",
   borderRadius: 8,
@@ -1309,6 +1310,7 @@ const quickEditActionsStyle: CSSProperties = {
 const quickEditConfirmOverlayStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
+  height: "100dvh",
   zIndex: 120,
   background: "rgba(43, 39, 34, 0.62)",
   display: "flex",
@@ -1320,7 +1322,7 @@ const quickEditConfirmOverlayStyle: CSSProperties = {
 const quickEditConfirmCardStyle: CSSProperties = {
   width: "100%",
   maxWidth: 760,
-  maxHeight: "90vh",
+  maxHeight: "90dvh",
   overflowY: "auto",
   borderRadius: 8,
   background: "var(--card)",
