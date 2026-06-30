@@ -65,6 +65,13 @@ function buildExpoMessage(row: DeliveryRow, badgeCount: number) {
   };
 }
 
+async function disablePushToken(admin: SupabaseClient, row: DeliveryRow, now: string) {
+  await admin
+    .from("user_push_tokens")
+    .update({ enabled: false, updated_at: now })
+    .eq("expo_push_token", row.expo_push_token);
+}
+
 async function getUnreadCounts(
   admin: SupabaseClient,
   userIds: string[]
@@ -173,7 +180,7 @@ async function dispatchPush(req: NextRequest) {
       continue;
     }
 
-    await Promise.all(batch.map((row, index) => {
+    await Promise.all(batch.map(async (row, index) => {
       const ticket = tickets[index];
       const ok = ticket?.status === "ok";
       if (ok) sent += 1;
@@ -183,7 +190,7 @@ async function dispatchPush(req: NextRequest) {
         ? null
         : ticket?.message || JSON.stringify(ticket?.details || {}) || "Expo push ticket failed";
 
-      return admin
+      await admin
         .from("notification_push_deliveries")
         .update({
           status: ok ? "sent" : "failed",
@@ -194,6 +201,10 @@ async function dispatchPush(req: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq("id", row.id);
+
+      if (!ok && ticket?.details?.error === "DeviceNotRegistered") {
+        await disablePushToken(admin, row, new Date().toISOString());
+      }
     }));
   }
 
