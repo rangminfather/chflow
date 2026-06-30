@@ -1287,7 +1287,11 @@ function MessageBubble({
                 <div style={oneLineStyle}>{message.reply_to.body || "첨부 메시지"}</div>
               </div>
             )}
-            {message.body && <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{message.body}</div>}
+            {message.body && (
+              <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                <MessageText body={message.body} mine={message.is_mine} />
+              </div>
+            )}
             {message.attachments.length > 0 && (
               <AttachmentList attachments={message.attachments} mine={message.is_mine} onPreviewImages={onPreviewImages} />
             )}
@@ -1368,6 +1372,28 @@ function MessageActions({
       {mine && <button type="button" onClick={onDelete} title="삭제" style={miniActionStyle}><Trash2 size={13} /></button>}
       {!mine && <button type="button" onClick={onReport} title="신고" style={miniActionStyle}><ShieldAlert size={13} /></button>}
     </div>
+  );
+}
+
+function MessageText({ body, mine }: { body: string; mine: boolean }) {
+  const parts = splitMessageLinks(body);
+  return (
+    <>
+      {parts.map((part, index) => part.url ? (
+        <a
+          key={`${part.text}-${index}`}
+          href={part.url}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(event) => event.stopPropagation()}
+          style={{ ...messageLinkStyle, color: mine ? "#fff" : "var(--accent)" }}
+        >
+          {part.text}
+        </a>
+      ) : (
+        <Fragment key={`${part.text}-${index}`}>{part.text}</Fragment>
+      ))}
+    </>
   );
 }
 
@@ -2162,6 +2188,24 @@ function formatConversationPreview(conversation: MessengerConversation, fromMe: 
   return fromMe ? `나: ${content}` : content;
 }
 
+function splitMessageLinks(text: string): Array<{ text: string; url?: string }> {
+  const pattern = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+  const parts: Array<{ text: string; url?: string }> = [];
+  let lastIndex = 0;
+  for (const match of text.matchAll(pattern)) {
+    const value = match[0];
+    const index = match.index || 0;
+    if (index > lastIndex) parts.push({ text: text.slice(lastIndex, index) });
+    const trimmed = value.replace(/[),.;!?]+$/g, "");
+    const trailing = value.slice(trimmed.length);
+    parts.push({ text: trimmed, url: trimmed.startsWith("www.") ? `https://${trimmed}` : trimmed });
+    if (trailing) parts.push({ text: trailing });
+    lastIndex = index + value.length;
+  }
+  if (lastIndex < text.length) parts.push({ text: text.slice(lastIndex) });
+  return parts.length > 0 ? parts : [{ text }];
+}
+
 function formatBytes(bytes?: number | null): string {
   if (!bytes) return "";
   if (bytes < 1024) return `${bytes}B`;
@@ -2316,6 +2360,7 @@ const avatarStyle: React.CSSProperties = { width: 42, height: 42, borderRadius: 
 const avatarFallbackStyle: React.CSSProperties = { ...avatarStyle, display: "grid", placeItems: "center", background: "var(--accent-soft)", color: "var(--accent)", fontSize: 15, fontWeight: 900 };
 const senderNameStyle: React.CSSProperties = { fontSize: 12, fontWeight: 800, color: "var(--ink-soft)", paddingLeft: 2 };
 const bubbleStyle: React.CSSProperties = { padding: "9px 12px", fontSize: 14, lineHeight: 1.55, boxShadow: "0 1px 4px rgba(26,22,18,0.04)" };
+const messageLinkStyle: React.CSSProperties = { fontWeight: 850, textDecoration: "underline", textUnderlineOffset: 3 };
 const replyPreviewStyle: React.CSSProperties = { borderLeft: "3px solid currentColor", borderRadius: 7, padding: "6px 8px", marginBottom: 7, maxWidth: 300 };
 const messageMetaStyle: React.CSSProperties = { fontSize: 10, color: "var(--ink-faint)" };
 const readStatusButtonStyle: React.CSSProperties = { border: "none", background: "transparent", color: "inherit", padding: 0, font: "inherit", cursor: "pointer" };
