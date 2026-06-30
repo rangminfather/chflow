@@ -450,7 +450,16 @@ export default function MessengerPage() {
 
   const uploadFiles = async (files: FileList | File[] | null) => {
     if (!files || !activeId) return;
-    const selected = Array.from(files).slice(0, MAX_ATTACHMENTS - attachments.length);
+    const incoming = Array.from(files);
+    const remainingSlots = MAX_ATTACHMENTS - attachments.length;
+    if (remainingSlots <= 0) {
+      setError(`첨부는 최대 ${MAX_ATTACHMENTS}개까지 가능합니다.`);
+      return;
+    }
+    const selected = incoming.slice(0, remainingSlots);
+    if (incoming.length > remainingSlots) {
+      setError(`첨부는 최대 ${MAX_ATTACHMENTS}개까지 가능해서 ${remainingSlots}개만 추가합니다.`);
+    }
     if (selected.length === 0) return;
 
     const { data: { session } } = await supabase.auth.getSession();
@@ -1528,8 +1537,16 @@ function Composer({
   onDropFiles: (files: File[]) => void;
   onDragFiles: (dragging: boolean) => void;
 }) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const canSend = !sending && !uploading && (!!draft.trim() || attachments.length > 0);
   const attachmentBytes = attachments.reduce((total, item) => total + (item.size_bytes || 0), 0);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
+  }, [draft]);
 
   return (
     <form
@@ -1606,6 +1623,7 @@ function Composer({
           {uploading ? "..." : <Paperclip size={18} strokeWidth={2} />}
         </button>
         <textarea
+          ref={textareaRef}
           value={draft}
           onChange={(e) => {
             setDraft(e.target.value);
@@ -2320,7 +2338,7 @@ const pendingAttachmentStyle: React.CSSProperties = { maxWidth: 220, height: 34,
 const pendingMetaStyle: React.CSSProperties = { flexShrink: 0, color: "var(--ink-faint)", fontSize: 10, fontWeight: 800 };
 const pendingThumbStyle: React.CSSProperties = { width: 24, height: 24, borderRadius: 5, objectFit: "cover" };
 const composerIconButtonStyle: React.CSSProperties = { width: 44, height: 44, border: "1px solid var(--hairline)", borderRadius: 999, background: "var(--surface)", color: "var(--ink-mid)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 };
-const textareaStyle: React.CSSProperties = { flex: 1, minHeight: 44, maxHeight: 140, resize: "none", border: "1px solid var(--hairline)", borderRadius: 18, padding: "11px 14px", fontSize: 14, lineHeight: 1.45, color: "var(--ink)", outline: "none", fontFamily: "inherit", background: "var(--surface)", boxShadow: "0 1px 0 rgba(255,255,255,0.6) inset" };
+const textareaStyle: React.CSSProperties = { flex: 1, minHeight: 44, maxHeight: 160, resize: "none", overflowY: "auto", border: "1px solid var(--hairline)", borderRadius: 18, padding: "11px 14px", fontSize: 14, lineHeight: 1.45, color: "var(--ink)", outline: "none", fontFamily: "inherit", background: "var(--surface)", boxShadow: "0 1px 0 rgba(255,255,255,0.6) inset" };
 const sendButtonStyle: React.CSSProperties = { width: 44, height: 44, border: "none", borderRadius: 999, background: "var(--accent)", color: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 8px 20px rgba(62,90,74,0.22)" };
 const composerStatusRowStyle: React.CSSProperties = { minHeight: 16, display: "flex", justifyContent: "space-between", gap: 10, color: "var(--ink-faint)", fontSize: 10, fontWeight: 750, padding: "0 4px" };
 const chipRemoveStyle: React.CSSProperties = { width: 18, height: 18, border: "none", background: "transparent", color: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 };
