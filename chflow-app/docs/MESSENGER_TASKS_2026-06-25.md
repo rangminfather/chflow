@@ -170,6 +170,7 @@ Current implementation:
 - Added in-app image preview modal with ESC close and download action.
 - Replaced remaining native `window.confirm` usage in messenger group management with the app confirm dialog.
 - Composer supports paste/drop attachments and realtime typing state.
+- Added message copy action and automatic link rendering for `http`/`https` URLs.
 
 Tasks:
 

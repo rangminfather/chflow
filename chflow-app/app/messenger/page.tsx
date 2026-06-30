@@ -6,6 +6,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import {
   ArrowLeft,
   Check,
+  Copy,
   Download,
   FileText,
   Forward,
@@ -532,6 +533,17 @@ export default function MessengerPage() {
     }
   };
 
+  const copyMessageText = async (message: MessengerMessage) => {
+    const text = message.body.trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      await alert("메시지를 복사했습니다.");
+    } catch {
+      setError("클립보드 복사에 실패했습니다.");
+    }
+  };
+
   const leaveConversation = async () => {
     if (!activeConversation) return;
     const label = activeConversation.type === "group" ? "이 그룹 대화방에서 나갈까요?" : "이 대화를 목록에서 숨길까요?";
@@ -737,6 +749,7 @@ export default function MessengerPage() {
                         onDelete={() => removeMessage(m)}
                         onForward={() => setForwarding(m)}
                         onReport={() => reportMessage(m)}
+                        onCopy={() => copyMessageText(m)}
                         onReact={(emoji) => reactToMessage(m, emoji)}
                         onShowReadStatus={() => setReadStatusMessage(m)}
                         onPreviewImage={(attachment, url) => setImagePreview({ attachment, url })}
@@ -1016,6 +1029,7 @@ function MessageBubble({
   onDelete,
   onForward,
   onReport,
+  onCopy,
   onReact,
   onShowReadStatus,
   onPreviewImage,
@@ -1031,6 +1045,7 @@ function MessageBubble({
   onDelete: () => void;
   onForward: () => void;
   onReport: () => void;
+  onCopy: () => void;
   onReact: (emoji: string) => void;
   onShowReadStatus: () => void;
   onPreviewImage: (attachment: MessengerAttachment, url: string) => void;
@@ -1070,6 +1085,7 @@ function MessageBubble({
             onDelete={onDelete}
             onForward={onForward}
             onReport={onReport}
+            onCopy={onCopy}
             onReact={onReact}
           />
           <div style={{
@@ -1090,7 +1106,11 @@ function MessageBubble({
                 <div style={oneLineStyle}>{message.reply_to.body || "첨부 메시지"}</div>
               </div>
             )}
-            {message.body && <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{message.body}</div>}
+            {message.body && (
+              <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                <LinkifiedText text={message.body} mine={message.is_mine} />
+              </div>
+            )}
             {message.attachments.length > 0 && (
               <AttachmentList attachments={message.attachments} mine={message.is_mine} onPreviewImage={onPreviewImage} />
             )}
@@ -1143,6 +1163,7 @@ function MessageActions({
   onDelete,
   onForward,
   onReport,
+  onCopy,
   onReact,
 }: {
   mine: boolean;
@@ -1154,6 +1175,7 @@ function MessageActions({
   onDelete: () => void;
   onForward: () => void;
   onReport: () => void;
+  onCopy: () => void;
   onReact: (emoji: string) => void;
 }) {
   if (deleted) return null;
@@ -1164,10 +1186,40 @@ function MessageActions({
       <button type="button" onClick={() => onReact("🙏")} title="감사" style={miniTextActionStyle}>🙏</button>
       <button type="button" onClick={onReply} title="답장" style={miniActionStyle}><Reply size={13} /></button>
       <button type="button" onClick={onForward} title="전달" style={miniActionStyle}><Forward size={13} /></button>
+      {hasText && <button type="button" onClick={onCopy} title="복사" style={miniActionStyle}><Copy size={13} /></button>}
       {mine && hasText && <button type="button" onClick={onEdit} title="수정" style={miniActionStyle}><Pencil size={13} /></button>}
       {mine && <button type="button" onClick={onDelete} title="삭제" style={miniActionStyle}><Trash2 size={13} /></button>}
       {!mine && <button type="button" onClick={onReport} title="신고" style={miniActionStyle}><ShieldAlert size={13} /></button>}
     </div>
+  );
+}
+
+function LinkifiedText({ text, mine }: { text: string; mine: boolean }) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (!/^https?:\/\//i.test(part)) return <span key={`${index}-${part}`}>{part}</span>;
+        return (
+          <a
+            key={`${index}-${part}`}
+            href={part}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              color: mine ? "#fff" : "var(--accent)",
+              textDecoration: "underline",
+              textUnderlineOffset: 2,
+              fontWeight: 850,
+              wordBreak: "break-all",
+            }}
+          >
+            {part}
+          </a>
+        );
+      })}
+    </>
   );
 }
 
