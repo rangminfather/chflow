@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Check,
+  Download,
   FileText,
   Forward,
   LogOut,
@@ -63,6 +66,7 @@ import {
 
 type NewMode = "direct" | "group";
 type PendingAttachment = MessengerAttachment & { local_url?: string };
+type ImagePreviewItem = MessengerAttachment & { url: string };
 
 function isMobileMessengerViewport(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
@@ -107,6 +111,7 @@ export default function MessengerPage() {
   const [actionMessageId, setActionMessageId] = useState<string | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [readStatusMessage, setReadStatusMessage] = useState<MessengerMessage | null>(null);
+  const [imagePreview, setImagePreview] = useState<{ images: ImagePreviewItem[]; index: number } | null>(null);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.conversation_id === activeId) || null,
@@ -700,6 +705,7 @@ export default function MessengerPage() {
                       onReport={() => reportMessage(m)}
                       onReact={(emoji) => reactToMessage(m, emoji)}
                       onShowReadStatus={() => setReadStatusMessage(m)}
+                      onPreviewImages={(images, index) => setImagePreview({ images, index })}
                       actionsOpen={actionMessageId === m.id}
                       onToggleActions={() => setActionMessageId((current) => current === m.id ? null : m.id)}
                     />
@@ -773,6 +779,7 @@ export default function MessengerPage() {
           onAddMembers={addGroupMembers}
           onRemoveMember={removeGroupMember}
           onError={setError}
+          onConfirm={confirm}
         />
       )}
       {readStatusMessage && (
@@ -780,6 +787,14 @@ export default function MessengerPage() {
           message={readStatusMessage}
           participants={participants}
           onClose={() => setReadStatusMessage(null)}
+        />
+      )}
+      {imagePreview && (
+        <ImagePreviewModal
+          images={imagePreview.images}
+          index={imagePreview.index}
+          onChange={(index) => setImagePreview((current) => current ? { ...current, index } : current)}
+          onClose={() => setImagePreview(null)}
         />
       )}
     </div>
@@ -971,6 +986,7 @@ function MessageBubble({
   onReport,
   onReact,
   onShowReadStatus,
+  onPreviewImages,
   actionsOpen,
   onToggleActions,
 }: {
@@ -985,6 +1001,7 @@ function MessageBubble({
   onReport: () => void;
   onReact: (emoji: string) => void;
   onShowReadStatus: () => void;
+  onPreviewImages: (images: ImagePreviewItem[], index: number) => void;
   actionsOpen: boolean;
   onToggleActions: () => void;
 }) {
@@ -1043,7 +1060,7 @@ function MessageBubble({
             )}
             {message.body && <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{message.body}</div>}
             {message.attachments.length > 0 && (
-              <AttachmentList attachments={message.attachments} mine={message.is_mine} />
+              <AttachmentList attachments={message.attachments} mine={message.is_mine} onPreviewImages={onPreviewImages} />
             )}
           </div>
         </div>
@@ -1122,17 +1139,36 @@ function MessageActions({
   );
 }
 
-function AttachmentList({ attachments, mine }: { attachments: MessengerAttachment[]; mine: boolean }) {
+function AttachmentList({
+  attachments,
+  mine,
+  onPreviewImages,
+}: {
+  attachments: MessengerAttachment[];
+  mine: boolean;
+  onPreviewImages: (images: ImagePreviewItem[], index: number) => void;
+}) {
+  const imageAttachments = attachments
+    .filter((a) => !!a.mime_type?.startsWith("image/"))
+    .map((a) => ({ ...a, url: storageProxyUrl("messenger-attachments", a.file_path) }));
+
   return (
     <div style={{ display: "grid", gap: 7, marginTop: 8 }}>
       {attachments.map((a) => {
         const url = storageProxyUrl("messenger-attachments", a.file_path);
         const image = !!a.mime_type?.startsWith("image/");
         if (image) {
+          const imageIndex = imageAttachments.findIndex((img) => img.file_path === a.file_path);
           return (
-            <a key={a.id || a.file_path} href={url} target="_blank" rel="noreferrer" style={{ display: "block" }}>
+            <button
+              key={a.id || a.file_path}
+              type="button"
+              onClick={() => onPreviewImages(imageAttachments, Math.max(0, imageIndex))}
+              title={a.file_name}
+              style={imageAttachmentButtonStyle}
+            >
               <img src={url} alt={a.file_name} style={imageAttachmentStyle} />
-            </a>
+            </button>
           );
         }
         return (
@@ -1148,11 +1184,70 @@ function AttachmentList({ attachments, mine }: { attachments: MessengerAttachmen
             }}
           >
             <FileText size={17} strokeWidth={1.8} />
-            <span style={oneLineStyle}>{a.file_name}</span>
-            <span style={{ opacity: 0.78 }}>{formatBytes(a.size_bytes)}</span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={oneLineStyle}>{a.file_name}</span>
+              <span style={{ display: "block", opacity: 0.72, fontSize: 10, marginTop: 2 }}>
+                {[a.mime_type || "file", formatBytes(a.size_bytes)].filter(Boolean).join(" · ")}
+              </span>
+            </span>
           </a>
         );
       })}
+    </div>
+  );
+}
+
+function ImagePreviewModal({
+  images,
+  index,
+  onChange,
+  onClose,
+}: {
+  images: ImagePreviewItem[];
+  index: number;
+  onChange: (index: number) => void;
+  onClose: () => void;
+}) {
+  const safeIndex = Math.min(Math.max(index, 0), Math.max(images.length - 1, 0));
+  const current = images[safeIndex];
+  if (!current) return null;
+
+  const go = (delta: number) => {
+    if (images.length <= 1) return;
+    onChange((safeIndex + delta + images.length) % images.length);
+  };
+
+  return (
+    <div onClick={onClose} style={imagePreviewOverlayStyle}>
+      <div onClick={(e) => e.stopPropagation()} style={imagePreviewShellStyle}>
+        <div style={imagePreviewTopStyle}>
+          <div style={{ minWidth: 0 }}>
+            <div style={oneLineStyle}>{current.file_name}</div>
+            <div style={{ fontSize: 11, opacity: 0.72, marginTop: 2 }}>
+              {safeIndex + 1}/{images.length} · {formatBytes(current.size_bytes)}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <a href={current.url} download={current.file_name} target="_blank" rel="noreferrer" title="다운로드" style={previewIconButtonStyle}>
+              <Download size={17} />
+            </a>
+            <button type="button" onClick={onClose} title="닫기" style={previewIconButtonStyle}><X size={18} /></button>
+          </div>
+        </div>
+        <div style={imagePreviewBodyStyle}>
+          {images.length > 1 && (
+            <button type="button" onClick={() => go(-1)} title="이전" style={{ ...previewNavButtonStyle, left: 10 }}>
+              <ChevronLeft size={24} />
+            </button>
+          )}
+          <img src={current.url} alt={current.file_name} style={imagePreviewImgStyle} />
+          {images.length > 1 && (
+            <button type="button" onClick={() => go(1)} title="다음" style={{ ...previewNavButtonStyle, right: 10 }}>
+              <ChevronRight size={24} />
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1417,6 +1512,7 @@ function GroupManagementModal({
   onAddMembers,
   onRemoveMember,
   onError,
+  onConfirm,
 }: {
   conversation: MessengerConversation;
   participants: MessengerParticipant[];
@@ -1426,6 +1522,7 @@ function GroupManagementModal({
   onAddMembers: (userIds: string[]) => Promise<void>;
   onRemoveMember: (userId: string) => Promise<void>;
   onError: (message: string) => void;
+  onConfirm: (message: string) => Promise<boolean>;
 }) {
   const [title, setTitle] = useState(conversation.title || conversation.display_title);
   const [query, setQuery] = useState("");
@@ -1495,7 +1592,7 @@ function GroupManagementModal({
 
   const removeMember = async (participant: MessengerParticipant) => {
     if (participant.user_id === myUserId || removingId) return;
-    if (!window.confirm(`${participant.name || "이 멤버"}님을 대화방에서 내보낼까요?`)) return;
+    if (!await onConfirm(`${participant.name || "이 멤버"}님을 대화방에서 내보낼까요?`)) return;
     setRemovingId(participant.user_id);
     try {
       await onRemoveMember(participant.user_id);
@@ -1880,6 +1977,7 @@ const miniActionStyle: React.CSSProperties = { width: 25, height: 25, borderRadi
 const miniTextActionStyle: React.CSSProperties = { ...miniActionStyle, fontSize: 12, fontWeight: 900, lineHeight: 1 };
 const reactionRowStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 4, maxWidth: "min(76%, 620px)" };
 const reactionButtonStyle: React.CSSProperties = { minWidth: 42, height: 25, borderRadius: 999, border: "1px solid var(--hairline)", background: "var(--card)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "0 8px", fontSize: 12, fontWeight: 900, cursor: "pointer", fontFamily: "inherit" };
+const imageAttachmentButtonStyle: React.CSSProperties = { display: "block", border: "none", background: "transparent", padding: 0, cursor: "zoom-in", textAlign: "left" };
 const imageAttachmentStyle: React.CSSProperties = { display: "block", maxWidth: "min(320px, 60vw)", maxHeight: 260, borderRadius: 8, objectFit: "cover", border: "1px solid rgba(255,255,255,0.18)" };
 const fileAttachmentStyle: React.CSSProperties = { minWidth: 220, maxWidth: 320, minHeight: 42, borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 8, textDecoration: "none", fontSize: 12, fontWeight: 800 };
 const oneLineStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
@@ -1894,6 +1992,13 @@ const sendButtonStyle: React.CSSProperties = { width: 44, height: 42, border: "n
 const chipRemoveStyle: React.CSSProperties = { width: 18, height: 18, border: "none", background: "transparent", color: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 };
 const modalOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 200, background: "rgba(43,39,34,0.48)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 };
 const modalStyle: React.CSSProperties = { width: "min(560px, 100%)", maxHeight: "min(720px, calc(100vh - 32px))", overflowY: "auto", background: "var(--card)", borderRadius: 10, border: "1px solid var(--hairline)", boxShadow: "0 24px 70px rgba(26,22,18,0.22)", padding: 16 };
+const imagePreviewOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 260, background: "rgba(20,18,16,0.78)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14 };
+const imagePreviewShellStyle: React.CSSProperties = { width: "min(960px, 100%)", height: "min(760px, calc(100vh - 28px))", borderRadius: 10, overflow: "hidden", background: "#12100e", color: "#fff", boxShadow: "0 24px 80px rgba(0,0,0,0.42)", display: "flex", flexDirection: "column" };
+const imagePreviewTopStyle: React.CSSProperties = { minHeight: 52, padding: "9px 11px", borderBottom: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, fontSize: 13, fontWeight: 850 };
+const imagePreviewBodyStyle: React.CSSProperties = { position: "relative", flex: 1, minHeight: 0, display: "grid", placeItems: "center", padding: 10 };
+const imagePreviewImgStyle: React.CSSProperties = { maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 };
+const previewIconButtonStyle: React.CSSProperties = { width: 36, height: 36, borderRadius: 8, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
+const previewNavButtonStyle: React.CSSProperties = { position: "absolute", top: "50%", transform: "translateY(-50%)", width: 42, height: 42, borderRadius: 999, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(0,0,0,0.34)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
 const modalHeaderStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 14 };
 const modalTabsStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 };
 const tabStyle: React.CSSProperties = { height: 38, borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--surface)", color: "var(--ink-soft)", fontSize: 13, fontWeight: 900, cursor: "pointer", fontFamily: "inherit" };
