@@ -103,6 +103,7 @@ export default function MessengerPage() {
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [hasOlderMessages, setHasOlderMessages] = useState(false);
   const [newMessageNotice, setNewMessageNotice] = useState(false);
+  const [showJumpLatest, setShowJumpLatest] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [groupManageOpen, setGroupManageOpen] = useState(false);
   const [error, setError] = useState("");
@@ -285,6 +286,7 @@ export default function MessengerPage() {
       setHasOlderMessages(false);
       setLoadingOlderMessages(false);
       setNewMessageNotice(false);
+      setShowJumpLatest(false);
       setOnlineUserIds([]);
       setTypingUserIds([]);
       setActionMessageId(null);
@@ -422,6 +424,7 @@ export default function MessengerPage() {
     previousActiveIdRef.current = activeId;
     if (activeChanged || shouldStickToBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: activeChanged ? "auto" : "smooth", block: "end" });
+      setShowJumpLatest(false);
     }
   }, [messages.length, activeId]);
 
@@ -836,7 +839,11 @@ export default function MessengerPage() {
                 onScroll={() => {
                   const nearBottom = isMessageListNearBottom();
                   shouldStickToBottomRef.current = nearBottom;
+                  setShowJumpLatest(!nearBottom);
                   if (nearBottom) setNewMessageNotice(false);
+                  if ((messageListRef.current?.scrollTop ?? 0) < 80) {
+                    void loadOlderMessages();
+                  }
                 }}
               >
                 {loadingMessages ? (
@@ -885,18 +892,19 @@ export default function MessengerPage() {
                     })}
                   </>
                 )}
-                {newMessageNotice && (
+                {(newMessageNotice || showJumpLatest) && (
                   <div style={newMessageNoticeWrapStyle}>
                     <button
                       type="button"
                       onClick={() => {
                         setNewMessageNotice(false);
+                        setShowJumpLatest(false);
                         shouldStickToBottomRef.current = true;
                         bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
                       }}
                       style={newMessageNoticeButtonStyle}
                     >
-                      새 메시지 보기
+                      {newMessageNotice ? "새 메시지 보기" : "최신으로"}
                     </button>
                   </div>
                 )}
