@@ -126,6 +126,9 @@ export default function MessengerReportsPage() {
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" onClick={() => router.push("/admin/messenger-diagnostics")} style={secondaryButtonStyle}>
+              <ExternalLink size={15} strokeWidth={1.8} /> 진단
+            </button>
             <button type="button" onClick={() => router.push("/messenger")} style={secondaryButtonStyle}>
               <ExternalLink size={15} strokeWidth={1.8} /> 메신저
             </button>

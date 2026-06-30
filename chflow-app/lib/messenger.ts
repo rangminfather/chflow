@@ -115,6 +115,40 @@ export type MessengerReport = {
   reported_user_name: string | null;
 };
 
+export type MessengerDiagnosticsFlag = {
+  severity: "danger" | "warning" | "info";
+  code: string;
+  message: string;
+  [key: string]: unknown;
+};
+
+export type MessengerDiagnostics = {
+  input: string;
+  resolved: {
+    conversation_id?: string | null;
+    message_id?: string | null;
+    user_id?: string | null;
+  };
+  conversation: Record<string, unknown> | null;
+  message: {
+    id: string;
+    conversation_id: string;
+    sender_id: string;
+    sender_name: string | null;
+    body: string | null;
+    kind: string;
+    created_at: string;
+    edited_at: string | null;
+    deleted_at: string | null;
+  } | null;
+  participants: Array<Record<string, unknown>>;
+  notifications: Array<Record<string, unknown>>;
+  push_tokens: Array<Record<string, unknown>>;
+  deliveries: Array<Record<string, unknown>>;
+  flags: MessengerDiagnosticsFlag[];
+  candidates: Array<Record<string, unknown>>;
+};
+
 export async function listMessengerConversations(): Promise<MessengerConversation[]> {
   const { data, error } = await supabase.rpc("list_messenger_conversations");
   if (error) throw error;
@@ -324,4 +358,13 @@ export async function resolveMessengerReport(
     p_note: note,
   });
   if (error) throw error;
+}
+
+export async function diagnoseMessengerDelivery(query: string, limit = 30): Promise<MessengerDiagnostics> {
+  const { data, error } = await supabase.rpc("diagnose_messenger_delivery", {
+    p_query: query,
+    p_limit: limit,
+  });
+  if (error) throw error;
+  return data as MessengerDiagnostics;
 }
