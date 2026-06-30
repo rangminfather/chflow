@@ -190,17 +190,18 @@ Implemented capabilities:
 
 Priority: Medium
 
+Status as of 2026-06-30:
+
+- Image attachment preview modal implemented in `7074bf6 feat(messenger): improve attachment preview UX`.
+- Image preview supports next/previous within the same message and download.
+- File attachment rows now show file type and size.
+- Remaining browser `window.confirm` inside messenger was replaced with the app confirm dialog.
+
 Tasks:
 
 - Add "jump to first unread" inside a room.
-- Improve image preview:
-  - larger preview modal
-  - next/previous image navigation
-  - download action
-- Improve file preview metadata.
 - Add message pagination or infinite scroll for older rooms.
-- Add empty/loading/error states for group management actions.
-- Replace remaining browser `window.confirm` usage inside messenger with the app confirm dialog.
+- Add stronger empty/loading/error states for group management actions.
 - Add mobile-specific QA for long names, long messages, many attachments, and small screens.
 
 Exit criteria:
@@ -208,18 +209,88 @@ Exit criteria:
 - Long conversations remain usable.
 - Common mobile layouts do not overlap or truncate critical controls.
 
+## Phase 4A - Messenger Visual Refresh
+
+Priority: High
+
+Goal: raise the messenger from "internal tool" to a product-quality UI before adding many more features.
+
+Recommended order:
+
+1. Message surface polish
+   - Replace tiny inline action buttons with a cleaner contextual action pill/menu.
+   - Add message copy action.
+   - Tighten read-time/read-status typography.
+   - Improve bubble spacing, max-width, and attachment spacing on mobile.
+2. Conversation list polish
+   - Clarify unread emphasis.
+   - Show attachment/file/photo labels in the last-message preview.
+   - Align pin/favorite/mute icons consistently.
+   - Improve selected/hover states.
+3. Composer polish
+   - Improve reply/edit context preview.
+   - Improve pending attachment chips.
+   - Make send/attach controls feel stable on small screens.
+4. Modal/bottom-sheet consistency
+   - Unify new conversation, forwarding, group management, read status, and image preview surface rules.
+   - Prefer bottom-sheet behavior on narrow screens where appropriate.
+
+Exit criteria:
+
+- `/messenger` feels visually comparable to a modern mobile-first messenger for internal church use.
+- Common actions are discoverable without crowding the message row.
+- PC and mobile layouts have clear hierarchy and consistent spacing.
+
+## Phase 4B - Long Conversation Performance
+
+Priority: High
+
+Goal: keep large active group rooms usable.
+
+Tasks:
+
+- Add message pagination with `p_before`.
+- Add "load older messages" or scroll-top infinite load.
+- Preserve scroll position when older messages are inserted.
+- Add "jump to latest" and "jump to first unread".
+- Avoid full conversation reload for every realtime event where possible.
+
+Exit criteria:
+
+- Rooms with hundreds or thousands of messages remain usable.
+- Opening a room does not require loading the entire history.
+
+## Phase 4C - Push Reliability & Receipts
+
+Priority: High
+
+Goal: make "why did I get/no get a notification?" answerable and self-healing.
+
+Tasks:
+
+- Fetch Expo push receipts after ticket creation.
+- Mark permanently invalid tokens disabled.
+- Surface receipt failures in `/admin/messenger-diagnostics`.
+- Add a controlled retry path for failed push deliveries.
+- Confirm Supabase Vault dispatch URL/secret values in production.
+
+Exit criteria:
+
+- Failed native pushes have an actionable reason.
+- Dead tokens stop generating repeated failed deliveries.
+
 ## Phase 5 - Commercial Messenger Gap Features
 
 Priority: Medium to Low
 
 Potential features:
 
+- Message copy action.
 - Mentions with `@name`.
 - Pinned messages inside a room.
 - Room notice.
 - Room owner transfer.
 - Per-room notification preferences.
-- Message copy action.
 - Unread members list shortcut.
 - Attachment cleanup job visibility.
 - Export conversation for admins, if policy allows.
