@@ -31,6 +31,8 @@ import {
   VolumeX,
   Users,
   X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import { EmptyState, LoadingView } from "@/components/StatusViews";
@@ -1468,6 +1470,7 @@ function ImagePreviewModal({
 }) {
   const safeIndex = Math.min(Math.max(index, 0), Math.max(images.length - 1, 0));
   const current = images[safeIndex];
+  const [zoom, setZoom] = useState(1);
 
   const go = useCallback((delta: number) => {
     if (images.length <= 1) return;
@@ -1491,6 +1494,10 @@ function ImagePreviewModal({
     return () => window.removeEventListener("keydown", handleKey);
   }, [go, onClose]);
 
+  useEffect(() => {
+    setZoom(1);
+  }, [current?.url]);
+
   if (!current) return null;
 
   return (
@@ -1504,6 +1511,15 @@ function ImagePreviewModal({
             </div>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
+            <button type="button" onClick={() => setZoom((value) => Math.max(1, value - 0.25))} title="축소" style={previewIconButtonStyle}>
+              <ZoomOut size={17} />
+            </button>
+            <button type="button" onClick={() => setZoom((value) => Math.min(3, value + 0.25))} title="확대" style={previewIconButtonStyle}>
+              <ZoomIn size={17} />
+            </button>
+            <button type="button" onClick={() => setZoom(1)} title="원래 크기" style={previewTextButtonStyle}>
+              {Math.round(zoom * 100)}%
+            </button>
             <a href={current.url} download={current.file_name} target="_blank" rel="noreferrer" title="다운로드" style={previewIconButtonStyle}>
               <Download size={17} />
             </a>
@@ -1516,7 +1532,7 @@ function ImagePreviewModal({
               <ChevronLeft size={24} />
             </button>
           )}
-          <img src={current.url} alt={current.file_name} style={imagePreviewImgStyle} />
+          <img src={current.url} alt={current.file_name} style={{ ...imagePreviewImgStyle, transform: `scale(${zoom})` }} />
           {images.length > 1 && (
             <button type="button" onClick={() => go(1)} title="다음" style={{ ...previewNavButtonStyle, right: 10 }}>
               <ChevronRight size={24} />
@@ -2392,9 +2408,10 @@ const modalStyle: React.CSSProperties = { width: "min(560px, 100%)", maxHeight: 
 const imagePreviewOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 260, background: "rgba(20,18,16,0.78)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14 };
 const imagePreviewShellStyle: React.CSSProperties = { width: "min(960px, 100%)", height: "min(760px, calc(100vh - 28px))", borderRadius: 10, overflow: "hidden", background: "#12100e", color: "#fff", boxShadow: "0 24px 80px rgba(0,0,0,0.42)", display: "flex", flexDirection: "column" };
 const imagePreviewTopStyle: React.CSSProperties = { minHeight: 52, padding: "9px 11px", borderBottom: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, fontSize: 13, fontWeight: 850 };
-const imagePreviewBodyStyle: React.CSSProperties = { position: "relative", flex: 1, minHeight: 0, display: "grid", placeItems: "center", padding: 10 };
-const imagePreviewImgStyle: React.CSSProperties = { maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 };
+const imagePreviewBodyStyle: React.CSSProperties = { position: "relative", flex: 1, minHeight: 0, display: "grid", placeItems: "center", padding: 10, overflow: "auto" };
+const imagePreviewImgStyle: React.CSSProperties = { maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8, transition: "transform .14s ease" };
 const previewIconButtonStyle: React.CSSProperties = { width: 36, height: 36, borderRadius: 8, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
+const previewTextButtonStyle: React.CSSProperties = { minWidth: 52, height: 36, borderRadius: 8, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 12, fontWeight: 900, fontFamily: "inherit" };
 const previewNavButtonStyle: React.CSSProperties = { position: "absolute", top: "50%", transform: "translateY(-50%)", width: 42, height: 42, borderRadius: 999, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(0,0,0,0.34)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
 const modalHeaderStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 14 };
 const modalTabsStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 };
