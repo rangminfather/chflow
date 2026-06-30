@@ -137,6 +137,7 @@ export default function MessengerPage() {
   const [forwarding, setForwarding] = useState<MessengerMessage | null>(null);
   const [actionMessageId, setActionMessageId] = useState<string | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [pendingSearchTarget, setPendingSearchTarget] = useState<{ conversationId: string; messageId: string } | null>(null);
   const [readStatusMessage, setReadStatusMessage] = useState<MessengerMessage | null>(null);
   const [imagePreview, setImagePreview] = useState<{ images: ImagePreviewItem[]; index: number } | null>(null);
 
@@ -455,6 +456,54 @@ export default function MessengerPage() {
       setShowJumpLatest(false);
     }
   }, [messages.length, activeId]);
+
+  useEffect(() => {
+    if (!pendingSearchTarget || !activeId || pendingSearchTarget.conversationId !== activeId || loadingMessages) return;
+    if (messages.some((message) => message.id === pendingSearchTarget.messageId)) {
+      setHighlightedMessageId(pendingSearchTarget.messageId);
+      setPendingSearchTarget(null);
+      return;
+    }
+    if (!hasOlderMessages || messages.length === 0 || loadingOlderMessages) return;
+
+    let cancelled = false;
+    (async () => {
+      setLoadingOlderMessages(true);
+      try {
+        let before = messages[0]?.created_at || null;
+        const collected: MessengerMessage[] = [];
+        let found = false;
+        let hasMore: boolean = hasOlderMessages;
+        for (let i = 0; i < 8 && before && hasMore && !found; i += 1) {
+          const rows = await getMessengerMessages(activeId, MESSAGE_PAGE_SIZE, before);
+          if (cancelled) return;
+          hasMore = rows.length >= MESSAGE_PAGE_SIZE;
+          collected.unshift(...rows);
+          found = rows.some((message) => message.id === pendingSearchTarget.messageId);
+          before = rows[0]?.created_at || null;
+          if (rows.length === 0) break;
+        }
+        setHasOlderMessages(hasMore);
+        if (collected.length > 0) {
+          setMessages((prev) => {
+            const seen = new Set(prev.map((message) => message.id));
+            return [...collected.filter((message) => !seen.has(message.id)), ...prev];
+          });
+        }
+        setHighlightedMessageId(pendingSearchTarget.messageId);
+        setPendingSearchTarget(null);
+      } catch (e) {
+        setError(getErrorMessage(e));
+        setPendingSearchTarget(null);
+      } finally {
+        if (!cancelled) setLoadingOlderMessages(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeId, hasOlderMessages, loadingMessages, loadingOlderMessages, messages, pendingSearchTarget]);
 
   useEffect(() => {
     if (!highlightedMessageId || loadingMessages) return;
@@ -811,6 +860,7 @@ export default function MessengerPage() {
                     loading={searchingMessages}
                     results={messageResults}
                     onOpen={(result) => {
+                      setPendingSearchTarget({ conversationId: result.conversation_id, messageId: result.message_id });
                       setActiveId(result.conversation_id);
                       setHighlightedMessageId(result.message_id);
                     }}
