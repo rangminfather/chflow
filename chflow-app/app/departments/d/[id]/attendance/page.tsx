@@ -63,6 +63,11 @@ const STATUS_COLOR: Record<string, string> = {
   출: "var(--success)", 빠: "var(--warning)", 결: "var(--danger)", 인: "var(--accent)",
 };
 
+function classLabel(row: { grade_year: number | null; class_no: string | null }): string {
+  const grade = row.grade_year ? `${row.grade_year}학년 ` : "";
+  return `${grade}${row.class_no || "미배정"}반`;
+}
+
 export default function AttendancePage() {
   const router = useRouter();
   const { confirm } = useConfirm();
@@ -79,14 +84,12 @@ export default function AttendancePage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newNo, setNewNo] = useState("");
   const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState("정");
   const [newGrade, setNewGrade] = useState("");
   const [toast, setToast] = useState("");
   const [saving, setSaving] = useState<string>("");
   const [editMemo, setEditMemo] = useState<Record<string, string>>({});
   const [newFriendMap, setNewFriendMap] = useState<Record<string, boolean>>({}); // student_id → promoted
   const [board, setBoard] = useState<PromoRow[]>([]);
-  const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
   const [promoting, setPromoting] = useState("");
 
   const loadPromotion = useCallback(async () => {
@@ -140,31 +143,14 @@ export default function AttendancePage() {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/login"); return; }
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: teacher } = await supabase
-          .from("edu_teachers")
-          .select("id")
-          .eq("department_id", deptId)
-          .eq("user_id", user.id)
-          .eq("is_active", true)
-          .maybeSingle();
-        setMyTeacherId(teacher?.id ?? null);
-      }
       setAuthChecked(true);
       await loadAll();
     })();
-  }, [loadAll, router, deptId]);
+  }, [loadAll, router]);
 
-  // 내 반 등반 대상/예정 (담임만 표시)
-  const myReady = useMemo(
-    () => board.filter((b) => b.state === "ready" && b.teacher_id === myTeacherId),
-    [board, myTeacherId],
-  );
-  const myUpcoming = useMemo(
-    () => board.filter((b) => b.state === "upcoming" && b.teacher_id === myTeacherId),
-    [board, myTeacherId],
-  );
+  // 등반 대상/예정 — 전체 출결관리 화면에 표시(반 무관). 확정 권한은 출석부 접근 권한과 동일.
+  const readyList = useMemo(() => board.filter((b) => b.state === "ready"), [board]);
+  const upcomingList = useMemo(() => board.filter((b) => b.state === "upcoming"), [board]);
 
   const confirmPromotion = async (row: PromoRow) => {
     const guideNote = row.guide_kind === "student" && row.guide_student_name
@@ -254,13 +240,13 @@ export default function AttendancePage() {
       p_dept_id:  deptId,
       p_no:       parseInt(newNo) || null,
       p_name:     newName.trim(),
-      p_type:     newType,
+      p_type:     "정",
       p_grade:    newGrade.trim() || null,
       p_order_no: students.length,
     });
     if (!error) {
       showToast("학생이 추가되었습니다");
-      setNewNo(""); setNewName(""); setNewType("정"); setNewGrade("");
+      setNewNo(""); setNewName(""); setNewGrade("");
       setShowAddForm(false);
       await loadAll();
     }
@@ -317,11 +303,6 @@ export default function AttendancePage() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <input type="number" value={newNo} onChange={(e) => setNewNo(e.target.value)} placeholder="번호" style={{ ...inputStyle, width: 70 }} />
               <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="이름" style={{ ...inputStyle, width: 120 }} />
-              <select value={newType} onChange={(e) => setNewType(e.target.value)} style={{ ...inputStyle, width: 100 }}>
-                <option value="정">정</option>
-                <option value="체험">체험</option>
-                <option value="소">소</option>
-              </select>
               <input type="text" value={newGrade} onChange={(e) => setNewGrade(e.target.value)} placeholder="학년 (선택)" style={{ ...inputStyle, width: 100 }} />
               <button onClick={addStudent} style={saveBtnStyle}>추가</button>
               <button onClick={() => setShowAddForm(false)} style={cancelBtnStyle}>취소</button>
@@ -341,14 +322,15 @@ export default function AttendancePage() {
           </div>
         </div>
 
-        {/* 등반 확정 대상 (내 반, '출' 4회 이상) */}
-        {myReady.length > 0 && (
+        {/* 등반 확정 대상 ('출' 4회 이상) — 출석부 접근자 누구나 확정 가능 */}
+        {readyList.length > 0 && (
           <div style={{ ...cardStyle, marginBottom: 16, border: "1px solid color-mix(in srgb, var(--accent) 35%, transparent)", background: "var(--accent-soft)" }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", marginBottom: 10 }}>🎖️ 등반 확정 대상</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {myReady.map((row) => (
+              {readyList.map((row) => (
                 <div key={row.new_friend_id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{row.name}</span>
+                  <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>{classLabel(row)}</span>
                   <span style={{ fontSize: 12, color: "var(--ink-soft)" }}>출석 {row.attend_count}회 · 4주 등반 대상</span>
                   <button
                     onClick={() => confirmPromotion(row)}
@@ -363,14 +345,14 @@ export default function AttendancePage() {
           </div>
         )}
 
-        {/* 등반 예정 (내 반, '출' 3회) */}
-        {myUpcoming.length > 0 && (
+        {/* 등반 예정 ('출' 3회) */}
+        {upcomingList.length > 0 && (
           <div style={{ ...cardStyle, marginBottom: 16, border: "1px solid color-mix(in srgb, var(--warning) 35%, transparent)", background: "var(--warning-soft)" }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>⏳ 등반 예정 (다음 출석 시 4주)</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {myUpcoming.map((row) => (
+              {upcomingList.map((row) => (
                 <span key={row.new_friend_id} style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", background: "var(--card)", border: "1px solid color-mix(in srgb, var(--warning) 30%, transparent)", borderRadius: 14, padding: "3px 10px" }}>
-                  {row.name}
+                  {row.name} <span style={{ color: "var(--ink-faint)", fontWeight: 600 }}>· {classLabel(row)}</span>
                 </span>
               ))}
             </div>
