@@ -6,6 +6,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import {
   ArrowLeft,
   Check,
+  Download,
   FileText,
   Forward,
   LogOut,
@@ -63,6 +64,7 @@ import {
 
 type NewMode = "direct" | "group";
 type PendingAttachment = MessengerAttachment & { local_url?: string };
+type ImagePreviewState = { attachment: MessengerAttachment; url: string } | null;
 
 function isMobileMessengerViewport(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
@@ -76,6 +78,7 @@ export default function MessengerPage() {
   const { confirm, prompt, alert } = useConfirm();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const skipNextAutoScrollRef = useRef(false);
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lastTypingAtRef = useRef(0);
   const typingTimersRef = useRef<Record<string, number>>({});
@@ -88,6 +91,8 @@ export default function MessengerPage() {
   const [participants, setParticipants] = useState<MessengerParticipant[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [groupManageOpen, setGroupManageOpen] = useState(false);
   const [error, setError] = useState("");
@@ -107,6 +112,7 @@ export default function MessengerPage() {
   const [actionMessageId, setActionMessageId] = useState<string | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [readStatusMessage, setReadStatusMessage] = useState<MessengerMessage | null>(null);
+  const [imagePreview, setImagePreview] = useState<ImagePreviewState>(null);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.conversation_id === activeId) || null,
@@ -162,10 +168,11 @@ export default function MessengerPage() {
     try {
       await markMessengerRead(conversationId);
       const [messageRows, participantRows] = await Promise.all([
-        getMessengerMessages(conversationId),
+        getMessengerMessages(conversationId, 60),
         getMessengerParticipants(conversationId),
       ]);
       setMessages(messageRows);
+      setHasOlderMessages(messageRows.length >= 60);
       setParticipants(participantRows);
       setConversations((prev) => prev.map((c) => (
         c.conversation_id === conversationId ? { ...c, unread_count: 0 } : c
@@ -173,6 +180,7 @@ export default function MessengerPage() {
     } catch (e) {
       setError(getErrorMessage(e));
       setMessages([]);
+      setHasOlderMessages(false);
       setParticipants([]);
     } finally {
       setLoadingMessages(false);
@@ -308,8 +316,31 @@ export default function MessengerPage() {
   }, [activeId, loadConversationBody, loadConversations, myUserId]);
 
   useEffect(() => {
+    if (skipNextAutoScrollRef.current) {
+      skipNextAutoScrollRef.current = false;
+      return;
+    }
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, activeId]);
+
+  const loadOlderMessages = async () => {
+    if (!activeId || loadingOlder || messages.length === 0) return;
+    setLoadingOlder(true);
+    setError("");
+    try {
+      const olderRows = await getMessengerMessages(activeId, 60, messages[0].created_at);
+      skipNextAutoScrollRef.current = true;
+      setMessages((prev) => {
+        const seen = new Set(prev.map((row) => row.id));
+        return [...olderRows.filter((row) => !seen.has(row.id)), ...prev];
+      });
+      setHasOlderMessages(olderRows.length >= 60);
+    } catch (e) {
+      setError(getErrorMessage(e));
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
 
   useEffect(() => {
     if (!highlightedMessageId || loadingMessages) return;
@@ -686,24 +717,34 @@ export default function MessengerPage() {
                 ) : messages.length === 0 ? (
                   <EmptyState icon={<MessageCircle size={26} strokeWidth={1.7} />} message="첫 메시지를 보내세요." padding={56} />
                 ) : (
-                  messages.map((m, idx) => (
-                    <MessageBubble
-                      key={m.id}
-                      message={m}
-                      compact={idx > 0 && messages[idx - 1].sender_id === m.sender_id}
-                      participants={participants}
-                      highlighted={highlightedMessageId === m.id}
-                      onReply={() => setReplyTarget(m)}
-                      onEdit={() => startEdit(m)}
-                      onDelete={() => removeMessage(m)}
-                      onForward={() => setForwarding(m)}
-                      onReport={() => reportMessage(m)}
-                      onReact={(emoji) => reactToMessage(m, emoji)}
-                      onShowReadStatus={() => setReadStatusMessage(m)}
-                      actionsOpen={actionMessageId === m.id}
-                      onToggleActions={() => setActionMessageId((current) => current === m.id ? null : m.id)}
-                    />
-                  ))
+                  <>
+                    {hasOlderMessages && (
+                      <div style={olderButtonWrapStyle}>
+                        <button type="button" onClick={loadOlderMessages} disabled={loadingOlder} style={olderButtonStyle}>
+                          {loadingOlder ? "불러오는 중..." : "이전 메시지 더 보기"}
+                        </button>
+                      </div>
+                    )}
+                    {messages.map((m, idx) => (
+                      <MessageBubble
+                        key={m.id}
+                        message={m}
+                        compact={idx > 0 && messages[idx - 1].sender_id === m.sender_id}
+                        participants={participants}
+                        highlighted={highlightedMessageId === m.id}
+                        onReply={() => setReplyTarget(m)}
+                        onEdit={() => startEdit(m)}
+                        onDelete={() => removeMessage(m)}
+                        onForward={() => setForwarding(m)}
+                        onReport={() => reportMessage(m)}
+                        onReact={(emoji) => reactToMessage(m, emoji)}
+                        onShowReadStatus={() => setReadStatusMessage(m)}
+                        onPreviewImage={(attachment, url) => setImagePreview({ attachment, url })}
+                        actionsOpen={actionMessageId === m.id}
+                        onToggleActions={() => setActionMessageId((current) => current === m.id ? null : m.id)}
+                      />
+                    ))}
+                  </>
                 )}
                 <div ref={bottomRef} />
               </div>
@@ -773,6 +814,12 @@ export default function MessengerPage() {
           onAddMembers={addGroupMembers}
           onRemoveMember={removeGroupMember}
           onError={setError}
+        />
+      )}
+      {imagePreview && (
+        <ImagePreviewModal
+          preview={imagePreview}
+          onClose={() => setImagePreview(null)}
         />
       )}
       {readStatusMessage && (
@@ -971,6 +1018,7 @@ function MessageBubble({
   onReport,
   onReact,
   onShowReadStatus,
+  onPreviewImage,
   actionsOpen,
   onToggleActions,
 }: {
@@ -985,6 +1033,7 @@ function MessageBubble({
   onReport: () => void;
   onReact: (emoji: string) => void;
   onShowReadStatus: () => void;
+  onPreviewImage: (attachment: MessengerAttachment, url: string) => void;
   actionsOpen: boolean;
   onToggleActions: () => void;
 }) {
@@ -1043,7 +1092,7 @@ function MessageBubble({
             )}
             {message.body && <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{message.body}</div>}
             {message.attachments.length > 0 && (
-              <AttachmentList attachments={message.attachments} mine={message.is_mine} />
+              <AttachmentList attachments={message.attachments} mine={message.is_mine} onPreviewImage={onPreviewImage} />
             )}
           </div>
         </div>
@@ -1122,7 +1171,15 @@ function MessageActions({
   );
 }
 
-function AttachmentList({ attachments, mine }: { attachments: MessengerAttachment[]; mine: boolean }) {
+function AttachmentList({
+  attachments,
+  mine,
+  onPreviewImage,
+}: {
+  attachments: MessengerAttachment[];
+  mine: boolean;
+  onPreviewImage: (attachment: MessengerAttachment, url: string) => void;
+}) {
   return (
     <div style={{ display: "grid", gap: 7, marginTop: 8 }}>
       {attachments.map((a) => {
@@ -1130,9 +1187,17 @@ function AttachmentList({ attachments, mine }: { attachments: MessengerAttachmen
         const image = !!a.mime_type?.startsWith("image/");
         if (image) {
           return (
-            <a key={a.id || a.file_path} href={url} target="_blank" rel="noreferrer" style={{ display: "block" }}>
+            <button
+              key={a.id || a.file_path}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onPreviewImage(a, url);
+              }}
+              style={imageAttachmentButtonStyle}
+            >
               <img src={url} alt={a.file_name} style={imageAttachmentStyle} />
-            </a>
+            </button>
           );
         }
         return (
@@ -1153,6 +1218,41 @@ function AttachmentList({ attachments, mine }: { attachments: MessengerAttachmen
           </a>
         );
       })}
+    </div>
+  );
+}
+
+function ImagePreviewModal({
+  preview,
+  onClose,
+}: {
+  preview: NonNullable<ImagePreviewState>;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div onClick={onClose} style={imagePreviewOverlayStyle}>
+      <div onClick={(event) => event.stopPropagation()} style={imagePreviewShellStyle}>
+        <div style={imagePreviewHeaderStyle}>
+          <div style={{ ...oneLineStyle, fontWeight: 900 }}>{preview.attachment.file_name}</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <a href={preview.url} download={preview.attachment.file_name} target="_blank" rel="noreferrer" style={previewActionStyle} title="다운로드">
+              <Download size={17} strokeWidth={2} />
+            </a>
+            <button type="button" onClick={onClose} style={previewActionStyle} title="닫기">
+              <X size={18} strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+        <img src={preview.url} alt={preview.attachment.file_name} style={imagePreviewStyle} />
+      </div>
     </div>
   );
 }
@@ -1427,6 +1527,7 @@ function GroupManagementModal({
   onRemoveMember: (userId: string) => Promise<void>;
   onError: (message: string) => void;
 }) {
+  const { confirm } = useConfirm();
   const [title, setTitle] = useState(conversation.title || conversation.display_title);
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<MessengerUser[]>([]);
@@ -1495,7 +1596,7 @@ function GroupManagementModal({
 
   const removeMember = async (participant: MessengerParticipant) => {
     if (participant.user_id === myUserId || removingId) return;
-    if (!window.confirm(`${participant.name || "이 멤버"}님을 대화방에서 내보낼까요?`)) return;
+    if (!await confirm(`${participant.name || "이 멤버"}님을 대화방에서 내보낼까요?`)) return;
     setRemovingId(participant.user_id);
     try {
       await onRemoveMember(participant.user_id);
@@ -1863,6 +1964,8 @@ const presenceDotStyle: React.CSSProperties = { width: 7, height: 7, borderRadiu
 const conversationMenuStyle: React.CSSProperties = { position: "absolute", top: 40, right: 0, zIndex: 40, width: 180, border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--card)", boxShadow: "0 16px 44px rgba(26,22,18,0.16)", padding: 6 };
 const menuActionStyle: React.CSSProperties = { width: "100%", minHeight: 34, border: "none", borderRadius: 7, background: "transparent", display: "flex", alignItems: "center", gap: 8, padding: "0 9px", fontSize: 12, fontWeight: 850, cursor: "pointer", fontFamily: "inherit", textAlign: "left" };
 const messageListStyle: React.CSSProperties = { flex: 1, minHeight: 0, overflowY: "auto", padding: "14px clamp(12px, 3vw, 22px)", overscrollBehavior: "contain" };
+const olderButtonWrapStyle: React.CSSProperties = { display: "flex", justifyContent: "center", padding: "2px 0 12px" };
+const olderButtonStyle: React.CSSProperties = { minHeight: 34, border: "1px solid var(--hairline)", borderRadius: 999, background: "var(--card)", color: "var(--ink-soft)", padding: "0 14px", fontSize: 12, fontWeight: 900, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 8px rgba(26,22,18,0.04)" };
 const conversationButtonStyle: React.CSSProperties = { width: "100%", display: "flex", alignItems: "center", gap: 10, padding: 10, borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit" };
 const conversationTitleStyle: React.CSSProperties = { flex: 1, minWidth: 0, fontSize: 14, fontWeight: 900, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const conversationTimeStyle: React.CSSProperties = { fontSize: 11, color: "var(--ink-faint)", flexShrink: 0 };
@@ -1880,8 +1983,14 @@ const miniActionStyle: React.CSSProperties = { width: 25, height: 25, borderRadi
 const miniTextActionStyle: React.CSSProperties = { ...miniActionStyle, fontSize: 12, fontWeight: 900, lineHeight: 1 };
 const reactionRowStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 4, maxWidth: "min(76%, 620px)" };
 const reactionButtonStyle: React.CSSProperties = { minWidth: 42, height: 25, borderRadius: 999, border: "1px solid var(--hairline)", background: "var(--card)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "0 8px", fontSize: 12, fontWeight: 900, cursor: "pointer", fontFamily: "inherit" };
+const imageAttachmentButtonStyle: React.CSSProperties = { display: "block", width: "fit-content", maxWidth: "100%", border: "none", background: "transparent", padding: 0, cursor: "zoom-in", borderRadius: 8, overflow: "hidden" };
 const imageAttachmentStyle: React.CSSProperties = { display: "block", maxWidth: "min(320px, 60vw)", maxHeight: 260, borderRadius: 8, objectFit: "cover", border: "1px solid rgba(255,255,255,0.18)" };
 const fileAttachmentStyle: React.CSSProperties = { minWidth: 220, maxWidth: 320, minHeight: 42, borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 8, textDecoration: "none", fontSize: 12, fontWeight: 800 };
+const imagePreviewOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 260, background: "rgba(15, 13, 11, 0.82)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14 };
+const imagePreviewShellStyle: React.CSSProperties = { width: "min(1040px, 100%)", maxHeight: "calc(100dvh - 28px)", display: "flex", flexDirection: "column", gap: 10 };
+const imagePreviewHeaderStyle: React.CSSProperties = { minHeight: 42, borderRadius: 8, background: "rgba(255,255,255,0.08)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "0 8px 0 12px", fontSize: 13 };
+const previewActionStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: 8, border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.08)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
+const imagePreviewStyle: React.CSSProperties = { maxWidth: "100%", maxHeight: "calc(100dvh - 92px)", objectFit: "contain", borderRadius: 8, alignSelf: "center", boxShadow: "0 22px 70px rgba(0,0,0,0.28)" };
 const oneLineStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const composerStyle: React.CSSProperties = { padding: "12px 12px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: "1px solid var(--hairline)", background: "var(--card)", display: "grid", gap: 8, flexShrink: 0 };
 const composerContextStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, border: "1px solid var(--hairline)", background: "var(--accent-soft)", borderRadius: 8, padding: "7px 8px" };
