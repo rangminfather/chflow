@@ -77,6 +77,7 @@ function isMobileMessengerViewport(): boolean {
 const MAX_ATTACHMENTS = 6;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MESSAGE_PAGE_SIZE = 60;
+const DRAFT_STORAGE_KEY = "chflow:messenger:drafts:v1";
 
 export default function MessengerPage() {
   const router = useRouter();
@@ -87,6 +88,7 @@ export default function MessengerPage() {
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const previousActiveIdRef = useRef<string | null>(null);
   const shouldStickToBottomRef = useRef(true);
+  const draftsByConversationRef = useRef<Record<string, string>>({});
   const lastTypingAtRef = useRef(0);
   const typingTimersRef = useRef<Record<string, number>>({});
 
@@ -112,6 +114,14 @@ export default function MessengerPage() {
   const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
 
   const [draft, setDraft] = useState("");
+  const [draftsByConversation, setDraftsByConversation] = useState<Record<string, string>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      return JSON.parse(window.localStorage.getItem(DRAFT_STORAGE_KEY) || "{}") as Record<string, string>;
+    } catch {
+      return {};
+    }
+  });
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [draggingFiles, setDraggingFiles] = useState(false);
@@ -246,6 +256,29 @@ export default function MessengerPage() {
   }, [loadConversations, router]);
 
   useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, string>;
+        draftsByConversationRef.current = parsed;
+        setDraftsByConversation(parsed);
+      }
+    } catch {
+      draftsByConversationRef.current = {};
+      setDraftsByConversation({});
+    }
+  }, []);
+
+  useEffect(() => {
+    draftsByConversationRef.current = draftsByConversation;
+    try {
+      window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftsByConversation));
+    } catch {
+      // Draft persistence is a convenience feature; storage failures should not block messaging.
+    }
+  }, [draftsByConversation]);
+
+  useEffect(() => {
     if (!activeId) {
       setMessages([]);
       setParticipants([]);
@@ -262,11 +295,26 @@ export default function MessengerPage() {
     window.history.replaceState(null, "", `/messenger?${params.toString()}`);
     setReplyTarget(null);
     setEditing(null);
-    setDraft("");
+    setDraft(draftsByConversationRef.current[activeId] || "");
     setDraggingFiles(false);
     setAttachments([]);
     loadConversationBody(activeId);
   }, [activeId, loadConversationBody]);
+
+  useEffect(() => {
+    if (!activeId || editing) return;
+    const value = draft.trim() ? draft : "";
+    setDraftsByConversation((prev) => {
+      if (value) {
+        if (prev[activeId] === value) return prev;
+        return { ...prev, [activeId]: value };
+      }
+      if (!(activeId in prev)) return prev;
+      const next = { ...prev };
+      delete next[activeId];
+      return next;
+    });
+  }, [activeId, draft, editing]);
 
   useEffect(() => {
     const q = searchQuery.trim();
@@ -449,8 +497,9 @@ export default function MessengerPage() {
       setSending(true);
       try {
         await editMessengerMessage(editing.id, body);
+        const savedDraft = draftsByConversationRef.current[activeId] || "";
         setEditing(null);
-        setDraft("");
+        setDraft(savedDraft);
         await loadConversationBody(activeId);
         await loadConversations(activeId);
       } catch (e) {
@@ -474,6 +523,12 @@ export default function MessengerPage() {
         })
       );
       setDraft("");
+      setDraftsByConversation((prev) => {
+        if (!(activeId in prev)) return prev;
+        const next = { ...prev };
+        delete next[activeId];
+        return next;
+      });
       setReplyTarget(null);
       setAttachments([]);
       await loadConversationBody(activeId);
@@ -734,6 +789,7 @@ export default function MessengerPage() {
                           conversation={c}
                           active={c.conversation_id === activeId}
                           mine={myUserId}
+                          draftText={draftsByConversation[c.conversation_id] || ""}
                           onClick={() => setActiveId(c.conversation_id)}
                         />
                       </li>
@@ -1083,15 +1139,18 @@ function ConversationButton({
   conversation,
   active,
   mine,
+  draftText,
   onClick,
 }: {
   conversation: MessengerConversation;
   active: boolean;
   mine: string | null;
+  draftText: string;
   onClick: () => void;
 }) {
   const fromMe = !!conversation.last_sender_id && conversation.last_sender_id === mine;
-  const preview = formatConversationPreview(conversation, fromMe);
+  const hasDraft = !!draftText.trim();
+  const preview = formatConversationPreview(conversation, fromMe, draftText);
   return (
     <button type="button" onClick={onClick} style={{
       ...conversationButtonStyle,
@@ -1110,8 +1169,8 @@ function ConversationButton({
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 3 }}>
           <div style={{
             ...conversationPreviewStyle,
-            color: conversation.unread_count > 0 ? "var(--ink)" : "var(--ink-soft)",
-            fontWeight: conversation.unread_count > 0 ? 800 : 600,
+            color: hasDraft ? "var(--accent)" : conversation.unread_count > 0 ? "var(--ink)" : "var(--ink-soft)",
+            fontWeight: hasDraft || conversation.unread_count > 0 ? 800 : 600,
           }}>
             {preview}
           </div>
@@ -2050,7 +2109,9 @@ function formatDayLabel(iso: string): string {
   return new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" }).format(d);
 }
 
-function formatConversationPreview(conversation: MessengerConversation, fromMe: boolean): string {
+function formatConversationPreview(conversation: MessengerConversation, fromMe: boolean, draftText = ""): string {
+  const draft = draftText.trim();
+  if (draft) return `초안: ${draft}`;
   if (!conversation.last_message_id) return "새 대화";
   const body = (conversation.last_message_body || "").trim();
   const content = body || "첨부 메시지";
