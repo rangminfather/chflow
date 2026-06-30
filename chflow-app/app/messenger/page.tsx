@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Check,
+  Copy,
   Download,
   FileText,
   Forward,
@@ -506,6 +507,17 @@ export default function MessengerPage() {
     }
   };
 
+  const copyMessage = async (message: MessengerMessage) => {
+    const body = message.body.trim();
+    if (!body) return;
+    try {
+      await copyText(body);
+      await alert("메시지를 복사했습니다.");
+    } catch (e) {
+      setError(getErrorMessage(e));
+    }
+  };
+
   const leaveConversation = async () => {
     if (!activeConversation) return;
     const label = activeConversation.type === "group" ? "이 그룹 대화방에서 나갈까요?" : "이 대화를 목록에서 숨길까요?";
@@ -704,6 +716,7 @@ export default function MessengerPage() {
                       onForward={() => setForwarding(m)}
                       onReport={() => reportMessage(m)}
                       onReact={(emoji) => reactToMessage(m, emoji)}
+                      onCopy={() => copyMessage(m)}
                       onShowReadStatus={() => setReadStatusMessage(m)}
                       onPreviewImages={(images, index) => setImagePreview({ images, index })}
                       actionsOpen={actionMessageId === m.id}
@@ -985,6 +998,7 @@ function MessageBubble({
   onForward,
   onReport,
   onReact,
+  onCopy,
   onShowReadStatus,
   onPreviewImages,
   actionsOpen,
@@ -1000,6 +1014,7 @@ function MessageBubble({
   onForward: () => void;
   onReport: () => void;
   onReact: (emoji: string) => void;
+  onCopy: () => void;
   onShowReadStatus: () => void;
   onPreviewImages: (images: ImagePreviewItem[], index: number) => void;
   actionsOpen: boolean;
@@ -1039,6 +1054,7 @@ function MessageBubble({
             onForward={onForward}
             onReport={onReport}
             onReact={onReact}
+            onCopy={onCopy}
           />
           <div style={{
             ...bubbleStyle,
@@ -1112,6 +1128,7 @@ function MessageActions({
   onForward,
   onReport,
   onReact,
+  onCopy,
 }: {
   mine: boolean;
   deleted: boolean;
@@ -1123,6 +1140,7 @@ function MessageActions({
   onForward: () => void;
   onReport: () => void;
   onReact: (emoji: string) => void;
+  onCopy: () => void;
 }) {
   if (deleted) return null;
   return (
@@ -1130,6 +1148,7 @@ function MessageActions({
       <button type="button" onClick={() => onReact("👍")} title="좋아요" style={miniActionStyle}><SmilePlus size={13} /></button>
       <button type="button" onClick={() => onReact("✅")} title="확인" style={miniTextActionStyle}>✓</button>
       <button type="button" onClick={() => onReact("🙏")} title="감사" style={miniTextActionStyle}>🙏</button>
+      {hasText && <button type="button" onClick={onCopy} title="복사" style={miniActionStyle}><Copy size={13} /></button>}
       <button type="button" onClick={onReply} title="답장" style={miniActionStyle}><Reply size={13} /></button>
       <button type="button" onClick={onForward} title="전달" style={miniActionStyle}><Forward size={13} /></button>
       {mine && hasText && <button type="button" onClick={onEdit} title="수정" style={miniActionStyle}><Pencil size={13} /></button>}
@@ -1869,6 +1888,24 @@ function getErrorMessage(error: unknown): string {
   return "처리 중 오류가 발생했습니다.";
 }
 
+async function copyText(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.left = "-9999px";
+  area.style.top = "0";
+  document.body.appendChild(area);
+  area.select();
+  document.execCommand("copy");
+  document.body.removeChild(area);
+}
+
 const responsiveCss = `
   .messenger-page {
     margin-top: calc(-1 * var(--body-safe-top, 0px));
@@ -1907,9 +1944,9 @@ const responsiveCss = `
     background: #fbfaf7;
   }
   .mobile-back { display: none; }
-  .message-actions { opacity: 0; pointer-events: none; transition: opacity .14s ease; }
+  .message-actions { opacity: 0; pointer-events: none; transform: translateY(3px); transition: opacity .14s ease, transform .14s ease; }
   .message-wrap:hover .message-actions,
-  .message-actions.open { opacity: 1; pointer-events: auto; }
+  .message-actions.open { opacity: 1; pointer-events: auto; transform: translateY(0); }
   @media (max-width: 760px) {
     .messenger-shell {
       display: block;
@@ -1972,8 +2009,8 @@ const bubbleStyle: React.CSSProperties = { padding: "9px 12px", fontSize: 14, li
 const replyPreviewStyle: React.CSSProperties = { borderLeft: "3px solid currentColor", borderRadius: 7, padding: "6px 8px", marginBottom: 7, maxWidth: 300 };
 const messageMetaStyle: React.CSSProperties = { fontSize: 10, color: "var(--ink-faint)" };
 const readStatusButtonStyle: React.CSSProperties = { border: "none", background: "transparent", color: "inherit", padding: 0, font: "inherit", cursor: "pointer" };
-const messageActionsStyle: React.CSSProperties = { display: "inline-flex", gap: 3, paddingBottom: 3 };
-const miniActionStyle: React.CSSProperties = { width: 25, height: 25, borderRadius: 7, border: "1px solid var(--hairline)", background: "var(--card)", color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
+const messageActionsStyle: React.CSSProperties = { display: "inline-flex", gap: 3, padding: 4, marginBottom: 2, borderRadius: 999, border: "1px solid rgba(43,39,34,0.08)", background: "rgba(255,255,255,0.94)", boxShadow: "0 8px 22px rgba(26,22,18,0.12)", backdropFilter: "blur(8px)" };
+const miniActionStyle: React.CSSProperties = { width: 28, height: 28, borderRadius: 999, border: "none", background: "transparent", color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 };
 const miniTextActionStyle: React.CSSProperties = { ...miniActionStyle, fontSize: 12, fontWeight: 900, lineHeight: 1 };
 const reactionRowStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 4, maxWidth: "min(76%, 620px)" };
 const reactionButtonStyle: React.CSSProperties = { minWidth: 42, height: 25, borderRadius: 999, border: "1px solid var(--hairline)", background: "var(--card)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "0 8px", fontSize: 12, fontWeight: 900, cursor: "pointer", fontFamily: "inherit" };
