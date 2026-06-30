@@ -92,6 +92,17 @@ Priority: Critical
 
 Goal: validate the flows that cannot be proven by build/type checks.
 
+Status as of 2026-06-30:
+
+- DB-level smoke passed against existing production messenger data.
+- `diagnose_messenger_delivery(<message_id>, 10)` returned the expected conversation, participants, message notifications, active push tokens, and `sent` push delivery rows.
+- The tested 3-person group message had:
+  - 3 participants
+  - 2 `message_new` notification rows for non-senders
+  - 2 push delivery rows with `status = sent`
+  - 0 diagnostic flags
+- Remaining work is physical-device verification: confirm what users actually see on Android/web sessions.
+
 Test setup:
 
 - Use at least 3 real user accounts.
@@ -133,6 +144,13 @@ Recommended route:
 
 - `/admin/messenger-diagnostics`
 
+Status as of 2026-06-30:
+
+- Implemented and pushed in `4b67b94 feat(messenger): add admin delivery diagnostics`.
+- Remote DB function applied:
+  - `diagnose_messenger_delivery(text, int)`
+- `/admin/messenger-reports` has a `진단` button linking to the diagnostics page.
+
 Recommended capabilities:
 
 - Search by conversation ID, message ID, or user.
@@ -152,6 +170,21 @@ Recommended capabilities:
 Exit criteria:
 
 - An admin can diagnose "why did I get two alerts?" and "why did I get no alert?" from the UI.
+
+Implemented capabilities:
+
+- Search by message ID, conversation ID, or user name/username/email/phone.
+- Show resolved conversation and message.
+- Show conversation participants.
+- Show generated `message_new` notification rows.
+- Show active and inactive push tokens for participants.
+- Show push delivery rows and Expo ticket IDs.
+- Flag likely problems:
+  - duplicate notifications for one user/message
+  - missing notification row for a non-sender participant
+  - muted conversation with notification row
+  - multiple active tokens for the same user/device
+  - push delivery rows not marked `sent`
 
 ## Phase 4 - UX Hardening
 
