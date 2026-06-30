@@ -23,7 +23,7 @@ export default function InstallPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-orange-50 flex flex-col items-center justify-center px-6">
+    <div className="min-h-screen bg-bg flex flex-col items-center justify-center px-6">
       {/* 앱 아이콘 */}
       <div className="mb-6">
         <img src="/apple-icon.png" alt="스마트명성" className="w-20 h-20 rounded-2xl shadow-lg" />
@@ -33,7 +33,7 @@ export default function InstallPage() {
       <p className="text-sm text-ink-soft mb-8">홈 화면에 추가하면 앱처럼 사용할 수 있어요</p>
 
       {isIOS ? (
-        <div className="bg-white rounded-2xl shadow-md p-6 w-full max-w-sm">
+        <div className="bg-card rounded-2xl shadow-md p-6 w-full max-w-sm">
           <p className="text-sm font-semibold text-ink-mid mb-4 flex items-center gap-1.5"><Smartphone size={15} strokeWidth={1.8} /> 홈 화면 추가 방법</p>
 
           <ol className="space-y-4 text-sm text-ink-mid">
@@ -76,7 +76,7 @@ export default function InstallPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-md p-6 w-full max-w-sm text-center">
+        <div className="bg-card rounded-2xl shadow-md p-6 w-full max-w-sm text-center">
           <p className="text-sm text-ink-mid">
             이 페이지는 <span className="font-semibold text-orange-500">iPhone Safari</span>에서 열어주세요
           </p>
