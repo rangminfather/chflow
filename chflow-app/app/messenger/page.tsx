@@ -912,10 +912,10 @@ function ChatHeader({
           {conversation.type === "group" && <Users size={12} strokeWidth={1.8} />}
           {conversation.participant_count}명
           <span style={presenceDotStyle} />
-          <span style={{ color: typingNames.length > 0 ? "var(--accent)" : "var(--ink-faint)", fontWeight: 800 }}>
+          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", color: typingNames.length > 0 ? "var(--accent)" : "var(--ink-faint)", fontWeight: 800 }}>
             {statusText}
           </span>
-          {participants.length > 0 && <span>· {participants.map((p) => p.name || "이름 없음").join(", ")}</span>}
+          {participants.length > 0 && <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>· {participants.map((p) => p.name || "이름 없음").join(", ")}</span>}
         </div>
       </div>
       <div style={{ position: "relative", flexShrink: 0 }}>
@@ -1083,7 +1083,7 @@ function MessageBubble({
   return (
     <div id={`messenger-message-${message.id}`} style={{ display: "flex", justifyContent: message.is_mine ? "flex-end" : "flex-start", marginTop: compact ? 4 : 12 }}>
       <div className="message-wrap" style={{
-        maxWidth: "min(76%, 620px)",
+        maxWidth: "min(78%, 680px)",
         display: "flex",
         flexDirection: "column",
         alignItems: message.is_mine ? "flex-end" : "flex-start",
@@ -1097,7 +1097,7 @@ function MessageBubble({
           <div style={senderNameStyle}>{message.sender_name || "이름 없음"}</div>
         )}
 
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 6, flexDirection: message.is_mine ? "row" : "row-reverse" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 6, minWidth: 0, maxWidth: "100%", flexDirection: message.is_mine ? "row" : "row-reverse" }}>
           <MessageActions
             mine={message.is_mine}
             deleted={deleted}
@@ -1118,6 +1118,7 @@ function MessageBubble({
             color: message.is_mine ? "#fff" : "var(--ink)",
             border: message.is_mine ? "none" : "1px solid var(--hairline)",
             opacity: deleted ? 0.72 : 1,
+            maxWidth: "100%",
           }} onClick={onToggleActions}>
             {message.reply_to && (
               <div style={{
@@ -1256,7 +1257,7 @@ function AttachmentList({
   onPreviewImage: (attachment: MessengerAttachment, url: string) => void;
 }) {
   return (
-    <div style={{ display: "grid", gap: 7, marginTop: 8 }}>
+    <div style={{ display: "grid", gap: 7, marginTop: 8, maxWidth: "100%" }}>
       {attachments.map((a) => {
         const url = storageProxyUrl("messenger-attachments", a.file_path);
         const image = !!a.mime_type?.startsWith("image/");
@@ -1287,7 +1288,7 @@ function AttachmentList({
               color: mine ? "#fff" : "var(--ink)",
             }}
           >
-            <FileText size={17} strokeWidth={1.8} />
+            <FileText size={17} strokeWidth={1.8} style={{ flexShrink: 0 }} />
             <span style={oneLineStyle}>{a.file_name}</span>
             <span style={{ opacity: 0.78 }}>{formatBytes(a.size_bytes)}</span>
           </a>
@@ -1402,7 +1403,7 @@ function Composer({
         </div>
       )}
 
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 8, minWidth: 0 }}>
         <button
           type="button"
           onClick={onPickFiles}
@@ -1538,7 +1539,7 @@ function NewConversationModal({
           <div style={selectedWrapStyle}>
             {selected.map((u) => (
               <span key={u.user_id} style={selectedChipStyle}>
-                {u.name || "이름 없음"}
+                <span style={oneLineStyle}>{u.name || "이름 없음"}</span>
                 <button type="button" onClick={() => setSelected((prev) => prev.filter((x) => x.user_id !== u.user_id))} style={chipRemoveStyle}>
                   <X size={12} strokeWidth={2} />
                 </button>
@@ -1690,7 +1691,7 @@ function GroupManagementModal({
           <button type="button" onClick={onClose} style={smallIconButtonStyle}><X size={17} /></button>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, marginBottom: 14 }}>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="그룹 이름" maxLength={80} style={{ ...inputStyle, marginBottom: 0 }} />
           <button type="button" onClick={saveTitle} disabled={!title.trim() || savingTitle} style={{
             ...primaryButtonStyle,
@@ -1733,7 +1734,7 @@ function GroupManagementModal({
           <div style={selectedWrapStyle}>
             {selected.map((u) => (
               <span key={u.user_id} style={selectedChipStyle}>
-                {u.name || "이름 없음"}
+                <span style={oneLineStyle}>{u.name || "이름 없음"}</span>
                 <button type="button" onClick={() => setSelected((prev) => prev.filter((x) => x.user_id !== u.user_id))} style={chipRemoveStyle}>
                   <X size={12} strokeWidth={2} />
                 </button>
@@ -2014,7 +2015,7 @@ const responsiveCss = `
     .messenger-shell.has-active .conversation-list { display: none; }
     .messenger-shell.has-active .conversation-panel { display: flex; }
     .mobile-back { display: inline-flex; }
-    .message-wrap { max-width: min(88%, 620px) !important; }
+    .message-wrap { max-width: min(92%, 620px) !important; }
     .message-actions { display: none !important; opacity: 1; }
     .message-actions.open { display: inline-flex !important; }
   }
@@ -2039,7 +2040,7 @@ const listHeaderStyle: React.CSSProperties = { padding: "14px 14px 12px", border
 const newButtonStyle: React.CSSProperties = { height: 34, padding: "0 11px", border: "none", borderRadius: 8, background: "var(--accent)", color: "#fff", fontSize: 12, fontWeight: 900, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "inherit", boxShadow: "0 8px 20px rgba(62,90,74,0.18)" };
 const chatHeaderStyle: React.CSSProperties = { minHeight: 66, padding: "10px 14px", borderBottom: "1px solid var(--hairline)", background: "rgba(255,255,255,0.9)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", gap: 10 };
 const chatTitleStyle: React.CSSProperties = { fontSize: 16, fontWeight: 900, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
-const chatSubStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--ink-faint)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const chatSubStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 5, minWidth: 0, fontSize: 12, color: "var(--ink-faint)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const presenceDotStyle: React.CSSProperties = { width: 7, height: 7, borderRadius: 999, background: "#2F9E62", display: "inline-block", flexShrink: 0 };
 const conversationMenuStyle: React.CSSProperties = { position: "absolute", top: 40, right: 0, zIndex: 40, width: 180, border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--card)", boxShadow: "0 16px 44px rgba(26,22,18,0.16)", padding: 6 };
 const menuActionStyle: React.CSSProperties = { width: "100%", minHeight: 34, border: "none", borderRadius: 7, background: "transparent", display: "flex", alignItems: "center", gap: 8, padding: "0 9px", fontSize: 12, fontWeight: 850, cursor: "pointer", fontFamily: "inherit", textAlign: "left" };
@@ -2055,7 +2056,7 @@ const unreadBadgeStyle: React.CSSProperties = { minWidth: 18, height: 18, paddin
 const avatarStyle: React.CSSProperties = { width: 42, height: 42, borderRadius: "50%", objectFit: "cover", background: "var(--bg-soft)", flexShrink: 0, boxShadow: "inset 0 0 0 1px rgba(43,39,34,0.06)" };
 const avatarFallbackStyle: React.CSSProperties = { ...avatarStyle, display: "grid", placeItems: "center", background: "var(--accent-soft)", color: "var(--accent)", fontSize: 15, fontWeight: 900 };
 const senderNameStyle: React.CSSProperties = { fontSize: 12, fontWeight: 800, color: "var(--ink-soft)", paddingLeft: 2 };
-const bubbleStyle: React.CSSProperties = { padding: "9px 12px", fontSize: 14, lineHeight: 1.55, boxShadow: "0 6px 18px rgba(26,22,18,0.06)" };
+const bubbleStyle: React.CSSProperties = { padding: "9px 12px", fontSize: 14, lineHeight: 1.55, boxShadow: "0 6px 18px rgba(26,22,18,0.06)", overflowWrap: "anywhere" };
 const replyPreviewStyle: React.CSSProperties = { borderLeft: "3px solid currentColor", borderRadius: 7, padding: "6px 8px", marginBottom: 7, maxWidth: 300 };
 const messageMetaStyle: React.CSSProperties = { fontSize: 10, color: "var(--ink-faint)" };
 const readStatusButtonStyle: React.CSSProperties = { border: "none", background: "transparent", color: "inherit", padding: 0, font: "inherit", cursor: "pointer" };
@@ -2066,7 +2067,7 @@ const reactionRowStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap
 const reactionButtonStyle: React.CSSProperties = { minWidth: 42, height: 25, borderRadius: 999, border: "1px solid var(--hairline)", background: "var(--card)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "0 8px", fontSize: 12, fontWeight: 900, cursor: "pointer", fontFamily: "inherit" };
 const imageAttachmentButtonStyle: React.CSSProperties = { display: "block", width: "fit-content", maxWidth: "100%", border: "none", background: "transparent", padding: 0, cursor: "zoom-in", borderRadius: 8, overflow: "hidden" };
 const imageAttachmentStyle: React.CSSProperties = { display: "block", maxWidth: "min(320px, 60vw)", maxHeight: 260, borderRadius: 8, objectFit: "cover", border: "1px solid rgba(255,255,255,0.18)" };
-const fileAttachmentStyle: React.CSSProperties = { minWidth: 0, width: "min(320px, 68vw)", minHeight: 42, borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 8, textDecoration: "none", fontSize: 12, fontWeight: 800 };
+const fileAttachmentStyle: React.CSSProperties = { minWidth: 0, width: "min(320px, 68vw)", maxWidth: "100%", boxSizing: "border-box", minHeight: 42, borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 8, textDecoration: "none", fontSize: 12, fontWeight: 800 };
 const imagePreviewOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 260, background: "rgba(15, 13, 11, 0.82)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14 };
 const imagePreviewShellStyle: React.CSSProperties = { width: "min(1040px, 100%)", maxHeight: "calc(100dvh - 28px)", display: "flex", flexDirection: "column", gap: 10 };
 const imagePreviewHeaderStyle: React.CSSProperties = { minHeight: 42, borderRadius: 8, background: "rgba(255,255,255,0.08)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "0 8px 0 12px", fontSize: 13 };
@@ -2076,14 +2077,14 @@ const oneLineStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", tex
 const composerStyle: React.CSSProperties = { padding: "12px 12px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: "1px solid var(--hairline)", background: "rgba(255,255,255,0.92)", backdropFilter: "blur(10px)", display: "grid", gap: 8, flexShrink: 0 };
 const composerContextStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, border: "1px solid var(--hairline)", background: "var(--accent-soft)", borderRadius: 8, padding: "7px 8px" };
 const pendingAttachmentWrapStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6 };
-const pendingAttachmentStyle: React.CSSProperties = { maxWidth: 220, height: 34, borderRadius: 8, background: "var(--bg-soft)", border: "1px solid var(--hairline)", display: "inline-flex", alignItems: "center", gap: 6, padding: "0 7px", fontSize: 12, fontWeight: 800, color: "var(--ink-mid)" };
+const pendingAttachmentStyle: React.CSSProperties = { minWidth: 0, maxWidth: "min(220px, 100%)", height: 34, borderRadius: 8, background: "var(--bg-soft)", border: "1px solid var(--hairline)", display: "inline-flex", alignItems: "center", gap: 6, padding: "0 7px", fontSize: 12, fontWeight: 800, color: "var(--ink-mid)" };
 const pendingThumbStyle: React.CSSProperties = { width: 24, height: 24, borderRadius: 5, objectFit: "cover" };
 const composerIconButtonStyle: React.CSSProperties = { width: 44, height: 42, border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--surface)", color: "var(--ink-mid)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 };
-const textareaStyle: React.CSSProperties = { flex: 1, minHeight: 42, maxHeight: 130, resize: "none", border: "1px solid var(--hairline)", borderRadius: 10, padding: "10px 12px", fontSize: 14, lineHeight: 1.45, color: "var(--ink)", outline: "none", fontFamily: "inherit", background: "var(--surface)" };
+const textareaStyle: React.CSSProperties = { flex: 1, minWidth: 0, minHeight: 42, maxHeight: 130, resize: "none", border: "1px solid var(--hairline)", borderRadius: 10, padding: "10px 12px", fontSize: 14, lineHeight: 1.45, color: "var(--ink)", outline: "none", fontFamily: "inherit", background: "var(--surface)" };
 const sendButtonStyle: React.CSSProperties = { width: 44, height: 42, border: "none", borderRadius: 8, background: "var(--accent)", color: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 };
 const chipRemoveStyle: React.CSSProperties = { width: 18, height: 18, border: "none", background: "transparent", color: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 };
-const modalOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 200, background: "rgba(43,39,34,0.48)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 };
-const modalStyle: React.CSSProperties = { width: "min(560px, 100%)", maxHeight: "min(720px, calc(100vh - 32px))", overflowY: "auto", background: "var(--card)", borderRadius: 10, border: "1px solid var(--hairline)", boxShadow: "0 24px 70px rgba(26,22,18,0.22)", padding: 16 };
+const modalOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 200, background: "rgba(43,39,34,0.48)", display: "flex", alignItems: "center", justifyContent: "center", padding: "calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px))" };
+const modalStyle: React.CSSProperties = { width: "min(560px, calc(100vw - 24px))", maxHeight: "calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))", overflowY: "auto", boxSizing: "border-box", background: "var(--card)", borderRadius: 10, border: "1px solid var(--hairline)", boxShadow: "0 24px 70px rgba(26,22,18,0.22)", padding: 16 };
 const modalHeaderStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 14 };
 const modalTabsStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 };
 const tabStyle: React.CSSProperties = { height: 38, borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--surface)", color: "var(--ink-soft)", fontSize: 13, fontWeight: 900, cursor: "pointer", fontFamily: "inherit" };
@@ -2091,12 +2092,12 @@ const tabActiveStyle: React.CSSProperties = { ...tabStyle, borderColor: "rgba(62
 const inputStyle: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 40, borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--surface)", color: "var(--ink)", fontSize: 14, fontWeight: 700, padding: "0 12px", marginBottom: 10, outline: "none", fontFamily: "inherit" };
 const searchBoxStyle: React.CSSProperties = { height: 42, borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--surface)", display: "flex", alignItems: "center", gap: 8, padding: "0 12px", marginBottom: 10 };
 const searchInputStyle: React.CSSProperties = { flex: 1, border: "none", outline: "none", background: "transparent", color: "var(--ink)", fontSize: 14, fontFamily: "inherit" };
-const selectedWrapStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 };
-const selectedChipStyle: React.CSSProperties = { height: 26, padding: "0 6px 0 9px", borderRadius: 999, background: "var(--accent-soft)", color: "var(--accent)", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 900 };
+const selectedWrapStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6, minWidth: 0, marginBottom: 10 };
+const selectedChipStyle: React.CSSProperties = { minWidth: 0, maxWidth: "100%", height: 26, padding: "0 6px 0 9px", borderRadius: 999, background: "var(--accent-soft)", color: "var(--accent)", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 900 };
 const userListStyle: React.CSSProperties = { maxHeight: 340, overflowY: "auto", border: "1px solid var(--hairline)", borderRadius: 8 };
 const userRowStyle: React.CSSProperties = { width: "100%", minHeight: 62, border: "none", borderBottom: "1px solid var(--hairline)", background: "transparent", display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", cursor: "pointer", textAlign: "left", fontFamily: "inherit" };
-const userNameStyle: React.CSSProperties = { fontSize: 14, fontWeight: 900, color: "var(--ink)" };
-const userMetaStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: "var(--ink-faint)", marginTop: 2 };
-const modalFooterStyle: React.CSSProperties = { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 };
+const userNameStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14, fontWeight: 900, color: "var(--ink)" };
+const userMetaStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, fontWeight: 600, color: "var(--ink-faint)", marginTop: 2 };
+const modalFooterStyle: React.CSSProperties = { display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 8, marginTop: 14 };
 const primaryButtonStyle: React.CSSProperties = { height: 38, padding: "0 16px", borderRadius: 8, border: "none", background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 900, cursor: "pointer", fontFamily: "inherit" };
 const secondaryButtonStyle: React.CSSProperties = { ...primaryButtonStyle, border: "1px solid var(--hairline)", background: "var(--surface)", color: "var(--ink-mid)" };
