@@ -1986,22 +1986,24 @@ function getErrorMessage(error: unknown): string {
 
 const responsiveCss = `
   @media (min-width: 761px) {
+    html:has(.messenger-page),
     body:has(.messenger-page) {
-      padding-top: 0;
+      height: 100%;
       overflow: hidden;
     }
     #app-zoom-root:has(.messenger-page) {
       zoom: 1;
-      height: 100dvh;
+      min-height: 0;
+      height: calc(100dvh - var(--body-safe-top, 0px));
       overflow: hidden;
     }
   }
   .messenger-page {
-    position: fixed;
-    inset: 0;
-    min-height: 100vh;
-    min-height: 100dvh;
-    height: 100dvh;
+    position: relative;
+    margin-top: calc(-1 * var(--body-safe-top, 0px));
+    min-height: calc(100vh - var(--body-safe-top, 0px));
+    min-height: calc(100dvh - var(--body-safe-top, 0px));
+    height: calc(100dvh - var(--body-safe-top, 0px));
     overflow: hidden;
     background: linear-gradient(180deg, #f7f4ed 0%, #f1eee6 100%);
     color: var(--ink);
@@ -2010,8 +2012,8 @@ const responsiveCss = `
   .messenger-shell {
     display: grid;
     grid-template-columns: 352px minmax(0, 1fr);
-    height: calc(100vh - 62px);
-    height: calc(100dvh - 62px);
+    height: calc(100vh - var(--body-safe-top, 0px) - 62px);
+    height: calc(100dvh - var(--body-safe-top, 0px) - 62px);
     max-width: 1320px;
     margin: 0 auto;
     border-left: 1px solid var(--hairline);
