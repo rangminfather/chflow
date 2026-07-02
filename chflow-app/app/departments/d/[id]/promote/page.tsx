@@ -73,23 +73,22 @@ export default function PromotePage() {
       if (!session) { router.replace("/login"); return; }
       setAuthChecked(true);
 
-      const [gradeR, prevR, teachR] = await Promise.all([
-        supabase.rpc("get_user_grade", { p_dept_id: deptId }),
+      const [prevR, teachR] = await Promise.all([
         supabase.rpc("promote_preview", { p_dept_id: deptId }),
         supabase.rpc("edu_list_teachers", { p_dept_id: deptId }),
       ]);
 
-      const myGrade = typeof gradeR.data === "number" ? gradeR.data : Number(gradeR.data);
-      if (myGrade === null || myGrade > 1) {
-        setAuthorized(false); setLoading(false); return;
-      }
-      setAuthorized(true);
-
+      // 권한 판정은 RPC(dept_mgmt_grade_ok)가 위임 설정 기반으로 수행
       if (prevR.error) {
+        if (prevR.error.message.includes("권한")) {
+          setAuthorized(false); setLoading(false); return;
+        }
+        setAuthorized(true);
         showToast("미리보기 실패: " + prevR.error.message);
         setLoading(false);
         return;
       }
+      setAuthorized(true);
       const rows = (prevR.data as PreviewRow[]) || [];
       setPreview(rows);
       setTeachers((teachR.data as Teacher[]) || []);
@@ -217,7 +216,7 @@ export default function PromotePage() {
           <div style={{ background: "var(--card)", borderRadius: 16, padding: 28, textAlign: "center" }}>
             <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><Lock size={40} strokeWidth={1.8} color="var(--ink-faint)" /></div>
             <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>접근 권한이 없습니다</div>
-            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>진급 마법사는 등급 0~1 (전도사·교육사·부장) 만 가능합니다</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>진급 마법사는 전도사·교육사(또는 위임된 임원진)만 가능합니다</div>
             <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtn}>← 부서홈</button>
           </div>
         </div>

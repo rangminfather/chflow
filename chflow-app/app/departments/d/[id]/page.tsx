@@ -129,14 +129,22 @@ const MENU_CATEGORIES: MenuCategory[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────
-// 공통메뉴 설정 (임원진 grade<=2 가 부서별 이름/주석/접근등급 수정)
+// 메뉴 설정
+//  - 공통메뉴: 임원진(grade<=2)이 이름/주석 수정, monthly-plan·review-problems 는 접근등급(3/4)도 변경
+//  - 담임메뉴·행정관리: 임원진이 이름/주석만 수정
+//  - 부서관리(교육부서): 전도사·교육사(grade 0)만 수정, 접근범위 0(본인만)/2(임원진까지) 위임 가능
 // ─────────────────────────────────────────────────────────────────
 type MenuSetting = { label: string | null; description: string | null; max_grade: number | null };
 type MenuSettings = Record<string, MenuSetting>;
-// 접근등급(학부모까지/선생님만) 변경 가능한 항목
+// 접근등급(학부모까지/선생님만) 변경 가능한 공통메뉴 항목
 const ACCESS_CONFIGURABLE = new Set(["monthly-plan", "review-problems"]);
 // 설정 대상 공통메뉴 (순서 = 표시 순서)
 const COMMON_MENU_KEYS = ["notices/board", "bulletin", "verse-memory", "monthly-plan", "review-problems"];
+// 카테고리별 설정 키 prefix — 공통메뉴는 기존 키 유지, 나머지는 "prefix/menu-id"
+// (admin 과 department 양쪽에 있는 monthly-plan-upload 같은 중복 id 충돌 방지)
+const CATEGORY_KEY_PREFIX: Record<string, string> = { students: "students", admin: "admin", department: "dept" };
+const settingKeyOf = (catId: string, itemId: string) =>
+  catId === "notices" ? itemId : `${CATEGORY_KEY_PREFIX[catId] || catId}/${itemId}`;
 
 // ─────────────────────────────────────────────────────────────────
 // 컴포넌트
@@ -153,8 +161,8 @@ export default function DepartmentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
   const [menuSettings, setMenuSettings] = useState<MenuSettings>({});
-  const [editMode, setEditMode] = useState(false);
-  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editCatId, setEditCatId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ catId: string; itemId: string } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -258,13 +266,19 @@ export default function DepartmentDetailPage() {
   const isEduDept = dept.category === "교육사역국";
   const grade = myGrade ?? 99;
   const canEditMenu = grade <= 2; // 임원진(총무·서기) 이상
+  // 부서관리 설정(접근 위임)은 전도사·교육사만
+  const canEditCat = (catId: string) => (catId === "department" ? isEduDept && grade === 0 : canEditMenu);
 
-  // 공통메뉴 설정(이름/주석/접근등급) 반영
+  // 메뉴 설정(이름/주석/접근등급) 반영
   const resolveItem = (cat: MenuCategory, item: MenuItem): MenuItem => {
-    const s = cat.id === "notices" ? menuSettings[item.id] : undefined;
-    const baseMax = item.maxGrade ?? cat.maxGrade;
-    const maxGrade = s && ACCESS_CONFIGURABLE.has(item.id) && (s.max_grade === 3 || s.max_grade === 4)
-      ? s.max_grade : baseMax;
+    const s = menuSettings[settingKeyOf(cat.id, item.id)];
+    let maxGrade = item.maxGrade ?? cat.maxGrade;
+    if (cat.id === "notices") {
+      if (s && ACCESS_CONFIGURABLE.has(item.id) && (s.max_grade === 3 || s.max_grade === 4)) maxGrade = s.max_grade;
+    } else if (cat.id === "department" && isEduDept) {
+      // 교육부서 부서관리: 기본 전도사·교육사(0) 전용, 설정으로 임원진(2)까지 위임
+      maxGrade = s?.max_grade === 2 ? 2 : 0;
+    }
     let label = s?.label && s.label.trim() ? s.label : item.label;
     if (label.includes("{dept}")) label = label.replace("{dept}", dept!.name);
     const desc = s?.description && s.description.trim() ? s.description : item.desc;
@@ -283,6 +297,8 @@ export default function DepartmentDetailPage() {
   // 카테고리별 표시 여부 결정
   const visibleCategories = MENU_CATEGORIES.filter((cat) => {
     if (cat.requiresHomeroom && !hasHomeroom) return false;
+    // 전도사·교육사(0)는 담임메뉴 제외 — 행정관리의 통합 조회 메뉴 사용
+    if (cat.id === "students" && grade === 0) return false;
     return cat.items.some((item) => {
       const resolved = resolveItem(cat, item);
       if (!itemDeptOk(cat, resolved)) return false;
@@ -368,22 +384,22 @@ export default function DepartmentDetailPage() {
                 <cat.icon size={17} strokeWidth={1.8} style={{ color: "var(--accent)" }} />
                 {cat.label}
               </div>
-              {cat.id === "notices" && canEditMenu && (
+              {canEditCat(cat.id) && (
                 <button
-                  onClick={() => setEditMode((v) => !v)}
-                  title={editMode ? "편집 종료" : "공통메뉴 편집"}
+                  onClick={() => setEditCatId((v) => (v === cat.id ? null : cat.id))}
+                  title={editCatId === cat.id ? "편집 종료" : `${cat.label} 편집`}
                   style={{
                     display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 8, cursor: "pointer",
-                    border: `1px solid ${editMode ? "var(--accent)" : "var(--hairline)"}`,
-                    background: editMode ? "var(--accent-soft)" : "var(--card)",
-                    color: editMode ? "var(--accent-strong)" : "var(--ink-soft)",
+                    border: `1px solid ${editCatId === cat.id ? "var(--accent)" : "var(--hairline)"}`,
+                    background: editCatId === cat.id ? "var(--accent-soft)" : "var(--card)",
+                    color: editCatId === cat.id ? "var(--accent-strong)" : "var(--ink-soft)",
                   }}
                 >
                   <Cog
                     size={17}
                     strokeWidth={1.9}
-                    className={editMode ? "animate-spin" : ""}
-                    style={editMode ? { animationDuration: "3s" } : undefined}
+                    className={editCatId === cat.id ? "animate-spin" : ""}
+                    style={editCatId === cat.id ? { animationDuration: "3s" } : undefined}
                   />
                 </button>
               )}
@@ -401,8 +417,9 @@ export default function DepartmentDetailPage() {
                     key={item.id}
                     item={item}
                     onClick={() => handleItemClick(item)}
-                    onEdit={cat.id === "notices" && editMode && canEditMenu && COMMON_MENU_KEYS.includes(item.id)
-                      ? () => setEditingKey(item.id) : undefined}
+                    onEdit={editCatId === cat.id && canEditCat(cat.id)
+                      && (cat.id !== "notices" || COMMON_MENU_KEYS.includes(item.id))
+                      ? () => setEditing({ catId: cat.id, itemId: item.id }) : undefined}
                   />
                 ))}
             </div>
@@ -427,14 +444,15 @@ export default function DepartmentDetailPage() {
 
       {toast && <div style={toastStyle}>{toast}</div>}
 
-      {editingKey && (
+      {editing && (
         <EditMenuPopup
           deptId={deptId}
           deptName={dept.name}
-          menuKey={editingKey}
-          setting={menuSettings[editingKey]}
-          onClose={() => setEditingKey(null)}
-          onSaved={(next) => { setMenuSettings(next); setEditingKey(null); showToast("메뉴를 수정했습니다"); }}
+          catId={editing.catId}
+          itemId={editing.itemId}
+          setting={menuSettings[settingKeyOf(editing.catId, editing.itemId)]}
+          onClose={() => setEditing(null)}
+          onSaved={(next) => { setMenuSettings(next); setEditing(null); showToast("메뉴를 수정했습니다"); }}
         />
       )}
     </div>
@@ -442,30 +460,46 @@ export default function DepartmentDetailPage() {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// 단일 공통메뉴 수정 팝업 (편집모드에서 "수정" 클릭 시)
+// 단일 메뉴 수정 팝업 (편집모드에서 "수정" 클릭 시)
+//  - 공통메뉴 일부: 접근범위 3(선생님만)/4(학부모까지)
+//  - 부서관리: 접근범위 0(전도사·교육사만)/2(임원진까지) — 위임
+//  - 그 외: 제목/설명만
 // ─────────────────────────────────────────────────────────────────
 function EditMenuPopup({
-  deptId, deptName, menuKey, setting, onClose, onSaved,
+  deptId, deptName, catId, itemId, setting, onClose, onSaved,
 }: {
   deptId: string;
   deptName: string;
-  menuKey: string;
+  catId: string;
+  itemId: string;
   setting?: MenuSetting;
   onClose: () => void;
   onSaved: (next: MenuSettings) => void;
 }) {
-  const noticesCat = MENU_CATEGORIES.find((c) => c.id === "notices")!;
-  const item = noticesCat.items.find((it) => it.id === menuKey);
+  const cat = MENU_CATEGORIES.find((c) => c.id === catId);
+  const item = cat?.items.find((it) => it.id === itemId);
+  const menuKey = settingKeyOf(catId, itemId);
   const defLabel = (item?.label ?? "").replace("{dept}", deptName);
   const defDesc = item?.desc ?? "";
-  const configurable = ACCESS_CONFIGURABLE.has(menuKey);
+  const accessOptions =
+    catId === "notices" && ACCESS_CONFIGURABLE.has(itemId)
+      ? [{ g: 3, t: "선생님만" }, { g: 4, t: "학부모까지" }]
+      : catId === "department"
+        ? [{ g: 0, t: "전도사·교육사만" }, { g: 2, t: "임원진까지" }]
+        : null;
+  const defaultMax = catId === "department" ? 0 : (item?.maxGrade ?? 4);
+  const fixedAccessNote =
+    catId === "students" ? "이 메뉴는 반 담임 선생님에게 표시됩니다 (접근 범위 고정)"
+      : catId === "admin" ? "이 메뉴는 임원진(전도사~서기)에게 표시됩니다 (접근 범위 고정)"
+        : "이 메뉴는 항상 학부모까지 공개됩니다 (접근 범위 고정)";
 
-  // 옵션 C: 현재 적용값(없으면 기본값)을 채워서 시작
+  // 현재 적용값(없으면 기본값)을 채워서 시작
   const [label, setLabel] = useState(setting?.label && setting.label.trim() ? setting.label : defLabel);
   const [description, setDescription] = useState(setting?.description && setting.description.trim() ? setting.description : defDesc);
-  const [maxGrade, setMaxGrade] = useState<number>(
-    configurable ? (setting?.max_grade === 3 || setting?.max_grade === 4 ? setting.max_grade : (item?.maxGrade ?? 4)) : 4
-  );
+  const [maxGrade, setMaxGrade] = useState<number>(() => {
+    if (!accessOptions) return defaultMax;
+    return accessOptions.some((o) => o.g === setting?.max_grade) ? (setting!.max_grade as number) : defaultMax;
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -478,7 +512,7 @@ function EditMenuPopup({
       p_menu_key: menuKey,
       p_label: label.trim() || null,
       p_description: description.trim() || null,
-      p_max_grade: configurable ? maxGrade : null,
+      p_max_grade: accessOptions ? maxGrade : null,
     });
     if (e) { setError(`저장 실패: ${e.message}`); setSaving(false); return; }
     const { data } = await supabase.rpc("get_dept_menu_settings", { p_department_id: deptId });
@@ -508,11 +542,11 @@ function EditMenuPopup({
             <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={defDesc} maxLength={60} style={modalInput} />
           </div>
 
-          {configurable ? (
+          {accessOptions ? (
             <div>
               <label style={modalLabel}>접근 범위</label>
               <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                {[{ g: 3, t: "선생님만" }, { g: 4, t: "학부모까지" }].map((opt) => {
+                {accessOptions.map((opt) => {
                   const active = maxGrade === opt.g;
                   return (
                     <button
@@ -534,7 +568,7 @@ function EditMenuPopup({
             </div>
           ) : (
             <div style={{ fontSize: 12, color: "var(--ink-faint)", display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <Lock size={12} strokeWidth={2} /> 이 메뉴는 항상 학부모까지 공개됩니다 (접근 범위 고정)
+              <Lock size={12} strokeWidth={2} /> {fixedAccessNote}
             </div>
           )}
 
