@@ -15,6 +15,8 @@ import {
   MoreVertical,
   MessageCircle,
   MessagesSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pin,
   Paperclip,
   Pencil,
@@ -97,6 +99,7 @@ export default function MessengerPage() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasOlderMessages, setHasOlderMessages] = useState(false);
   const [showLatestJump, setShowLatestJump] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [groupManageOpen, setGroupManageOpen] = useState(false);
   const [error, setError] = useState("");
@@ -641,13 +644,18 @@ export default function MessengerPage() {
         </div>
       )}
 
-      <main className={`messenger-shell ${activeId ? "has-active" : ""}`}>
+      <main className={`messenger-shell ${activeId ? "has-active" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
         <aside className="conversation-list">
           <div style={listHeaderStyle}>
             <div style={sectionTitleStyle}><MessagesSquare size={19} strokeWidth={1.8} /> 대화</div>
-            <button type="button" onClick={() => setNewOpen(true)} style={newButtonStyle}>
-              <Plus size={16} strokeWidth={2.2} /> 새 대화
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button type="button" onClick={() => setSidebarCollapsed(true)} style={smallIconButtonStyle} className="desktop-only" title="대화 목록 접기">
+                <PanelLeftClose size={17} strokeWidth={2} />
+              </button>
+              <button type="button" onClick={() => setNewOpen(true)} style={newButtonStyle}>
+                <Plus size={16} strokeWidth={2.2} /> 새 대화
+              </button>
+            </div>
           </div>
 
           <div style={sidebarSearchWrapStyle}>
@@ -738,6 +746,8 @@ export default function MessengerPage() {
                 onBlockPeer={activeConversation.type === "direct" ? blockCurrentPeer : undefined}
                 onManageGroup={activeConversation.type === "group" ? () => setGroupManageOpen(true) : undefined}
                 onBack={clearActiveConversation}
+                sidebarCollapsed={sidebarCollapsed}
+                onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
               />
 
               <div ref={messageListRef} onScroll={handleMessageListScroll} style={messageListStyle}>
@@ -809,7 +819,18 @@ export default function MessengerPage() {
               />
             </>
           ) : (
-            <div style={{ flex: 1, display: "grid", placeItems: "center" }}>
+            <div style={{ flex: 1, display: "grid", placeItems: "center", position: "relative" }}>
+              {sidebarCollapsed && (
+                <button
+                  type="button"
+                  className="desktop-only"
+                  onClick={() => setSidebarCollapsed(false)}
+                  style={{ ...smallIconButtonStyle, position: "absolute", top: 14, left: 14 }}
+                  title="대화 목록 열기"
+                >
+                  <PanelLeftOpen size={18} strokeWidth={2} />
+                </button>
+              )}
               <EmptyState
                 icon={<MessagesSquare size={30} strokeWidth={1.6} />}
                 message="대화를 선택하세요."
@@ -881,6 +902,8 @@ function ChatHeader({
   onBlockPeer,
   onManageGroup,
   onBack,
+  sidebarCollapsed,
+  onToggleSidebar,
 }: {
   conversation: MessengerConversation;
   participants: MessengerParticipant[];
@@ -894,6 +917,8 @@ function ChatHeader({
   onBlockPeer?: () => void;
   onManageGroup?: () => void;
   onBack: () => void;
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const statusText = typingNames.length > 0
@@ -904,6 +929,15 @@ function ChatHeader({
     <div style={chatHeaderStyle}>
       <button type="button" className="mobile-back" onClick={onBack} style={smallIconButtonStyle}>
         <ArrowLeft size={18} strokeWidth={1.9} />
+      </button>
+      <button
+        type="button"
+        className="desktop-only"
+        onClick={onToggleSidebar}
+        style={smallIconButtonStyle}
+        title={sidebarCollapsed ? "대화 목록 열기" : "대화 목록 접기"}
+      >
+        {sidebarCollapsed ? <PanelLeftOpen size={18} strokeWidth={2} /> : <PanelLeftClose size={18} strokeWidth={2} />}
       </button>
       <Avatar title={conversation.display_title} src={conversation.display_avatar_url} />
       <div style={{ minWidth: 0, flex: 1 }}>
@@ -1951,7 +1985,8 @@ function getErrorMessage(error: unknown): string {
 
 const responsiveCss = `
   .messenger-page {
-    margin-top: calc(-1 * var(--body-safe-top, 0px));
+    position: fixed;
+    inset: 0;
     min-height: 100vh;
     min-height: 100dvh;
     height: 100dvh;
@@ -1965,23 +2000,33 @@ const responsiveCss = `
     grid-template-columns: 352px minmax(0, 1fr);
     height: calc(100vh - 62px);
     height: calc(100dvh - 62px);
-    max-width: 1240px;
+    max-width: 1320px;
     margin: 0 auto;
     border-left: 1px solid var(--hairline);
     border-right: 1px solid var(--hairline);
     background: var(--surface);
     box-shadow: 0 18px 70px rgba(26,22,18,0.08);
+    overflow: hidden;
+  }
+  .messenger-shell.sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr);
   }
   .conversation-list {
     border-right: 1px solid var(--hairline);
     background: var(--card);
     min-width: 0;
+    height: 100%;
     overflow: hidden;
     display: flex;
     flex-direction: column;
   }
+  .messenger-shell.sidebar-collapsed .conversation-list {
+    display: none;
+  }
   .conversation-panel {
     min-width: 0;
+    height: 100%;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -1990,6 +2035,7 @@ const responsiveCss = `
       #fbfaf7;
     position: relative;
   }
+  .desktop-only { display: inline-flex; }
   .mobile-back { display: none; }
   .message-actions { opacity: 0; pointer-events: none; transition: opacity .14s ease; }
   .message-wrap:hover .message-actions,
@@ -2007,6 +2053,9 @@ const responsiveCss = `
       border-right: none;
       display: flex;
     }
+    .messenger-shell.sidebar-collapsed .conversation-list {
+      display: flex;
+    }
     .conversation-panel {
       height: 100%;
       display: none;
@@ -2014,6 +2063,7 @@ const responsiveCss = `
     }
     .messenger-shell.has-active .conversation-list { display: none; }
     .messenger-shell.has-active .conversation-panel { display: flex; }
+    .desktop-only { display: none !important; }
     .mobile-back { display: inline-flex; }
     .message-wrap { max-width: min(92%, 620px) !important; }
     .message-actions { display: none !important; opacity: 1; }
