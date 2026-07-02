@@ -649,7 +649,7 @@ export default function MessengerPage() {
           <div style={listHeaderStyle}>
             <div style={sectionTitleStyle}><MessagesSquare size={19} strokeWidth={1.8} /> 대화</div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <button type="button" onClick={() => setSidebarCollapsed(true)} style={smallIconButtonStyle} className="desktop-only" title="대화 목록 접기">
+              <button type="button" onClick={() => setSidebarCollapsed(true)} style={sidebarToggleIconStyle} className="desktop-only" title="대화 목록 접기">
                 <PanelLeftClose size={17} strokeWidth={2} />
               </button>
               <button type="button" onClick={() => setNewOpen(true)} style={newButtonStyle}>
@@ -934,10 +934,11 @@ function ChatHeader({
         type="button"
         className="desktop-only"
         onClick={onToggleSidebar}
-        style={smallIconButtonStyle}
+        style={sidebarToggleButtonStyle}
         title={sidebarCollapsed ? "대화 목록 열기" : "대화 목록 접기"}
       >
         {sidebarCollapsed ? <PanelLeftOpen size={18} strokeWidth={2} /> : <PanelLeftClose size={18} strokeWidth={2} />}
+        <span>{sidebarCollapsed ? "목록 열기" : "목록 접기"}</span>
       </button>
       <Avatar title={conversation.display_title} src={conversation.display_avatar_url} />
       <div style={{ minWidth: 0, flex: 1 }}>
@@ -1984,6 +1985,17 @@ function getErrorMessage(error: unknown): string {
 }
 
 const responsiveCss = `
+  @media (min-width: 761px) {
+    body:has(.messenger-page) {
+      padding-top: 0;
+      overflow: hidden;
+    }
+    #app-zoom-root:has(.messenger-page) {
+      zoom: 1;
+      height: 100dvh;
+      overflow: hidden;
+    }
+  }
   .messenger-page {
     position: fixed;
     inset: 0;
@@ -2085,6 +2097,8 @@ const headerSubStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, col
 const headerButtonStyle: React.CSSProperties = { height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--bg-soft)", color: "var(--ink-mid)", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, fontFamily: "inherit" };
 const errorBarStyle: React.CSSProperties = { position: "fixed", left: "50%", top: 72, transform: "translateX(-50%)", zIndex: 120, maxWidth: "calc(100vw - 24px)", background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid rgba(160, 55, 55, 0.22)", borderRadius: 8, padding: "8px 10px", display: "flex", gap: 8, alignItems: "center", fontSize: 12, fontWeight: 800 };
 const smallIconButtonStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--card)", color: "var(--ink-mid)", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 };
+const sidebarToggleIconStyle: React.CSSProperties = { width: 36, height: 34, borderRadius: 10, border: "1px solid rgba(62,90,74,0.18)", background: "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(247,244,237,0.92))", color: "var(--accent)", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, boxShadow: "0 8px 22px rgba(26,22,18,0.08)", fontFamily: "inherit" };
+const sidebarToggleButtonStyle: React.CSSProperties = { height: 36, padding: "0 12px 0 10px", borderRadius: 999, border: "1px solid rgba(62,90,74,0.18)", background: "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(247,244,237,0.92))", color: "var(--accent)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, cursor: "pointer", flexShrink: 0, boxShadow: "0 10px 26px rgba(26,22,18,0.08)", fontSize: 12, fontWeight: 900, fontFamily: "inherit" };
 const sectionTitleStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, fontSize: 17, fontWeight: 900 };
 const listHeaderStyle: React.CSSProperties = { padding: "14px 14px 12px", borderBottom: "1px solid var(--hairline)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: "var(--card)" };
 const newButtonStyle: React.CSSProperties = { height: 34, padding: "0 11px", border: "none", borderRadius: 8, background: "var(--accent)", color: "#fff", fontSize: 12, fontWeight: 900, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "inherit", boxShadow: "0 8px 20px rgba(62,90,74,0.18)" };
