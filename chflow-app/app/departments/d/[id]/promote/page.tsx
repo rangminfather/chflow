@@ -216,7 +216,7 @@ export default function PromotePage() {
           <div style={{ background: "var(--card)", borderRadius: 16, padding: 28, textAlign: "center" }}>
             <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><Lock size={40} strokeWidth={1.8} color="var(--ink-faint)" /></div>
             <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>접근 권한이 없습니다</div>
-            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>진급 마법사는 전도사·교육사(또는 위임된 임원진)만 가능합니다</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>진급 마법사는 전도사·교육사·부장(설정에 따라 임원진까지)만 가능합니다</div>
             <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtn}>← 부서홈</button>
           </div>
         </div>

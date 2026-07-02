@@ -132,7 +132,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
 // 메뉴 설정
 //  - 공통메뉴: 임원진(grade<=2)이 이름/주석 수정, monthly-plan·review-problems 는 접근등급(3/4)도 변경
 //  - 담임메뉴·행정관리: 임원진이 이름/주석만 수정
-//  - 부서관리(교육부서): 전도사·교육사(grade 0)만 수정, 접근범위 0(본인만)/2(임원진까지) 위임 가능
+//  - 부서관리(교육부서): 전도사·교육사·부장(0~1)이 수정, 접근범위 0(전도사만)/1(부장까지)/2(임원진까지)
 // ─────────────────────────────────────────────────────────────────
 type MenuSetting = { label: string | null; description: string | null; max_grade: number | null };
 type MenuSettings = Record<string, MenuSetting>;
@@ -266,8 +266,8 @@ export default function DepartmentDetailPage() {
   const isEduDept = dept.category === "교육사역국";
   const grade = myGrade ?? 99;
   const canEditMenu = grade <= 2; // 임원진(총무·서기) 이상
-  // 부서관리 설정(접근 위임)은 전도사·교육사만
-  const canEditCat = (catId: string) => (catId === "department" ? isEduDept && grade === 0 : canEditMenu);
+  // 부서관리 설정(접근 위임)은 전도사·교육사·부장(0~1)
+  const canEditCat = (catId: string) => (catId === "department" ? isEduDept && grade <= 1 : canEditMenu);
 
   // 메뉴 설정(이름/주석/접근등급) 반영
   const resolveItem = (cat: MenuCategory, item: MenuItem): MenuItem => {
@@ -276,8 +276,8 @@ export default function DepartmentDetailPage() {
     if (cat.id === "notices") {
       if (s && ACCESS_CONFIGURABLE.has(item.id) && (s.max_grade === 3 || s.max_grade === 4)) maxGrade = s.max_grade;
     } else if (cat.id === "department" && isEduDept) {
-      // 교육부서 부서관리: 기본 전도사·교육사(0) 전용, 설정으로 임원진(2)까지 위임
-      maxGrade = s?.max_grade === 2 ? 2 : 0;
+      // 교육부서 부서관리: 기본 부장까지(1), 설정으로 0(전도사·교육사만)~2(임원진까지) 조정
+      maxGrade = s?.max_grade === 0 || s?.max_grade === 1 || s?.max_grade === 2 ? s.max_grade : 1;
     }
     let label = s?.label && s.label.trim() ? s.label : item.label;
     if (label.includes("{dept}")) label = label.replace("{dept}", dept!.name);
@@ -485,9 +485,9 @@ function EditMenuPopup({
     catId === "notices" && ACCESS_CONFIGURABLE.has(itemId)
       ? [{ g: 3, t: "선생님만" }, { g: 4, t: "학부모까지" }]
       : catId === "department"
-        ? [{ g: 0, t: "전도사·교육사만" }, { g: 2, t: "임원진까지" }]
+        ? [{ g: 0, t: "전도사·교육사만" }, { g: 1, t: "부장까지" }, { g: 2, t: "임원진까지" }]
         : null;
-  const defaultMax = catId === "department" ? 0 : (item?.maxGrade ?? 4);
+  const defaultMax = catId === "department" ? 1 : (item?.maxGrade ?? 4);
   const fixedAccessNote =
     catId === "students" ? "이 메뉴는 반 담임 선생님에게 표시됩니다 (접근 범위 고정)"
       : catId === "admin" ? "이 메뉴는 임원진(전도사~서기)에게 표시됩니다 (접근 범위 고정)"
