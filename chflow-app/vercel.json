@@ -12,6 +12,9 @@
     { "path": "/api/dept-bulletin/sync", "schedule": "0 4 * * 6" },
     { "path": "/api/dept-bulletin/sync", "schedule": "0 10 * * 6" },
     { "path": "/api/dept-bulletin/sync", "schedule": "0 21 * * 6" },
-    { "path": "/api/cron/storage-cleanup", "schedule": "0 19 * * *" }
+    { "path": "/api/cron/storage-cleanup", "schedule": "0 19 * * *" },
+    { "path": "/api/cron/promotion-upcoming", "schedule": "0 0 * * 6" },
+    { "path": "/api/cron/promotion-upcoming", "schedule": "0 8 * * 6" },
+    { "path": "/api/cron/promotion-upcoming", "schedule": "0 0 * * 0" }
   ]
 }

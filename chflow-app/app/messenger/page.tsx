@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
   ArrowLeft,
+  ArrowDown,
   Check,
+  Copy,
+  Download,
   FileText,
   Forward,
   LogOut,
@@ -63,6 +66,7 @@ import {
 
 type NewMode = "direct" | "group";
 type PendingAttachment = MessengerAttachment & { local_url?: string };
+type ImagePreviewState = { attachment: MessengerAttachment; url: string } | null;
 
 function isMobileMessengerViewport(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
@@ -75,7 +79,9 @@ export default function MessengerPage() {
   const router = useRouter();
   const { confirm, prompt, alert } = useConfirm();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const messageListRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const skipNextAutoScrollRef = useRef(false);
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lastTypingAtRef = useRef(0);
   const typingTimersRef = useRef<Record<string, number>>({});
@@ -88,6 +94,9 @@ export default function MessengerPage() {
   const [participants, setParticipants] = useState<MessengerParticipant[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [showLatestJump, setShowLatestJump] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [groupManageOpen, setGroupManageOpen] = useState(false);
   const [error, setError] = useState("");
@@ -107,6 +116,7 @@ export default function MessengerPage() {
   const [actionMessageId, setActionMessageId] = useState<string | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [readStatusMessage, setReadStatusMessage] = useState<MessengerMessage | null>(null);
+  const [imagePreview, setImagePreview] = useState<ImagePreviewState>(null);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.conversation_id === activeId) || null,
@@ -162,10 +172,11 @@ export default function MessengerPage() {
     try {
       await markMessengerRead(conversationId);
       const [messageRows, participantRows] = await Promise.all([
-        getMessengerMessages(conversationId),
+        getMessengerMessages(conversationId, 60),
         getMessengerParticipants(conversationId),
       ]);
       setMessages(messageRows);
+      setHasOlderMessages(messageRows.length >= 60);
       setParticipants(participantRows);
       setConversations((prev) => prev.map((c) => (
         c.conversation_id === conversationId ? { ...c, unread_count: 0 } : c
@@ -173,6 +184,7 @@ export default function MessengerPage() {
     } catch (e) {
       setError(getErrorMessage(e));
       setMessages([]);
+      setHasOlderMessages(false);
       setParticipants([]);
     } finally {
       setLoadingMessages(false);
@@ -209,6 +221,7 @@ export default function MessengerPage() {
     setEditing(null);
     setDraft("");
     setAttachments([]);
+    setShowLatestJump(false);
     loadConversationBody(activeId);
   }, [activeId, loadConversationBody]);
 
@@ -308,8 +321,44 @@ export default function MessengerPage() {
   }, [activeId, loadConversationBody, loadConversations, myUserId]);
 
   useEffect(() => {
+    if (skipNextAutoScrollRef.current) {
+      skipNextAutoScrollRef.current = false;
+      return;
+    }
+    if (showLatestJump) return;
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages.length, activeId]);
+  }, [messages.length, activeId, showLatestJump]);
+
+  const scrollToLatest = (behavior: ScrollBehavior = "smooth") => {
+    bottomRef.current?.scrollIntoView({ behavior, block: "end" });
+    setShowLatestJump(false);
+  };
+
+  const handleMessageListScroll = () => {
+    const el = messageListRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowLatestJump(distanceFromBottom > 220);
+  };
+
+  const loadOlderMessages = async () => {
+    if (!activeId || loadingOlder || messages.length === 0) return;
+    setLoadingOlder(true);
+    setError("");
+    try {
+      const olderRows = await getMessengerMessages(activeId, 60, messages[0].created_at);
+      skipNextAutoScrollRef.current = true;
+      setMessages((prev) => {
+        const seen = new Set(prev.map((row) => row.id));
+        return [...olderRows.filter((row) => !seen.has(row.id)), ...prev];
+      });
+      setHasOlderMessages(olderRows.length >= 60);
+    } catch (e) {
+      setError(getErrorMessage(e));
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
 
   useEffect(() => {
     if (!highlightedMessageId || loadingMessages) return;
@@ -501,6 +550,17 @@ export default function MessengerPage() {
     }
   };
 
+  const copyMessageText = async (message: MessengerMessage) => {
+    const text = message.body.trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      await alert("메시지를 복사했습니다.");
+    } catch {
+      setError("클립보드 복사에 실패했습니다.");
+    }
+  };
+
   const leaveConversation = async () => {
     if (!activeConversation) return;
     const label = activeConversation.type === "group" ? "이 그룹 대화방에서 나갈까요?" : "이 대화를 목록에서 숨길까요?";
@@ -680,33 +740,49 @@ export default function MessengerPage() {
                 onBack={clearActiveConversation}
               />
 
-              <div style={messageListStyle}>
+              <div ref={messageListRef} onScroll={handleMessageListScroll} style={messageListStyle}>
                 {loadingMessages ? (
                   <LoadingView padding={40} />
                 ) : messages.length === 0 ? (
                   <EmptyState icon={<MessageCircle size={26} strokeWidth={1.7} />} message="첫 메시지를 보내세요." padding={56} />
                 ) : (
-                  messages.map((m, idx) => (
-                    <MessageBubble
-                      key={m.id}
-                      message={m}
-                      compact={idx > 0 && messages[idx - 1].sender_id === m.sender_id}
-                      participants={participants}
-                      highlighted={highlightedMessageId === m.id}
-                      onReply={() => setReplyTarget(m)}
-                      onEdit={() => startEdit(m)}
-                      onDelete={() => removeMessage(m)}
-                      onForward={() => setForwarding(m)}
-                      onReport={() => reportMessage(m)}
-                      onReact={(emoji) => reactToMessage(m, emoji)}
-                      onShowReadStatus={() => setReadStatusMessage(m)}
-                      actionsOpen={actionMessageId === m.id}
-                      onToggleActions={() => setActionMessageId((current) => current === m.id ? null : m.id)}
-                    />
-                  ))
+                  <>
+                    {hasOlderMessages && (
+                      <div style={olderButtonWrapStyle}>
+                        <button type="button" onClick={loadOlderMessages} disabled={loadingOlder} style={olderButtonStyle}>
+                          {loadingOlder ? "불러오는 중..." : "이전 메시지 더 보기"}
+                        </button>
+                      </div>
+                    )}
+                    {messages.map((m, idx) => (
+                      <MessageBubble
+                        key={m.id}
+                        message={m}
+                        compact={idx > 0 && messages[idx - 1].sender_id === m.sender_id}
+                        participants={participants}
+                        highlighted={highlightedMessageId === m.id}
+                        onReply={() => setReplyTarget(m)}
+                        onEdit={() => startEdit(m)}
+                        onDelete={() => removeMessage(m)}
+                        onForward={() => setForwarding(m)}
+                        onReport={() => reportMessage(m)}
+                        onCopy={() => copyMessageText(m)}
+                        onReact={(emoji) => reactToMessage(m, emoji)}
+                        onShowReadStatus={() => setReadStatusMessage(m)}
+                        onPreviewImage={(attachment, url) => setImagePreview({ attachment, url })}
+                        actionsOpen={actionMessageId === m.id}
+                        onToggleActions={() => setActionMessageId((current) => current === m.id ? null : m.id)}
+                      />
+                    ))}
+                  </>
                 )}
                 <div ref={bottomRef} />
               </div>
+              {showLatestJump && (
+                <button type="button" onClick={() => scrollToLatest()} style={latestJumpButtonStyle}>
+                  <ArrowDown size={15} strokeWidth={2.1} /> 최신 메시지
+                </button>
+              )}
 
               <Composer
                 draft={draft}
@@ -773,6 +849,12 @@ export default function MessengerPage() {
           onAddMembers={addGroupMembers}
           onRemoveMember={removeGroupMember}
           onError={setError}
+        />
+      )}
+      {imagePreview && (
+        <ImagePreviewModal
+          preview={imagePreview}
+          onClose={() => setImagePreview(null)}
         />
       )}
       {readStatusMessage && (
@@ -931,7 +1013,8 @@ function ConversationButton({
     <button type="button" onClick={onClick} style={{
       ...conversationButtonStyle,
       border: active ? "1px solid rgba(62,90,74,0.35)" : "1px solid transparent",
-      background: active ? "var(--accent-soft)" : "transparent",
+      background: active ? "var(--accent-soft)" : conversation.unread_count > 0 ? "rgba(255,255,255,0.72)" : "transparent",
+      boxShadow: active ? "0 8px 20px rgba(62,90,74,0.1)" : conversation.unread_count > 0 ? "0 1px 6px rgba(26,22,18,0.04)" : "none",
     }}>
       <Avatar title={conversation.display_title} src={conversation.display_avatar_url} />
       <div style={{ minWidth: 0, flex: 1 }}>
@@ -969,8 +1052,10 @@ function MessageBubble({
   onDelete,
   onForward,
   onReport,
+  onCopy,
   onReact,
   onShowReadStatus,
+  onPreviewImage,
   actionsOpen,
   onToggleActions,
 }: {
@@ -983,8 +1068,10 @@ function MessageBubble({
   onDelete: () => void;
   onForward: () => void;
   onReport: () => void;
+  onCopy: () => void;
   onReact: (emoji: string) => void;
   onShowReadStatus: () => void;
+  onPreviewImage: (attachment: MessengerAttachment, url: string) => void;
   actionsOpen: boolean;
   onToggleActions: () => void;
 }) {
@@ -1021,6 +1108,7 @@ function MessageBubble({
             onDelete={onDelete}
             onForward={onForward}
             onReport={onReport}
+            onCopy={onCopy}
             onReact={onReact}
           />
           <div style={{
@@ -1041,9 +1129,13 @@ function MessageBubble({
                 <div style={oneLineStyle}>{message.reply_to.body || "첨부 메시지"}</div>
               </div>
             )}
-            {message.body && <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{message.body}</div>}
+            {message.body && (
+              <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                <LinkifiedText text={message.body} mine={message.is_mine} />
+              </div>
+            )}
             {message.attachments.length > 0 && (
-              <AttachmentList attachments={message.attachments} mine={message.is_mine} />
+              <AttachmentList attachments={message.attachments} mine={message.is_mine} onPreviewImage={onPreviewImage} />
             )}
           </div>
         </div>
@@ -1094,6 +1186,7 @@ function MessageActions({
   onDelete,
   onForward,
   onReport,
+  onCopy,
   onReact,
 }: {
   mine: boolean;
@@ -1105,6 +1198,7 @@ function MessageActions({
   onDelete: () => void;
   onForward: () => void;
   onReport: () => void;
+  onCopy: () => void;
   onReact: (emoji: string) => void;
 }) {
   if (deleted) return null;
@@ -1115,6 +1209,7 @@ function MessageActions({
       <button type="button" onClick={() => onReact("🙏")} title="감사" style={miniTextActionStyle}>🙏</button>
       <button type="button" onClick={onReply} title="답장" style={miniActionStyle}><Reply size={13} /></button>
       <button type="button" onClick={onForward} title="전달" style={miniActionStyle}><Forward size={13} /></button>
+      {hasText && <button type="button" onClick={onCopy} title="복사" style={miniActionStyle}><Copy size={13} /></button>}
       {mine && hasText && <button type="button" onClick={onEdit} title="수정" style={miniActionStyle}><Pencil size={13} /></button>}
       {mine && <button type="button" onClick={onDelete} title="삭제" style={miniActionStyle}><Trash2 size={13} /></button>}
       {!mine && <button type="button" onClick={onReport} title="신고" style={miniActionStyle}><ShieldAlert size={13} /></button>}
@@ -1122,7 +1217,44 @@ function MessageActions({
   );
 }
 
-function AttachmentList({ attachments, mine }: { attachments: MessengerAttachment[]; mine: boolean }) {
+function LinkifiedText({ text, mine }: { text: string; mine: boolean }) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (!/^https?:\/\//i.test(part)) return <span key={`${index}-${part}`}>{part}</span>;
+        return (
+          <a
+            key={`${index}-${part}`}
+            href={part}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              color: mine ? "#fff" : "var(--accent)",
+              textDecoration: "underline",
+              textUnderlineOffset: 2,
+              fontWeight: 850,
+              wordBreak: "break-all",
+            }}
+          >
+            {part}
+          </a>
+        );
+      })}
+    </>
+  );
+}
+
+function AttachmentList({
+  attachments,
+  mine,
+  onPreviewImage,
+}: {
+  attachments: MessengerAttachment[];
+  mine: boolean;
+  onPreviewImage: (attachment: MessengerAttachment, url: string) => void;
+}) {
   return (
     <div style={{ display: "grid", gap: 7, marginTop: 8 }}>
       {attachments.map((a) => {
@@ -1130,9 +1262,17 @@ function AttachmentList({ attachments, mine }: { attachments: MessengerAttachmen
         const image = !!a.mime_type?.startsWith("image/");
         if (image) {
           return (
-            <a key={a.id || a.file_path} href={url} target="_blank" rel="noreferrer" style={{ display: "block" }}>
+            <button
+              key={a.id || a.file_path}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onPreviewImage(a, url);
+              }}
+              style={imageAttachmentButtonStyle}
+            >
               <img src={url} alt={a.file_name} style={imageAttachmentStyle} />
-            </a>
+            </button>
           );
         }
         return (
@@ -1153,6 +1293,41 @@ function AttachmentList({ attachments, mine }: { attachments: MessengerAttachmen
           </a>
         );
       })}
+    </div>
+  );
+}
+
+function ImagePreviewModal({
+  preview,
+  onClose,
+}: {
+  preview: NonNullable<ImagePreviewState>;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div onClick={onClose} style={imagePreviewOverlayStyle}>
+      <div onClick={(event) => event.stopPropagation()} style={imagePreviewShellStyle}>
+        <div style={imagePreviewHeaderStyle}>
+          <div style={{ ...oneLineStyle, fontWeight: 900 }}>{preview.attachment.file_name}</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <a href={preview.url} download={preview.attachment.file_name} target="_blank" rel="noreferrer" style={previewActionStyle} title="다운로드">
+              <Download size={17} strokeWidth={2} />
+            </a>
+            <button type="button" onClick={onClose} style={previewActionStyle} title="닫기">
+              <X size={18} strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+        <img src={preview.url} alt={preview.attachment.file_name} style={imagePreviewStyle} />
+      </div>
     </div>
   );
 }
@@ -1427,6 +1602,7 @@ function GroupManagementModal({
   onRemoveMember: (userId: string) => Promise<void>;
   onError: (message: string) => void;
 }) {
+  const { confirm } = useConfirm();
   const [title, setTitle] = useState(conversation.title || conversation.display_title);
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<MessengerUser[]>([]);
@@ -1495,7 +1671,7 @@ function GroupManagementModal({
 
   const removeMember = async (participant: MessengerParticipant) => {
     if (participant.user_id === myUserId || removingId) return;
-    if (!window.confirm(`${participant.name || "이 멤버"}님을 대화방에서 내보낼까요?`)) return;
+    if (!await confirm(`${participant.name || "이 멤버"}님을 대화방에서 내보낼까요?`)) return;
     setRemovingId(participant.user_id);
     try {
       await onRemoveMember(participant.user_id);
@@ -1779,20 +1955,21 @@ const responsiveCss = `
     min-height: 100dvh;
     height: 100dvh;
     overflow: hidden;
-    background: var(--bg-soft);
+    background: linear-gradient(180deg, #f7f4ed 0%, #f1eee6 100%);
     color: var(--ink);
     font-family: var(--font-noto-sans-kr), -apple-system, BlinkMacSystemFont, sans-serif;
   }
   .messenger-shell {
     display: grid;
-    grid-template-columns: 340px minmax(0, 1fr);
+    grid-template-columns: 352px minmax(0, 1fr);
     height: calc(100vh - 62px);
     height: calc(100dvh - 62px);
-    max-width: 1180px;
+    max-width: 1240px;
     margin: 0 auto;
     border-left: 1px solid var(--hairline);
     border-right: 1px solid var(--hairline);
     background: var(--surface);
+    box-shadow: 0 18px 70px rgba(26,22,18,0.08);
   }
   .conversation-list {
     border-right: 1px solid var(--hairline);
@@ -1807,7 +1984,10 @@ const responsiveCss = `
     display: flex;
     flex-direction: column;
     min-height: 0;
-    background: #fbfaf7;
+    background:
+      radial-gradient(circle at 1px 1px, rgba(62,90,74,0.055) 1px, transparent 0) 0 0 / 22px 22px,
+      #fbfaf7;
+    position: relative;
   }
   .mobile-back { display: none; }
   .message-actions { opacity: 0; pointer-events: none; transition: opacity .14s ease; }
@@ -1834,44 +2014,48 @@ const responsiveCss = `
     .messenger-shell.has-active .conversation-list { display: none; }
     .messenger-shell.has-active .conversation-panel { display: flex; }
     .mobile-back { display: inline-flex; }
+    .message-wrap { max-width: min(88%, 620px) !important; }
     .message-actions { display: none !important; opacity: 1; }
     .message-actions.open { display: inline-flex !important; }
   }
 `;
 
 const listStyle: React.CSSProperties = { listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 };
-const sidebarSearchWrapStyle: React.CSSProperties = { height: 44, margin: "10px 10px 0", borderRadius: 9, border: "1px solid var(--hairline)", background: "var(--surface)", display: "flex", alignItems: "center", gap: 8, padding: "0 10px" };
+const sidebarSearchWrapStyle: React.CSSProperties = { height: 44, margin: "12px 12px 0", borderRadius: 10, border: "1px solid var(--hairline)", background: "var(--surface)", display: "flex", alignItems: "center", gap: 8, padding: "0 10px", boxShadow: "0 1px 3px rgba(26,22,18,0.03)" };
 const sidebarSearchInputStyle: React.CSSProperties = { flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", color: "var(--ink)", fontSize: 13, fontWeight: 700, fontFamily: "inherit" };
 const clearSearchButtonStyle: React.CSSProperties = { width: 24, height: 24, border: "none", borderRadius: 6, background: "var(--bg-soft)", color: "var(--ink-faint)", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
 const sidebarLabelStyle: React.CSSProperties = { margin: "8px 4px 6px", fontSize: 11, fontWeight: 900, color: "var(--ink-faint)", letterSpacing: 0.2 };
 const searchResultsWrapStyle: React.CSSProperties = { marginBottom: 12, paddingBottom: 10, borderBottom: "1px solid var(--hairline)" };
 const searchResultButtonStyle: React.CSSProperties = { width: "100%", border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--surface)", padding: "8px 9px", textAlign: "left", cursor: "pointer", fontFamily: "inherit", fontSize: 12, lineHeight: 1.35 };
 const searchEmptyStyle: React.CSSProperties = { padding: "12px 8px", color: "var(--ink-faint)", fontSize: 12, fontWeight: 700, textAlign: "center" };
-const headerStyle: React.CSSProperties = { height: 62, padding: "0 clamp(12px, 4vw, 20px)", borderBottom: "1px solid var(--hairline)", background: "var(--card)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 };
+const headerStyle: React.CSSProperties = { height: 62, padding: "0 clamp(12px, 4vw, 20px)", borderBottom: "1px solid var(--hairline)", background: "rgba(255,255,255,0.86)", backdropFilter: "blur(12px)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 };
 const headerTitleStyle: React.CSSProperties = { fontSize: 17, fontWeight: 900, color: "var(--ink)", lineHeight: 1.1 };
 const headerSubStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: "var(--ink-faint)", marginTop: 2 };
 const headerButtonStyle: React.CSSProperties = { height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--bg-soft)", color: "var(--ink-mid)", fontSize: 13, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, fontFamily: "inherit" };
 const errorBarStyle: React.CSSProperties = { position: "fixed", left: "50%", top: 72, transform: "translateX(-50%)", zIndex: 120, maxWidth: "calc(100vw - 24px)", background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid rgba(160, 55, 55, 0.22)", borderRadius: 8, padding: "8px 10px", display: "flex", gap: 8, alignItems: "center", fontSize: 12, fontWeight: 800 };
 const smallIconButtonStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--card)", color: "var(--ink-mid)", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 };
 const sectionTitleStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, fontSize: 17, fontWeight: 900 };
-const listHeaderStyle: React.CSSProperties = { padding: 14, borderBottom: "1px solid var(--hairline)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 };
-const newButtonStyle: React.CSSProperties = { height: 34, padding: "0 10px", border: "none", borderRadius: 8, background: "var(--accent)", color: "#fff", fontSize: 12, fontWeight: 900, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "inherit" };
-const chatHeaderStyle: React.CSSProperties = { minHeight: 66, padding: "10px 14px", borderBottom: "1px solid var(--hairline)", background: "var(--card)", display: "flex", alignItems: "center", gap: 10 };
+const listHeaderStyle: React.CSSProperties = { padding: "14px 14px 12px", borderBottom: "1px solid var(--hairline)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: "var(--card)" };
+const newButtonStyle: React.CSSProperties = { height: 34, padding: "0 11px", border: "none", borderRadius: 8, background: "var(--accent)", color: "#fff", fontSize: 12, fontWeight: 900, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "inherit", boxShadow: "0 8px 20px rgba(62,90,74,0.18)" };
+const chatHeaderStyle: React.CSSProperties = { minHeight: 66, padding: "10px 14px", borderBottom: "1px solid var(--hairline)", background: "rgba(255,255,255,0.9)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", gap: 10 };
 const chatTitleStyle: React.CSSProperties = { fontSize: 16, fontWeight: 900, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const chatSubStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--ink-faint)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const presenceDotStyle: React.CSSProperties = { width: 7, height: 7, borderRadius: 999, background: "#2F9E62", display: "inline-block", flexShrink: 0 };
 const conversationMenuStyle: React.CSSProperties = { position: "absolute", top: 40, right: 0, zIndex: 40, width: 180, border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--card)", boxShadow: "0 16px 44px rgba(26,22,18,0.16)", padding: 6 };
 const menuActionStyle: React.CSSProperties = { width: "100%", minHeight: 34, border: "none", borderRadius: 7, background: "transparent", display: "flex", alignItems: "center", gap: 8, padding: "0 9px", fontSize: 12, fontWeight: 850, cursor: "pointer", fontFamily: "inherit", textAlign: "left" };
-const messageListStyle: React.CSSProperties = { flex: 1, minHeight: 0, overflowY: "auto", padding: "14px clamp(12px, 3vw, 22px)", overscrollBehavior: "contain" };
-const conversationButtonStyle: React.CSSProperties = { width: "100%", display: "flex", alignItems: "center", gap: 10, padding: 10, borderRadius: 8, cursor: "pointer", textAlign: "left", fontFamily: "inherit" };
+const messageListStyle: React.CSSProperties = { flex: 1, minHeight: 0, overflowY: "auto", padding: "18px clamp(14px, 3vw, 26px)", overscrollBehavior: "contain" };
+const latestJumpButtonStyle: React.CSSProperties = { position: "absolute", right: 18, bottom: 92, zIndex: 25, minHeight: 36, border: "1px solid rgba(62,90,74,0.22)", borderRadius: 999, background: "var(--card)", color: "var(--accent)", padding: "0 13px", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 900, cursor: "pointer", boxShadow: "0 12px 34px rgba(26,22,18,0.14)", fontFamily: "inherit" };
+const olderButtonWrapStyle: React.CSSProperties = { display: "flex", justifyContent: "center", padding: "2px 0 12px" };
+const olderButtonStyle: React.CSSProperties = { minHeight: 34, border: "1px solid var(--hairline)", borderRadius: 999, background: "var(--card)", color: "var(--ink-soft)", padding: "0 14px", fontSize: 12, fontWeight: 900, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 8px rgba(26,22,18,0.04)" };
+const conversationButtonStyle: React.CSSProperties = { width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 11px", borderRadius: 10, cursor: "pointer", textAlign: "left", fontFamily: "inherit", transition: "background .16s ease, border-color .16s ease, transform .16s ease" };
 const conversationTitleStyle: React.CSSProperties = { flex: 1, minWidth: 0, fontSize: 14, fontWeight: 900, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const conversationTimeStyle: React.CSSProperties = { fontSize: 11, color: "var(--ink-faint)", flexShrink: 0 };
 const conversationPreviewStyle: React.CSSProperties = { flex: 1, minWidth: 0, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const unreadBadgeStyle: React.CSSProperties = { minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--danger)", color: "#fff", fontSize: 10, fontWeight: 900, flexShrink: 0 };
-const avatarStyle: React.CSSProperties = { width: 42, height: 42, borderRadius: "50%", objectFit: "cover", background: "var(--bg-soft)", flexShrink: 0 };
+const avatarStyle: React.CSSProperties = { width: 42, height: 42, borderRadius: "50%", objectFit: "cover", background: "var(--bg-soft)", flexShrink: 0, boxShadow: "inset 0 0 0 1px rgba(43,39,34,0.06)" };
 const avatarFallbackStyle: React.CSSProperties = { ...avatarStyle, display: "grid", placeItems: "center", background: "var(--accent-soft)", color: "var(--accent)", fontSize: 15, fontWeight: 900 };
 const senderNameStyle: React.CSSProperties = { fontSize: 12, fontWeight: 800, color: "var(--ink-soft)", paddingLeft: 2 };
-const bubbleStyle: React.CSSProperties = { padding: "9px 12px", fontSize: 14, lineHeight: 1.55, boxShadow: "0 1px 4px rgba(26,22,18,0.04)" };
+const bubbleStyle: React.CSSProperties = { padding: "9px 12px", fontSize: 14, lineHeight: 1.55, boxShadow: "0 6px 18px rgba(26,22,18,0.06)" };
 const replyPreviewStyle: React.CSSProperties = { borderLeft: "3px solid currentColor", borderRadius: 7, padding: "6px 8px", marginBottom: 7, maxWidth: 300 };
 const messageMetaStyle: React.CSSProperties = { fontSize: 10, color: "var(--ink-faint)" };
 const readStatusButtonStyle: React.CSSProperties = { border: "none", background: "transparent", color: "inherit", padding: 0, font: "inherit", cursor: "pointer" };
@@ -1880,16 +2064,22 @@ const miniActionStyle: React.CSSProperties = { width: 25, height: 25, borderRadi
 const miniTextActionStyle: React.CSSProperties = { ...miniActionStyle, fontSize: 12, fontWeight: 900, lineHeight: 1 };
 const reactionRowStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 4, maxWidth: "min(76%, 620px)" };
 const reactionButtonStyle: React.CSSProperties = { minWidth: 42, height: 25, borderRadius: 999, border: "1px solid var(--hairline)", background: "var(--card)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "0 8px", fontSize: 12, fontWeight: 900, cursor: "pointer", fontFamily: "inherit" };
+const imageAttachmentButtonStyle: React.CSSProperties = { display: "block", width: "fit-content", maxWidth: "100%", border: "none", background: "transparent", padding: 0, cursor: "zoom-in", borderRadius: 8, overflow: "hidden" };
 const imageAttachmentStyle: React.CSSProperties = { display: "block", maxWidth: "min(320px, 60vw)", maxHeight: 260, borderRadius: 8, objectFit: "cover", border: "1px solid rgba(255,255,255,0.18)" };
-const fileAttachmentStyle: React.CSSProperties = { minWidth: 220, maxWidth: 320, minHeight: 42, borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 8, textDecoration: "none", fontSize: 12, fontWeight: 800 };
+const fileAttachmentStyle: React.CSSProperties = { minWidth: 0, width: "min(320px, 68vw)", minHeight: 42, borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 8, textDecoration: "none", fontSize: 12, fontWeight: 800 };
+const imagePreviewOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 260, background: "rgba(15, 13, 11, 0.82)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14 };
+const imagePreviewShellStyle: React.CSSProperties = { width: "min(1040px, 100%)", maxHeight: "calc(100dvh - 28px)", display: "flex", flexDirection: "column", gap: 10 };
+const imagePreviewHeaderStyle: React.CSSProperties = { minHeight: 42, borderRadius: 8, background: "rgba(255,255,255,0.08)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "0 8px 0 12px", fontSize: 13 };
+const previewActionStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: 8, border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.08)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
+const imagePreviewStyle: React.CSSProperties = { maxWidth: "100%", maxHeight: "calc(100dvh - 92px)", objectFit: "contain", borderRadius: 8, alignSelf: "center", boxShadow: "0 22px 70px rgba(0,0,0,0.28)" };
 const oneLineStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-const composerStyle: React.CSSProperties = { padding: "12px 12px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: "1px solid var(--hairline)", background: "var(--card)", display: "grid", gap: 8, flexShrink: 0 };
+const composerStyle: React.CSSProperties = { padding: "12px 12px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: "1px solid var(--hairline)", background: "rgba(255,255,255,0.92)", backdropFilter: "blur(10px)", display: "grid", gap: 8, flexShrink: 0 };
 const composerContextStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, border: "1px solid var(--hairline)", background: "var(--accent-soft)", borderRadius: 8, padding: "7px 8px" };
 const pendingAttachmentWrapStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6 };
 const pendingAttachmentStyle: React.CSSProperties = { maxWidth: 220, height: 34, borderRadius: 8, background: "var(--bg-soft)", border: "1px solid var(--hairline)", display: "inline-flex", alignItems: "center", gap: 6, padding: "0 7px", fontSize: 12, fontWeight: 800, color: "var(--ink-mid)" };
 const pendingThumbStyle: React.CSSProperties = { width: 24, height: 24, borderRadius: 5, objectFit: "cover" };
 const composerIconButtonStyle: React.CSSProperties = { width: 44, height: 42, border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--surface)", color: "var(--ink-mid)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 };
-const textareaStyle: React.CSSProperties = { flex: 1, minHeight: 42, maxHeight: 130, resize: "none", border: "1px solid var(--hairline)", borderRadius: 8, padding: "10px 12px", fontSize: 14, lineHeight: 1.45, color: "var(--ink)", outline: "none", fontFamily: "inherit", background: "var(--surface)" };
+const textareaStyle: React.CSSProperties = { flex: 1, minHeight: 42, maxHeight: 130, resize: "none", border: "1px solid var(--hairline)", borderRadius: 10, padding: "10px 12px", fontSize: 14, lineHeight: 1.45, color: "var(--ink)", outline: "none", fontFamily: "inherit", background: "var(--surface)" };
 const sendButtonStyle: React.CSSProperties = { width: 44, height: 42, border: "none", borderRadius: 8, background: "var(--accent)", color: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 };
 const chipRemoveStyle: React.CSSProperties = { width: 18, height: 18, border: "none", background: "transparent", color: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 };
 const modalOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 200, background: "rgba(43,39,34,0.48)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 };

@@ -108,7 +108,7 @@ export default function NoticeBoardPage() {
       </div>
 
       <main className="mx-auto w-full max-w-4xl px-4 py-5">
-        <section className="rounded-lg border border-hairline bg-white">
+        <section className="rounded-lg border border-hairline bg-card">
           <div className="flex items-center justify-between gap-3 border-b border-hairline px-5 py-4">
             <div className="min-w-0">
               <div className="text-[20px] font-extrabold text-ink">공지 게시판</div>

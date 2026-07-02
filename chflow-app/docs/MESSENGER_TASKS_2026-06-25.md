@@ -133,6 +133,16 @@ Recommended route:
 
 - `/admin/messenger-diagnostics`
 
+Current implementation:
+
+- Added `/api/admin/messenger-diagnostics` for admin/office/pastor diagnostics.
+- Added `/admin/messenger-diagnostics` UI and linked it from the admin home menu.
+- The diagnostics view searches by message ID, conversation ID, notification ID, or message text.
+- It shows related messages, conversation participants, message notifications, push delivery rows, push tokens, and generated risk flags.
+- Diagnostics now also supports user name/username/user ID lookup for real-account QA.
+- Diagnostics UI shows matched user profiles so QA can verify the searched real account before reading delivery rows.
+- Added flags for multiple active push tokens on one user/device and push delivery rows created while a conversation is muted.
+
 Recommended capabilities:
 
 - Search by conversation ID, message ID, or user.
@@ -156,6 +166,14 @@ Exit criteria:
 ## Phase 4 - UX Hardening
 
 Priority: Medium
+
+Current implementation:
+
+- Added older-message paging inside a room with a stable `p_before` cursor.
+- Added in-app image preview modal with ESC close and download action.
+- Replaced remaining native `window.confirm` usage in messenger group management with the app confirm dialog.
+- Composer supports paste/drop attachments and realtime typing state.
+- Added message copy action and automatic link rendering for `http`/`https` URLs.
 
 Tasks:
 
@@ -192,6 +210,21 @@ Potential features:
 - Export conversation for admins, if policy allows.
 
 These should wait until Phases 1 and 2 are complete.
+
+## Deferred Direction - PC Desktop Messenger
+
+Priority: Strategic, after messenger QA and core completion
+
+Decision note:
+
+- Do not finalize the PC messenger launch model while core messenger QA is still in progress.
+- The long-term product direction is not just opening `/messenger` in the browser.
+- Desired PC experience: a PC user clicks the messenger entry, installs a dedicated messenger app/shortcut, and then uses messenger in a separate app-like window from the desktop.
+- Consider PWA install first for a lightweight desktop shortcut and standalone window.
+- Consider Tauri/Electron later if the product needs a real Windows installer, tray behavior, auto-start, richer desktop notifications, or a stronger native-app feel.
+- Existing bottom-right dock and `/messenger` page behavior should be treated as current interim entry points, not the final PC desktop UX.
+
+Use this note when deciding future PC messenger architecture.
 
 ## Validation Commands
 

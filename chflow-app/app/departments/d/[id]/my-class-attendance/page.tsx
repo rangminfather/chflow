@@ -7,10 +7,24 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import StudentPhotoEditor from "@/components/StudentPhotoEditor";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { type LucideIcon, BadgeCheck, CheckCircle2, ClipboardCheck, XCircle } from "lucide-react";
+
+interface PromoRow {
+  new_friend_id: string;
+  student_id: string;
+  name: string;
+  class_no: string | null;
+  grade_year: number | null;
+  teacher_id: string | null;
+  attend_count: number;
+  state: "ready" | "upcoming";
+  guide_kind: string | null;
+  guide_student_name: string | null;
+}
 
 interface Student {
   id: string;
@@ -58,6 +72,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function MyClassAttendancePage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
   const weekCardRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -72,6 +87,9 @@ export default function MyClassAttendancePage() {
   const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
   const [myClassName, setMyClassName] = useState<string>("");
   const [saving, setSaving] = useState<string>("");
+  const [board, setBoard] = useState<PromoRow[]>([]);
+  const [promoting, setPromoting] = useState<string>("");
+  const [promoToast, setPromoToast] = useState<string>("");
 
   useEffect(() => {
     (async () => {
@@ -101,9 +119,30 @@ export default function MyClassAttendancePage() {
   const loadAll = async (teacherId: string | null) => {
     setLoading(true);
     if (teacherId) {
-      await Promise.all([loadStudents(teacherId), loadAttendance()]);
+      await Promise.all([loadStudents(teacherId), loadAttendance(), loadPromotion(teacherId)]);
     }
     setLoading(false);
+  };
+
+  // 내 반 등반 대상/예정 ('출' 4회 이상 ready / 3회 upcoming, 정상·미등반)
+  const loadPromotion = async (teacherId: string) => {
+    const { data } = await supabase.rpc("edu_promotion_board", { p_dept_id: deptId });
+    setBoard(((data || []) as PromoRow[]).filter((b) => b.teacher_id === teacherId));
+  };
+
+  const confirmPromotion = async (row: PromoRow) => {
+    const guideNote = row.guide_kind === "student" && row.guide_student_name
+      ? `\n\n인도자 ${row.guide_student_name} 학생에게 새친구등반 달란트가 적립됩니다.`
+      : "";
+    const ok = await confirm(`${row.name} 학생을 등반(정회원) 확정할까요?${guideNote}`);
+    if (!ok) return;
+    setPromoting(row.new_friend_id);
+    const { error } = await supabase.rpc("edu_confirm_promotion", { p_new_friend_id: row.new_friend_id });
+    setPromoting("");
+    if (error) { setPromoToast(`등반 확정 실패: ${error.message}`); setTimeout(() => setPromoToast(""), 2500); return; }
+    setPromoToast(`${row.name} 학생 등반 확정 완료`);
+    setTimeout(() => setPromoToast(""), 2500);
+    if (myTeacherId) await Promise.all([loadStudents(myTeacherId), loadPromotion(myTeacherId)]);
   };
 
   const loadStudents = async (teacherId: string) => {
@@ -258,7 +297,7 @@ export default function MyClassAttendancePage() {
 
       <main className="mx-auto w-full max-w-6xl px-0 py-4 md:px-4">
         {/* 월 선택 */}
-        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-hairline bg-white px-4 py-3 md:mx-0">
+        <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-hairline bg-card px-4 py-3 md:mx-0">
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
           <div className="min-w-[140px] text-center text-[19px] font-extrabold text-ink">
             {year}년 {month}월
@@ -269,12 +308,55 @@ export default function MyClassAttendancePage() {
           </div>
         </div>
 
+        {/* 등반 확정 대상 ('출' 4회 이상) */}
+        {board.filter((b) => b.state === "ready").length > 0 && (
+          <div className="mx-4 mb-4 rounded-2xl border p-4 md:mx-0" style={{ borderColor: "color-mix(in srgb, var(--accent) 35%, transparent)", background: "var(--accent-soft)" }}>
+            <div className="mb-2 text-[15px] font-extrabold text-ink">🎖️ 등반 확정 대상</div>
+            <div className="flex flex-col gap-2">
+              {board.filter((b) => b.state === "ready").map((row) => (
+                <div key={row.new_friend_id} className="flex flex-wrap items-center gap-2">
+                  <span className="text-[15px] font-bold text-ink">{row.name}</span>
+                  <span className="text-[13px] text-ink-soft">출석 {row.attend_count}회 · 4주 등반 대상</span>
+                  <button
+                    onClick={() => confirmPromotion(row)}
+                    disabled={promoting === row.new_friend_id}
+                    className="ml-auto rounded-lg px-4 py-2 text-[14px] font-extrabold text-white disabled:opacity-60"
+                    style={{ background: "var(--accent)" }}
+                  >
+                    {promoting === row.new_friend_id ? "확정 중..." : "등반 확정"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 등반 예정 ('출' 3회) */}
+        {board.filter((b) => b.state === "upcoming").length > 0 && (
+          <div className="mx-4 mb-4 rounded-2xl border p-4 md:mx-0" style={{ borderColor: "color-mix(in srgb, var(--warning) 35%, transparent)", background: "var(--warning-soft)" }}>
+            <div className="mb-2 text-[14px] font-extrabold text-ink">⏳ 등반 예정 (다음 출석 시 4주)</div>
+            <div className="flex flex-wrap gap-2">
+              {board.filter((b) => b.state === "upcoming").map((row) => (
+                <span key={row.new_friend_id} className="rounded-full border bg-card px-3 py-1 text-[13px] font-bold" style={{ color: "var(--warning)", borderColor: "color-mix(in srgb, var(--warning) 30%, transparent)" }}>
+                  {row.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {promoToast && (
+          <div className="mx-4 mb-4 rounded-lg px-4 py-2 text-[14px] font-bold text-white md:mx-0" style={{ background: "var(--ink)" }}>
+            {promoToast}
+          </div>
+        )}
+
         {loading ? (
-          <div className="mx-4 rounded-lg border border-hairline bg-white py-16 text-center text-[17px] text-ink-faint md:mx-0">
+          <div className="mx-4 rounded-lg border border-hairline bg-card py-16 text-center text-[17px] text-ink-faint md:mx-0">
             불러오는 중...
           </div>
         ) : students.length === 0 ? (
-          <div className="mx-4 rounded-lg border border-hairline bg-white py-16 text-center text-[17px] text-ink-faint md:mx-0">
+          <div className="mx-4 rounded-lg border border-hairline bg-card py-16 text-center text-[17px] text-ink-faint md:mx-0">
             담당 반 학생이 없습니다. 부장 또는 전도사에게 학생 배정을 요청하세요.
           </div>
         ) : (

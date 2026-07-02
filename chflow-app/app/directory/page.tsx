@@ -590,6 +590,7 @@ function DirectoryProfileModal({
   return (
     <ModalBackdrop onClose={onClose} style={modalBgStyle}>
       <div onClick={(event) => event.stopPropagation()} style={modalCardStyle}>
+        <div style={modalZoomContentStyle}>
         <div style={modalHeaderStyle}>
           <strong>성도 상세</strong>
           <button style={closeButtonStyle} onClick={onClose}>×</button>
@@ -759,10 +760,12 @@ function DirectoryProfileModal({
             <div style={sectionEmptyStyle}>등록된 부모·자녀 관계가 없습니다</div>
           )}
         </ProfileSection>
+        </div>
 
         {pendingChanges && (
           <div style={quickEditConfirmOverlayStyle} onClick={() => !savingQuickEdit && setPendingChanges(null)}>
             <div style={quickEditConfirmCardStyle} onClick={(event) => event.stopPropagation()}>
+              <div style={modalZoomContentStyle}>
               <div style={modalHeaderStyle}>
                 <strong>변경 내용 확인</strong>
                 <button style={closeButtonStyle} onClick={() => !savingQuickEdit && setPendingChanges(null)}>×</button>
@@ -788,6 +791,7 @@ function DirectoryProfileModal({
                 <button style={buttonStyle} onClick={applyQuickEdit} disabled={savingQuickEdit}>
                   {savingQuickEdit ? "적용 중..." : "이대로 적용"}
                 </button>
+              </div>
               </div>
             </div>
           </div>
@@ -1130,6 +1134,7 @@ const pagerStyle: CSSProperties = {
 const modalBgStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
+  height: "100dvh",
   background: "rgba(43, 39, 34,0.58)",
   display: "flex",
   alignItems: "center",
@@ -1141,12 +1146,19 @@ const modalBgStyle: CSSProperties = {
 const modalCardStyle: CSSProperties = {
   width: "100%",
   maxWidth: 620,
-  maxHeight: "90vh",
+  maxHeight: "90dvh",
   overflowY: "auto",
   background: "var(--card)",
   borderRadius: 8,
   boxShadow: "0 20px 60px rgba(43, 39, 34,0.25)",
   padding: 18,
+};
+
+// 모달은 #app-zoom-root 밖(document.body)으로 portal되므로 글자확대(zoom)가 적용되지 않는다.
+// 스크롤 컨테이너(카드)는 기본 크기로 두어 화면에 맞추고, '내용'에만 zoom을 다시 걸어
+// 노안 대응 글자확대를 살린다. position:fixed 자식(확인 오버레이)은 이 래퍼 밖에 둬야 한다.
+const modalZoomContentStyle: CSSProperties = {
+  zoom: "var(--app-zoom, 1)" as CSSProperties["zoom"],
 };
 
 const modalHeaderStyle: CSSProperties = {
@@ -1309,6 +1321,7 @@ const quickEditActionsStyle: CSSProperties = {
 const quickEditConfirmOverlayStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
+  height: "100dvh",
   zIndex: 120,
   background: "rgba(43, 39, 34, 0.62)",
   display: "flex",
@@ -1320,7 +1333,7 @@ const quickEditConfirmOverlayStyle: CSSProperties = {
 const quickEditConfirmCardStyle: CSSProperties = {
   width: "100%",
   maxWidth: 760,
-  maxHeight: "90vh",
+  maxHeight: "90dvh",
   overflowY: "auto",
   borderRadius: 8,
   background: "var(--card)",

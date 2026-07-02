@@ -162,6 +162,7 @@ Recommended path:
 Current implementation:
 
 - Added migration `20260609110000_notification_push_deliveries.sql`
+- Added migration `20260701120000_push_delivery_receipts.sql`
 - Applied the migration to the linked remote Supabase DB with:
 
 ```powershell
@@ -173,16 +174,25 @@ npx supabase db query --linked --file supabase\migrations\20260609110000_notific
 - Added trigger `trg_enqueue_notification_push_deliveries` on `public.notifications`
 - Any new notification row now creates queued push delivery rows for the user's active push tokens
 - Added `GET/POST /api/mobile/push-dispatch`
+- Added `GET/POST /api/mobile/push-receipts`
+- Added `GET/POST /api/cron/push-maintenance` to run dispatch and receipt polling from one scheduler call
 - Dispatch endpoint:
   - picks queued/failed deliveries with fewer than 3 attempts
   - sends them to Expo Push API
   - records `sent`, `failed`, `expo_ticket_id`, attempts, and error messages
   - requires `Authorization: Bearer <PUSH_DISPATCH_SECRET|CRON_SECRET|SUPABASE_SERVICE_ROLE_KEY>`
+- Receipt endpoint:
+  - checks Expo receipts for `sent` deliveries with ticket IDs
+  - records successful receipts as `delivered`
+  - records receipt errors as `failed`
+  - disables push tokens when Expo returns `DeviceNotRegistered`
 
 Important:
 
 - Vercel cron frequency depends on the Vercel plan. The endpoint is implemented, but minute-level automatic dispatch should be wired only after confirming the deployment plan or using an external scheduler.
 - Manual dispatch for verification can call `/api/mobile/push-dispatch` with the service role key or dispatch secret.
+- Production cron can call `/api/cron/push-maintenance` with the same bearer secret. Use `dispatch_limit` and `receipt_limit` query params only if the defaults need tuning.
+- Before deploying receipt polling, apply `20260701120000_push_delivery_receipts.sql` so `notification_push_deliveries.status = 'delivered'` is accepted.
 
 Verification:
 

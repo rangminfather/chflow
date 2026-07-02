@@ -37,6 +37,19 @@ interface AttendRow {
   memo: string | null;
 }
 
+interface PromoRow {
+  new_friend_id: string;
+  student_id: string;
+  name: string;
+  class_no: string | null;
+  grade_year: number | null;
+  teacher_id: string | null;
+  attend_count: number;
+  state: "ready" | "upcoming";
+  guide_kind: string | null;
+  guide_student_name: string | null;
+}
+
 const CHECKS = [
   { key: "had_prayer",    label: "기" },
   { key: "had_church_sch", label: "교" },
@@ -49,6 +62,11 @@ const STATUS_LIST = ["출", "빠", "결", "인"];
 const STATUS_COLOR: Record<string, string> = {
   출: "var(--success)", 빠: "var(--warning)", 결: "var(--danger)", 인: "var(--accent)",
 };
+
+function classLabel(row: { grade_year: number | null; class_no: string | null }): string {
+  const grade = row.grade_year ? `${row.grade_year}학년 ` : "";
+  return `${grade}${row.class_no || "미배정"}반`;
+}
 
 export default function AttendancePage() {
   const router = useRouter();
@@ -66,11 +84,26 @@ export default function AttendancePage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newNo, setNewNo] = useState("");
   const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState("정");
   const [newGrade, setNewGrade] = useState("");
   const [toast, setToast] = useState("");
   const [saving, setSaving] = useState<string>("");
   const [editMemo, setEditMemo] = useState<Record<string, string>>({});
+  const [newFriendMap, setNewFriendMap] = useState<Record<string, boolean>>({}); // student_id → promoted
+  const [board, setBoard] = useState<PromoRow[]>([]);
+  const [promoting, setPromoting] = useState("");
+
+  const loadPromotion = useCallback(async () => {
+    const [{ data: flags }, { data: rows }] = await Promise.all([
+      supabase.rpc("edu_new_friend_flags", { p_dept_id: deptId }),
+      supabase.rpc("edu_promotion_board", { p_dept_id: deptId }),
+    ]);
+    const map: Record<string, boolean> = {};
+    ((flags || []) as { student_id: string; promoted: boolean }[]).forEach((f) => {
+      if (f.student_id) map[f.student_id] = f.promoted;
+    });
+    setNewFriendMap(map);
+    setBoard((rows || []) as PromoRow[]);
+  }, [deptId]);
 
   const loadStudents = useCallback(async () => {
     const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
@@ -102,9 +135,9 @@ export default function AttendancePage() {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadStudents(), loadAttendance()]);
+    await Promise.all([loadStudents(), loadAttendance(), loadPromotion()]);
     setLoading(false);
-  }, [loadAttendance, loadStudents]);
+  }, [loadAttendance, loadStudents, loadPromotion]);
 
   useEffect(() => {
     (async () => {
@@ -114,6 +147,24 @@ export default function AttendancePage() {
       await loadAll();
     })();
   }, [loadAll, router]);
+
+  // 등반 대상/예정 — 전체 출결관리 화면에 표시(반 무관). 확정 권한은 출석부 접근 권한과 동일.
+  const readyList = useMemo(() => board.filter((b) => b.state === "ready"), [board]);
+  const upcomingList = useMemo(() => board.filter((b) => b.state === "upcoming"), [board]);
+
+  const confirmPromotion = async (row: PromoRow) => {
+    const guideNote = row.guide_kind === "student" && row.guide_student_name
+      ? `\n\n인도자 ${row.guide_student_name} 학생에게 새친구등반 달란트가 적립됩니다.`
+      : "";
+    const ok = await confirm(`${row.name} 학생을 등반(정회원) 확정할까요?${guideNote}`);
+    if (!ok) return;
+    setPromoting(row.new_friend_id);
+    const { error } = await supabase.rpc("edu_confirm_promotion", { p_new_friend_id: row.new_friend_id });
+    setPromoting("");
+    if (error) { setToast(`등반 확정 실패: ${error.message}`); return; }
+    setToast(`${row.name} 학생 등반 확정 완료`);
+    await Promise.all([loadStudents(), loadPromotion()]);
+  };
 
   useEffect(() => {
     if (authChecked) loadAttendance();
@@ -189,13 +240,13 @@ export default function AttendancePage() {
       p_dept_id:  deptId,
       p_no:       parseInt(newNo) || null,
       p_name:     newName.trim(),
-      p_type:     newType,
+      p_type:     "정",
       p_grade:    newGrade.trim() || null,
       p_order_no: students.length,
     });
     if (!error) {
       showToast("학생이 추가되었습니다");
-      setNewNo(""); setNewName(""); setNewType("정"); setNewGrade("");
+      setNewNo(""); setNewName(""); setNewGrade("");
       setShowAddForm(false);
       await loadAll();
     }
@@ -252,11 +303,6 @@ export default function AttendancePage() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <input type="number" value={newNo} onChange={(e) => setNewNo(e.target.value)} placeholder="번호" style={{ ...inputStyle, width: 70 }} />
               <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="이름" style={{ ...inputStyle, width: 120 }} />
-              <select value={newType} onChange={(e) => setNewType(e.target.value)} style={{ ...inputStyle, width: 100 }}>
-                <option value="정">정</option>
-                <option value="체험">체험</option>
-                <option value="소">소</option>
-              </select>
               <input type="text" value={newGrade} onChange={(e) => setNewGrade(e.target.value)} placeholder="학년 (선택)" style={{ ...inputStyle, width: 100 }} />
               <button onClick={addStudent} style={saveBtnStyle}>추가</button>
               <button onClick={() => setShowAddForm(false)} style={cancelBtnStyle}>취소</button>
@@ -276,6 +322,43 @@ export default function AttendancePage() {
           </div>
         </div>
 
+        {/* 등반 확정 대상 ('출' 4회 이상) — 출석부 접근자 누구나 확정 가능 */}
+        {readyList.length > 0 && (
+          <div style={{ ...cardStyle, marginBottom: 16, border: "1px solid color-mix(in srgb, var(--accent) 35%, transparent)", background: "var(--accent-soft)" }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", marginBottom: 10 }}>🎖️ 등반 확정 대상</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {readyList.map((row) => (
+                <div key={row.new_friend_id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{row.name}</span>
+                  <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>{classLabel(row)}</span>
+                  <span style={{ fontSize: 12, color: "var(--ink-soft)" }}>출석 {row.attend_count}회 · 4주 등반 대상</span>
+                  <button
+                    onClick={() => confirmPromotion(row)}
+                    disabled={promoting === row.new_friend_id}
+                    style={{ marginLeft: "auto", padding: "6px 14px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    {promoting === row.new_friend_id ? "확정 중..." : "등반 확정"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 등반 예정 ('출' 3회) */}
+        {upcomingList.length > 0 && (
+          <div style={{ ...cardStyle, marginBottom: 16, border: "1px solid color-mix(in srgb, var(--warning) 35%, transparent)", background: "var(--warning-soft)" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>⏳ 등반 예정 (다음 출석 시 4주)</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {upcomingList.map((row) => (
+                <span key={row.new_friend_id} style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", background: "var(--card)", border: "1px solid color-mix(in srgb, var(--warning) 30%, transparent)", borderRadius: 14, padding: "3px 10px" }}>
+                  {row.name} <span style={{ color: "var(--ink-faint)", fontWeight: 600 }}>· {classLabel(row)}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 그리드 */}
         <div style={{ ...cardStyle, overflowX: "auto", padding: 0 }}>
           {loading ? (
@@ -290,7 +373,7 @@ export default function AttendancePage() {
                 <tr>
                   <th rowSpan={2} style={thStyle2(50)}>번호</th>
                   <th rowSpan={2} style={thStyle2(80)}>이름</th>
-                  <th rowSpan={2} style={thStyle2(50)}>구분</th>
+                  <th rowSpan={2} style={thStyle2(50)}>등반</th>
                   {sundays.map((d, i) => (
                     <th key={d} colSpan={6} style={{ ...thStyle2(0), textAlign: "center", borderBottom: "none" }}>
                       <div style={{ fontWeight: 700 }}>{i + 1}주 ({formatMD(d)})</div>
@@ -361,14 +444,16 @@ export default function AttendancePage() {
                       <td style={{ textAlign: "center", padding: 4, fontWeight: 700 }}>{s.student_no ?? ""}</td>
                       <td style={{ padding: "4px 8px", fontWeight: 700, whiteSpace: "nowrap" }}>{s.name}</td>
                       <td style={{ textAlign: "center", padding: 4 }}>
-                        <span style={{
-                          fontSize: 10, padding: "1px 5px", borderRadius: 4,
-                          background: s.student_type === "정" ? "var(--accent-soft)" : s.student_type === "체험" ? "var(--warning-soft)" : "var(--success-soft)",
-                          color: s.student_type === "정" ? "var(--accent)" : s.student_type === "체험" ? "var(--warning)" : "var(--success)",
-                          fontWeight: 700,
-                        }}>
-                          {s.student_type}
-                        </span>
+                        {s.id in newFriendMap && (
+                          <span style={{
+                            fontSize: 10, padding: "1px 5px", borderRadius: 4,
+                            background: newFriendMap[s.id] ? "var(--accent-soft)" : "var(--warning-soft)",
+                            color: newFriendMap[s.id] ? "var(--accent)" : "var(--warning)",
+                            fontWeight: 700,
+                          }}>
+                            {newFriendMap[s.id] ? "등반" : "등반전"}
+                          </span>
+                        )}
                       </td>
 
                       {sundays.map((d) => {

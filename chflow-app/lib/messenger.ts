@@ -121,11 +121,11 @@ export async function listMessengerConversations(): Promise<MessengerConversatio
   return (data || []) as MessengerConversation[];
 }
 
-export async function getMessengerMessages(conversationId: string, limit = 60): Promise<MessengerMessage[]> {
+export async function getMessengerMessages(conversationId: string, limit = 60, before: string | null = null): Promise<MessengerMessage[]> {
   const { data, error } = await supabase.rpc("get_messenger_messages_v2", {
     p_conversation_id: conversationId,
     p_limit: limit,
-    p_before: null,
+    p_before: before,
   });
   if (error) throw error;
   return ((data || []) as MessengerMessage[]).reverse();
