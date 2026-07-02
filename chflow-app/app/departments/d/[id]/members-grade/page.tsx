@@ -71,7 +71,7 @@ export default function MembersGradePage() {
 
   const [authChecked, setAuthChecked] = useState(false);
   const [members, setMembers] = useState<DeptMember[]>([]);
-  const [myGrade, setMyGrade] = useState<number | null>(null);
+  const [authorized, setAuthorized] = useState(true);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [toast, setToast] = useState("");
@@ -94,16 +94,16 @@ export default function MembersGradePage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [gradeR, listR] = await Promise.all([
-      supabase.rpc("get_user_grade", { p_dept_id: deptId }),
-      supabase.rpc("list_dept_grade_members", { p_dept_id: deptId }),
-    ]);
-    if (gradeR.data !== null && gradeR.data !== undefined) {
-      setMyGrade(typeof gradeR.data === "number" ? gradeR.data : Number(gradeR.data));
-    }
+    const listR = await supabase.rpc("list_dept_grade_members", { p_dept_id: deptId });
     if (listR.error) {
-      showToast("조회 실패: " + listR.error.message);
+      // 권한 판정은 RPC(dept_mgmt_grade_ok)가 위임 설정 기반으로 수행
+      if (listR.error.message.includes("권한")) {
+        setAuthorized(false);
+      } else {
+        showToast("조회 실패: " + listR.error.message);
+      }
     } else {
+      setAuthorized(true);
       setMembers((listR.data as DeptMember[]) || []);
     }
     setLoading(false);
@@ -195,7 +195,7 @@ export default function MembersGradePage() {
 
   if (!authChecked || loading) return <LoadingView full />;
 
-  if (myGrade === null || myGrade > 1) {
+  if (!authorized) {
     return (
       <div style={pageStyle}>
         <div style={{ maxWidth: 480, margin: "60px auto", padding: 24 }}>
@@ -205,7 +205,7 @@ export default function MembersGradePage() {
               접근 권한이 없습니다
             </div>
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>
-              부서원 등급 관리는 등급 0~1 (전도사/교육사 또는 부장) 만 가능합니다.
+              부서원 등급 관리는 전도사·교육사(또는 위임된 임원진)만 가능합니다.
             </div>
             <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtnStyle}>
               부서홈으로
