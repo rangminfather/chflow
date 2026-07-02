@@ -283,7 +283,7 @@ export default function StudentsInfoPage() {
       <div style={pageStyle}>
         <PageHeader deptId={deptId} router={router} />
         <main className="mx-auto max-w-lg px-4 py-14">
-          <div className="rounded-lg border border-hairline bg-white text-center">
+          <div className="rounded-lg border border-hairline bg-card text-center">
             <EmptyState
               icon={<Lock size={24} strokeWidth={1.8} />}
               message="접근 권한이 없습니다"
@@ -300,7 +300,7 @@ export default function StudentsInfoPage() {
       <PageHeader deptId={deptId} router={router} />
 
       <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-4 md:grid-cols-[300px_1fr]">
-        <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-white">
+        <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-card">
           <div className="border-b border-hairline px-4 py-3">
             <div className="flex items-center justify-between gap-2">
               <div className="text-[17px] font-extrabold text-ink">학생 명부</div>
@@ -320,7 +320,7 @@ export default function StudentsInfoPage() {
             <select
               value={classFilter}
               onChange={(event) => setClassFilter(event.target.value)}
-              className="mt-2 min-h-10 w-full rounded-md border border-hairline bg-white px-2 text-[14px] font-bold text-ink outline-none"
+              className="mt-2 min-h-10 w-full rounded-md border border-hairline bg-card px-2 text-[14px] font-bold text-ink outline-none"
             >
               <option value="">전체 반 ({students.length}명)</option>
               {classOptions.map((option) => (
@@ -342,7 +342,7 @@ export default function StudentsInfoPage() {
                   onClick={() => selectStudent(student)}
                   className={[
                     "w-full rounded-lg border px-3 py-2.5 text-left",
-                    selectedId === student.id ? "border-amber-400 bg-amber-50" : "border-hairline bg-white",
+                    selectedId === student.id ? "border-amber-400 bg-amber-50" : "border-hairline bg-card",
                   ].join(" ")}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -358,7 +358,7 @@ export default function StudentsInfoPage() {
           )}
         </section>
 
-        <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-white">
+        <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-card">
           {!draft ? (
             <div className="py-20 text-center text-[16px] text-ink-faint">학생을 선택하세요</div>
           ) : (
@@ -376,7 +376,7 @@ export default function StudentsInfoPage() {
                   title={editMode ? "수정 종료" : "학생 정보 수정"}
                   className={[
                     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border",
-                    editMode ? "border-amber-400 bg-amber-50 text-amber-700" : "border-hairline bg-white text-ink-soft",
+                    editMode ? "border-amber-400 bg-amber-50 text-amber-700" : "border-hairline bg-card text-ink-soft",
                   ].join(" ")}
                 >
                   <Cog size={18} strokeWidth={1.9} className={editMode ? "animate-spin" : ""} style={editMode ? { animationDuration: "3s" } : undefined} />
@@ -403,7 +403,7 @@ export default function StudentsInfoPage() {
                   </InfoField>
                   <div className="mb-0">
                     <div className="mb-1 text-[14px] font-bold text-ink-soft">학년 · 반</div>
-                    <div className="min-h-11 rounded-md border border-hairline bg-white px-3 py-2 text-[16px] font-bold leading-7 text-ink">{classLabel(draft)}</div>
+                    <div className="min-h-11 rounded-md border border-hairline bg-card px-3 py-2 text-[16px] font-bold leading-7 text-ink">{classLabel(draft)}</div>
                     <div className="mt-1 text-[12px] leading-5 text-ink-faint">반 이동·담임 변경은 반 관리 / 진급 마법사에서 합니다.</div>
                   </div>
                 </div>
@@ -429,11 +429,11 @@ export default function StudentsInfoPage() {
                 <div className="rounded-lg border border-hairline bg-surface p-4 lg:col-span-2">
                   <div className="mb-3 text-[16px] font-extrabold text-ink">가족관계</div>
                   {(families[draft.id] || []).length === 0 ? (
-                    <div className="rounded-md border border-hairline bg-white px-3 py-4 text-[14px] font-semibold text-ink-faint">등록된 가족관계가 없습니다.</div>
+                    <div className="rounded-md border border-hairline bg-card px-3 py-4 text-[14px] font-semibold text-ink-faint">등록된 가족관계가 없습니다.</div>
                   ) : (
                     <div className="grid gap-2 md:grid-cols-2">
                       {(families[draft.id] || []).map((family) => (
-                        <div key={`${family.relative_id}-${family.kind}-${family.direction}`} className="rounded-md border border-hairline bg-white px-3 py-2">
+                        <div key={`${family.relative_id}-${family.kind}-${family.direction}`} className="rounded-md border border-hairline bg-card px-3 py-2">
                           <div className="text-[14px] font-extrabold text-ink">{relationLabel(family)} · {family.relative_name}</div>
                           <div className="mt-1 text-[13px] font-semibold text-ink-faint">{family.relative_phone ? formatPhone(family.relative_phone) : "연락처 없음"}</div>
                         </div>
@@ -492,7 +492,7 @@ function InfoField({ label, value, editMode, children }: { label: string; value:
   return (
     <div className="mb-3">
       <div className="mb-1 text-[14px] font-bold text-ink-soft">{label}</div>
-      <div className="min-h-11 rounded-md border border-hairline bg-white px-3 py-2 text-[16px] font-bold leading-7 text-ink">{value}</div>
+      <div className="min-h-11 rounded-md border border-hairline bg-card px-3 py-2 text-[16px] font-bold leading-7 text-ink">{value}</div>
     </div>
   );
 }
@@ -536,7 +536,7 @@ function relationLabel(row: FamilyRow) {
   return row.role || row.kind || "가족";
 }
 
-const inputClass = "min-h-11 w-full rounded-md border border-hairline-strong bg-white px-3 py-2 text-[16px] font-bold text-ink outline-none focus:border-amber-400 disabled:bg-bg-soft disabled:text-ink-faint";
+const inputClass = "min-h-11 w-full rounded-md border border-hairline-strong bg-card px-3 py-2 text-[16px] font-bold text-ink outline-none focus:border-amber-400 disabled:bg-bg-soft disabled:text-ink-faint";
 
 const pageStyle: CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif", overflowX: "hidden" };
 const headerStyle: CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 };

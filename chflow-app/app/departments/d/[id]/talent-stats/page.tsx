@@ -217,7 +217,7 @@ export default function TalentStatsPage() {
       <div style={pageStyle}>
         <PageHeader deptId={deptId} router={router} />
         <main className="mx-auto max-w-lg px-4 py-14">
-          <div className="rounded-lg border border-hairline bg-white text-center">
+          <div className="rounded-lg border border-hairline bg-card text-center">
             <EmptyState
               icon={<Lock size={24} strokeWidth={1.8} />}
               message="접근 권한이 없습니다"
@@ -235,7 +235,7 @@ export default function TalentStatsPage() {
 
       <main className="mx-auto w-full max-w-5xl px-4 py-4">
         {/* 기간 + 반 필터 */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-white px-4 py-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-card px-4 py-3">
           <div className="flex gap-1 rounded-md bg-bg-soft p-1">
             {PERIOD_OPTIONS.map((option) => (
               <button
@@ -244,7 +244,7 @@ export default function TalentStatsPage() {
                 onClick={() => setPeriod(option.key)}
                 className={[
                   "min-h-9 rounded px-3.5 text-[14px] font-extrabold",
-                  period === option.key ? "bg-white text-ink shadow-sm" : "text-ink-faint",
+                  period === option.key ? "bg-card text-ink shadow-sm" : "text-ink-faint",
                 ].join(" ")}
               >
                 {option.label}
@@ -254,7 +254,7 @@ export default function TalentStatsPage() {
           <select
             value={classFilter}
             onChange={(event) => setClassFilter(event.target.value)}
-            className="min-h-10 rounded-md border border-hairline bg-white px-2 text-[14px] font-bold text-ink outline-none"
+            className="min-h-10 rounded-md border border-hairline bg-card px-2 text-[14px] font-bold text-ink outline-none"
           >
             <option value="">전체 반</option>
             {classOptions.map((label) => <option key={label} value={label}>{label}</option>)}
@@ -264,7 +264,7 @@ export default function TalentStatsPage() {
         {loading ? (
           <LoadingView padding={60} label="달란트 집계 중..." />
         ) : totals.length === 0 ? (
-          <div className="rounded-lg border border-hairline bg-white text-center">
+          <div className="rounded-lg border border-hairline bg-card text-center">
             <EmptyState message="집계할 학생이 없습니다" />
           </div>
         ) : (
@@ -278,7 +278,7 @@ export default function TalentStatsPage() {
 
             {/* 반별 평균 (전체 보기일 때만) */}
             {!classFilter && classSummary.length > 1 && (
-              <div className="mb-4 rounded-lg border border-hairline bg-white p-4">
+              <div className="mb-4 rounded-lg border border-hairline bg-card p-4">
                 <div className="mb-3 text-[15px] font-extrabold text-ink">반별 1인 평균</div>
                 <div className="flex flex-col gap-1.5">
                   {classSummary.map((entry) => {
@@ -299,7 +299,7 @@ export default function TalentStatsPage() {
             )}
 
             {/* 랭킹 */}
-            <div className="overflow-hidden rounded-lg border border-hairline bg-white">
+            <div className="overflow-hidden rounded-lg border border-hairline bg-card">
               <div className="border-b border-hairline bg-surface px-4 py-2.5 text-[15px] font-extrabold text-ink">
                 달란트 랭킹 {classFilter && <span className="ml-1 text-[13px] font-bold text-ink-faint">{classFilter}</span>}
               </div>
@@ -365,7 +365,7 @@ function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typ
 
 function SummaryCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="rounded-lg border border-hairline bg-white px-4 py-3">
+    <div className="rounded-lg border border-hairline bg-card px-4 py-3">
       <div className="text-[12px] font-bold text-ink-faint">{label}</div>
       <div className="mt-1 text-[20px] font-extrabold" style={{ color: accent ? "var(--accent)" : "var(--ink)" }}>{value}</div>
     </div>

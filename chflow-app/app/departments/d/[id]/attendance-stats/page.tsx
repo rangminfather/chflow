@@ -245,7 +245,7 @@ export default function AttendanceStatsPage() {
       <div style={pageStyle}>
         <PageHeader deptId={deptId} router={router} />
         <main className="mx-auto max-w-lg px-4 py-14">
-          <div className="rounded-lg border border-hairline bg-white text-center">
+          <div className="rounded-lg border border-hairline bg-card text-center">
             <EmptyState
               icon={<Lock size={24} strokeWidth={1.8} />}
               message="접근 권한이 없습니다"
@@ -263,7 +263,7 @@ export default function AttendanceStatsPage() {
 
       <main className="mx-auto w-full max-w-5xl px-4 py-4">
         {/* 기간 선택 + 탭 */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-white px-4 py-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-card px-4 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <select value={year} onChange={(event) => setYear(Number(event.target.value))} className={selectClass}>
               {yearOptions(now.getFullYear()).map((y) => <option key={y} value={y}>{y}년</option>)}
@@ -287,7 +287,7 @@ export default function AttendanceStatsPage() {
                 onClick={() => setTab(option.key)}
                 className={[
                   "inline-flex min-h-9 items-center gap-1.5 rounded px-3.5 text-[14px] font-extrabold",
-                  tab === option.key ? "bg-white text-ink shadow-sm" : "text-ink-faint",
+                  tab === option.key ? "bg-card text-ink shadow-sm" : "text-ink-faint",
                 ].join(" ")}
               >
                 <option.icon size={15} strokeWidth={2.2} />
@@ -300,7 +300,7 @@ export default function AttendanceStatsPage() {
         {loading ? (
           <LoadingView padding={60} label="통계 계산 중..." />
         ) : weeks === 0 ? (
-          <div className="rounded-lg border border-hairline bg-white text-center">
+          <div className="rounded-lg border border-hairline bg-card text-center">
             <EmptyState message="선택한 기간에 경과한 주일이 없습니다" hint="기간을 조정해 주세요" />
           </div>
         ) : tab === "students" ? (
@@ -314,7 +314,7 @@ export default function AttendanceStatsPage() {
             </div>
 
             {/* 주차별 출석 추이 */}
-            <div className="mb-4 rounded-lg border border-hairline bg-white p-4">
+            <div className="mb-4 rounded-lg border border-hairline bg-card p-4">
               <div className="mb-3 text-[15px] font-extrabold text-ink">주차별 출석 인원</div>
               <div className="flex flex-col gap-1.5">
                 {weeklyTrend.map(({ date, count }) => (
@@ -337,7 +337,7 @@ export default function AttendanceStatsPage() {
               const groupPresent = group.list.reduce((sum, stat) => sum + stat.present, 0);
               const groupRate = group.list.length > 0 ? Math.round((groupPresent / (group.list.length * weeks)) * 100) : 0;
               return (
-                <div key={group.label} className="mb-4 overflow-hidden rounded-lg border border-hairline bg-white">
+                <div key={group.label} className="mb-4 overflow-hidden rounded-lg border border-hairline bg-card">
                   <div className="flex items-center justify-between border-b border-hairline bg-surface px-4 py-2.5">
                     <div className="text-[15px] font-extrabold text-ink">{group.label} <span className="ml-1 text-[13px] font-bold text-ink-faint">{group.list.length}명</span></div>
                     <div className="text-[14px] font-extrabold" style={{ color: "var(--accent)" }}>출석률 {groupRate}%</div>
@@ -382,7 +382,7 @@ export default function AttendanceStatsPage() {
               );
             })}
             {classGroups.length === 0 && (
-              <div className="rounded-lg border border-hairline bg-white text-center">
+              <div className="rounded-lg border border-hairline bg-card text-center">
                 <EmptyState message="학생 출결 데이터가 없습니다" />
               </div>
             )}
@@ -395,7 +395,7 @@ export default function AttendanceStatsPage() {
               <SummaryCard label="평균 출석률" value={`${teacherRate}%`} accent />
             </div>
 
-            <div className="overflow-hidden rounded-lg border border-hairline bg-white">
+            <div className="overflow-hidden rounded-lg border border-hairline bg-card">
               <div className="border-b border-hairline bg-surface px-4 py-2.5 text-[15px] font-extrabold text-ink">선생님 출석 현황</div>
               {teacherStats.length === 0 ? (
                 <EmptyState message="교사 출석 데이터가 없습니다" hint="선생님 등록 / 출석 메뉴에서 먼저 등록해 주세요" />
@@ -455,7 +455,7 @@ function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typ
 
 function SummaryCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="rounded-lg border border-hairline bg-white px-4 py-3">
+    <div className="rounded-lg border border-hairline bg-card px-4 py-3">
       <div className="text-[12px] font-bold text-ink-faint">{label}</div>
       <div className="mt-1 text-[20px] font-extrabold" style={{ color: accent ? "var(--accent)" : "var(--ink)" }}>{value}</div>
     </div>
@@ -499,7 +499,7 @@ function shortDate(key: string): string {
   return `${Number(m)}/${Number(d)}`;
 }
 
-const selectClass = "min-h-10 rounded-md border border-hairline bg-white px-2 text-[14px] font-bold text-ink outline-none";
+const selectClass = "min-h-10 rounded-md border border-hairline bg-card px-2 text-[14px] font-bold text-ink outline-none";
 
 const pageStyle: CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif", overflowX: "hidden" };
 const headerStyle: CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 };
