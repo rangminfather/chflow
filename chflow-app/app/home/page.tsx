@@ -11,7 +11,7 @@ import {
   BookOpen, BookText, Users, User, Lightbulb, Vote, Megaphone, CalendarDays,
   Landmark, Bus, CalendarClock, Menu, LogOut, X, Folder, Home,
   Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid, MessagesSquare, SearchCheck,
-  Sparkles, HeartHandshake, Sun, Moon,
+  Sparkles, HeartHandshake, Sun, Moon, BarChart3,
 } from "lucide-react";
 import { useTheme } from "@/lib/useTheme";
 import { LoadingView } from "@/components/StatusViews";
@@ -80,6 +80,7 @@ const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "vote",     label: "투표",        icon: Vote,          color: "#B8963E", bg: "#F5EDD8", desc: "", href: "/vote" },
   { id: "messenger-reports", label: "메신저 신고", icon: MessagesSquare, color: "#B8963E", bg: "#F5EDD8", desc: "", href: "/admin/messenger-reports" },
   { id: "messenger-diagnostics", label: "메신저 진단", icon: SearchCheck, color: "#B8963E", bg: "#F5EDD8", desc: "", href: "/admin/messenger-diagnostics" },
+  { id: "usage-status", label: "이용 현황", icon: BarChart3, color: "#B8963E", bg: "#F5EDD8", desc: "", href: "/admin/usage-status" },
   { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "#B8963E", bg: "#F5EDD8", desc: "" },
   { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "#B8963E", bg: "#F5EDD8", desc: "" },
   { id: "facility", label: "시설 신청",   icon: Landmark,      color: "#B8963E", bg: "#F5EDD8", desc: "" },
@@ -113,6 +114,9 @@ export default function HomePage() {
       }
       setUser(profile);
       setAuthChecked(true);
+
+      // 일일 방문 기록 (하루 1회 upsert, 실패해도 무시)
+      supabase.rpc("log_daily_visit").then(() => {});
 
       const [{ data: depts }, { data: photos }] = await Promise.all([
         supabase.rpc("get_my_departments"),
