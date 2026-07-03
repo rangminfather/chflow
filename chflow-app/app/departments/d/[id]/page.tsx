@@ -11,7 +11,7 @@ import {
   Megaphone, CalendarDays, Newspaper, GraduationCap, ClipboardCheck, ClipboardList,
   Medal, Users, Inbox, BookText, CalendarPlus, BookOpen, FileText, BarChart3,
   TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks, FileSearch,
-  Settings, Award, Lock, CircleHelp, Construction, Cog, X, Pencil,
+  Settings, Award, Lock, CircleHelp, Construction, Cog, X, Pencil, MessageSquareText,
 } from "lucide-react";
 import ModalBackdrop from "@/components/ModalBackdrop";
 
@@ -122,6 +122,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
     desc: "부서원 등급 · 설정",
     items: [
       { id: "monthly-plan-upload", label: "월간교육등록", icon: CalendarPlus, desc: "월간 교육계획서 등록", color: "var(--accent)", implemented: true, maxGrade: 2 },
+      { id: "worship-guide", label: "예배안내", icon: MessageSquareText, desc: "주일 예배 안내 메시지 생성·공유 (카톡용)", color: "#3E7D74", implemented: true, onlyForDept: "초등1부" },
       { id: "members-grade", label: "부서원 등급 관리", icon: Award, desc: "각 부서원 등급(0~4) 변경 — 전도사·부장만 가능", color: "var(--accent)", implemented: true },
       { id: "promote", label: "진급 마법사", icon: GraduationCap, desc: "매년 학년 진급 · 반편성 · 담임배정", color: "var(--danger)", implemented: true },
     ],
