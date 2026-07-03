@@ -244,3 +244,73 @@ npx supabase migration list
 ## Current Caution
 
 As of 2026-06-25, `npx supabase migration list` shows several local migrations that are not present remotely, starting before the new messenger migrations. Do not run a blind `npx supabase db push` unless the full pending migration set has been reviewed and approved.
+
+## QA Closing Plan - 2026-07-02
+
+Scope: close the messenger quality gap before calling it production-grade.
+
+### Step 1 - Real-Use QA
+
+Run with three real accounts and at least two real devices.
+
+- Account A: web desktop session.
+- Account B: mobile/PWA or Expo session.
+- Account C: second mobile or separate browser session.
+- Create a 3-person group room and send messages from A, B, and C.
+- Verify each recipient receives one in-app notification and one push at most.
+- Verify the sender never receives a push for their own message.
+- Open read status from messages sent by each user and confirm read/unread names.
+- Search an older message, open it, and confirm the target room/message highlight.
+- Logout on one mobile device, send a new message to that user, and confirm the logged-out device receives no push.
+- Login again and confirm push registration resumes.
+
+Pass criteria:
+
+- No duplicate delivery for one message.
+- Read status is correct in a 3-person room.
+- Search-to-message navigation is reliable.
+- Logout cleanup prevents push to old sessions.
+
+### Step 2 - Deployment Gate
+
+Do not push database migrations blindly.
+
+- Run `npm run build` in `chflow-app`.
+- Run `npx supabase migration list` in `MS_AX/chflow-project`.
+- Confirm messenger-critical remote migrations:
+  - `20260625130000_messenger_notification_dedupe.sql`
+  - `20260625131000_push_token_device_dedupe.sql`
+  - `20260625132000_messenger_group_management.sql`
+- Confirm remote RPCs:
+  - `rename_group_conversation`
+  - `add_group_participants`
+  - `remove_group_participant`
+- Confirm duplicate notification guard:
+  - `ux_notifications_message_new_user_message`
+- Check Vercel deployment log after pushing to `main`.
+
+Pass criteria:
+
+- Build passes.
+- Messenger DB objects exist remotely.
+- No unrelated pending migration is applied accidentally.
+- Production deployment completes without runtime errors.
+
+### Step 3 - Design QA
+
+Inspect desktop and mobile widths before final release.
+
+- Empty conversation list and empty room state.
+- Long user names in room header, group modal, read-status modal, and selected chips.
+- Long unbroken message text and long links.
+- Multiple attachments and long file names.
+- Image preview open/close/download on mobile.
+- Composer with reply/edit context and several pending attachments.
+- Latest-message floating button above mobile composer.
+
+Pass criteria:
+
+- No critical control overlaps another element.
+- Long text truncates or wraps intentionally.
+- Composer and modals remain usable inside mobile safe areas.
+- Visual hierarchy still reads clearly after real data is loaded.
