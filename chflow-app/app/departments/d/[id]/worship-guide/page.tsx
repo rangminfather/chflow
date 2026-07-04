@@ -51,9 +51,10 @@ type GuideRecord = { sunday_date: string; fields: GuideFields; message: string |
 
 /** 주보 PDF 텍스트 수집 상태 (대조 결과는 파생 계산) */
 type BulletinFetch =
-  | { status: "idle" | "checking" | "missing" | "notext" }
+  | { status: "idle" | "checking" | "missing" }
+  | { status: "notext"; url: string }
   | { status: "error"; detail: string }
-  | { status: "ready"; text: string };
+  | { status: "ready"; text: string; url: string };
 
 // ───────────────────────── 상수 ─────────────────────────
 
@@ -153,6 +154,21 @@ function preacherHonorific(name: string, teachers: TeacherRow[]): string {
 
 const normText = (s: string) => s.replace(/\s+/g, "");
 
+// ───────────────────────── 네이티브(안드로이드 앱) 공유 브릿지 ─────────────────────────
+// 앱(WebView)에는 navigator.share 가 없어 셸의 postMessage 브릿지로 공유 시트를 연다.
+// CHFLOW_SHARE_TEXT 핸들러는 앱 1.1(UA: SmartMyungsungApp/1.1)부터 지원.
+
+type NativeBridge = { postMessage: (data: string) => void };
+
+function nativeShareBridge(): NativeBridge | null {
+  if (typeof window === "undefined" || typeof navigator === "undefined") return null;
+  const bridge = (window as unknown as { ReactNativeWebView?: NativeBridge }).ReactNativeWebView;
+  if (!bridge) return null;
+  const m = navigator.userAgent.match(/SmartMyungsungApp\/(\d+(?:\.\d+)?)/);
+  if (!m || parseFloat(m[1]) < 1.1) return null;
+  return bridge;
+}
+
 async function extractPdfText(url: string, fromPage: number, toPage: number): Promise<string> {
   const pdfjs = await import("pdfjs-dist");
   pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
@@ -197,6 +213,7 @@ export default function WorshipGuidePage() {
 
   const [deptBul, setDeptBul] = useState<BulletinFetch>({ status: "idle" });
   const [churchBul, setChurchBul] = useState<BulletinFetch>({ status: "idle" });
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [refreshingBulletins, setRefreshingBulletins] = useState(false);
   const autoRefreshedRef = useRef(false);
 
@@ -297,7 +314,7 @@ export default function WorshipGuidePage() {
       const item = ((data.items || []) as Item[]).find((i) => i.issue_date === date && i.pdf_url);
       if (!item?.pdf_url) return { status: "missing" };
       const text = await extractPdfText(item.pdf_url, 1, 3);
-      return text ? { status: "ready", text } : { status: "notext" };
+      return text ? { status: "ready", text, url: item.pdf_url } : { status: "notext", url: item.pdf_url };
     } catch {
       return { status: "error", detail: "초등1부 주보 확인 중 오류" };
     }
@@ -316,7 +333,7 @@ export default function WorshipGuidePage() {
       if (!item?.pdf_url) return { status: "missing" };
       // 초등1부 칼럼은 3페이지 — 지면 변동 대비 2~4페이지
       const text = await extractPdfText(item.pdf_url, 2, 4);
-      return text ? { status: "ready", text } : { status: "notext" };
+      return text ? { status: "ready", text, url: item.pdf_url } : { status: "notext", url: item.pdf_url };
     } catch {
       return { status: "error", detail: "교회주보 확인 중 오류" };
     }
@@ -488,7 +505,7 @@ export default function WorshipGuidePage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/login"); return; }
       setAuthChecked(true);
-      setCanShare(typeof navigator !== "undefined" && !!navigator.share);
+      setCanShare((typeof navigator !== "undefined" && !!navigator.share) || !!nativeShareBridge());
       await load(sunday);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -572,6 +589,12 @@ export default function WorshipGuidePage() {
 
   const doShare = async () => {
     if (!(await saveGuide(true))) return;
+    const bridge = nativeShareBridge();
+    if (bridge) {
+      // 안드로이드 앱: 네이티브 공유 시트 (카카오톡 선택 가능)
+      bridge.postMessage(JSON.stringify({ type: "CHFLOW_SHARE_TEXT", text: message }));
+      return;
+    }
     try {
       await navigator.share({ text: message });
       showToast("공유 완료");
@@ -613,6 +636,8 @@ export default function WorshipGuidePage() {
   }, [churchBul, plan, preacherName]);
 
   const anyBulletinMissing = deptBul.status === "missing" || churchBul.status === "missing";
+  const churchPdfUrl =
+    churchBul.status === "ready" || churchBul.status === "notext" ? churchBul.url : null;
 
   // ───────────────────────── 렌더 ─────────────────────────
 
@@ -692,7 +717,17 @@ export default function WorshipGuidePage() {
                   <CircleCheck size={13} strokeWidth={2} /> 저장된 안내가 있습니다
                 </span>
               )}
+              {churchPdfUrl && (
+                <button type="button" onClick={() => setPreviewOpen((v) => !v)} style={{ ...secondaryButtonStyle, alignSelf: "flex-start", minHeight: 34, fontSize: 12 }}>
+                  <Newspaper size={14} strokeWidth={2} /> {previewOpen ? "교회주보 미리보기 닫기" : "교회주보 3페이지 눈으로 대조하기"}
+                </button>
+              )}
             </div>
+
+            {/* 교회주보 페이지 미리보기 — 생성된 메시지와 나란히 놓고 눈으로 대조 */}
+            {previewOpen && churchPdfUrl && (
+              <BulletinPagePreview url={churchPdfUrl} initialPage={3} />
+            )}
 
             {/* 안내반 / 기도반 조정 */}
             <div style={controlCardStyle}>
@@ -793,6 +828,86 @@ export default function WorshipGuidePage() {
 
       {toast && <div style={toastStyle}>{toast}</div>}
     </main>
+  );
+}
+
+// ───────────────────────── 교회주보 페이지 미리보기 ─────────────────────────
+// 스캔본 PDF(텍스트 추출 불가)도 눈으로 대조할 수 있게 특정 페이지를 canvas 로 렌더.
+
+function BulletinPagePreview({ url, initialPage }: { url: string; initialPage: number }) {
+  const [page, setPage] = useState(initialPage);
+  const [numPages, setNumPages] = useState(0);
+  const [error, setError] = useState("");
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const docRef = useRef<import("pdfjs-dist").PDFDocumentProxy | null>(null);
+  const taskRef = useRef<{ destroy?: () => void } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const pdfjs = await import("pdfjs-dist");
+        pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+        const task = pdfjs.getDocument({ url });
+        taskRef.current = task;
+        const doc = await task.promise;
+        if (cancelled) return;
+        docRef.current = doc;
+        setNumPages(doc.numPages);
+        setPage((p) => Math.min(Math.max(1, p), doc.numPages));
+      } catch {
+        if (!cancelled) setError("주보 미리보기를 불러오지 못했습니다");
+      }
+    })();
+    return () => {
+      cancelled = true;
+      try { taskRef.current?.destroy?.(); } catch { /* ignore */ }
+      taskRef.current = null;
+      docRef.current = null;
+    };
+  }, [url]);
+
+  useEffect(() => {
+    const doc = docRef.current;
+    const canvas = canvasRef.current;
+    if (!doc || !canvas || !numPages) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const p = await doc.getPage(Math.min(page, numPages));
+        if (cancelled) return;
+        const base = p.getViewport({ scale: 1 });
+        const scale = 1100 / base.width;
+        const viewport = p.getViewport({ scale });
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        await p.render({ canvas, canvasContext: ctx, viewport }).promise;
+      } catch { /* 페이지 렌더 실패 — 이전 화면 유지 */ }
+    })();
+    return () => { cancelled = true; };
+  }, [page, numPages]);
+
+  return (
+    <div style={{ border: "1px solid var(--hairline)", borderRadius: 12, background: "var(--surface)", padding: 10, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginBottom: 8 }}>
+        <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} aria-label="이전 페이지" style={{ ...iconButtonStyle, width: 34, height: 34, opacity: page <= 1 ? 0.4 : 1 }}>
+          <ChevronLeft size={16} strokeWidth={1.8} />
+        </button>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink-soft)" }}>
+          교회주보 {numPages ? `${Math.min(page, numPages)} / ${numPages}p` : "불러오는 중..."}
+        </span>
+        <button type="button" onClick={() => setPage((p) => Math.min(numPages || p, p + 1))} disabled={!numPages || page >= numPages} aria-label="다음 페이지" style={{ ...iconButtonStyle, width: 34, height: 34, opacity: !numPages || page >= numPages ? 0.4 : 1 }}>
+          <ChevronRight size={16} strokeWidth={1.8} />
+        </button>
+      </div>
+      {error ? (
+        <div style={{ padding: 20, textAlign: "center", fontSize: 12.5, color: "var(--ink-soft)" }}>{error}</div>
+      ) : (
+        <canvas ref={canvasRef} style={{ width: "100%", height: "auto", display: "block", borderRadius: 8, background: "#fff" }} />
+      )}
+    </div>
   );
 }
 
