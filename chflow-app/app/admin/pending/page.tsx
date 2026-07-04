@@ -3,6 +3,7 @@
 import { useCallback, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { photoThumb } from "@/lib/photo";
 import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
@@ -204,7 +205,7 @@ export default function AdminPendingPage() {
                 color: "var(--ink-soft)", fontSize: 16, fontWeight: 800,
               }}>
                 {user.photo_url ? (
-                  <img src={user.photo_url} alt="" loading="lazy" decoding="async"
+                  <img src={photoThumb(user.photo_url, 128) ?? undefined} alt="" loading="lazy" decoding="async"
                     style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 ) : (
                   <span>{user.name?.slice(0, 1) || "?"}</span>

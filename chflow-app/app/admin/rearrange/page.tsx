@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { photoThumb } from "@/lib/photo";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { Workbook } from "exceljs";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -553,7 +554,7 @@ function PastureCard({ pasture, onDragStart, onDelete, compact }: {
       {/* 사진 */}
       <div style={{ width: size, height: size, borderRadius: "50%", overflow: "hidden", background: "var(--ink-mid)", flexShrink: 0, border: `2px solid ${pasture.leader_gender === "M" ? "var(--male)" : pasture.leader_gender === "F" ? "var(--female)" : "var(--ink-soft)"}` }}>
         {pasture.leader_photo ? (
-          <img src={pasture.leader_photo} alt={pasture.leader_name || ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <img src={photoThumb(pasture.leader_photo, 128) ?? undefined} alt={pasture.leader_name || ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         ) : (
           <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink-soft)" }}>
             <User size={Math.round(size * 0.55)} strokeWidth={1.8} />

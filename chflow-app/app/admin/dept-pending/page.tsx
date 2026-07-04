@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { photoThumb } from "@/lib/photo";
 import { useConfirm } from "@/components/ConfirmDialog";
 import DeptIcon from "@/components/DeptIcon";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -271,7 +272,7 @@ export default function AdminDeptPage() {
                   <div key={j.id} style={{ padding: "12px 20px", borderBottom: "1px solid var(--bg-soft)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                     <div style={{ width: 40, height: 40, borderRadius: 999, overflow: "hidden", background: "var(--bg-soft)", display: "grid", placeItems: "center", color: "var(--ink-soft)", fontSize: 15, fontWeight: 800, flexShrink: 0 }}>
                       {j.photo_url ? (
-                        <img src={j.photo_url} alt="" loading="lazy" decoding="async"
+                        <img src={photoThumb(j.photo_url, 128) ?? undefined} alt="" loading="lazy" decoding="async"
                           style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       ) : (
                         <span>{j.user_name?.slice(0, 1) || "?"}</span>
@@ -315,7 +316,7 @@ export default function AdminDeptPage() {
                         {/* 아바타 + 이름 */}
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           {m.user_avatar_url ? (
-                            <img src={m.user_avatar_url} alt={m.user_name} style={{ width: 42, height: 42, borderRadius: "50%", objectFit: "cover", objectPosition: "center top", flexShrink: 0 }} />
+                            <img src={photoThumb(m.user_avatar_url, 128) ?? undefined} alt={m.user_name} style={{ width: 42, height: 42, borderRadius: "50%", objectFit: "cover", objectPosition: "center top", flexShrink: 0 }} />
                           ) : (
                             <div style={{ width: 42, height: 42, borderRadius: "50%", background: "var(--bg-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink-faint)", flexShrink: 0 }}><User size={20} strokeWidth={1.8} /></div>
                           )}

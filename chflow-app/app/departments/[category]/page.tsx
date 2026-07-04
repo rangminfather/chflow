@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { photoThumb } from "@/lib/photo";
 import DeptIcon from "@/components/DeptIcon";
 import HeaderLogo from "@/components/HeaderLogo";
 import { T, PageShell, PageContent } from "@/components/Layout";
@@ -384,7 +385,7 @@ export default function CategoryPage() {
                       {ROLE_SLOTS.map(({ key }) => {
                         const person = slots?.[key] ?? null;
                         return person?.photoUrl ? (
-                          <img key={key} src={person.photoUrl} alt={person.name || ""} title={`${key}: ${person.name || ""}`} style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", objectPosition: "top center", border: `2px solid ${T.border}` }} />
+                          <img key={key} src={photoThumb(person.photoUrl, 64) ?? undefined} alt={person.name || ""} title={`${key}: ${person.name || ""}`} style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", objectPosition: "top center", border: `2px solid ${T.border}` }} />
                         ) : (
                           <div key={key} style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--bg-soft)", display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${T.border}` }}>
                             <User size={14} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />
