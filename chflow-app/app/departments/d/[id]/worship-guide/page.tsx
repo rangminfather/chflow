@@ -416,6 +416,7 @@ export default function WorshipGuidePage() {
     }
     setAuthorized(true);
 
+    if (classResp.error) showToast("반 목록 조회 실패: " + classResp.error.message);
     const cls = ((classResp.data as ClassRow[]) || []).filter((c) => c.class_no);
     setClasses(cls);
     setTeachers(((teacherResp.data as TeacherRow[]) || []));

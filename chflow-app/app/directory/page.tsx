@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { formatPhone, supabase } from "@/lib/supabase";
+import { photoThumb } from "@/lib/photo";
 import { LoadingView } from "@/components/StatusViews";
 import { MessageCircle, PhoneCall } from "lucide-react";
 
@@ -817,7 +818,7 @@ function Avatar({ member, size }: { member: { name: string; photo_url: string | 
       fontWeight: 800,
     }}>
       {member.photo_url ? (
-        <img src={member.photo_url} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <img src={photoThumb(member.photo_url, size > 64 ? 256 : 128)} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
         <span>{member.name.slice(0, 1)}</span>
       )}

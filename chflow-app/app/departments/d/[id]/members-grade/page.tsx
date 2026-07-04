@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { photoThumb } from "@/lib/photo";
 import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
@@ -384,7 +385,7 @@ export default function MembersGradePage() {
                       >
                         {r.photo_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={r.photo_url} alt="" style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                          <img src={photoThumb(r.photo_url, 128) ?? undefined} alt="" style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
                         ) : (
                           <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--hairline)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "var(--ink-faint)", flexShrink: 0 }}>?</div>
                         )}
@@ -407,7 +408,7 @@ export default function MembersGradePage() {
                 <div style={{ background: "var(--surface)", borderRadius: 10, padding: 14, marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
                   {picked.photo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={picked.photo_url} alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover" }} />
+                    <img src={photoThumb(picked.photo_url, 128) ?? undefined} alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover" }} />
                   ) : (
                     <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--hairline)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "var(--ink-faint)" }}>?</div>
                   )}

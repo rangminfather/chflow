@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import Cropper, { Area } from "react-easy-crop";
 import { supabase } from "@/lib/supabase";
+import { photoThumb } from "@/lib/photo";
 import { User, Camera, AlertTriangle, Images, ZoomIn, Crop as CropIcon, Undo2, X } from "lucide-react";
 
 interface PhotoAvatarProps {
@@ -274,7 +275,7 @@ export default function PhotoAvatar({
       >
         {currentUrl ? (
           <img
-            src={currentUrl}
+            src={photoThumb(currentUrl, 256)}
             alt={label}
             style={{
               width: size,
@@ -375,7 +376,7 @@ export default function PhotoAvatar({
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
               {currentUrl ? (
                 <img
-                  src={currentUrl}
+                  src={photoThumb(currentUrl, 512)}
                   alt={label}
                   style={{
                     width: 200, height: 200,
@@ -462,7 +463,7 @@ export default function PhotoAvatar({
                     return (
                       <div key={item.name} style={{ position: "relative" }}>
                         <img
-                          src={item.url}
+                          src={photoThumb(item.url, 256)}
                           alt=""
                           onClick={() => !isCurrent && handleSelectPhoto(item.url)}
                           style={{

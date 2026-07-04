@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { photoThumb } from "@/lib/photo";
 import { getRoleImageByLabel } from "@/lib/roles";
 import HeaderLogo from "@/components/HeaderLogo";
 import DeptIcon from "@/components/DeptIcon";
@@ -529,7 +530,7 @@ function UserSummary({ user, photoUrl, userImage, router }: {
           {/* 프로필 사진 (왼쪽, 앞) */}
           {photoUrl ? (
             <img
-              src={photoUrl}
+              src={photoThumb(photoUrl, 128)}
               alt="프로필"
               style={{
                 position: "absolute", top: 0, left: 0,

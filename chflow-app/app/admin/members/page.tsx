@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase, formatPhone } from "@/lib/supabase";
+import { photoThumb } from "@/lib/photo";
 import { useConfirm } from "@/components/ConfirmDialog";
 import MemberCardModal from "@/components/MemberCardModal";
 import { ExportMembersModal, ImportMembersModal } from "@/components/MemberDataTools";
@@ -357,7 +358,7 @@ function AdminMembersPage() {
                       <span onClick={() => setCardMemberId(m.id)} style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
                         title="성도 카드 열기">
                         {m.photo_url
-                          ? <img src={m.photo_url} alt="" style={{ width: 22, height: 22, borderRadius: "50%", objectFit: "cover" }} />
+                          ? <img src={photoThumb(m.photo_url, 64) ?? undefined} alt="" style={{ width: 22, height: 22, borderRadius: "50%", objectFit: "cover" }} />
                           : <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--hairline)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><User size={13} strokeWidth={1.8} color={m.gender === "F" ? "var(--female)" : "var(--male)"} /></span>}
                         <span style={{ color: "var(--accent)", textDecoration: "underline", textUnderlineOffset: 3, textDecorationColor: "var(--accent-line)" }}>{m.name}</span>
                       </span>

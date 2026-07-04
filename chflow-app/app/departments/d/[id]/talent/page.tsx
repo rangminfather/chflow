@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
+import { photoThumb } from "@/lib/photo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Check, ChevronDown, Medal, PiggyBank, Star } from "lucide-react";
 import { kidDefaultFace, kidFaceTransform, isKidDefaultFace } from "@/lib/kidAvatar";
@@ -966,7 +967,7 @@ function Avatar({ student }: { student: Student }) {
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={displaySrc}
+        src={photoThumb(displaySrc, 128)}
         alt={`${student.name} 얼굴`}
         loading="lazy"
         decoding="async"

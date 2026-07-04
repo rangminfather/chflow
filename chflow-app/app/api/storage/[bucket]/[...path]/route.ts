@@ -47,6 +47,22 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+// 이미지 썸네일 (?w=) — 최초 요청 시 webp 로 변환해 R2에 캐시, 이후 재사용.
+// 사진 경로는 업로드마다 새 파일명이라 사실상 불변 → 브라우저 캐시 1일 허용.
+const THUMB_PREFIX = "__thumbs";
+const THUMB_WIDTHS = new Set([64, 128, 256, 512]);
+const THUMB_SRC_RE = /\.(jpe?g|png|webp)$/i; // gif(애니메이션)는 원본 그대로
+
+function imageResponse(body: Buffer | Uint8Array, contentType: string) {
+  return new NextResponse(new Uint8Array(body), {
+    status: 200,
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": "private, max-age=86400",
+    },
+  });
+}
+
 function adminClient() {
   return createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 }
@@ -138,6 +154,31 @@ export async function GET(
     const allowed = await canReadMessengerAttachment(storagePath, uid);
     if (allowed === null) return new NextResponse(null, { status: 404 });
     if (!allowed) return new NextResponse(null, { status: 403 });
+  }
+
+  // 썸네일 요청: R2 캐시 조회 → 없으면 원본을 리사이즈해 캐시 후 반환
+  const wParam = Number(req.nextUrl.searchParams.get("w") || 0);
+  if (THUMB_WIDTHS.has(wParam) && THUMB_SRC_RE.test(storagePath) && !storagePath.startsWith(`${THUMB_PREFIX}/`)) {
+    const thumbPath = `${THUMB_PREFIX}/w${wParam}/${storagePath}.webp`;
+    const cached = await r2.from(bucket).getObject(thumbPath);
+    if (!cached.error && cached.data) {
+      return imageResponse(cached.data.body, "image/webp");
+    }
+    const orig = await r2.from(bucket).getObject(storagePath);
+    if (orig.error || !orig.data) return new NextResponse(null, { status: 404 });
+    try {
+      const sharp = (await import("sharp")).default;
+      const buf = await sharp(orig.data.body)
+        .rotate()
+        .resize({ width: wParam, withoutEnlargement: true })
+        .webp({ quality: 78 })
+        .toBuffer();
+      await r2.from(bucket).upload(thumbPath, buf, { contentType: "image/webp", upsert: true });
+      return imageResponse(buf, "image/webp");
+    } catch {
+      // 변환 실패(손상 파일 등) — 원본으로 폴백
+      return imageResponse(orig.data.body, orig.data.contentType);
+    }
   }
 
   const isStream = req.nextUrl.searchParams.get("stream") === "1";

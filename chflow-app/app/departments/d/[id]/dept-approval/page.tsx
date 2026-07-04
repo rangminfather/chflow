@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { photoThumb } from "@/lib/photo";
 import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
@@ -144,7 +145,7 @@ export default function DeptApprovalPage() {
               <div key={j.id} style={{ padding: "14px 18px", borderBottom: "1px solid var(--bg-soft)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ width: 44, height: 44, borderRadius: 999, overflow: "hidden", background: "var(--bg-soft)", display: "grid", placeItems: "center", color: "var(--ink-soft)", fontSize: 16, fontWeight: 800, flexShrink: 0 }}>
                   {j.photo_url ? (
-                    <img src={j.photo_url} alt="" loading="lazy" decoding="async"
+                    <img src={photoThumb(j.photo_url, 128) ?? undefined} alt="" loading="lazy" decoding="async"
                       style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   ) : (
                     <span>{j.user_name?.slice(0, 1) || "?"}</span>
