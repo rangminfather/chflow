@@ -9,6 +9,7 @@ import {
   BackHandler,
   Linking,
   Platform,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -305,10 +306,18 @@ function AppWebView() {
   }, [loadUrlInWebView]);
 
   const handleWebViewMessage = (event: WebViewMessageEvent) => {
-    let message: { type?: string; accessToken?: string };
+    let message: { type?: string; accessToken?: string; text?: string };
     try {
       message = JSON.parse(event.nativeEvent.data);
     } catch {
+      return;
+    }
+
+    // 웹의 '공유하기' → 네이티브 공유 시트 (카카오톡 등 선택)
+    if (message.type === 'CHFLOW_SHARE_TEXT') {
+      if (typeof message.text === 'string' && message.text.trim()) {
+        Share.share({ message: message.text }).catch(() => {});
+      }
       return;
     }
 
@@ -386,7 +395,7 @@ function AppWebView() {
             <View style={styles.errorBox} />
           )}
           // User-Agent에 앱 식별자 추가 (웹에서 네이티브 앱 여부 구분 가능)
-          applicationNameForUserAgent="SmartMyungsungApp/1.0"
+          applicationNameForUserAgent="SmartMyungsungApp/1.1"
           style={styles.webview}
         />
         {exitReloading && <View style={styles.exitOverlay} pointerEvents="none" />}
