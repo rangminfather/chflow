@@ -7,9 +7,9 @@
 //  · 안내반/기도반 → 로테이션 규칙이 0순위 (안내: 3-2반 제외 내림차순 / 기도: 전 반,
 //    첫째주 김정권 장로님 고정). 직전 저장분의 next 가 앵커. 계획서엔 보통 없음 — 폴백만.
 //  · 예배인도/설교자/제목/성경/찬양율동/2부활동 → 월간 교육계획서.
-// 이중·삼중 체크 (best-effort, 텍스트 대조):
-//  · 초등1부 주보 → 안내·기도·설교자·제목·성경 대조
-//  · 교회주보 3페이지 초등1부 칼럼 → 설교자·제목·성경 대조
+// 주보 확인:
+//  · 초등1부 주보 → 안내·기도·설교자·제목·성경 텍스트 자동 대조 (우리가 생성한 PDF라 텍스트 있음)
+//  · 교회주보 → 스캔 이미지 PDF라 자동 대조 불가 — 페이지 미리보기(눈 대조) 전용
 //  · 해당 주 주보 미수집이면 메뉴 진입 시 수집을 1회 자동 트리거 + 수동 버튼
 // ─────────────────────────────────────────────────────────────────
 
@@ -331,9 +331,9 @@ export default function WorshipGuidePage() {
       type Item = { issue_date: string | null; pdf_url?: string | null };
       const item = ((data.items || []) as Item[]).find((i) => i.issue_date === date && i.pdf_url);
       if (!item?.pdf_url) return { status: "missing" };
-      // 초등1부 칼럼은 3페이지 — 지면 변동 대비 2~4페이지
-      const text = await extractPdfText(item.pdf_url, 2, 4);
-      return text ? { status: "ready", text, url: item.pdf_url } : { status: "notext", url: item.pdf_url };
+      // 교회주보는 스캔 이미지 PDF라 텍스트 자동 대조가 불가 — 미리보기(눈 대조) 전용.
+      // PDF 다운로드는 미리보기를 열 때만 일어난다.
+      return { status: "ready", text: "", url: item.pdf_url };
     } catch {
       return { status: "error", detail: "교회주보 확인 중 오류" };
     }
@@ -619,22 +619,6 @@ export default function WorshipGuidePage() {
     };
   }, [deptBul, guideClass, prayerClass, prayerFixed, teacherOf, plan, preacherName]);
 
-  const churchChecks = useMemo(() => {
-    if (churchBul.status !== "ready") return null;
-    const whole = churchBul.text;
-    const idx = whole.indexOf("초등1부");
-    const section = idx >= 0 ? whole.slice(idx, idx + 900) : whole;
-    const has = (v?: string) => {
-      const n = normText(v || "");
-      return !!n && (section.includes(n) || whole.includes(n));
-    };
-    return {
-      설교자: has(preacherName),
-      제목: has(plan?.fields.sermonTitle),
-      성경: has(plan?.fields.scripture),
-    };
-  }, [churchBul, plan, preacherName]);
-
   const anyBulletinMissing = deptBul.status === "missing" || churchBul.status === "missing";
   const churchPdfUrl =
     churchBul.status === "ready" || churchBul.status === "notext" ? churchBul.url : null;
@@ -706,7 +690,11 @@ export default function WorshipGuidePage() {
                 </span>
               )}
               <CheckChip label="초등1부 주보" state={deptBul} checks={deptChecks} refreshing={refreshingBulletins} />
-              <CheckChip label="교회주보 3p" state={churchBul} checks={churchChecks} refreshing={refreshingBulletins} />
+              {churchBul.status === "missing" && (
+                <span style={{ ...chipStyle, background: "color-mix(in srgb, var(--warning) 14%, transparent)", color: "var(--warning)" }}>
+                  <CircleHelp size={13} strokeWidth={2} /> 교회주보 미수집{refreshingBulletins ? " — 수집 시도 중..." : ""}
+                </span>
+              )}
               {anyBulletinMissing && !refreshingBulletins && (
                 <button type="button" onClick={manualRefreshBulletins} style={{ ...secondaryButtonStyle, alignSelf: "flex-start", minHeight: 34, fontSize: 12 }}>
                   <CloudDownload size={14} strokeWidth={2} /> 주보 수집 다시 시도
