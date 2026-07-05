@@ -40,6 +40,7 @@ interface Student {
   gender?: string | null;
   photo_url?: string | null;
   school_name?: string | null;
+  mgmt_status?: string | null;
 }
 
 interface AttendRow {
@@ -148,7 +149,8 @@ export default function MyClassAttendancePage() {
   const loadStudents = async (teacherId: string) => {
     const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
     const all = (data || []) as Student[];
-    const mine = all.filter((s) => s.teacher_id === teacherId);
+    // 장기결석 처리 학생은 출석체크 명단에서 제외 (기록은 보존 — 해제 시 복귀)
+    const mine = all.filter((s) => s.teacher_id === teacherId && s.mgmt_status !== "장기결석");
     const memberIds = mine.map((s) => s.member_id).filter(Boolean) as string[];
     const memberInfo: Record<string, { gender: string | null; photo_url: string | null; school_name: string | null }> = {};
 
@@ -167,7 +169,7 @@ export default function MyClassAttendancePage() {
       ...student,
       gender: student.member_id ? memberInfo[student.member_id]?.gender ?? null : null,
       photo_url: student.member_id ? memberInfo[student.member_id]?.photo_url ?? null : null,
-      school_name: student.member_id ? memberInfo[student.member_id]?.school_name ?? null : null,
+      school_name: student.school_name ?? null,
     }));
 
     setStudents(enriched);

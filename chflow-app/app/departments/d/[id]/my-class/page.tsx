@@ -5,8 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase, formatPhone } from "@/lib/supabase";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Baby, Cog, Save, UserPlus, X } from "lucide-react";
+import { Baby, Cog, MoonStar, Plus, Save, UserPlus, X } from "lucide-react";
 
 interface StudentRow {
   id: string;
@@ -18,6 +19,7 @@ interface StudentRow {
   grade: string | null;
   grade_year: number | null;
   class_no: string | null;
+  school_name: string | null;
   is_active: boolean;
   order_no: number | null;
   member_id: string | null;
@@ -42,6 +44,7 @@ interface EditableStudent {
   grade: string;
   grade_year: number | null;
   class_no: string | null;
+  school_name: string;
   phone: string;
   birth_date: string;
   gender: string;
@@ -59,14 +62,33 @@ interface FamilyRow {
 
 type GuideKind = "student" | "self" | "other";
 
+interface FamilyEntry {
+  name: string;
+  relation: string;
+  phone: string;
+}
+
+interface DeptStudentOption {
+  id: string;
+  name: string;
+  class_no: string | null;
+  grade_year: number | null;
+  is_active: boolean;
+}
+
 interface NewFriendForm {
   name: string;
-  gender: string;
-  birth_date: string;
+  gender: string;          // '남' | '여'
+  gradeYear: string;       // '1' | '2' | '3'
+  school: string;
   mobile: string;
+  birthYear: string;
+  birthMonth: string;
+  birthDay: string;
   address: string;
-  family_name: string;
+  family: FamilyEntry[];
   guide_kind: GuideKind;
+  guideGrade: string;      // 인도자 학생 학년 필터
   guide_student_id: string;
   guide_name: string;
 }
@@ -74,19 +96,30 @@ interface NewFriendForm {
 const EMPTY_NEW_FRIEND: NewFriendForm = {
   name: "",
   gender: "",
-  birth_date: "",
+  gradeYear: "",
+  school: "",
   mobile: "",
+  birthYear: "",
+  birthMonth: "",
+  birthDay: "",
   address: "",
-  family_name: "",
+  family: [],
   guide_kind: "student",
+  guideGrade: "",
   guide_student_id: "",
   guide_name: "",
 };
 
-const MGMT_STATUS_OPTIONS = ["정상", "장기결석"];
+const FAMILY_RELATIONS = ["부", "모", "형", "누나", "오빠", "언니", "동생", "조부", "조모", "기타"];
+
+/** 초등 학년 → 출생년도 (예: 2026년 초1 = 2019년생). 수정 가능한 기본값. */
+function birthYearForGrade(gradeYear: number): string {
+  return String(new Date().getFullYear() - 6 - gradeYear);
+}
 
 export default function MyClassPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
 
@@ -105,6 +138,7 @@ export default function MyClassPage() {
   const [showNewFriend, setShowNewFriend] = useState(false);
   const [newFriend, setNewFriend] = useState<NewFriendForm>({ ...EMPTY_NEW_FRIEND });
   const [newSaving, setNewSaving] = useState(false);
+  const [deptStudents, setDeptStudents] = useState<DeptStudentOption[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -144,7 +178,7 @@ export default function MyClassPage() {
 
     const { data: studentRows, error: studentErr } = await supabase
       .from("edu_students")
-      .select("id, department_id, student_no, name, student_type, mgmt_status, grade, grade_year, class_no, is_active, order_no, member_id, teacher_id")
+      .select("id, department_id, student_no, name, student_type, mgmt_status, grade, grade_year, class_no, school_name, is_active, order_no, member_id, teacher_id")
       .eq("department_id", deptId)
       .eq("teacher_id", teacherId)
       .eq("is_active", true)
@@ -184,6 +218,7 @@ export default function MyClassPage() {
         grade: student.grade || "",
         grade_year: student.grade_year,
         class_no: student.class_no,
+        school_name: student.school_name || "",
         phone: member?.phone || "",
         birth_date: member?.birth_date || "",
         gender: member?.gender || "",
@@ -226,20 +261,14 @@ export default function MyClassPage() {
     setDraft((current) => (current ? { ...current, [key]: value } : current));
   }
 
-  async function handleSave() {
-    if (!draft) return;
-    if (!draft.name.trim()) {
-      showToast("이름을 입력하세요");
-      return;
-    }
-
+  /** 학생 저장 (수정 저장 + 장기결석 토글이 공유) */
+  async function persistStudent(data: EditableStudent): Promise<boolean> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       router.replace("/login");
-      return;
+      return false;
     }
 
-    setSaving(true);
     const response = await fetch("/api/edu/my-class-student", {
       method: "POST",
       headers: {
@@ -248,62 +277,116 @@ export default function MyClassPage() {
       },
       body: JSON.stringify({
         dept_id: deptId,
-        student_id: draft.id,
+        student_id: data.id,
         student: {
-          name: draft.name,
-          student_type: draft.student_type,
-          mgmt_status: draft.mgmt_status,
-          grade: draft.grade || null,
+          name: data.name,
+          student_type: data.student_type,
+          mgmt_status: data.mgmt_status,
+          grade: data.grade || null,
+          school_name: data.school_name || null,
         },
         member: {
-          id: draft.member_id,
-          phone: draft.phone || null,
-          birth_date: draft.birth_date || null,
-          gender: draft.gender || null,
-          address: draft.address || null,
+          id: data.member_id,
+          phone: data.phone || null,
+          birth_date: data.birth_date || null,
+          gender: data.gender || null,
+          address: data.address || null,
         },
       }),
     });
 
     const result = await response.json();
-    setSaving(false);
-
     if (!response.ok || !result.ok) {
       showToast(result.error || "저장에 실패했습니다");
-      return;
+      return false;
     }
-
-    setStudents((current) => current.map((student) => (student.id === draft.id ? { ...draft } : student)));
-    setEditMode(false);
-    showToast("저장되었습니다");
+    setStudents((current) => current.map((student) => (student.id === data.id ? { ...data } : student)));
+    return true;
   }
 
-  function openNewFriend() {
+  async function handleSave() {
+    if (!draft) return;
+    if (!draft.name.trim()) {
+      showToast("이름을 입력하세요");
+      return;
+    }
+    setSaving(true);
+    const ok = await persistStudent(draft);
+    setSaving(false);
+    if (ok) {
+      setEditMode(false);
+      showToast("저장되었습니다");
+    }
+  }
+
+  /** 장기결석 처리/해제 — 출석체크 명단·알림 대상에서 제외 (기록은 보존) */
+  async function toggleAbsence() {
+    if (!draft) return;
+    const toAbsent = draft.mgmt_status !== "장기결석";
+    const message = toAbsent
+      ? `${draft.name} 학생을 장기결석 처리하시겠습니까?\n\n· 출석체크 명단과 알림(등반예정·미출석) 대상에서 제외됩니다.\n· 출석·달란트 기록은 그대로 보존되며, 해제하면 다시 나타납니다.`
+      : `${draft.name} 학생의 장기결석을 해제하시겠습니까?\n\n출석체크 명단과 알림 대상에 다시 포함됩니다.`;
+    if (!await confirm(message)) return;
+
+    setSaving(true);
+    const next = { ...draft, mgmt_status: toAbsent ? "장기결석" : "정상" };
+    const ok = await persistStudent(next);
+    setSaving(false);
+    if (ok) {
+      setDraft(next);
+      showToast(toAbsent ? "장기결석 처리되었습니다" : "장기결석이 해제되었습니다");
+    }
+  }
+
+  async function openNewFriend() {
+    const grade = myGradeYear ? String(myGradeYear) : "";
     setNewFriend({
       ...EMPTY_NEW_FRIEND,
-      guide_kind: students.length > 0 ? "student" : "other",
-      guide_student_id: students[0]?.id || "",
+      gradeYear: grade,
+      birthYear: myGradeYear ? birthYearForGrade(myGradeYear) : "",
+      guideGrade: grade,
+      family: [],
     });
     setShowNewFriend(true);
+
+    // 인도자 선택용 — 부서 전체 학생 (학년 필터는 모달에서)
+    if (deptStudents.length === 0) {
+      const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
+      const list = ((data || []) as DeptStudentOption[]).filter((s) => s.name && s.is_active !== false);
+      setDeptStudents(list);
+    }
   }
 
   async function saveNewFriend() {
-    if (!newFriend.name.trim()) {
-      showToast("새친구 이름을 입력하세요");
-      return;
-    }
+    if (!newFriend.name.trim()) { showToast("새친구 이름을 입력하세요"); return; }
+    if (newFriend.gender !== "남" && newFriend.gender !== "여") { showToast("성별을 선택하세요"); return; }
+    if (!newFriend.gradeYear) { showToast("학년을 선택하세요"); return; }
     if (newFriend.guide_kind === "student" && !newFriend.guide_student_id) {
       showToast("인도자 학생을 선택하세요");
       return;
     }
+
+    const grade = Number(newFriend.gradeYear);
+    // 생년월일: 학년 선택 시 연도 자동(수정 가능), 월·일 미입력이면 1월 1일로 저장
+    let birthDate: string | null = null;
+    const by = Number(newFriend.birthYear);
+    if (newFriend.birthYear && Number.isFinite(by) && by >= 2000 && by <= 2100) {
+      const bm = Math.min(12, Math.max(1, Number(newFriend.birthMonth) || 1));
+      const bd = Math.min(31, Math.max(1, Number(newFriend.birthDay) || 1));
+      birthDate = `${by}-${String(bm).padStart(2, "0")}-${String(bd).padStart(2, "0")}`;
+    }
+
+    const family = newFriend.family
+      .map((entry) => ({ name: entry.name.trim(), relation: entry.relation, phone: entry.phone.trim() }))
+      .filter((entry) => entry.name);
 
     setNewSaving(true);
     const { error } = await supabase.rpc("edu_save_new_friend", {
       p_id: null,
       p_dept_id: deptId,
       p_name: newFriend.name.trim(),
-      p_gender: newFriend.gender || null,
-      p_birth_date: newFriend.birth_date || null,
+      p_gender: newFriend.gender,
+      p_birth_date: birthDate,
       p_phone: "",
       p_mobile: newFriend.mobile,
       p_address: newFriend.address,
@@ -312,16 +395,18 @@ export default function MyClassPage() {
       p_group_jik: "",
       p_group_gun: "",
       p_group_cheo: "",
-      p_family_name: newFriend.family_name,
+      p_family_name: family[0] ? `${family[0].relation} ${family[0].name}` : "",
       p_guide_name: newFriend.guide_kind === "other" ? newFriend.guide_name : null,
-      p_school_dist: "",
+      p_school_dist: newFriend.school,
       p_join_date: new Date().toISOString().slice(0, 10),
       p_special: "",
       p_memo: "",
       p_guide_kind: newFriend.guide_kind,
       p_guide_student_id: newFriend.guide_kind === "student" ? newFriend.guide_student_id : null,
-      p_enroll_grade_year: myGradeYear,
-      p_enroll_class_no: myClassName || null,
+      p_enroll_grade_year: grade,
+      // 담임 반과 같은 학년이면 우리 반으로 편입, 다르면 미배정 (부장이 반 관리에서 배정)
+      p_enroll_class_no: grade === myGradeYear ? myClassName || null : null,
+      p_family_members: family,
     });
     setNewSaving(false);
 
@@ -412,20 +497,36 @@ export default function MyClassPage() {
                 <div className="min-w-0">
                   <div className="truncate text-[19px] font-extrabold text-ink">{draft.name}</div>
                   <div className="mt-1 text-[13px] font-semibold text-ink-faint">
-                    {myGradeYear ? `${myGradeYear}학년 · ` : ""}{myClassName ? `${myClassName}반` : "반 정보 없음"}
+                    {draft.grade_year ? `${draft.grade_year}학년 · ` : ""}{draft.class_no ? `${draft.class_no}반` : "반 정보 없음"}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setEditMode((value) => !value)}
-                  title={editMode ? "수정 종료" : "학생 정보 수정"}
-                  className={[
-                    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border",
-                    editMode ? "border-amber-400 bg-amber-50 text-amber-700" : "border-hairline bg-card text-ink-soft",
-                  ].join(" ")}
-                >
-                  <Cog size={18} strokeWidth={1.9} className={editMode ? "animate-spin" : ""} style={editMode ? { animationDuration: "3s" } : undefined} />
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={toggleAbsence}
+                    disabled={saving}
+                    className={[
+                      "inline-flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-[13px] font-extrabold",
+                      draft.mgmt_status === "장기결석"
+                        ? "border-amber-400 bg-amber-50 text-amber-800"
+                        : "border-hairline bg-card text-ink-soft",
+                    ].join(" ")}
+                  >
+                    <MoonStar size={15} strokeWidth={2} />
+                    {draft.mgmt_status === "장기결석" ? "장기결석 해제" : "장기결석 처리"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditMode((value) => !value)}
+                    title={editMode ? "수정 종료" : "학생 정보 수정"}
+                    className={[
+                      "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border",
+                      editMode ? "border-amber-400 bg-amber-50 text-amber-700" : "border-hairline bg-card text-ink-soft",
+                    ].join(" ")}
+                  >
+                    <Cog size={18} strokeWidth={1.9} className={editMode ? "animate-spin" : ""} style={editMode ? { animationDuration: "3s" } : undefined} />
+                  </button>
+                </div>
               </div>
 
               <div className="grid gap-4 p-4 lg:grid-cols-2">
@@ -441,28 +542,30 @@ export default function MyClassPage() {
                       <option value="F">여</option>
                     </select>
                   </InfoField>
-                  <InfoField label="상태" editMode={editMode} value={draft.mgmt_status}>
-                    <select value={draft.mgmt_status} onChange={(event) => updateDraft("mgmt_status", event.target.value)} className={inputClass}>
-                      {MGMT_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
-                    </select>
+                  <InfoField
+                    label="학년 · 반"
+                    editMode={false}
+                    value={draft.grade_year ? `${draft.grade_year}학년${draft.class_no ? ` ${draft.class_no}반` : ""}` : "미등록"}
+                  >
+                    <span />
                   </InfoField>
-                  <div className="rounded-md border border-hairline bg-card px-3 py-2 text-[13px] leading-6 text-ink-soft">
-                    장기결석으로 바꾸면 등반예정 알림과 출석부 등반 안내가 표시되지 않습니다. 다시 출석을 시작하면 정상으로 되돌리세요.
-                  </div>
+                  <InfoField label="학교" editMode={editMode} value={draft.school_name || "미등록"}>
+                    <input value={draft.school_name} onChange={(event) => updateDraft("school_name", event.target.value)} placeholder="학교명" className={inputClass} />
+                  </InfoField>
                 </div>
 
                 <div className="rounded-lg border border-hairline bg-surface p-4">
-                  <div className="mb-3 text-[16px] font-extrabold text-ink">인적사항</div>
+                  <div className="mb-3 text-[16px] font-extrabold text-ink">연락 · 인적사항</div>
                   {!draft.member_id && editMode && (
                     <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[14px] leading-6 text-amber-900">
-                      연결된 교적 정보가 없어 이름과 상태만 저장됩니다.
+                      연결된 교적 정보가 없어 이름·학교만 저장됩니다.
                     </div>
                   )}
-                  <InfoField label="생년월일" editMode={editMode} value={draft.birth_date || "미등록"}>
-                    <input type="date" value={draft.birth_date} onChange={(event) => updateDraft("birth_date", event.target.value)} className={inputClass} disabled={!draft.member_id} />
-                  </InfoField>
                   <InfoField label="본인연락처" editMode={editMode} value={draft.phone ? formatPhone(draft.phone) : "미등록"}>
                     <input value={draft.phone} onChange={(event) => updateDraft("phone", event.target.value)} placeholder="010-0000-0000" className={inputClass} disabled={!draft.member_id} />
+                  </InfoField>
+                  <InfoField label="생년월일" editMode={editMode} value={draft.birth_date || "미등록"}>
+                    <input type="date" value={draft.birth_date} onChange={(event) => updateDraft("birth_date", event.target.value)} className={inputClass} disabled={!draft.member_id} />
                   </InfoField>
                   <InfoField label="주소" editMode={editMode} value={draft.address || "미등록"}>
                     <input value={draft.address} onChange={(event) => updateDraft("address", event.target.value)} className={inputClass} disabled={!draft.member_id} />
@@ -470,7 +573,7 @@ export default function MyClassPage() {
                 </div>
 
                 <div className="rounded-lg border border-hairline bg-surface p-4 lg:col-span-2">
-                  <div className="mb-3 text-[16px] font-extrabold text-ink">가족관계</div>
+                  <div className="mb-3 text-[16px] font-extrabold text-ink">기타 — 가족관계</div>
                   {(families[draft.id] || []).length === 0 ? (
                     <div className="rounded-md border border-hairline bg-card px-3 py-4 text-[14px] font-semibold text-ink-faint">등록된 가족관계가 없습니다.</div>
                   ) : (
@@ -506,7 +609,9 @@ export default function MyClassPage() {
       {showNewFriend && (
         <NewFriendModal
           form={newFriend}
-          students={students}
+          deptStudents={deptStudents}
+          myClassName={myClassName}
+          myGradeYear={myGradeYear}
           saving={newSaving}
           onChange={setNewFriend}
           onCancel={() => !newSaving && setShowNewFriend(false)}
@@ -521,14 +626,18 @@ export default function MyClassPage() {
 
 function NewFriendModal({
   form,
-  students,
+  deptStudents,
+  myClassName,
+  myGradeYear,
   saving,
   onChange,
   onCancel,
   onSave,
 }: {
   form: NewFriendForm;
-  students: EditableStudent[];
+  deptStudents: DeptStudentOption[];
+  myClassName: string;
+  myGradeYear: number | null;
   saving: boolean;
   onChange: (next: NewFriendForm) => void;
   onCancel: () => void;
@@ -536,36 +645,123 @@ function NewFriendModal({
 }) {
   const set = <K extends keyof NewFriendForm>(key: K, value: NewFriendForm[K]) => onChange({ ...form, [key]: value });
 
+  // 학년 선택 → 출생년도 자동 (직접 수정 가능)
+  const setGrade = (value: string) => {
+    const grade = Number(value);
+    onChange({
+      ...form,
+      gradeYear: value,
+      birthYear: value ? birthYearForGrade(grade) : form.birthYear,
+    });
+  };
+
+  const setFamily = (index: number, key: keyof FamilyEntry, value: string) => {
+    const next = form.family.map((entry, i) => (i === index ? { ...entry, [key]: value } : entry));
+    set("family", next);
+  };
+
+  const guideOptions = deptStudents
+    .filter((student) => !form.guideGrade || student.grade_year === Number(form.guideGrade))
+    .sort((a, b) => (a.class_no || "").localeCompare(b.class_no || "") || a.name.localeCompare(b.name));
+
+  const enrollHint = form.gradeYear && myGradeYear && Number(form.gradeYear) === myGradeYear && myClassName
+    ? `저장하면 ${myClassName}반 '체험' 학생으로 출석부·달란트통장에 나타납니다.`
+    : "담임 반과 학년이 달라 반 미배정으로 등록됩니다. (반 관리에서 배정 가능)";
+
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-ink/50 p-4" onClick={onCancel}>
-      <div className="w-full max-w-lg rounded-lg bg-card p-5" onClick={(event) => event.stopPropagation()}>
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-lg bg-card p-5" onClick={(event) => event.stopPropagation()}>
         <div className="mb-4 text-[19px] font-extrabold text-ink">새친구 등록</div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="이름">
+
+        <div className="grid gap-x-3 md:grid-cols-2">
+          <Field label="이름 *">
             <input value={form.name} onChange={(event) => set("name", event.target.value)} className={inputClass} />
           </Field>
-          <Field label="성별">
-            <select value={form.gender} onChange={(event) => set("gender", event.target.value)} className={inputClass}>
-              <option value="">미등록</option>
-              <option value="M">남</option>
-              <option value="F">여</option>
+          <Field label="성별 *">
+            <div className="grid grid-cols-2 gap-2">
+              {["남", "여"].map((gender) => (
+                <button
+                  key={gender}
+                  type="button"
+                  onClick={() => set("gender", gender)}
+                  className={[
+                    "min-h-11 rounded-md border text-[15px] font-extrabold",
+                    form.gender === gender ? "border-amber-400 bg-amber-50 text-ink" : "border-hairline bg-card text-ink-soft",
+                  ].join(" ")}
+                >
+                  {gender}
+                </button>
+              ))}
+            </div>
+          </Field>
+          <Field label="학년 *">
+            <select value={form.gradeYear} onChange={(event) => setGrade(event.target.value)} className={inputClass}>
+              <option value="">학년 선택</option>
+              <option value="1">1학년</option>
+              <option value="2">2학년</option>
+              <option value="3">3학년</option>
             </select>
           </Field>
-          <Field label="생년월일">
-            <input type="date" value={form.birth_date} onChange={(event) => set("birth_date", event.target.value)} className={inputClass} />
+          <Field label="학교">
+            <input value={form.school} onChange={(event) => set("school", event.target.value)} placeholder="학교명" className={inputClass} />
           </Field>
           <Field label="본인연락처">
-            <input value={form.mobile} onChange={(event) => set("mobile", event.target.value)} className={inputClass} />
+            <input value={form.mobile} onChange={(event) => set("mobile", formatPhone(event.target.value))} placeholder="010-0000-0000" className={inputClass} />
           </Field>
-          <Field label="주소">
-            <input value={form.address} onChange={(event) => set("address", event.target.value)} className={inputClass} />
-          </Field>
-          <Field label="가족 이름">
-            <input value={form.family_name} onChange={(event) => set("family_name", event.target.value)} className={inputClass} />
+          <Field label="생년월일 — 학년 선택 시 연도 자동">
+            <div className="grid grid-cols-3 gap-2">
+              <input value={form.birthYear} onChange={(event) => set("birthYear", event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="년" inputMode="numeric" className={inputClass} />
+              <input value={form.birthMonth} onChange={(event) => set("birthMonth", event.target.value.replace(/\D/g, "").slice(0, 2))} placeholder="월" inputMode="numeric" className={inputClass} />
+              <input value={form.birthDay} onChange={(event) => set("birthDay", event.target.value.replace(/\D/g, "").slice(0, 2))} placeholder="일" inputMode="numeric" className={inputClass} />
+            </div>
           </Field>
         </div>
 
-        <div className="mt-2 rounded-lg border border-hairline bg-surface p-3">
+        <Field label="주소">
+          <input value={form.address} onChange={(event) => set("address", event.target.value)} placeholder="주소를 한 줄로 입력" className={inputClass} />
+        </Field>
+
+        {/* 가족 등록 — 부/모/형제/조부모 등 여러 명 */}
+        <div className="mt-1 rounded-lg border border-hairline bg-surface p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-[14px] font-extrabold text-ink">가족</div>
+            <button
+              type="button"
+              onClick={() => set("family", [...form.family, { name: "", relation: "부", phone: "" }])}
+              className="inline-flex min-h-8 items-center gap-1 rounded-md border border-hairline bg-card px-2.5 text-[12.5px] font-extrabold text-ink-soft"
+            >
+              <Plus size={13} strokeWidth={2.4} /> 가족 추가
+            </button>
+          </div>
+          {form.family.length === 0 ? (
+            <div className="rounded-md border border-hairline bg-card px-3 py-3 text-[13px] font-semibold text-ink-faint">
+              가족 추가를 눌러 부모님·형제 연락처를 등록하세요.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {form.family.map((entry, index) => (
+                <div key={index} className="grid grid-cols-[76px_1fr_1fr_34px] items-center gap-1.5">
+                  <select value={entry.relation} onChange={(event) => setFamily(index, "relation", event.target.value)} className={inputClass}>
+                    {FAMILY_RELATIONS.map((relation) => <option key={relation} value={relation}>{relation}</option>)}
+                  </select>
+                  <input value={entry.name} onChange={(event) => setFamily(index, "name", event.target.value)} placeholder="이름" className={inputClass} />
+                  <input value={entry.phone} onChange={(event) => setFamily(index, "phone", formatPhone(event.target.value))} placeholder="연락처" className={inputClass} />
+                  <button
+                    type="button"
+                    onClick={() => set("family", form.family.filter((_, i) => i !== index))}
+                    aria-label="가족 삭제"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-hairline bg-card text-ink-faint"
+                  >
+                    <X size={14} strokeWidth={2.2} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 인도자 */}
+        <div className="mt-3 rounded-lg border border-hairline bg-surface p-3">
           <div className="mb-2 text-[14px] font-extrabold text-ink">인도자</div>
           <div className="mb-3 grid grid-cols-3 gap-2">
             {[
@@ -587,17 +783,37 @@ function NewFriendModal({
             ))}
           </div>
           {form.guide_kind === "student" && (
-            <select value={form.guide_student_id} onChange={(event) => set("guide_student_id", event.target.value)} className={inputClass}>
-              <option value="">인도자 학생 선택</option>
-              {students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}
-            </select>
+            <div className="grid grid-cols-[96px_1fr] gap-2">
+              <select
+                value={form.guideGrade}
+                onChange={(event) => onChange({ ...form, guideGrade: event.target.value, guide_student_id: "" })}
+                className={inputClass}
+              >
+                <option value="">전체 학년</option>
+                <option value="1">1학년</option>
+                <option value="2">2학년</option>
+                <option value="3">3학년</option>
+              </select>
+              <select value={form.guide_student_id} onChange={(event) => set("guide_student_id", event.target.value)} className={inputClass}>
+                <option value="">인도자 학생 선택</option>
+                {guideOptions.map((student) => (
+                  <option key={student.id} value={student.id}>
+                    {student.name}{student.class_no ? ` (${student.class_no}반)` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
           {form.guide_kind === "other" && (
-            <input value={form.guide_name} onChange={(event) => set("guide_name", event.target.value)} placeholder="인도자 이름" className={inputClass} />
+            <input value={form.guide_name} onChange={(event) => set("guide_name", event.target.value)} placeholder="인도한 사람 (예: 부모, 조부모 등)" className={inputClass} />
           )}
         </div>
 
-        <div className="mt-5 flex gap-2">
+        <div className="mt-3 rounded-md border border-hairline bg-bg-soft px-3 py-2 text-[12.5px] leading-5 text-ink-soft">
+          {enrollHint}
+        </div>
+
+        <div className="mt-4 flex gap-2">
           <button type="button" onClick={onCancel} disabled={saving} className="min-h-12 flex-1 rounded-md bg-bg-soft text-[16px] font-extrabold text-ink-mid">취소</button>
           <button type="button" onClick={onSave} disabled={saving} className="min-h-12 flex-[1.4] rounded-md bg-ink text-[16px] font-extrabold text-white disabled:opacity-60">
             {saving ? "저장 중..." : "저장"}

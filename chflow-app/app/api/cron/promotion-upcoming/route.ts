@@ -61,6 +61,19 @@ export async function GET(req: NextRequest) {
     emitError = (e as Error).message;
   }
 
+  // 장기 미출석 알림 — 주 1회 (토요일 오전 슬롯). 장기결석 처리 학생은 제외됨.
+  let absenceSent = 0;
+  let absenceError: string | null = null;
+  if (slot === "sat_am") {
+    try {
+      const { data, error } = await admin.rpc("edu_emit_absence_alerts", { p_week: ymd(weekSat) });
+      if (error) absenceError = error.message;
+      else absenceSent = (data as number) ?? 0;
+    } catch (e) {
+      absenceError = (e as Error).message;
+    }
+  }
+
   // 큐에 쌓인 푸시 즉시 발송 (best-effort)
   let dispatch: unknown = null;
   try {
@@ -73,5 +86,5 @@ export async function GET(req: NextRequest) {
     dispatch = { error: (e as Error).message };
   }
 
-  return NextResponse.json({ ok: !emitError, slot, week: ymd(weekSat), sent, emitError, dispatch });
+  return NextResponse.json({ ok: !emitError && !absenceError, slot, week: ymd(weekSat), sent, absenceSent, emitError, absenceError, dispatch });
 }

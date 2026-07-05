@@ -24,6 +24,10 @@ interface FriendSummary {
   created_at: string;
 }
 
+interface FamilyEntry { name: string; relation: string; phone: string }
+
+const FAMILY_RELATIONS = ["부", "모", "형", "누나", "오빠", "언니", "동생", "조부", "조모", "기타"];
+
 interface FriendDetail extends FriendSummary {
   department_id: string;
   photo_url: string | null;
@@ -41,6 +45,7 @@ interface FriendDetail extends FriendSummary {
   guide_student_id: string | null;
   guide_student_name: string | null;
   enroll_grade_year: number | null;
+  family_members: FamilyEntry[] | null;
 }
 
 // 인도자 유형 — 학생선택 / 자진(스스로 옴) / 기타(어른 등 직접입력)
@@ -56,6 +61,7 @@ interface FormState {
   family_name: string; guide_name: string; school_district: string; join_date: string | null;
   special_notes: string; memo: string;
   guide_kind: GuideKind; guide_student_id: string | null; enroll_class_no: string;
+  family: FamilyEntry[];
 }
 
 const EMPTY_FORM: FormState = {
@@ -65,6 +71,7 @@ const EMPTY_FORM: FormState = {
   family_name: "", guide_name: "", school_district: "", join_date: null,
   special_notes: "", memo: "",
   guide_kind: "other", guide_student_id: null, enroll_class_no: "",
+  family: [],
 };
 
 export default function NewFriendPage() {
@@ -85,6 +92,7 @@ export default function NewFriendPage() {
   const [deptStudents, setDeptStudents] = useState<DeptStudent[]>([]);
   const [deptClasses, setDeptClasses] = useState<DeptClass[]>([]);
   const [myClassNo, setMyClassNo] = useState<string | null>(null);
+  const [guideGradeFilter, setGuideGradeFilter] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -133,6 +141,7 @@ export default function NewFriendPage() {
         guide_kind: (f.guide_kind as GuideKind) || "other",
         guide_student_id: f.guide_student_id || null,
         enroll_class_no: f.enroll_class_no || "",
+        family: Array.isArray(f.family_members) ? f.family_members : [],
       });
       setIsNew(false);
     }
@@ -175,6 +184,9 @@ export default function NewFriendPage() {
         p_guide_student_id: form.guide_kind === "student" ? form.guide_student_id : null,
         p_enroll_grade_year: chosenClass?.grade_year ?? null,
         p_enroll_class_no:  form.enroll_class_no || null,
+        p_family_members:   form.family
+          .map((entry) => ({ name: entry.name.trim(), relation: entry.relation, phone: entry.phone.trim() }))
+          .filter((entry) => entry.name),
       });
       if (error) throw error;
       showToast("저장되었습니다");
@@ -395,12 +407,49 @@ export default function NewFriendPage() {
                   </div>
                 </div>
 
-                <FormField label="가족이름">
-                  <input type="text" value={f("family_name")} onChange={(e) => set("family_name", e.target.value)} placeholder="가족 이름" style={inputStyle} />
+                <FormField label="학교">
+                  <input type="text" value={f("school_district")} onChange={(e) => set("school_district", e.target.value)} placeholder="학교명" style={inputStyle} />
                 </FormField>
 
-                <FormField label="학원구">
-                  <input type="text" value={f("school_district")} onChange={(e) => set("school_district", e.target.value)} placeholder="학원구" style={inputStyle} />
+                {/* 가족 — 부/모/형제/조부모 등 여러 명 등록 */}
+                <FormField label="가족" fullWidth>
+                  {form.family.length === 0 ? (
+                    <div style={{ fontSize: 11, color: "var(--ink-faint)", padding: "6px 0" }}>가족 추가 버튼으로 부모님·형제 연락처를 등록하세요.</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 6 }}>
+                      {form.family.map((entry, index) => (
+                        <div key={index} style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr 32px", gap: 6, alignItems: "center" }}>
+                          <select
+                            value={entry.relation}
+                            onChange={(e) => setForm((p) => ({ ...p, family: p.family.map((row, i) => i === index ? { ...row, relation: e.target.value } : row) }))}
+                            style={{ ...inputStyle, appearance: "auto" }}
+                          >
+                            {FAMILY_RELATIONS.map((relation) => <option key={relation} value={relation}>{relation}</option>)}
+                          </select>
+                          <input
+                            type="text" value={entry.name} placeholder="이름"
+                            onChange={(e) => setForm((p) => ({ ...p, family: p.family.map((row, i) => i === index ? { ...row, name: e.target.value } : row) }))}
+                            style={inputStyle}
+                          />
+                          <input
+                            type="tel" value={entry.phone} placeholder="연락처"
+                            onChange={(e) => setForm((p) => ({ ...p, family: p.family.map((row, i) => i === index ? { ...row, phone: formatPhone(e.target.value) } : row) }))}
+                            style={inputStyle}
+                          />
+                          <button
+                            type="button" aria-label="가족 삭제"
+                            onClick={() => setForm((p) => ({ ...p, family: p.family.filter((_, i) => i !== index) }))}
+                            style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid var(--hairline)", background: "#fff", color: "var(--ink-faint)", cursor: "pointer", fontWeight: 700 }}
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setForm((p) => ({ ...p, family: [...p.family, { name: "", relation: "부", phone: "" }] }))}
+                    style={{ padding: "7px 12px", borderRadius: 8, border: "1.5px solid var(--hairline)", background: "#fff", color: "var(--ink-soft)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                  >+ 가족 추가</button>
                 </FormField>
 
                 {/* 반 편입 — 등록 즉시 '체험' 학생으로 출석부·통장에 편입 */}
@@ -445,21 +494,35 @@ export default function NewFriendPage() {
                     ))}
                   </div>
                   {form.guide_kind === "student" && (
-                    <select
-                      value={form.guide_student_id ?? ""}
-                      onChange={(e) => set("guide_student_id", e.target.value || null)}
-                      style={{ ...inputStyle, appearance: "auto" }}
-                    >
-                      <option value="">인도자 학생 선택…</option>
-                      {deptStudents.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}{s.class_no ? ` (${s.class_no}반)` : ""}
-                        </option>
-                      ))}
-                    </select>
+                    <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 8 }}>
+                      <select
+                        value={guideGradeFilter}
+                        onChange={(e) => { setGuideGradeFilter(e.target.value); set("guide_student_id", null); }}
+                        style={{ ...inputStyle, appearance: "auto" }}
+                      >
+                        <option value="">전체 학년</option>
+                        <option value="1">1학년</option>
+                        <option value="2">2학년</option>
+                        <option value="3">3학년</option>
+                      </select>
+                      <select
+                        value={form.guide_student_id ?? ""}
+                        onChange={(e) => set("guide_student_id", e.target.value || null)}
+                        style={{ ...inputStyle, appearance: "auto" }}
+                      >
+                        <option value="">인도자 학생 선택…</option>
+                        {deptStudents
+                          .filter((s) => !guideGradeFilter || s.grade_year === Number(guideGradeFilter))
+                          .map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}{s.class_no ? ` (${s.class_no}반)` : ""}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
                   )}
                   {form.guide_kind === "other" && (
-                    <input type="text" value={f("guide_name")} onChange={(e) => set("guide_name", e.target.value)} placeholder="인도자 이름 (어른 등)" style={inputStyle} />
+                    <input type="text" value={f("guide_name")} onChange={(e) => set("guide_name", e.target.value)} placeholder="인도한 사람 (예: 부모, 조부모 등)" style={inputStyle} />
                   )}
                   {form.guide_kind === "student" && (
                     <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 4 }}>
