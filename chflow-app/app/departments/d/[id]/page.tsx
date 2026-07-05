@@ -43,7 +43,17 @@ interface MenuItem {
   onlyForDept?: string | null; // null = 모든 부서 (카테고리 onlyForDept 무시)
   onlyForCategory?: string | null; // null = 카테고리 제한 없음(카테고리 onlyForCategory 무시)
   maxGrade?: number;
+  /** 행정관리 전용 — 섹션 id (ADMIN_SECTIONS). 부서별 설정으로 변경 가능 */
+  section?: string;
 }
+
+// 행정관리 섹션 정의 (순서 = 표시 순서). 항목→섹션 배정은 임원진이 메뉴 편집에서 변경 가능
+const ADMIN_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: "docs", label: "주보·교육 자료", icon: Newspaper },
+  { id: "attendance", label: "출결", icon: ListChecks },
+  { id: "talent", label: "달란트", icon: Medal },
+  { id: "ops", label: "명부·부서 운영", icon: Users },
+];
 
 interface MenuCategory {
   id: string;
@@ -97,21 +107,25 @@ const MENU_CATEGORIES: MenuCategory[] = [
     desc: "주보 / 일지 / 통계 / 등록 / 가입승인",
     onlyForCategory: "교육사역국",
     items: [
-      { id: "dept-approval", label: "사역 가입 승인", icon: Inbox, desc: "본 부서 가입 신청 승인 · 등급 부여", color: "var(--success)", implemented: true, onlyForDept: null, onlyForCategory: null, maxGrade: 2 },
-      { id: "weekly-bulletin", label: "주보 만들기", icon: Newspaper, desc: "주보 자동 생성·UMS 등록", color: "#3E7D74", implemented: true },
-      { id: "journal", label: "교육일지작성", icon: BookText, desc: "일지 · 통계 · 헌금", color: "var(--accent)", implemented: true },
-      { id: "monthly-plan-upload", label: "월간교육등록", icon: CalendarPlus, desc: "월간 교육계획서 등록", color: "var(--accent)", implemented: true },
-      { id: "review-upload", label: "복습문제 관리", icon: BookOpen, desc: "공과 복습문제 PPTX 업로드·삭제", color: "#6B4F8C", implemented: true },
-      { id: "students-info", label: "학생정보관리", icon: FileText, desc: "학생 명부 · 인적사항", color: "#B97B3D", implemented: true },
-      { id: "attendance-stats", label: "출결통계", icon: BarChart3, desc: "선생님·학생 출석 통계", color: "#7A8C3D", implemented: true },
-      { id: "talent-stats", label: "달란트통계", icon: TrendingUp, desc: "달란트 누적·랭킹", color: "#7E5F9E", implemented: true },
-      { id: "talent-rules", label: "달란트 규칙", icon: ScrollText, desc: "매주 적립 규칙·특별·보너스", color: "var(--warning)", implemented: true },
-      { id: "quiz-talent", label: "공과퀴즈 달란트", icon: ClipboardCheck, desc: "월별 공과시험 달란트 입력 (서기)", color: "#7E5F9E", implemented: true, onlyForCategory: "교육사역국", maxGrade: 2 },
-      { id: "new-friend", label: "새친구등록", icon: Sparkles, desc: "새친구 등록카드 · 생활기록부", color: "#C26D8C", implemented: true },
-      { id: "teacher-attendance", label: "선생님 등록 / 출석", icon: UserCheck, desc: "교사 출석부 · 월별 관리", color: "#4A7B96", implemented: true },
-      { id: "teacher-assign", label: "반 관리", icon: UserCog, desc: "반 추가·삭제 · 담임 지정 (전도사·부장)", color: "var(--accent-muted)", implemented: true },
-      { id: "attendance", label: "출결 통합 조회", icon: ListChecks, desc: "전 반 학생 출결 (관리자 강제 수정 가능)", color: "var(--success)", implemented: true },
-      { id: "student-record", label: "학생 출결 조회", icon: FileSearch, desc: "개별 학생 출결 이력", color: "var(--warning)", implemented: true },
+      // ── 주보·교육 자료 ──
+      { id: "weekly-bulletin", label: "주보 만들기", icon: Newspaper, desc: "주보 자동 생성·UMS 등록", color: "#3E7D74", implemented: true, section: "docs" },
+      { id: "journal", label: "교육일지작성", icon: BookText, desc: "일지 · 통계 · 헌금", color: "var(--accent)", implemented: true, section: "docs" },
+      { id: "monthly-plan-upload", label: "월간교육등록", icon: CalendarPlus, desc: "월간 교육계획서 등록", color: "var(--accent)", implemented: true, section: "docs" },
+      { id: "review-upload", label: "복습문제 관리", icon: BookOpen, desc: "공과 복습문제 PPTX 업로드·삭제", color: "#6B4F8C", implemented: true, section: "docs" },
+      // ── 출결 ──
+      { id: "attendance", label: "출결 통합 조회", icon: ListChecks, desc: "전 반 학생 출결 (관리자 강제 수정 가능)", color: "var(--success)", implemented: true, section: "attendance" },
+      { id: "student-record", label: "학생 출결 조회", icon: FileSearch, desc: "개별 학생 출결 이력", color: "var(--warning)", implemented: true, section: "attendance" },
+      { id: "attendance-stats", label: "출결통계", icon: BarChart3, desc: "선생님·학생 출석 통계", color: "#7A8C3D", implemented: true, section: "attendance" },
+      { id: "teacher-attendance", label: "선생님 등록 / 출석", icon: UserCheck, desc: "교사 출석부 · 월별 관리", color: "#4A7B96", implemented: true, section: "attendance" },
+      // ── 달란트 ──
+      { id: "talent-rules", label: "달란트 규칙", icon: ScrollText, desc: "매주 적립 규칙·특별·보너스", color: "var(--warning)", implemented: true, section: "talent" },
+      { id: "talent-stats", label: "달란트통계", icon: TrendingUp, desc: "달란트 누적·랭킹", color: "#7E5F9E", implemented: true, section: "talent" },
+      { id: "quiz-talent", label: "공과퀴즈 달란트", icon: ClipboardCheck, desc: "월별 공과시험 달란트 입력 (서기)", color: "#7E5F9E", implemented: true, onlyForCategory: "교육사역국", maxGrade: 2, section: "talent" },
+      // ── 명부·부서 운영 ──
+      { id: "students-info", label: "학생정보관리", icon: FileText, desc: "학생 명부 · 인적사항", color: "#B97B3D", implemented: true, section: "ops" },
+      { id: "new-friend", label: "새친구등록", icon: Sparkles, desc: "새친구 등록카드 · 생활기록부", color: "#C26D8C", implemented: true, section: "ops" },
+      { id: "teacher-assign", label: "반 관리", icon: UserCog, desc: "반 추가·삭제 · 담임 지정 (전도사·부장)", color: "var(--accent-muted)", implemented: true, section: "ops" },
+      { id: "dept-approval", label: "사역 가입 승인", icon: Inbox, desc: "본 부서 가입 신청 승인 · 등급 부여", color: "var(--success)", implemented: true, onlyForDept: null, onlyForCategory: null, maxGrade: 2, section: "ops" },
     ],
   },
   {
@@ -135,7 +149,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
 //  - 담임메뉴·행정관리: 임원진이 이름/주석만 수정
 //  - 부서관리(교육부서): 전도사·교육사·부장(0~1)이 수정, 접근범위 0(전도사만)/1(부장까지)/2(임원진까지)
 // ─────────────────────────────────────────────────────────────────
-type MenuSetting = { label: string | null; description: string | null; max_grade: number | null };
+type MenuSetting = { label: string | null; description: string | null; max_grade: number | null; section?: string | null };
 type MenuSettings = Record<string, MenuSetting>;
 // 접근등급(학부모까지/선생님만) 변경 가능한 공통메뉴 항목
 const ACCESS_CONFIGURABLE = new Set(["monthly-plan", "review-problems"]);
@@ -283,7 +297,10 @@ export default function DepartmentDetailPage() {
     let label = s?.label && s.label.trim() ? s.label : item.label;
     if (label.includes("{dept}")) label = label.replace("{dept}", dept!.name);
     const desc = s?.description && s.description.trim() ? s.description : item.desc;
-    return { ...item, label, desc, maxGrade };
+    // 행정관리 섹션 배정 (설정값이 정의된 섹션 id 일 때만 반영)
+    let section = item.section;
+    if (cat.id === "admin" && s?.section && ADMIN_SECTIONS.some((x) => x.id === s.section)) section = s.section;
+    return { ...item, label, desc, maxGrade, section };
   };
 
   // 부서명/카테고리 필터 (item 값 우선, null = 제한 없음, undefined = cat 상속)
@@ -405,25 +422,50 @@ export default function DepartmentDetailPage() {
                 </button>
               )}
             </div>
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-              gap: 10,
-            }}>
-              {cat.items
+            {(() => {
+              const visibleItems = cat.items
                 .map((item) => resolveItem(cat, item))
-                .filter((item) => itemDeptOk(cat, item) && grade <= (item.maxGrade ?? cat.maxGrade))
-                .map((item) => (
-                  <MenuCard
-                    key={item.id}
-                    item={item}
-                    onClick={() => handleItemClick(item)}
-                    onEdit={editCatId === cat.id && canEditCat(cat.id)
-                      && (cat.id !== "notices" || COMMON_MENU_KEYS.includes(item.id))
-                      ? () => setEditing({ catId: cat.id, itemId: item.id }) : undefined}
-                  />
-                ))}
-            </div>
+                .filter((item) => itemDeptOk(cat, item) && grade <= (item.maxGrade ?? cat.maxGrade));
+              const renderGrid = (items: MenuItem[]) => (
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                  gap: 10,
+                }}>
+                  {items.map((item) => (
+                    <MenuCard
+                      key={item.id}
+                      item={item}
+                      onClick={() => handleItemClick(item)}
+                      onEdit={editCatId === cat.id && canEditCat(cat.id)
+                        && (cat.id !== "notices" || COMMON_MENU_KEYS.includes(item.id))
+                        ? () => setEditing({ catId: cat.id, itemId: item.id }) : undefined}
+                    />
+                  ))}
+                </div>
+              );
+              // 행정관리: 섹션별 소제목으로 묶어 표시 (섹션이 1개뿐이면 평면 그리드)
+              if (cat.id === "admin") {
+                const groups = ADMIN_SECTIONS
+                  .map((sec) => ({ sec, items: visibleItems.filter((it) => (it.section ?? "ops") === sec.id) }))
+                  .filter((g) => g.items.length > 0);
+                if (groups.length > 1) {
+                  return groups.map(({ sec, items }, gi) => (
+                    <div key={sec.id} style={{ marginTop: gi === 0 ? 0 : 16 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                        <sec.icon size={13} strokeWidth={1.9} style={{ color: "var(--ink-faint)" }} />
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.3, whiteSpace: "nowrap" }}>
+                          {sec.label}
+                        </span>
+                        <div style={{ flex: 1, height: 1, background: "var(--hairline)" }} />
+                      </div>
+                      {renderGrid(items)}
+                    </div>
+                  ));
+                }
+              }
+              return renderGrid(visibleItems);
+            })()}
           </div>
         ))}
 
@@ -494,9 +536,15 @@ function EditMenuPopup({
       : catId === "admin" ? "이 메뉴는 임원진(전도사~서기)에게 표시됩니다 (접근 범위 고정)"
         : "이 메뉴는 항상 학부모까지 공개됩니다 (접근 범위 고정)";
 
+  // 행정관리: 섹션 배정 변경 가능
+  const sectionEditable = catId === "admin";
+  const defSection = item?.section ?? "ops";
+
   // 현재 적용값(없으면 기본값)을 채워서 시작
   const [label, setLabel] = useState(setting?.label && setting.label.trim() ? setting.label : defLabel);
   const [description, setDescription] = useState(setting?.description && setting.description.trim() ? setting.description : defDesc);
+  const [section, setSection] = useState<string>(() =>
+    setting?.section && ADMIN_SECTIONS.some((x) => x.id === setting.section) ? setting.section : defSection);
   const [maxGrade, setMaxGrade] = useState<number>(() => {
     if (!accessOptions) return defaultMax;
     return accessOptions.some((o) => o.g === setting?.max_grade) ? (setting!.max_grade as number) : defaultMax;
@@ -514,6 +562,7 @@ function EditMenuPopup({
       p_label: label.trim() || null,
       p_description: description.trim() || null,
       p_max_grade: accessOptions ? maxGrade : null,
+      ...(sectionEditable ? { p_section: section } : {}),
     });
     if (e) { setError(`저장 실패: ${e.message}`); setSaving(false); return; }
     const { data } = await supabase.rpc("get_dept_menu_settings", { p_department_id: deptId });
@@ -542,6 +591,33 @@ function EditMenuPopup({
             <label style={modalLabel}>메뉴 설명</label>
             <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={defDesc} maxLength={60} style={modalInput} />
           </div>
+
+          {sectionEditable && (
+            <div>
+              <label style={modalLabel}>섹션 (행정관리 내 묶음)</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 6 }}>
+                {ADMIN_SECTIONS.map((sec) => {
+                  const active = section === sec.id;
+                  return (
+                    <button
+                      key={sec.id}
+                      type="button"
+                      onClick={() => setSection(sec.id)}
+                      style={{
+                        display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                        padding: "10px 6px", borderRadius: 9, cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700,
+                        border: `1.5px solid ${active ? "var(--accent)" : "var(--hairline)"}`,
+                        background: active ? "var(--accent-soft)" : "var(--card)",
+                        color: active ? "var(--accent-strong)" : "var(--ink-soft)",
+                      }}
+                    >
+                      <sec.icon size={13} strokeWidth={1.9} /> {sec.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {accessOptions ? (
             <div>
