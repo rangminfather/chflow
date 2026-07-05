@@ -21,6 +21,7 @@ interface SaveBody {
     student_type: StudentType;
     grade?: string | null;
     mgmt_status?: MgmtStatus;
+    school_name?: string | null;
   };
   member?: {
     id: string | null;
@@ -97,6 +98,7 @@ export async function POST(req: NextRequest) {
       student_type: studentType,
       mgmt_status: mgmtStatus,
       grade: body.student.grade?.trim() || null,
+      school_name: body.student.school_name?.trim() || null,
     })
     .eq("id", body.student_id)
     .eq("department_id", body.dept_id)
