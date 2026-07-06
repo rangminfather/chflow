@@ -71,22 +71,22 @@ type CommonMenu = {
 };
 
 const COMMON_MENUS: CommonMenu[] = [
-  { id: "bulletin",  label: "주보 보기",     icon: BookOpen,  color: "#2B4539", bg: "#EDF2EF", desc: "", href: "/bulletin" },
-  { id: "directory", label: "성도 요람",     icon: Users,     color: "#2B4539", bg: "#EDF2EF", desc: "", href: "/directory" },
-  { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "#2B4539", bg: "#EDF2EF", desc: "", href: "/feedback" },
-  { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "#2B4539", bg: "#EDF2EF", desc: "", href: "/manual" },
+  { id: "bulletin",  label: "주보 보기",     icon: BookOpen,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/bulletin" },
+  { id: "directory", label: "성도 요람",     icon: Users,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/directory" },
+  { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/feedback" },
+  { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/manual" },
 ];
 
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [
-  { id: "vote",     label: "투표",        icon: Vote,          color: "#B8963E", bg: "#F5EDD8", desc: "", href: "/vote" },
-  { id: "messenger-reports", label: "메신저 신고", icon: MessagesSquare, color: "#B8963E", bg: "#F5EDD8", desc: "", href: "/admin/messenger-reports" },
-  { id: "messenger-diagnostics", label: "메신저 진단", icon: SearchCheck, color: "#B8963E", bg: "#F5EDD8", desc: "", href: "/admin/messenger-diagnostics" },
-  { id: "usage-status", label: "이용 현황", icon: BarChart3, color: "#B8963E", bg: "#F5EDD8", desc: "", href: "/admin/usage-status" },
-  { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "#B8963E", bg: "#F5EDD8", desc: "" },
-  { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "#B8963E", bg: "#F5EDD8", desc: "" },
-  { id: "facility", label: "시설 신청",   icon: Landmark,      color: "#B8963E", bg: "#F5EDD8", desc: "" },
-  { id: "vehicle",  label: "차량 신청",   icon: Bus,           color: "#B8963E", bg: "#F5EDD8", desc: "" },
-  { id: "booking",  label: "예약 캘린더", icon: CalendarClock, color: "#B8963E", bg: "#F5EDD8", desc: "" },
+  { id: "vote",     label: "투표",        icon: Vote,          color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/vote" },
+  { id: "messenger-reports", label: "메신저 신고", icon: MessagesSquare, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/messenger-reports" },
+  { id: "messenger-diagnostics", label: "메신저 진단", icon: SearchCheck, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/messenger-diagnostics" },
+  { id: "usage-status", label: "이용 현황", icon: BarChart3, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/usage-status" },
+  { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
+  { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
+  { id: "facility", label: "시설 신청",   icon: Landmark,      color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
+  { id: "vehicle",  label: "차량 신청",   icon: Bus,           color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
+  { id: "booking",  label: "예약 캘린더", icon: CalendarClock, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
 ];
 
 // =============================================================
@@ -202,7 +202,7 @@ export default function HomePage() {
   const userImage = getRoleImageByLabel(user.sub_role || "");
 
   return (
-    <PageShell style={{ background: "#F5F1EB" }}>
+    <PageShell>
       <WeatherOverlay />
 
       <style>{`
@@ -444,7 +444,7 @@ function CommandButton({ label, onClick }: { label: string; onClick: () => void 
         borderRadius: 9,
         border: "1px solid rgba(255,255,255,0.24)",
         background: "color-mix(in srgb, var(--card) 92%, transparent)",
-        color: "#2F4638",
+        color: "var(--accent-strong)",
         fontSize: 13,
         fontWeight: 800,
         cursor: "pointer",
@@ -587,7 +587,7 @@ function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartmen
     <Section bg="var(--surface)" style={{ height: "100%", marginBottom: 0, border: "1px solid var(--hairline)" }}>
       <SectionHeader
         icon={<Folder size={18} strokeWidth={1.75} />}
-        iconColor="#2B4539"
+        iconColor="var(--accent)"
         title="내 사역 · 부서"
         action={
           <button
@@ -640,7 +640,7 @@ function MinistryCard({ dept, status, onClick }: {
   return (
     <SafeCard onClick={onClick} padding={12} style={{ borderRadius: 14, background: "var(--card)", border: "1px solid var(--hairline)", boxShadow: "0 1px 4px rgba(26,22,18,0.04)" }}>
       <SafeRow gap={12}>
-        <IconBox bg="#EDF2EF" size={40}>
+        <IconBox bg="var(--accent-soft)" size={40}>
           <DeptIcon name={dept.name} category={dept.category} size={20} />
         </IconBox>
         <SafeGrow>
@@ -685,7 +685,7 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
       {hasPasture ? (
         <SafeCard onClick={handleViewPasture} padding={12} style={{ borderRadius: 10 }}>
           <SafeRow gap={12}>
-            <IconBox bg="#EAF3ED" size={40}>
+            <IconBox bg="var(--accent-soft)" size={40}>
               <Home size={21} strokeWidth={1.75} color="var(--accent)" />
             </IconBox>
             <SafeGrow>
@@ -705,7 +705,7 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
             <span style={{
               flexShrink: 0,
               padding: "6px 10px",
-              background: "#EAF3ED",
+              background: "var(--accent-soft)",
               color: T.mokjangPoint,
               borderRadius: 999,
               fontSize: 11,
@@ -718,7 +718,7 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
       ) : (
         <SafeCard padding={12} style={{ borderRadius: 10 }}>
           <SafeRow gap={12} align="flex-start">
-            <IconBox bg="#EAF3ED" size={40}>
+            <IconBox bg="var(--accent-soft)" size={40}>
               <Home size={21} strokeWidth={1.75} color="var(--accent)" />
             </IconBox>
             <SafeGrow>
@@ -752,7 +752,7 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
     <Section bg="var(--surface)" style={{ border: "1px solid var(--hairline)" }}>
       <SectionHeader
         icon={<LayoutGrid size={18} strokeWidth={1.75} />}
-        iconColor="#2B4539"
+        iconColor="var(--accent)"
         title="공통 메뉴"
       />
       <SafeGrid cols={2} gap={10} className="home-menu-grid">
@@ -767,8 +767,8 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
           }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: T.text }}>관리자 메뉴</span>
             <span style={{
-              padding: "2px 7px", background: "#F5EDD8", borderRadius: 5,
-              fontSize: 9, fontWeight: 800, color: "#B8963E", letterSpacing: 0.8,
+              padding: "2px 7px", background: "color-mix(in srgb, var(--brass) 15%, transparent)", borderRadius: 5,
+              fontSize: 9, fontWeight: 800, color: "var(--brass)", letterSpacing: 0.8,
               textTransform: "uppercase",
             }}>ADMIN</span>
           </div>
@@ -1092,7 +1092,7 @@ const compactOutlineButtonStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
   background: "transparent",
-  color: "#4A7B6A",
+  color: "var(--accent)",
 };
 
 // =============================================================
