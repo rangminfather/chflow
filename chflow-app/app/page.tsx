@@ -71,7 +71,8 @@ export default function SplashPage() {
         minHeight: "100vh",
         position: "relative",
         overflow: "hidden",
-        background: "var(--card)",
+        // 스플래시(민들레)는 다크모드에서도 항상 라이트 유지 — 사용자 확정 정책
+        background: "var(--paper)",
         color: "#342a27",
         fontFamily: "'Noto Sans KR', -apple-system, sans-serif",
       }}
@@ -88,9 +89,10 @@ export default function SplashPage() {
         .launch-surface {
           position: absolute;
           inset: 0;
+          /* 다크모드 토큰 반전 제외 — 스플래시는 항상 라이트 (라이트 토큰 원값 고정) */
           background:
             linear-gradient(135deg, rgba(255, 255, 255, 0.62), transparent 42%),
-            linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+            linear-gradient(180deg, #FBF8F1 0%, #F5F1E8 100%);
         }
         .launch-sheen {
           position: absolute;
