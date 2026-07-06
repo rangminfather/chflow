@@ -91,6 +91,7 @@ export default function MessengerPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<MessengerConversation[]>([]);
+  const conversationsRef = useRef<MessengerConversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessengerMessage[]>([]);
   const [participants, setParticipants] = useState<MessengerParticipant[]>([]);
@@ -99,6 +100,8 @@ export default function MessengerPage() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasOlderMessages, setHasOlderMessages] = useState(false);
   const [showLatestJump, setShowLatestJump] = useState(false);
+  const [firstUnreadMessageId, setFirstUnreadMessageId] = useState<string | null>(null);
+  const [showFirstUnreadJump, setShowFirstUnreadJump] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [groupManageOpen, setGroupManageOpen] = useState(false);
@@ -141,6 +144,10 @@ export default function MessengerPage() {
     ));
   }, [conversations, searchQuery]);
 
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
   const clearActiveConversation = useCallback(() => {
     setActiveId(null);
     if (typeof window === "undefined") return;
@@ -169,7 +176,23 @@ export default function MessengerPage() {
     }
   }, [activeId]);
 
-  const loadConversationBody = useCallback(async (conversationId: string) => {
+  const findFirstUnreadMessageId = useCallback((rows: MessengerMessage[], unreadCount: number) => {
+    if (unreadCount <= 0) return null;
+    let remaining = unreadCount;
+    let fallback: string | null = null;
+
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      const row = rows[i];
+      if (row.is_mine || row.deleted_at) continue;
+      fallback = row.id;
+      remaining -= 1;
+      if (remaining <= 0) return row.id;
+    }
+
+    return fallback;
+  }, []);
+
+  const loadConversationBody = useCallback(async (conversationId: string, unreadCount = 0) => {
     setLoadingMessages(true);
     setError("");
     try {
@@ -181,6 +204,10 @@ export default function MessengerPage() {
       setMessages(messageRows);
       setHasOlderMessages(messageRows.length >= 60);
       setParticipants(participantRows);
+      const firstUnreadId = findFirstUnreadMessageId(messageRows, unreadCount);
+      setFirstUnreadMessageId(firstUnreadId);
+      setShowFirstUnreadJump(!!firstUnreadId);
+      if (firstUnreadId) skipNextAutoScrollRef.current = true;
       setConversations((prev) => prev.map((c) => (
         c.conversation_id === conversationId ? { ...c, unread_count: 0 } : c
       )));
@@ -189,10 +216,12 @@ export default function MessengerPage() {
       setMessages([]);
       setHasOlderMessages(false);
       setParticipants([]);
+      setFirstUnreadMessageId(null);
+      setShowFirstUnreadJump(false);
     } finally {
       setLoadingMessages(false);
     }
-  }, []);
+  }, [findFirstUnreadMessageId]);
 
   useEffect(() => {
     (async () => {
@@ -225,7 +254,8 @@ export default function MessengerPage() {
     setDraft("");
     setAttachments([]);
     setShowLatestJump(false);
-    loadConversationBody(activeId);
+    const unreadCount = conversationsRef.current.find((c) => c.conversation_id === activeId)?.unread_count || 0;
+    loadConversationBody(activeId, unreadCount);
   }, [activeId, loadConversationBody]);
 
   useEffect(() => {
@@ -335,13 +365,29 @@ export default function MessengerPage() {
   const scrollToLatest = (behavior: ScrollBehavior = "smooth") => {
     bottomRef.current?.scrollIntoView({ behavior, block: "end" });
     setShowLatestJump(false);
+    setShowFirstUnreadJump(false);
   };
+
+  const scrollToFirstUnread = useCallback((behavior: ScrollBehavior = "smooth") => {
+    if (!firstUnreadMessageId) return;
+    const element = document.getElementById(`messenger-message-${firstUnreadMessageId}`);
+    element?.scrollIntoView({ behavior, block: "center" });
+    setShowFirstUnreadJump(false);
+  }, [firstUnreadMessageId]);
 
   const handleMessageListScroll = () => {
     const el = messageListRef.current;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     setShowLatestJump(distanceFromBottom > 220);
+    if (firstUnreadMessageId) {
+      const firstUnread = document.getElementById(`messenger-message-${firstUnreadMessageId}`);
+      if (firstUnread) {
+        const listRect = el.getBoundingClientRect();
+        const unreadRect = firstUnread.getBoundingClientRect();
+        setShowFirstUnreadJump(unreadRect.bottom < listRect.top || unreadRect.top > listRect.bottom);
+      }
+    }
   };
 
   const loadOlderMessages = async () => {
@@ -371,6 +417,12 @@ export default function MessengerPage() {
     const timer = window.setTimeout(() => setHighlightedMessageId(null), 2200);
     return () => window.clearTimeout(timer);
   }, [highlightedMessageId, loadingMessages, messages]);
+
+  useEffect(() => {
+    if (!firstUnreadMessageId || loadingMessages) return;
+    const timer = window.setTimeout(() => scrollToFirstUnread("auto"), 0);
+    return () => window.clearTimeout(timer);
+  }, [firstUnreadMessageId, loadingMessages, scrollToFirstUnread]);
 
   const emitTyping = () => {
     const now = Date.now();
@@ -765,29 +817,42 @@ export default function MessengerPage() {
                       </div>
                     )}
                     {messages.map((m, idx) => (
-                      <MessageBubble
-                        key={m.id}
-                        message={m}
-                        compact={idx > 0 && messages[idx - 1].sender_id === m.sender_id}
-                        participants={participants}
-                        highlighted={highlightedMessageId === m.id}
-                        onReply={() => setReplyTarget(m)}
-                        onEdit={() => startEdit(m)}
-                        onDelete={() => removeMessage(m)}
-                        onForward={() => setForwarding(m)}
-                        onReport={() => reportMessage(m)}
-                        onCopy={() => copyMessageText(m)}
-                        onReact={(emoji) => reactToMessage(m, emoji)}
-                        onShowReadStatus={() => setReadStatusMessage(m)}
-                        onPreviewImage={(attachment, url) => setImagePreview({ attachment, url })}
-                        actionsOpen={actionMessageId === m.id}
-                        onToggleActions={() => setActionMessageId((current) => current === m.id ? null : m.id)}
-                      />
+                      <div key={m.id}>
+                        {firstUnreadMessageId === m.id && (
+                          <div style={firstUnreadMarkerStyle}>
+                            <span style={firstUnreadLineStyle} />
+                            <span style={firstUnreadTextStyle}>여기부터 안 읽은 메시지</span>
+                            <span style={firstUnreadLineStyle} />
+                          </div>
+                        )}
+                        <MessageBubble
+                          message={m}
+                          compact={idx > 0 && messages[idx - 1].sender_id === m.sender_id}
+                          participants={participants}
+                          highlighted={highlightedMessageId === m.id}
+                          onReply={() => setReplyTarget(m)}
+                          onEdit={() => startEdit(m)}
+                          onDelete={() => removeMessage(m)}
+                          onForward={() => setForwarding(m)}
+                          onReport={() => reportMessage(m)}
+                          onCopy={() => copyMessageText(m)}
+                          onReact={(emoji) => reactToMessage(m, emoji)}
+                          onShowReadStatus={() => setReadStatusMessage(m)}
+                          onPreviewImage={(attachment, url) => setImagePreview({ attachment, url })}
+                          actionsOpen={actionMessageId === m.id}
+                          onToggleActions={() => setActionMessageId((current) => current === m.id ? null : m.id)}
+                        />
+                      </div>
                     ))}
                   </>
                 )}
                 <div ref={bottomRef} />
               </div>
+              {showFirstUnreadJump && firstUnreadMessageId && (
+                <button type="button" onClick={() => scrollToFirstUnread()} style={firstUnreadJumpButtonStyle}>
+                  <ArrowDown size={15} strokeWidth={2.1} /> 첫 안 읽은 메시지
+                </button>
+              )}
               {showLatestJump && (
                 <button type="button" onClick={() => scrollToLatest()} style={latestJumpButtonStyle}>
                   <ArrowDown size={15} strokeWidth={2.1} /> 최신 메시지
@@ -2112,6 +2177,10 @@ const conversationMenuStyle: React.CSSProperties = { position: "absolute", top: 
 const menuActionStyle: React.CSSProperties = { width: "100%", minHeight: 34, border: "none", borderRadius: 7, background: "transparent", display: "flex", alignItems: "center", gap: 8, padding: "0 9px", fontSize: 12, fontWeight: 850, cursor: "pointer", fontFamily: "inherit", textAlign: "left" };
 const messageListStyle: React.CSSProperties = { flex: 1, minHeight: 0, overflowY: "auto", padding: "18px clamp(14px, 3vw, 26px)", overscrollBehavior: "contain" };
 const latestJumpButtonStyle: React.CSSProperties = { position: "absolute", right: 18, bottom: 92, zIndex: 25, minHeight: 36, border: "1px solid rgba(62,90,74,0.22)", borderRadius: 999, background: "var(--card)", color: "var(--accent)", padding: "0 13px", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 900, cursor: "pointer", boxShadow: "0 12px 34px rgba(26,22,18,0.14)", fontFamily: "inherit" };
+const firstUnreadJumpButtonStyle: React.CSSProperties = { ...latestJumpButtonStyle, bottom: 136, background: "var(--accent)", color: "#fff", border: "1px solid rgba(62,90,74,0.3)" };
+const firstUnreadMarkerStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, margin: "14px 0 10px", color: "var(--accent)" };
+const firstUnreadLineStyle: React.CSSProperties = { height: 1, flex: 1, background: "rgba(62,90,74,0.24)" };
+const firstUnreadTextStyle: React.CSSProperties = { borderRadius: 999, background: "var(--accent-soft)", border: "1px solid rgba(62,90,74,0.18)", padding: "4px 9px", fontSize: 11, fontWeight: 900, whiteSpace: "nowrap" };
 const olderButtonWrapStyle: React.CSSProperties = { display: "flex", justifyContent: "center", padding: "2px 0 12px" };
 const olderButtonStyle: React.CSSProperties = { minHeight: 34, border: "1px solid var(--hairline)", borderRadius: 999, background: "var(--card)", color: "var(--ink-soft)", padding: "0 14px", fontSize: 12, fontWeight: 900, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 8px rgba(26,22,18,0.04)" };
 const conversationButtonStyle: React.CSSProperties = { width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 11px", borderRadius: 10, cursor: "pointer", textAlign: "left", fontFamily: "inherit", transition: "background .16s ease, border-color .16s ease, transform .16s ease" };

@@ -1,30 +1,32 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Noto_Sans_KR, Noto_Serif_KR } from "next/font/google";
+import localFont from "next/font/local";
 import GlobalNotifications from "@/components/GlobalNotifications";
 import HardwareBackBridge from "@/components/HardwareBackBridge";
 import { ConfirmProvider } from "@/components/ConfirmDialog";
 import "./globals.css";
 
-const geistSans = Geist({
+const appSans = localFont({
+  src: "../public/fonts/NanumGothic-Regular.ttf",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const appMono = localFont({
+  src: "../public/fonts/NanumGothic-Regular.ttf",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  display: "swap",
 });
 
-const notoSansKr = Noto_Sans_KR({
+const notoSansKr = localFont({
+  src: "../public/fonts/NanumGothic-Regular.ttf",
   variable: "--font-noto-sans-kr",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800", "900"],
+  display: "swap",
 });
 
-const notoSerifKr = Noto_Serif_KR({
+const notoSerifKr = localFont({
+  src: "../public/fonts/NanumGothic-Regular.ttf",
   variable: "--font-noto-serif-kr",
-  subsets: ["latin"],
-  weight: ["500", "600"],
+  display: "swap",
 });
 
 export const viewport: Viewport = {
@@ -66,7 +68,7 @@ export default function RootLayout({
   return (
     <html
       lang="ko"
-      className={`${geistSans.variable} ${geistMono.variable} ${notoSansKr.variable} ${notoSerifKr.variable} h-full antialiased`}
+      className={`${appSans.variable} ${appMono.variable} ${notoSansKr.variable} ${notoSerifKr.variable} h-full antialiased`}
     >
       <head>
         {/* 다크모드 수동설정 복원 — 렌더 전 실행해서 FOWT 방지 */}

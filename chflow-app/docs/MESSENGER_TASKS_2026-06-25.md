@@ -170,6 +170,7 @@ Priority: Medium
 Current implementation:
 
 - Added older-message paging inside a room with a stable `p_before` cursor.
+- Added first-unread marker and jump behavior when opening a room with unread messages.
 - Added in-app image preview modal with ESC close and download action.
 - Replaced remaining native `window.confirm` usage in messenger group management with the app confirm dialog.
 - Composer supports paste/drop attachments and realtime typing state.
@@ -177,7 +178,6 @@ Current implementation:
 
 Tasks:
 
-- Add "jump to first unread" inside a room.
 - Improve image preview:
   - larger preview modal
   - next/previous image navigation
