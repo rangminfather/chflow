@@ -893,7 +893,7 @@ function BulletinPagePreview({ url, initialPage }: { url: string; initialPage: n
       {error ? (
         <div style={{ padding: 20, textAlign: "center", fontSize: 12.5, color: "var(--ink-soft)" }}>{error}</div>
       ) : (
-        <canvas ref={canvasRef} style={{ width: "100%", height: "auto", display: "block", borderRadius: 8, background: "#fff" }} />
+        <canvas ref={canvasRef} style={{ width: "100%", height: "auto", display: "block", borderRadius: 8, background: "var(--paper)" }} />
       )}
     </div>
   );

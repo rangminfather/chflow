@@ -356,7 +356,7 @@ export default function NewFriendPage() {
                         style={{
                           flex: 1, padding: "9px", borderRadius: 8, border: "1.5px solid",
                           borderColor: form.gender === g ? "var(--accent)" : "var(--hairline)",
-                          background: form.gender === g ? "var(--accent-soft)" : "#fff",
+                          background: form.gender === g ? "var(--accent-soft)" : "var(--card)",
                           color: form.gender === g ? "var(--accent)" : "var(--ink-soft)",
                           fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
                         }}
@@ -439,7 +439,7 @@ export default function NewFriendPage() {
                           <button
                             type="button" aria-label="가족 삭제"
                             onClick={() => setForm((p) => ({ ...p, family: p.family.filter((_, i) => i !== index) }))}
-                            style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid var(--hairline)", background: "#fff", color: "var(--ink-faint)", cursor: "pointer", fontWeight: 700 }}
+                            style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid var(--hairline)", background: "var(--card)", color: "var(--ink-faint)", cursor: "pointer", fontWeight: 700 }}
                           >×</button>
                         </div>
                       ))}
@@ -448,7 +448,7 @@ export default function NewFriendPage() {
                   <button
                     type="button"
                     onClick={() => setForm((p) => ({ ...p, family: [...p.family, { name: "", relation: "부", phone: "" }] }))}
-                    style={{ padding: "7px 12px", borderRadius: 8, border: "1.5px solid var(--hairline)", background: "#fff", color: "var(--ink-soft)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                    style={{ padding: "7px 12px", borderRadius: 8, border: "1.5px solid var(--hairline)", background: "var(--card)", color: "var(--ink-soft)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
                   >+ 가족 추가</button>
                 </FormField>
 
@@ -486,7 +486,7 @@ export default function NewFriendPage() {
                         style={{
                           flex: 1, padding: "9px", borderRadius: 8, border: "1.5px solid",
                           borderColor: form.guide_kind === k ? "var(--accent)" : "var(--hairline)",
-                          background: form.guide_kind === k ? "var(--accent-soft)" : "#fff",
+                          background: form.guide_kind === k ? "var(--accent-soft)" : "var(--card)",
                           color: form.guide_kind === k ? "var(--accent)" : "var(--ink-soft)",
                           fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit",
                         }}

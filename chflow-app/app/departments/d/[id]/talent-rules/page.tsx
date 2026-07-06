@@ -161,7 +161,7 @@ export default function TalentRulesPage() {
           {KIND_TABS.map(t => (
             <button key={t.value} onClick={() => setTab(t.value)} style={{
               flex: 1, padding: "10px 6px", borderRadius: 10,
-              background: tab === t.value ? "var(--accent)" : "#fff",
+              background: tab === t.value ? "var(--accent)" : "var(--card)",
               color: tab === t.value ? "#fff" : "var(--ink-mid)",
               border: tab === t.value ? "none" : "1.5px solid var(--hairline)",
               fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
@@ -193,7 +193,7 @@ export default function TalentRulesPage() {
                 <div key={r.id} style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 12px", borderRadius: 10,
-                  background: r.is_active ? "var(--surface)" : "#fff",
+                  background: r.is_active ? "var(--surface)" : "var(--card)",
                   border: r.is_active ? "1px solid var(--hairline)" : "1.5px dashed var(--hairline-strong)",
                   opacity: r.is_active ? 1 : 0.6,
                 }}>

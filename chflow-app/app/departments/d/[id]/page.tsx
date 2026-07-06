@@ -472,8 +472,8 @@ export default function DepartmentDetailPage() {
         {/* 접근 가능한 메뉴가 전혀 없는 경우 안내 */}
         {visibleCategories.length === 0 && (
           <div style={{
-            background: "#F8F0E3", border: "1.5px solid #fed7aa", borderRadius: 12, padding: 20,
-            textAlign: "center", color: "#8A5526",
+            background: "var(--warning-soft)", border: "1.5px solid color-mix(in srgb, var(--warning) 35%, transparent)", borderRadius: 12, padding: 20,
+            textAlign: "center", color: "var(--warning)",
           }}>
             <div style={{ marginBottom: 8 }}><Lock size={28} strokeWidth={1.8} /></div>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>접근 가능한 메뉴가 없습니다</div>
@@ -672,7 +672,7 @@ function MenuCard({ item, onClick, onEdit }: { item: MenuItem; onClick: () => vo
     <div
       onClick={onEdit ? onEdit : onClick}
       style={{
-        background: dim ? "var(--surface)" : "#fff",
+        background: dim ? "var(--surface)" : "var(--card)",
         border: `1.5px solid ${dim ? "var(--hairline)" : `color-mix(in srgb, ${item.color} 26%, transparent)`}`,
         borderRadius: 12,
         padding: "14px 14px",

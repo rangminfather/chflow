@@ -765,7 +765,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
                   return (
                     <label key={hm.id} style={{
                       display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
-                      background: checked ? "#fff" : "var(--bg-soft)",
+                      background: checked ? "var(--card)" : "var(--bg-soft)",
                       borderRadius: 6, fontSize: 12, fontWeight: 600, color: "var(--ink)",
                       cursor: isSelf ? "default" : "pointer", opacity: isSelf ? 0.85 : 1
                     }}>
@@ -810,7 +810,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
               value={moveGrass}
               onChange={(e) => { setMoveGrass(e.target.value); setMovePast(""); }}
               disabled={!movePlain}
-              style={{ ...inputStyle, flex: 1, background: movePlain ? "#fff" : "var(--bg-soft)" }}
+              style={{ ...inputStyle, flex: 1, background: movePlain ? "var(--card)" : "var(--bg-soft)" }}
             >
               <option value="">초원</option>
               {grasslandsForPlain.map(g => <option key={g} value={g}>{g}</option>)}
@@ -819,7 +819,7 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
               value={movePast}
               onChange={(e) => setMovePast(e.target.value)}
               disabled={!moveGrass}
-              style={{ ...inputStyle, flex: 1, background: moveGrass ? "#fff" : "var(--bg-soft)" }}
+              style={{ ...inputStyle, flex: 1, background: moveGrass ? "var(--card)" : "var(--bg-soft)" }}
             >
               <option value="">목장</option>
               {pasturesForGrassland.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
@@ -986,12 +986,12 @@ function CreateModal({ dirTree, plainOptions, plainLabel, onClose, onCreated }: 
             {plainOptions.map(p => <option key={p.name} value={p.name}>{plainLabel(p.name)}</option>)}
           </select>
           <select value={grassland} onChange={(e) => { setGrassland(e.target.value); setPasture(""); }}
-            disabled={!plain} style={{ ...inputStyle, flex: 1, background: plain ? "#fff" : "var(--bg-soft)" }}>
+            disabled={!plain} style={{ ...inputStyle, flex: 1, background: plain ? "var(--card)" : "var(--bg-soft)" }}>
             <option value="">초원</option>
             {grasslandsForPlain.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
           <select value={pasture} onChange={(e) => setPasture(e.target.value)}
-            disabled={!grassland} style={{ ...inputStyle, flex: 1, background: grassland ? "#fff" : "var(--bg-soft)" }}>
+            disabled={!grassland} style={{ ...inputStyle, flex: 1, background: grassland ? "var(--card)" : "var(--bg-soft)" }}>
             <option value="">목장</option>
             {pasturesForGrassland.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
           </select>
@@ -1179,7 +1179,7 @@ const btnMini: React.CSSProperties = {
 };
 const pageBtn = (disabled: boolean, active?: boolean): React.CSSProperties => ({
   minWidth: 30, padding: "5px 10px", border: "1px solid var(--hairline)",
-  borderRadius: 6, background: active ? "var(--accent)" : "#fff",
+  borderRadius: 6, background: active ? "var(--accent)" : "var(--card)",
   color: active ? "#fff" : disabled ? "var(--hairline-strong)" : "var(--ink-mid)",
   fontSize: 12, fontWeight: 700, cursor: disabled ? "default" : "pointer", fontFamily: "inherit",
 });

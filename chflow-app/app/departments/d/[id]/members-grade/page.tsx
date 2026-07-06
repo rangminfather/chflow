@@ -259,7 +259,7 @@ export default function MembersGradePage() {
                         padding: "10px 12px",
                         border: "1px solid var(--accent-line)",
                         borderRadius: 10,
-                        background: GRADE_BG[m.grade] || "#fff",
+                        background: GRADE_BG[m.grade] || "var(--card)",
                       }}
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -377,7 +377,7 @@ export default function MembersGradePage() {
                         style={{
                           padding: "10px 12px", border: "1px solid var(--hairline)",
                           borderRadius: 8, marginBottom: 6,
-                          background: r.already_member ? "var(--surface)" : "#fff",
+                          background: r.already_member ? "var(--surface)" : "var(--card)",
                           cursor: r.already_member ? "not-allowed" : "pointer",
                           opacity: r.already_member ? 0.5 : 1,
                           display: "flex", alignItems: "center", gap: 10,

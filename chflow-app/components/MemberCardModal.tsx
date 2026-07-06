@@ -473,7 +473,7 @@ function MemberChip({ name, photoUrl, subtitle, onClick }: { name: string; photo
         transition: "all 0.15s",
       }}
       onMouseOver={(e) => { if (onClick) { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--accent-soft)"; } }}
-      onMouseOut={(e) => { e.currentTarget.style.borderColor = "var(--hairline)"; e.currentTarget.style.background = "#fff"; }}>
+      onMouseOut={(e) => { e.currentTarget.style.borderColor = "var(--hairline)"; e.currentTarget.style.background = "var(--card)"; }}>
       <div style={{ width: 28, height: 28, borderRadius: "50%", overflow: "hidden", background: "var(--hairline)", flexShrink: 0 }}>
         {photoUrl && <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
       </div>
@@ -496,7 +496,7 @@ function RelationRow({ relation, reversed, onRemove, onClick }: { relation: Rela
         transition: "all 0.15s",
       }}
       onMouseOver={(e) => { if (onClick) { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--accent-soft)"; } }}
-      onMouseOut={(e) => { e.currentTarget.style.borderColor = "var(--hairline)"; e.currentTarget.style.background = "#fff"; }}>
+      onMouseOut={(e) => { e.currentTarget.style.borderColor = "var(--hairline)"; e.currentTarget.style.background = "var(--card)"; }}>
       <div style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", background: "var(--hairline)", flexShrink: 0 }}>
         {relation.photo_url && <img src={relation.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
       </div>

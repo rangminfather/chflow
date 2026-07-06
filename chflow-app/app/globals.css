@@ -16,6 +16,7 @@
   --accent-soft: #EAEFE8;
   --brass: #A4884E;       /* 얇은 선/작은 점 디테일 전용 */
   --hairline: #E5DECB;    /* 구분선 */
+  --paper: #FFFFFF;       /* 다크모드에서도 항상 흰색인 표면 (PDF/캔버스 렌더링 등) — 일반 카드에 쓰지 말 것 */
   --radius: 14px;
 
   /* 확장 톤 — slate/indigo 하드코딩 치환용 (slate900~50 ↔ ink~surface 대응) */
