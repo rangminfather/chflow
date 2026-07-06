@@ -43,6 +43,10 @@
 
 ## 디자인 토큰 규칙
 - Tailwind 팔레트 하드코딩 금지 → CSS 변수 사용 (`--ink-mid`, `--bg-soft` 등)
+- **배경(background) 흰색 하드코딩 절대 금지** (`#fff`/`white`) → `var(--card)` 사용. 다크모드에서 흰 배경 + `var(--ink)` 글자 = 가독성 붕괴. ESLint `no-restricted-syntax`가 error로 강제함 (eslint.config.mjs)
+  - 반투명 흰 배경 → `color-mix(in srgb, var(--card) X%, transparent)`
+  - 다크모드에서도 진짜 흰 종이여야 하는 표면(PDF/캔버스 렌더링) → `var(--paper)`
+  - 악센트(색상) 배경 위 흰 오버레이 칩(`rgba(255,255,255,0.2)` 등)은 예외 (양쪽 모드 동일하게 보임)
 - 알파 이어붙이기 금지 → `color-mix(in srgb, var(--color) X%, transparent)` 사용
 - 아이콘은 lucide (이모지 금지, 인쇄·게시 콘텐츠 제외)
 - font-weight: 400/500/600/700/800만 허용

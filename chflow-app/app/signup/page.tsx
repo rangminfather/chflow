@@ -967,7 +967,7 @@ export default function SignupPage() {
                 style={{
                   ...inputStyle,
                   marginTop: 6,
-                  background: noPhone || signupMethod === "verified" ? "var(--bg-soft)" : "#fff",
+                  background: noPhone || signupMethod === "verified" ? "var(--bg-soft)" : "var(--card)",
                   color: noPhone ? "var(--ink-faint)" : "var(--ink)",
                 }}
               />
@@ -1211,8 +1211,8 @@ export default function SignupPage() {
                   onClick={() => setRoleGroup(group.id)}
                   style={{
                     height: 38,
-                    border: active ? "1px solid var(--accent)" : "1px solid rgba(43, 39, 34, 0.12)",
-                    background: active ? "var(--accent-soft)" : "rgba(255,255,255,0.86)",
+                    border: active ? "1px solid var(--accent)" : "1px solid var(--hairline)",
+                    background: active ? "var(--accent-soft)" : "var(--card)",
                     color: active ? "var(--accent)" : "var(--ink-soft)",
                     borderRadius: 8,
                     fontSize: 12,
@@ -1583,7 +1583,7 @@ export default function SignupPage() {
                       }}
                       style={{
                         ...pastureOptionStyle,
-                        background: option.pasture_id === pastureId ? "var(--accent-soft)" : "#fff",
+                        background: option.pasture_id === pastureId ? "var(--accent-soft)" : "var(--card)",
                       }}
                     >
                       <span style={{ fontWeight: 800, color: "var(--ink)" }}>{option.pasture_name}</span>

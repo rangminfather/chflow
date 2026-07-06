@@ -481,7 +481,7 @@ export function ImportMembersModal({ onClose, onApplied }: { onClose: () => void
                 return (
                   <div key={d.sheet} style={{
                     padding: 12, borderRadius: 8, border: "1px solid var(--hairline)",
-                    background: total === 0 ? "var(--surface)" : "#fff",
+                    background: total === 0 ? "var(--surface)" : "var(--card)",
                   }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)", marginBottom: 6 }}>
                       [{d.sheet}] {d.label} <span style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 500 }}>({d.table})</span>

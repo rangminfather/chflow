@@ -352,7 +352,7 @@ export default function FeedbackDetailPage() {
                       padding: "6px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800,
                       cursor: active ? "default" : "pointer",
                       border: active ? `1.5px solid ${sm.fg}` : "1.5px solid transparent",
-                      background: active ? sm.bg : "#fff",
+                      background: active ? sm.bg : "var(--card)",
                       color: active ? sm.fg : "var(--ink-soft)",
                       opacity: updatingStatus ? 0.5 : 1,
                       fontFamily: "inherit",

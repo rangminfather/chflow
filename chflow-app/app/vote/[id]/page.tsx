@@ -214,7 +214,7 @@ export default function VoteBallotPage({ params }: { params: Promise<{ id: strin
                     display: "flex", alignItems: "center", gap: 14,
                     padding: "16px 18px", borderRadius: 14,
                     border: `2px solid ${highlighted ? "var(--accent)" : "var(--hairline)"}`,
-                    background: highlighted ? "var(--accent-soft)" : "#fff",
+                    background: highlighted ? "var(--accent-soft)" : "var(--card)",
                     cursor: canVote ? "pointer" : "default",
                     transition: "all 0.15s",
                     boxShadow: highlighted ? "0 0 0 3px rgba(62, 90, 74,0.15)" : "none",
@@ -224,7 +224,7 @@ export default function VoteBallotPage({ params }: { params: Promise<{ id: strin
                   <div style={{
                     width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
                     border: `2.5px solid ${highlighted ? "var(--accent)" : "var(--hairline-strong)"}`,
-                    background: highlighted ? "var(--accent)" : "#fff",
+                    background: highlighted ? "var(--accent)" : "var(--card)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                   }}>
                     {highlighted && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--card)" }} />}
