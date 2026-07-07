@@ -56,11 +56,34 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const DEPT_MARKER_PREFIX = "Dept bulletin:";
 const UMS_SAMUSIL_MARKER = "UMS samusil no:";
 
-const DEPT_PATTERNS: Record<string, { author: string; titleIncludes: string[] }> = {
-  "초등1부": { author: "심주석", titleIncludes: [] },
-};
+// 부서별 UMS samusil 게시글 제목 매칭 규칙 (2026-07 게시판 실측)
+// 작성자는 부서마다 다르고 담당자 교체로 바뀔 수 있어 제목 키워드로 매칭한다.
+//  - 초등1부: "7월5일 초등1초원주보입니다."
+//  - 초등2부: "7월 5일 초등2초원 주보입니다."
+//  - 유치부:  "유치부_주보_26. 7. 5_(6부_출력부탁합니다)"
+//  - 유아부:  "유아부) 07월 05일 유아부 주보입니다. (3부)"
+//  - 청소년부: "7월 5일 청소년부 주보입니다." / "20260531청소년부주보"
+const KNOWN_DEPT_PATTERNS: { deptAliases: string[]; titleKeywords: string[] }[] = [
+  { deptAliases: ["초등1"], titleKeywords: ["초등1"] },
+  { deptAliases: ["초등2"], titleKeywords: ["초등2"] },
+  { deptAliases: ["유치"], titleKeywords: ["유치부"] },
+  { deptAliases: ["유아"], titleKeywords: ["유아부"] },
+  { deptAliases: ["청소년", "중고등"], titleKeywords: ["청소년"] },
+];
 
-let listCache: CacheValue | null = null;
+// 부서명 → 제목 키워드. 알려진 패턴이 없으면 부서명(및 "부" 뗀 어간)으로 매칭 시도.
+function titleKeywordsFor(deptKey: string): string[] {
+  const known = KNOWN_DEPT_PATTERNS.find((p) => p.deptAliases.some((a) => deptKey.includes(a)));
+  if (known) return known.titleKeywords;
+  const stem = deptKey.replace(/부$/, "").trim();
+  return stem && stem !== deptKey ? [deptKey, stem] : [deptKey];
+}
+
+function matchesDept(title: string, keywords: string[]) {
+  return title.includes("주보") && keywords.some((k) => title.includes(k));
+}
+
+const listCaches = new Map<string, CacheValue>();
 
 const BROWSER_HEADERS = {
   "User-Agent":
@@ -153,10 +176,26 @@ function yearFromPostedAt(postedAt: string | null) {
   return match ? Number(match[1]) : new Date(new Date().getTime() + 9 * 60 * 60 * 1000).getUTCFullYear();
 }
 
+function toIsoIfValid(year: number, month: number, day: number) {
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+// 부서마다 제목 날짜 표기가 다르다: "7월 5일" / "26. 7. 5" / "20260531"
 function extractDateFromTitle(title: string, fallbackYear: number) {
-  const match = title.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
-  if (!match) return null;
-  return `${fallbackYear}-${match[1].padStart(2, "0")}-${match[2].padStart(2, "0")}`;
+  const md = title.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+  if (md) return toIsoIfValid(fallbackYear, Number(md[1]), Number(md[2]));
+
+  const compact = title.match(/(20\d{2})(\d{2})(\d{2})/);
+  if (compact) {
+    const iso = toIsoIfValid(Number(compact[1]), Number(compact[2]), Number(compact[3]));
+    if (iso) return iso;
+  }
+
+  const dotted = title.match(/(\d{2})\s*[.\-]\s*(\d{1,2})\s*[.\-]\s*(\d{1,2})/);
+  if (dotted) return toIsoIfValid(2000 + Number(dotted[1]), Number(dotted[2]), Number(dotted[3]));
+
+  return null;
 }
 
 function parseBoardList(html: string): Omit<DeptBulletinItem, "pdf_url">[] {
@@ -175,12 +214,13 @@ function parseBoardList(html: string): Omit<DeptBulletinItem, "pdf_url">[] {
     const hrefMatch =
       row.match(new RegExp(`<a\\s+[^>]*href=["']([^"']*no=${no}[^"']*)["']`, "i")) ||
       row.match(/<a\s+[^>]*href=["']([^"']*no=\d+[^"']*)["']/i);
-    const titleAttrMatch = row.match(/title=['"](?:\[\d+\]\s*)?([^'"]+)['"]/i);
+    // 제목은 글 링크(no= 포함) 앵커에서만 추출 — 행 앞쪽 분류 라벨(☞ 부서주보)의 title 속성에 걸리면 안 됨
     const anchorMatch = row.match(/<a\s+[^>]*href=["'][^"']*no=\d+[^"']*["'][^>]*>([\s\S]*?)<\/a>/i);
+    const anchorTitleAttr = anchorMatch?.[0].match(/title=['"](?:\[\d+\]\s*)?([^'"]+)['"]/i);
     const authorMatch = row.match(/<font\s+class=["']?list_name["']?[^>]*>([\s\S]*?)<\/font>/i);
     const postedAtMatch = row.match(/<span\s+title=['"][^'"]*['"]>\s*(\d{4}-\d{2}-\d{2})\s*<\/span>/i);
 
-    const rawTitle = textFromHtml(titleAttrMatch?.[1] || anchorMatch?.[1] || "");
+    const rawTitle = textFromHtml(anchorTitleAttr?.[1] || anchorMatch?.[1] || "");
     if (!rawTitle) continue;
 
     const postedAt = postedAtMatch?.[1] || null;
@@ -268,32 +308,27 @@ function withSignedPdfUrls(items: Omit<DeptBulletinItem, "pdf_url">[], origin: s
 }
 
 async function loadPublicItems(deptKey: string) {
-  const pattern = DEPT_PATTERNS[deptKey];
-  if (!pattern) throw new Error(`지원하지 않는 부서입니다: ${deptKey}`);
-
-  if (listCache && listCache.expiresAt > Date.now()) {
-    return listCache.items;
+  const cached = listCaches.get(deptKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.items;
   }
 
+  const keywords = titleKeywordsFor(deptKey);
   const html = await fetchFirstEucKr([
     { name: "worker-list", url: DIRECT_LIST_URL, viaWorker: "/bbs/zboard.php?id=samusil&page=1" },
     { name: "ums-fetch-list", url: PROXY_LIST_URL },
     { name: "direct-list", url: DIRECT_LIST_URL, headers: BROWSER_HEADERS },
   ]);
   const baseItems = parseBoardList(html)
-    .filter((item) => {
-      const authorMatches = !pattern.author || item.author === pattern.author;
-      const titleMatches = pattern.titleIncludes.length === 0 || pattern.titleIncludes.every((keyword) => item.title.includes(keyword));
-      return authorMatches && titleMatches;
-    })
+    .filter((item) => matchesDept(item.title, keywords))
     .slice(0, 12);
 
   if (baseItems.length === 0) {
-    throw new Error("초등1부 주보 게시글을 찾지 못했습니다");
+    throw new Error(`${deptKey} 주보 게시글을 찾지 못했습니다`);
   }
 
   const items = await Promise.all(baseItems.map(enrichFromPost));
-  listCache = { items, expiresAt: Date.now() + CACHE_TTL_MS };
+  listCaches.set(deptKey, { items, expiresAt: Date.now() + CACHE_TTL_MS });
   return items;
 }
 
@@ -333,7 +368,7 @@ async function loadStoredItems(deptKey: string): Promise<DeptBulletinItem[]> {
       title: row.title,
       issue_date: row.sunday_date,
       posted_at: row.created_at,
-      author: "심주석",
+      author: null,
       url: sourceNo ? `${VIEW_BASE}?id=samusil&no=${sourceNo}` : `${VIEW_BASE}?id=samusil`,
       pdf_url: signedUrl,
       stored: true,
@@ -364,6 +399,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    const hadCache = (listCaches.get(deptKey)?.expiresAt ?? 0) > Date.now();
     const items = withSignedPdfUrls(await loadPublicItems(deptKey), url.origin);
 
     return NextResponse.json({
@@ -371,12 +407,12 @@ export async function GET(req: NextRequest) {
       latest: pickPreferredBulletin(items),
       items,
       source: "ums-samusil",
-      cached: !!listCache && listCache.expiresAt > Date.now(),
+      cached: hadCache,
       preferred_dates: getPreferredSundayTargets(),
     });
   } catch (e) {
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : "초등1부 주보 목록 불러오기 실패" },
+      { ok: false, error: e instanceof Error ? e.message : "부서 주보 목록 불러오기 실패" },
       { status: 502 },
     );
   }

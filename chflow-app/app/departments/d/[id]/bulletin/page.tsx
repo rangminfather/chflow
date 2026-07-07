@@ -48,6 +48,8 @@ export default function DepartmentBulletinPage() {
   const deptId = params.id as string;
 
   const [authChecked, setAuthChecked] = useState(false);
+  const [deptName, setDeptName] = useState("");
+  const [deptCategory, setDeptCategory] = useState("");
   const [items, setItems] = useState<DeptBulletinItem[]>([]);
   const [selected, setSelected] = useState<DeptBulletinItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,15 +57,15 @@ export default function DepartmentBulletinPage() {
   const [error, setError] = useState("");
   const [showList, setShowList] = useState(false);
 
-  const loadBulletins = async (accessToken: string) => {
+  const loadBulletins = async (accessToken: string, name: string) => {
     setError("");
-    const res = await fetch("/api/dept-bulletin/latest?dept=%EC%B4%88%EB%93%B11%EB%B6%80", {
+    const res = await fetch(`/api/dept-bulletin/latest?dept=${encodeURIComponent(name)}`, {
       cache: "no-store",
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const data = (await res.json()) as DeptBulletinResponse;
     if (!res.ok || !data.ok) {
-      throw new Error(data.error || "초등1부 주보 목록을 불러오지 못했습니다");
+      throw new Error(data.error || `${name} 주보 목록을 불러오지 못했습니다`);
     }
     setItems(data.items || []);
     setSelected(data.latest || data.items?.[0] || null);
@@ -80,9 +82,17 @@ export default function DepartmentBulletinPage() {
       if (!cancelled) setAuthChecked(true);
 
       try {
-        await loadBulletins(session.access_token);
+        const { data: deptInfo, error: deptError } = await supabase.rpc("get_department_info", { p_dept_id: deptId });
+        const info = deptInfo && deptInfo[0];
+        if (deptError || !info?.name) {
+          throw new Error("부서 정보를 불러오지 못했습니다");
+        }
+        if (cancelled) return;
+        setDeptName(info.name);
+        setDeptCategory(info.category || "");
+        await loadBulletins(session.access_token, info.name);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "초등1부 주보 목록을 불러오지 못했습니다");
+        if (!cancelled) setError(e instanceof Error ? e.message : "주보 목록을 불러오지 못했습니다");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -91,7 +101,8 @@ export default function DepartmentBulletinPage() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, deptId]);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -101,9 +112,18 @@ export default function DepartmentBulletinPage() {
         router.replace("/login");
         return;
       }
-      await loadBulletins(session.access_token);
+      let name = deptName;
+      if (!name) {
+        const { data: deptInfo } = await supabase.rpc("get_department_info", { p_dept_id: deptId });
+        const info = deptInfo && deptInfo[0];
+        if (!info?.name) throw new Error("부서 정보를 불러오지 못했습니다");
+        name = info.name;
+        setDeptName(info.name);
+        setDeptCategory(info.category || "");
+      }
+      await loadBulletins(session.access_token, name);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "초등1부 주보 목록을 불러오지 못했습니다");
+      setError(e instanceof Error ? e.message : "주보 목록을 불러오지 못했습니다");
     } finally {
       setRefreshing(false);
     }
@@ -128,7 +148,7 @@ export default function DepartmentBulletinPage() {
           </button>
           <HeaderLogo />
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={eyebrowStyle}>교육사역국 · 초등1부</div>
+            <div style={eyebrowStyle}>{[deptCategory, deptName].filter(Boolean).join(" · ") || "부서 주보"}</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
               <h1 style={titleStyle}>주보 보기</h1>
               {latest && formatMonthDay(latest.issue_date) && (
@@ -155,7 +175,7 @@ export default function DepartmentBulletinPage() {
             <button type="button" onClick={refresh} style={primaryButtonStyle}>다시 불러오기</button>
           </div>
         ) : loading ? (
-          <div style={loadingPanelStyle}>최신 초등1부 주보 확인 중...</div>
+          <div style={loadingPanelStyle}>{`최신 ${deptName || "부서"} 주보 확인 중...`}</div>
         ) : latest ? (
           <>
             <section style={pdfFrameWrapStyle}>
@@ -170,7 +190,7 @@ export default function DepartmentBulletinPage() {
               <div style={listOverlayStyle} onClick={() => setShowList(false)}>
                 <div style={listStyle} onClick={(e) => e.stopPropagation()}>
                   <div style={listHeaderRowStyle}>
-                    <span style={sectionTitleTextStyle}>초등1부 주보 목록</span>
+                    <span style={sectionTitleTextStyle}>{`${deptName || "부서"} 주보 목록`}</span>
                     <button type="button" onClick={() => setShowList(false)} aria-label="닫기" style={listCloseStyle}>
                       <X size={18} strokeWidth={1.9} />
                     </button>
@@ -206,7 +226,7 @@ export default function DepartmentBulletinPage() {
           </>
         ) : (
           <div style={emptyStyle}>
-            <div style={emptyTitleStyle}>표시할 초등1부 주보가 없습니다</div>
+            <div style={emptyTitleStyle}>{`표시할 ${deptName || "부서"} 주보가 없습니다`}</div>
             <button type="button" onClick={refresh} style={primaryButtonStyle}>다시 불러오기</button>
           </div>
         )}
