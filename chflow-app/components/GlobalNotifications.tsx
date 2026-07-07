@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { MessagesSquare } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
@@ -50,6 +50,25 @@ export default function GlobalNotifications() {
       listener.subscription.unsubscribe();
     };
   }, []);
+
+  // 일일 방문 기록 — 홈뿐 아니라 어떤 경로(푸시 딥링크·즐겨찾기)로 들어와도 집계.
+  // KST 날짜가 바뀔 때만 호출 (RPC 자체도 하루 1회 upsert라 중복 무해)
+  const lastVisitLogRef = useRef("");
+  useEffect(() => {
+    if (!userId) return;
+    const logVisit = () => {
+      const kstDate = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+      if (lastVisitLogRef.current === kstDate) return;
+      lastVisitLogRef.current = kstDate;
+      supabase.rpc("log_daily_visit").then(() => {});
+    };
+    logVisit();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") logVisit();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [userId]);
 
   if (hidden || !userId) return null;
 

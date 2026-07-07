@@ -116,8 +116,7 @@ export default function HomePage() {
       setUser(profile);
       setAuthChecked(true);
 
-      // 일일 방문 기록 (하루 1회 upsert, 실패해도 무시)
-      supabase.rpc("log_daily_visit").then(() => {});
+      // 일일 방문 기록은 GlobalNotifications(전역)에서 처리 — 어떤 경로로 들어와도 집계됨
 
       const [{ data: depts }, { data: photos }] = await Promise.all([
         supabase.rpc("get_my_departments"),

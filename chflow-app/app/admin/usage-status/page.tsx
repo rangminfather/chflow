@@ -68,6 +68,8 @@ export default function AdminUsageStatusPage() {
   const [deptLoading, setDeptLoading] = useState(false);
   const [weekly, setWeekly] = useState<WeeklyRow[]>([]);
   const [dbHealth, setDbHealth] = useState<DbHealth | null>(null);
+  // 모바일: 막대 탭으로 날짜·인원 확인 (hover 불가 대응)
+  const [selectedVisit, setSelectedVisit] = useState<VisitRow | null>(null);
 
   const loadDeptActivity = useCallback(async (y: number, m: number) => {
     setDeptLoading(true);
@@ -88,7 +90,8 @@ export default function AdminUsageStatusPage() {
         .select("role")
         .eq("id", user.id)
         .maybeSingle();
-      if (profile?.role !== "admin") {
+      // 홈 관리자 메뉴 노출 범위와 동일 (admin·행정원·목사)
+      if (!["admin", "office", "pastor"].includes(profile?.role || "")) {
         router.replace("/home");
         return;
       }
@@ -172,25 +175,44 @@ export default function AdminUsageStatusPage() {
                 <Users size={15} strokeWidth={2} /> 최근 30일 일일 방문자
               </div>
               <div className="flex h-28 items-end gap-[2px]">
-                {visits.map((v) => (
-                  <div key={v.visit_date} className="group relative flex-1">
-                    <div
-                      className="w-full rounded-t"
-                      style={{
-                        height: `${Math.round((v.visitors / maxVisitors) * 100)}%`,
-                        minHeight: v.visitors > 0 ? 3 : 1,
-                        background: v.visitors > 0 ? "var(--accent)" : "var(--hairline)",
-                      }}
-                    />
-                    <div className="pointer-events-none absolute -top-7 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded bg-ink px-1.5 py-0.5 text-[10px] font-bold text-white group-hover:block">
-                      {shortDate(v.visit_date)} · {v.visitors}명
-                    </div>
-                  </div>
-                ))}
+                {visits.map((v) => {
+                  const selected = selectedVisit?.visit_date === v.visit_date;
+                  return (
+                    <button
+                      key={v.visit_date}
+                      type="button"
+                      aria-label={`${shortDate(v.visit_date)} 방문자 ${v.visitors}명`}
+                      onClick={() => setSelectedVisit(selected ? null : v)}
+                      className="group relative h-full flex-1 cursor-pointer border-0 bg-transparent p-0"
+                      style={{ display: "flex", alignItems: "flex-end" }}
+                    >
+                      <div
+                        className="w-full rounded-t"
+                        style={{
+                          height: `${Math.round((v.visitors / maxVisitors) * 100)}%`,
+                          minHeight: v.visitors > 0 ? 3 : 1,
+                          background: selected ? "var(--accent-strong)" : v.visitors > 0 ? "var(--accent)" : "var(--hairline)",
+                          outline: selected ? "1.5px solid var(--accent-strong)" : "none",
+                        }}
+                      />
+                      <div
+                        className="pointer-events-none absolute -top-7 left-1/2 hidden -translate-x-1/2 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold group-hover:block"
+                        style={{ background: "var(--ink)", color: "var(--bg)" }}
+                      >
+                        {shortDate(v.visit_date)} · {v.visitors}명
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
               <div className="mt-1 flex justify-between text-[11px] font-bold text-ink-faint">
                 <span>{visits[0] ? shortDate(visits[0].visit_date) : ""}</span>
                 <span>{visits.length > 0 ? shortDate(visits[visits.length - 1].visit_date) : ""}</span>
+              </div>
+              <div className="mt-2 rounded-md bg-bg-soft px-3 py-2 text-[12px] font-bold text-ink-soft">
+                {selectedVisit
+                  ? `${shortDate(selectedVisit.visit_date)} 방문자 ${selectedVisit.visitors}명`
+                  : "막대를 누르면 날짜별 방문자 수가 표시됩니다"}
               </div>
             </div>
 
