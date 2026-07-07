@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
@@ -44,7 +45,11 @@ type DirectoryMember = DirectoryPerson & {
 
 type ProfileMember = DirectoryPerson & {
   address: string | null;
+  birth_date?: string | null;
   household_home_phone?: string | null;
+  has_app_account?: boolean | null;
+  app_status?: string | null;
+  app_username?: string | null;
 };
 
 type RelatedMember = {
@@ -120,6 +125,26 @@ function displayText(value: string | null | boolean | undefined, fallback = "없
   if (typeof value === "boolean") return value ? "예" : "아니오";
   const text = String(value ?? "").trim();
   return text || fallback;
+}
+
+function appAccountLabel(member: ProfileMember) {
+  if (!member.has_app_account) return "앱 미가입";
+  if (member.app_status === "active") return "앱 가입";
+  if (member.app_status === "pending") return "가입 대기";
+  if (member.app_status === "inactive") return "비활성";
+  if (member.app_status === "rejected") return "가입 거절";
+  return "앱 계정 있음";
+}
+
+function appAccountTone(member: ProfileMember) {
+  if (member.app_status === "active") return { bg: "var(--success-soft)", color: "var(--success)" };
+  if (member.has_app_account) return { bg: "var(--warning-soft)", color: "var(--warning)" };
+  return { bg: "var(--hairline)", color: "var(--ink-soft)" };
+}
+
+function appAccountDetail(member: ProfileMember) {
+  const label = appAccountLabel(member);
+  return member.app_username ? `${label} · ${member.app_username}` : label;
 }
 
 function genderText(value: string | null | undefined) {
@@ -279,6 +304,7 @@ export default function DirectoryPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isAdmin = !!user && ["admin", "office", "pastor"].includes(user.role);
+  const canQuickEdit = !!user && user.role === "admin";
 
   function hasSearchCriteria(
     nextQuery = query,
@@ -468,7 +494,7 @@ export default function DirectoryPage() {
       {selectedId && (
         <DirectoryProfileModal
           memberId={selectedId}
-          isAdmin={isAdmin}
+          canQuickEdit={canQuickEdit}
           onClose={() => setSelectedId(null)}
           onNavigate={setSelectedId}
           onChanged={() => {
@@ -482,18 +508,17 @@ export default function DirectoryPage() {
 
 function DirectoryProfileModal({
   memberId,
-  isAdmin,
+  canQuickEdit,
   onClose,
   onNavigate,
   onChanged,
 }: {
   memberId: string;
-  isAdmin: boolean;
+  canQuickEdit: boolean;
   onClose: () => void;
   onNavigate: (id: string) => void;
   onChanged: () => void;
 }) {
-  const router = useRouter();
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [quickEditOpen, setQuickEditOpen] = useState(false);
@@ -539,12 +564,14 @@ function DirectoryProfileModal({
   const relations = [...(data.relations || []), ...(data.descendants || [])];
 
   function openQuickEdit() {
+    if (!canQuickEdit) return;
     setQuickEditDraft(emptyQuickEditDraft);
     setPendingChanges(null);
     setQuickEditOpen(true);
   }
 
   function handlePreviewQuickEdit() {
+    if (!canQuickEdit) return;
     const changes = buildQuickEditChanges(member, quickEditDraft);
     if (changes.length === 0) {
       alert("변경할 값이 없습니다. 비워둔 항목은 기존 값을 유지합니다.");
@@ -554,6 +581,7 @@ function DirectoryProfileModal({
   }
 
   async function applyQuickEdit() {
+    if (!canQuickEdit) return;
     if (!pendingChanges || pendingChanges.length === 0) return;
     const next = new Map(pendingChanges.map((change) => [change.key, change.nextValue]));
 
@@ -603,20 +631,26 @@ function DirectoryProfileModal({
             <div style={profileNameStyle}>
               {member.name}
               {member.is_child && <span style={tagStyle("var(--warning-soft)", "var(--warning)")}>자녀</span>}
+              {(() => {
+                const tone = appAccountTone(member);
+                return <span style={tagStyle(tone.bg, tone.color)}>{appAccountLabel(member)}</span>;
+              })()}
             </div>
             <div style={profileMetaStyle}>{member.sub_role || "직분 미지정"} · {member.family_church || "목원"}</div>
+            <InfoLine label="앱" value={appAccountDetail(member)} />
             <InfoLine
               label="연락처"
               value={member.phone || member.home_phone || member.household_home_phone || "없음"}
               phoneActions={member.phone || undefined}
             />
             <InfoLine label="배우자" value={member.spouse_name || "없음"} />
+            {member.birth_date && <InfoLine label="생년월일" value={member.birth_date} />}
             <InfoLine label="소속" value={locationText(member)} />
             {member.address && <InfoLine label="주소" value={member.address} />}
           </div>
         </div>
 
-        {isAdmin && (
+        {canQuickEdit && (
           <div style={adminQuickEditWrapStyle}>
             <div style={adminQuickEditHeadStyle}>
               <div>
@@ -718,19 +752,6 @@ function DirectoryProfileModal({
                 </div>
               </div>
             )}
-          <button
-            style={{ ...ghostButtonStyle, width: "100%" }}
-            onClick={() => {
-              const params = new URLSearchParams({ q: member.name });
-              if (member.plain_name) params.set("plain", member.plain_name);
-              if (member.grassland_name) params.set("grassland", member.grassland_name);
-              if (member.pasture_name) params.set("pasture", member.pasture_name);
-              router.push(`/admin/members?${params.toString()}`);
-              onClose();
-            }}
-          >
-            관리자 수정 화면으로 이동
-          </button>
           </div>
         )}
 
@@ -818,7 +839,14 @@ function Avatar({ member, size }: { member: { name: string; photo_url: string | 
       fontWeight: 800,
     }}>
       {member.photo_url ? (
-        <img src={photoThumb(member.photo_url, size > 64 ? 256 : 128)} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <Image
+          src={photoThumb(member.photo_url, size > 64 ? 256 : 128)}
+          alt=""
+          width={size}
+          height={size}
+          sizes={`${size}px`}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
       ) : (
         <span>{member.name.slice(0, 1)}</span>
       )}

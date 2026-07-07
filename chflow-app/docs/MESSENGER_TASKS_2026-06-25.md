@@ -175,23 +175,28 @@ Current implementation:
 - Replaced remaining native `window.confirm` usage in messenger group management with the app confirm dialog.
 - Composer supports paste/drop attachments and realtime typing state.
 - Added message copy action and automatic link rendering for `http`/`https` URLs.
+- Confirmed first PC/web messenger release with real accounts `clyawy` and `sunsetrome` on 2026-07-07.
+- Added long-file-name handling, compact attachment metadata, and larger image preview metadata display.
+- Operating policy is recorded in `docs/MESSENGER_OPERATING_POLICY.md`.
 
 Tasks:
 
-- Improve image preview:
-  - larger preview modal
-  - next/previous image navigation
-  - download action
-- Improve file preview metadata.
-- Add message pagination or infinite scroll for older rooms.
-- Add empty/loading/error states for group management actions.
-- Replace remaining browser `window.confirm` usage inside messenger with the app confirm dialog.
-- Add mobile-specific QA for long names, long messages, many attachments, and small screens.
+- Optional later: add next/previous image navigation inside the image preview.
+- Optional later: add attachment cleanup job visibility for admins.
+- Optional later: add mobile-specific regression screenshots for long names, long messages, many attachments, and small screens.
 
 Exit criteria:
 
 - Long conversations remain usable.
 - Common mobile layouts do not overlap or truncate critical controls.
+
+## Operating Policy - 2026-07-07
+
+- Messenger attachments are retained for 30 days and then removed by `/api/cron/storage-cleanup`.
+- Attachment storage remains private and must be accessed through participant-checked app proxy routes.
+- Reports stay in the audit log. Reviewers use `reviewing`, then `resolved` or `dismissed` with a short decision note.
+- Severe abuse/privacy/safety reports should be escalated to church leadership before deleting or hiding evidence.
+- See `docs/MESSENGER_OPERATING_POLICY.md` for the standing policy.
 
 ## Phase 5 - Commercial Messenger Gap Features
 

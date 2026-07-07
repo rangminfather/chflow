@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { supabase, formatPhone } from "@/lib/supabase";
 import ModalBackdrop from "./ModalBackdrop";
 import { ArrowLeft, Camera, Trash2, Baby, Phone, MapPin, Home, Pencil, Users, User, Lightbulb, MessageCircle, PhoneCall } from "lucide-react";
@@ -27,6 +27,10 @@ interface MemberProfile {
   grassland_name: string | null;
   pasture_name: string | null;
   address: string | null;
+  birth_date: string | null;
+  has_app_account?: boolean | null;
+  app_status?: string | null;
+  app_username?: string | null;
 }
 
 interface RelationItem {
@@ -71,8 +75,27 @@ const ROLE_LABELS: Record<string, string> = {
   brother: "형제", sister: "자매",
 };
 
+function appAccountLabel(member: MemberProfile) {
+  if (!member.has_app_account) return "앱 미가입";
+  if (member.app_status === "active") return "앱 가입";
+  if (member.app_status === "pending") return "가입 대기";
+  if (member.app_status === "inactive") return "비활성";
+  if (member.app_status === "rejected") return "가입 거절";
+  return "앱 계정 있음";
+}
+
+function appAccountTone(member: MemberProfile) {
+  if (member.app_status === "active") return { background: "var(--success-soft)", color: "var(--success)" };
+  if (member.has_app_account) return { background: "var(--warning-soft)", color: "var(--warning)" };
+  return { background: "var(--hairline)", color: "var(--ink-soft)" };
+}
+
+function appAccountDetail(member: MemberProfile) {
+  const label = appAccountLabel(member);
+  return member.app_username ? `${label} · ${member.app_username}` : label;
+}
+
 export default function MemberCardModal({ memberId, onClose, onChanged }: Props) {
-  const router = useRouter();
   // 성도 카드 내부 네비게이션 히스토리 (마지막 원소 = 현재 보는 member)
   const [stack, setStack] = useState<string[]>([memberId]);
   const currentId = stack[stack.length - 1];
@@ -119,15 +142,6 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   }, [currentId]);
 
   useEffect(() => { load(); }, [load]);
-
-  const goToPasture = () => {
-    if (!data?.member?.pasture_name) return;
-    const pn = encodeURIComponent(data.member.pasture_name);
-    const pl = data.member.plain_name ? `&plain=${encodeURIComponent(data.member.plain_name)}` : "";
-    const gr = data.member.grassland_name ? `&grassland=${encodeURIComponent(data.member.grassland_name)}` : "";
-    router.push(`/admin/members?pasture=${pn}${pl}${gr}`);
-    onClose();
-  };
 
   const handlePhotoUpload = async (file: File) => {
     setUploading(true);
@@ -253,7 +267,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>
                 {photoUrl
-                  ? <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ? <Image src={photoUrl} alt="" width={140} height={140} sizes="140px" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   : <div style={{ color: "var(--hairline-strong)", display: "flex", alignItems: "center", justifyContent: "center" }}><User size={56} strokeWidth={1.4} /></div>}
               </div>
               <button onClick={() => fileRef.current?.click()} disabled={uploading || deletingPhoto} style={{
@@ -314,6 +328,9 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                 <>
                   <div style={{ fontSize: 24, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
                     {m.name}
+                    <span style={{ fontSize: 11, marginLeft: 8, padding: "2px 7px", borderRadius: 999, fontWeight: 800, ...appAccountTone(m) }}>
+                      {appAccountLabel(m)}
+                    </span>
                     {m.gender && <span style={{ fontSize: 12, color: genderColor, marginLeft: 8 }}>{m.gender === "M" ? "♂ 남" : "♀ 여"}</span>}
                     {m.is_child && <span style={{ fontSize: 12, color: "var(--warning)", marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 4 }}><Baby size={14} strokeWidth={1.8} /> 자녀</span>}
                   </div>
@@ -335,16 +352,14 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                       </span>
                     )}
                   </div>
+                  <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <span>앱: <strong style={{ color: "var(--ink-mid)" }}>{appAccountDetail(m)}</strong></span>
+                    {m.birth_date && <span>생년월일: <strong style={{ color: "var(--ink-mid)" }}>{m.birth_date}</strong></span>}
+                  </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
                     <div style={{ fontSize: 12, color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", gap: 6 }}>
                       <MapPin size={14} strokeWidth={1.8} /> <span>{m.plain_name ? `${m.plain_name}평원 · ${m.grassland_name}초원 · ` : ""}<strong>{m.pasture_name || "소속 없음"}</strong> 목장</span>
                     </div>
-                    {m.pasture_name && (
-                      <button onClick={goToPasture} title="이 목장 전체 회원 보기"
-                        style={{ fontSize: 10, padding: "2px 8px", background: "var(--accent-soft)", color: "var(--accent-strong)", border: "none", borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontWeight: 700 }}>
-                        목장 전체 →
-                      </button>
-                    )}
                   </div>
                   {m.address && <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 4, display: "inline-flex", alignItems: "center", gap: 6 }}><Home size={13} strokeWidth={1.8} /> {m.address}</div>}
                 </>
@@ -475,7 +490,7 @@ function MemberChip({ name, photoUrl, subtitle, onClick }: { name: string; photo
       onMouseOver={(e) => { if (onClick) { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--accent-soft)"; } }}
       onMouseOut={(e) => { e.currentTarget.style.borderColor = "var(--hairline)"; e.currentTarget.style.background = "var(--card)"; }}>
       <div style={{ width: 28, height: 28, borderRadius: "50%", overflow: "hidden", background: "var(--hairline)", flexShrink: 0 }}>
-        {photoUrl && <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+        {photoUrl && <Image src={photoUrl} alt="" width={28} height={28} sizes="28px" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
       </div>
       <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>{name}</div>
@@ -498,7 +513,7 @@ function RelationRow({ relation, reversed, onRemove, onClick }: { relation: Rela
       onMouseOver={(e) => { if (onClick) { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--accent-soft)"; } }}
       onMouseOut={(e) => { e.currentTarget.style.borderColor = "var(--hairline)"; e.currentTarget.style.background = "var(--card)"; }}>
       <div style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", background: "var(--hairline)", flexShrink: 0 }}>
-        {relation.photo_url && <img src={relation.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+        {relation.photo_url && <Image src={relation.photo_url} alt="" width={40} height={40} sizes="40px" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
@@ -566,7 +581,7 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
       });
       if (data && data[0]) { setKind(data[0].kind); setRole(data[0].role || ""); }
     })();
-  }, [selected, subjectId]);
+  }, [kind, selected, subjectId]);
 
   const submit = async () => {
     if (!selected) return;
@@ -654,7 +669,7 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
                       background: "var(--surface)", borderRadius: 10, border: "1px solid var(--hairline)", cursor: "pointer",
                     }}>
                       <div style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", background: "var(--hairline)", flexShrink: 0 }}>
-                        {c.photo_url && <img src={c.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                        {c.photo_url && <Image src={c.photo_url} alt="" width={40} height={40} sizes="40px" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
@@ -677,7 +692,7 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
             <>
               <div style={{ padding: 12, background: "var(--accent-soft)", borderRadius: 10, marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 44, height: 44, borderRadius: "50%", overflow: "hidden", background: "var(--accent-soft)" }}>
-                  {selected.photo_url && <img src={selected.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                  {selected.photo_url && <Image src={selected.photo_url} alt="" width={44} height={44} sizes="44px" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{selected.name} {selected.phone && <span style={{ color: "var(--ink-soft)", fontWeight: 400, fontSize: 11 }}>({selected.phone})</span>}</div>

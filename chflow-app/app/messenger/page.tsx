@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/ConfirmDialog";
 import {
@@ -1371,8 +1372,16 @@ function AttachmentList({
                 onPreviewImage(a, url);
               }}
               style={imageAttachmentButtonStyle}
+              title={`${a.file_name}${formatAttachmentMeta(a) ? ` · ${formatAttachmentMeta(a)}` : ""}`}
             >
-              <img src={url} alt={a.file_name} style={imageAttachmentStyle} />
+              <Image
+                src={url}
+                alt={a.file_name}
+                width={320}
+                height={220}
+                unoptimized
+                style={imageAttachmentStyle}
+              />
             </button>
           );
         }
@@ -1382,6 +1391,7 @@ function AttachmentList({
             href={url}
             target="_blank"
             rel="noreferrer"
+            title={`${a.file_name}${formatAttachmentMeta(a) ? ` · ${formatAttachmentMeta(a)}` : ""}`}
             style={{
               ...fileAttachmentStyle,
               background: mine ? "rgba(255,255,255,0.14)" : "var(--bg-soft)",
@@ -1389,8 +1399,8 @@ function AttachmentList({
             }}
           >
             <FileText size={17} strokeWidth={1.8} style={{ flexShrink: 0 }} />
-            <span style={oneLineStyle}>{a.file_name}</span>
-            <span style={{ opacity: 0.78 }}>{formatBytes(a.size_bytes)}</span>
+            <span style={fileNameStyle}>{a.file_name}</span>
+            <span style={fileMetaStyle}>{formatAttachmentMeta(a)}</span>
           </a>
         );
       })}
@@ -1417,7 +1427,12 @@ function ImagePreviewModal({
     <div onClick={onClose} style={imagePreviewOverlayStyle}>
       <div onClick={(event) => event.stopPropagation()} style={imagePreviewShellStyle}>
         <div style={imagePreviewHeaderStyle}>
-          <div style={{ ...oneLineStyle, fontWeight: 900 }}>{preview.attachment.file_name}</div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={previewFileNameStyle}>{preview.attachment.file_name}</div>
+            {formatAttachmentMeta(preview.attachment) && (
+              <div style={previewMetaStyle}>{formatAttachmentMeta(preview.attachment)}</div>
+            )}
+          </div>
           <div style={{ display: "flex", gap: 8 }}>
             <a href={preview.url} download={preview.attachment.file_name} target="_blank" rel="noreferrer" style={previewActionStyle} title="다운로드">
               <Download size={17} strokeWidth={2} />
@@ -1427,7 +1442,16 @@ function ImagePreviewModal({
             </button>
           </div>
         </div>
-        <img src={preview.url} alt={preview.attachment.file_name} style={imagePreviewStyle} />
+        <div style={imagePreviewImageFrameStyle}>
+          <Image
+            src={preview.url}
+            alt={preview.attachment.file_name}
+            fill
+            sizes="100vw"
+            unoptimized
+            style={imagePreviewStyle}
+          />
+        </div>
       </div>
     </div>
   );
@@ -1489,7 +1513,11 @@ function Composer({
         <div style={pendingAttachmentWrapStyle}>
           {attachments.map((a) => (
             <div key={a.file_path} style={pendingAttachmentStyle}>
-              {a.local_url ? <img src={a.local_url} alt="" style={pendingThumbStyle} /> : <FileText size={17} />}
+              {a.local_url ? (
+                <Image src={a.local_url} alt="" width={24} height={24} unoptimized style={pendingThumbStyle} />
+              ) : (
+                <FileText size={17} />
+              )}
               <span style={oneLineStyle}>{a.file_name}</span>
               <button
                 type="button"
@@ -2003,7 +2031,7 @@ function ForwardModal({
 
 function Avatar({ title, src }: { title: string; src?: string | null }) {
   const initial = (title || "M").trim().slice(0, 1).toUpperCase();
-  if (src) return <img src={src} alt="" style={avatarStyle} />;
+  if (src) return <Image src={src} alt="" width={42} height={42} unoptimized style={avatarStyle} />;
   return <div style={avatarFallbackStyle}>{initial}</div>;
 }
 
@@ -2031,6 +2059,15 @@ function formatBytes(bytes?: number | null): string {
   if (bytes < 1024) return `${bytes}B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+}
+
+function formatAttachmentMeta(attachment: MessengerAttachment): string {
+  const parts = [
+    attachment.mime_type?.split("/").pop()?.toUpperCase(),
+    attachment.width && attachment.height ? `${attachment.width}x${attachment.height}` : "",
+    formatBytes(attachment.size_bytes),
+  ].filter(Boolean);
+  return parts.join(" · ");
 }
 
 function roleLabel(role: string | null): string {
@@ -2203,11 +2240,16 @@ const reactionButtonStyle: React.CSSProperties = { minWidth: 42, height: 25, bor
 const imageAttachmentButtonStyle: React.CSSProperties = { display: "block", width: "fit-content", maxWidth: "100%", border: "none", background: "transparent", padding: 0, cursor: "zoom-in", borderRadius: 8, overflow: "hidden" };
 const imageAttachmentStyle: React.CSSProperties = { display: "block", maxWidth: "min(320px, 60vw)", maxHeight: 260, borderRadius: 8, objectFit: "cover", border: "1px solid rgba(255,255,255,0.18)" };
 const fileAttachmentStyle: React.CSSProperties = { minWidth: 0, width: "min(320px, 68vw)", maxWidth: "100%", boxSizing: "border-box", minHeight: 42, borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 8, textDecoration: "none", fontSize: 12, fontWeight: 800 };
+const fileNameStyle: React.CSSProperties = { minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const fileMetaStyle: React.CSSProperties = { flexShrink: 0, maxWidth: "42%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.78 };
 const imagePreviewOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 260, background: "rgba(15, 13, 11, 0.82)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14 };
-const imagePreviewShellStyle: React.CSSProperties = { width: "min(1040px, 100%)", maxHeight: "calc(100dvh - 28px)", display: "flex", flexDirection: "column", gap: 10 };
-const imagePreviewHeaderStyle: React.CSSProperties = { minHeight: 42, borderRadius: 8, background: "rgba(255,255,255,0.08)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "0 8px 0 12px", fontSize: 13 };
+const imagePreviewShellStyle: React.CSSProperties = { width: "min(1180px, 100%)", maxHeight: "calc(100dvh - 28px)", display: "flex", flexDirection: "column", gap: 10 };
+const imagePreviewHeaderStyle: React.CSSProperties = { minHeight: 48, borderRadius: 8, background: "rgba(255,255,255,0.08)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "7px 8px 7px 12px", fontSize: 13 };
+const previewFileNameStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 900 };
+const previewMetaStyle: React.CSSProperties = { marginTop: 2, fontSize: 11, color: "rgba(255,255,255,0.72)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const previewActionStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: 8, border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.08)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
-const imagePreviewStyle: React.CSSProperties = { maxWidth: "100%", maxHeight: "calc(100dvh - 92px)", objectFit: "contain", borderRadius: 8, alignSelf: "center", boxShadow: "0 22px 70px rgba(0,0,0,0.28)" };
+const imagePreviewImageFrameStyle: React.CSSProperties = { position: "relative", width: "100%", height: "calc(100dvh - 86px)", minHeight: 240, borderRadius: 8, overflow: "hidden", alignSelf: "center", boxShadow: "0 22px 70px rgba(0,0,0,0.28)" };
+const imagePreviewStyle: React.CSSProperties = { objectFit: "contain" };
 const oneLineStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const composerStyle: React.CSSProperties = { padding: "12px 12px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: "1px solid var(--hairline)", background: "color-mix(in srgb, var(--card) 92%, transparent)", backdropFilter: "blur(10px)", display: "grid", gap: 8, flexShrink: 0 };
 const composerContextStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, border: "1px solid var(--hairline)", background: "var(--accent-soft)", borderRadius: 8, padding: "7px 8px" };
