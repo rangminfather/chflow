@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import Image from "next/image";
 import { supabase, formatPhone } from "@/lib/supabase";
 import ModalBackdrop from "./ModalBackdrop";
 import { ArrowLeft, Camera, Trash2, Baby, Phone, MapPin, Home, Pencil, Users, User, Lightbulb, MessageCircle, PhoneCall } from "lucide-react";
@@ -267,7 +266,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>
                 {photoUrl
-                  ? <Image src={photoUrl} alt="" width={140} height={140} sizes="140px" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ? <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   : <div style={{ color: "var(--hairline-strong)", display: "flex", alignItems: "center", justifyContent: "center" }}><User size={56} strokeWidth={1.4} /></div>}
               </div>
               <button onClick={() => fileRef.current?.click()} disabled={uploading || deletingPhoto} style={{
@@ -490,7 +489,7 @@ function MemberChip({ name, photoUrl, subtitle, onClick }: { name: string; photo
       onMouseOver={(e) => { if (onClick) { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--accent-soft)"; } }}
       onMouseOut={(e) => { e.currentTarget.style.borderColor = "var(--hairline)"; e.currentTarget.style.background = "var(--card)"; }}>
       <div style={{ width: 28, height: 28, borderRadius: "50%", overflow: "hidden", background: "var(--hairline)", flexShrink: 0 }}>
-        {photoUrl && <Image src={photoUrl} alt="" width={28} height={28} sizes="28px" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+        {photoUrl && <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
       </div>
       <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>{name}</div>
@@ -513,7 +512,7 @@ function RelationRow({ relation, reversed, onRemove, onClick }: { relation: Rela
       onMouseOver={(e) => { if (onClick) { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--accent-soft)"; } }}
       onMouseOut={(e) => { e.currentTarget.style.borderColor = "var(--hairline)"; e.currentTarget.style.background = "var(--card)"; }}>
       <div style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", background: "var(--hairline)", flexShrink: 0 }}>
-        {relation.photo_url && <Image src={relation.photo_url} alt="" width={40} height={40} sizes="40px" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+        {relation.photo_url && <img src={relation.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
@@ -669,7 +668,7 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
                       background: "var(--surface)", borderRadius: 10, border: "1px solid var(--hairline)", cursor: "pointer",
                     }}>
                       <div style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", background: "var(--hairline)", flexShrink: 0 }}>
-                        {c.photo_url && <Image src={c.photo_url} alt="" width={40} height={40} sizes="40px" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                        {c.photo_url && <img src={c.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
@@ -692,7 +691,7 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
             <>
               <div style={{ padding: 12, background: "var(--accent-soft)", borderRadius: 10, marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 44, height: 44, borderRadius: "50%", overflow: "hidden", background: "var(--accent-soft)" }}>
-                  {selected.photo_url && <Image src={selected.photo_url} alt="" width={44} height={44} sizes="44px" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                  {selected.photo_url && <img src={selected.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{selected.name} {selected.phone && <span style={{ color: "var(--ink-soft)", fontWeight: 400, fontSize: 11 }}>({selected.phone})</span>}</div>

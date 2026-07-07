@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
@@ -839,14 +838,7 @@ function Avatar({ member, size }: { member: { name: string; photo_url: string | 
       fontWeight: 800,
     }}>
       {member.photo_url ? (
-        <Image
-          src={photoThumb(member.photo_url, size > 64 ? 256 : 128)}
-          alt=""
-          width={size}
-          height={size}
-          sizes={`${size}px`}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        />
+        <img src={photoThumb(member.photo_url, size > 64 ? 256 : 128) ?? undefined} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
         <span>{member.name.slice(0, 1)}</span>
       )}
