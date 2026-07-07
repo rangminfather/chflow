@@ -6,6 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 import { List, RefreshCw, X } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import PdfCanvasViewer from "@/components/PdfCanvasViewer";
+import PptxCanvasViewer from "@/components/PptxCanvasViewer";
+import HwpPreviewViewer from "@/components/HwpPreviewViewer";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
 
@@ -17,6 +19,9 @@ type DeptBulletinItem = {
   author: string | null;
   url: string;
   pdf_url: string;
+  file_name: string | null;
+  file_kind: "pdf" | "pptx" | "hwp" | "unknown";
+  file_url: string;
   stored: boolean;
 };
 
@@ -179,11 +184,26 @@ export default function DepartmentBulletinPage() {
         ) : latest ? (
           <>
             <section style={pdfFrameWrapStyle}>
-              <PdfCanvasViewer
-                key={latest.pdf_url}
-                url={latest.pdf_url}
-                fallbackUrl={latest.url}
-              />
+              {latest.file_kind === "pptx" && latest.file_url ? (
+                <PptxCanvasViewer
+                  key={latest.file_url}
+                  url={latest.file_url}
+                  fallbackUrl={latest.url}
+                />
+              ) : latest.file_kind === "hwp" && latest.file_url ? (
+                <HwpPreviewViewer
+                  key={latest.file_url}
+                  previewUrl={`${latest.file_url}&as=hwp-preview`}
+                  downloadUrl={latest.file_url}
+                  fallbackUrl={latest.url}
+                />
+              ) : (
+                <PdfCanvasViewer
+                  key={latest.pdf_url}
+                  url={latest.pdf_url}
+                  fallbackUrl={latest.url}
+                />
+              )}
             </section>
 
             {showList && (

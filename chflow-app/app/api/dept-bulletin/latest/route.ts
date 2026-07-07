@@ -8,6 +8,8 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 export const preferredRegion = "icn1";
 
+type DeptFileKind = "pdf" | "pptx" | "hwp" | "unknown";
+
 type DeptBulletinItem = {
   no: number;
   title: string;
@@ -16,6 +18,11 @@ type DeptBulletinItem = {
   author: string | null;
   url: string;
   pdf_url: string;
+  // 첨부파일 정보 — 부서마다 PDF/PPTX/HWP 로 올려 뷰어가 달라짐 (2026-07 실측:
+  // 초등1부·유아부=pdf, 유치부·청소년부=pptx, 초등2부=hwp)
+  file_name: string | null;
+  file_kind: DeptFileKind;
+  file_url: string;
   stored: boolean;
 };
 
@@ -28,8 +35,10 @@ type StoredBulletin = {
   created_at: string | null;
 };
 
+type ListedItem = Omit<DeptBulletinItem, "pdf_url" | "file_url">;
+
 type CacheValue = {
-  items: Omit<DeptBulletinItem, "pdf_url">[];
+  items: ListedItem[];
   expiresAt: number;
 };
 
@@ -198,8 +207,8 @@ function extractDateFromTitle(title: string, fallbackYear: number) {
   return null;
 }
 
-function parseBoardList(html: string): Omit<DeptBulletinItem, "pdf_url">[] {
-  const rows: Omit<DeptBulletinItem, "pdf_url">[] = [];
+function parseBoardList(html: string): ListedItem[] {
+  const rows: ListedItem[] = [];
   const rowRe = /<tr\b[^>]*>[\s\S]*?<\/tr>/gi;
 
   let rowMatch: RegExpExecArray | null;
@@ -231,6 +240,8 @@ function parseBoardList(html: string): Omit<DeptBulletinItem, "pdf_url">[] {
       posted_at: postedAt,
       author: authorMatch ? textFromHtml(authorMatch[1]) : null,
       url: hrefMatch ? absoluteSamusilUrl(decodeHtml(hrefMatch[1])) : `${VIEW_BASE}?id=samusil&no=${no}`,
+      file_name: null,
+      file_kind: "unknown",
       stored: false,
     });
   }
@@ -249,17 +260,46 @@ function metaContent(html: string, property: string) {
   return match ? decodeHtml(match[1]).trim() : null;
 }
 
-async function enrichFromPost(item: Omit<DeptBulletinItem, "pdf_url">): Promise<Omit<DeptBulletinItem, "pdf_url">> {
+function fileKindOf(fileName: string | null): DeptFileKind {
+  const ext = fileName?.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
+  if (ext === "pdf") return "pdf";
+  if (ext === "pptx") return "pptx";
+  if (ext === "hwp") return "hwp";
+  return "unknown";
+}
+
+// 게시글 본문에서 첨부파일명 추출 — m_download 링크 뒤에 <b>파일명.확장자</b> 형태
+function extractAttachmentName(html: string): string | null {
+  const match = html.match(/m_download\.php[^>]*>\s*(?:<b[^>]*>)?\s*([^<]+?\.(?:pdf|hwpx?|pptx?|docx?|xlsx?|zip|jpe?g|png))\s*</i);
+  return match ? decodeHtml(match[1]).trim() : null;
+}
+
+async function enrichFromPost(item: ListedItem): Promise<ListedItem> {
   try {
     const html = await fetchFirstEucKr([
       { name: "worker-post", url: DIRECT_POST_URL(item.no), viaWorker: `/bbs/zboard.php?id=samusil&no=${item.no}` },
       { name: "ums-fetch-post", url: PROXY_POST_URL(item.no) },
       { name: "direct-post", url: DIRECT_POST_URL(item.no), headers: BROWSER_HEADERS },
     ]);
+
+    const fileName = extractAttachmentName(html);
+    let fileKind = fileKindOf(fileName);
+    // 확장자를 못 읽었어도 PDF 미리보기 이미지(__pdf.jpg)가 있으면 PDF 첨부
+    if (fileKind === "unknown" && /data\/samusil\/\d+\/[a-f0-9]+__pdf\.jpg/i.test(html)) {
+      fileKind = "pdf";
+    }
+
     const ogTitle = metaContent(html, "og:title");
-    if (!ogTitle) return item;
-    const issueDate = extractDateFromTitle(ogTitle, yearFromPostedAt(item.posted_at)) || item.issue_date;
-    return { ...item, title: ogTitle, issue_date: issueDate };
+    const issueDate = ogTitle
+      ? extractDateFromTitle(ogTitle, yearFromPostedAt(item.posted_at)) || item.issue_date
+      : item.issue_date;
+    return {
+      ...item,
+      title: ogTitle || item.title,
+      issue_date: issueDate,
+      file_name: fileName,
+      file_kind: fileKind,
+    };
   } catch {
     return item;
   }
@@ -296,13 +336,15 @@ function signPdfUrl(no: number, expiresAt: number) {
   return createHmac("sha256", SIGNING_SECRET).update(`samusil:${no}:${expiresAt}`).digest("hex");
 }
 
-function withSignedPdfUrls(items: Omit<DeptBulletinItem, "pdf_url">[], origin: string): DeptBulletinItem[] {
+function withSignedPdfUrls(items: ListedItem[], origin: string): DeptBulletinItem[] {
   const expiresAt = Math.floor(Date.now() / 1000) + PDF_URL_TTL_SECONDS;
   return items.map((item) => {
     const sig = signPdfUrl(item.no, expiresAt);
+    const namePart = item.file_name ? `&name=${encodeURIComponent(item.file_name)}` : "";
     return {
       ...item,
       pdf_url: `${origin}/api/dept-bulletin/pdf?no=${item.no}&exp=${expiresAt}&sig=${sig}`,
+      file_url: `${origin}/api/dept-bulletin/file?no=${item.no}&exp=${expiresAt}&sig=${sig}${namePart}`,
     };
   });
 }
@@ -371,6 +413,9 @@ async function loadStoredItems(deptKey: string): Promise<DeptBulletinItem[]> {
       author: null,
       url: sourceNo ? `${VIEW_BASE}?id=samusil&no=${sourceNo}` : `${VIEW_BASE}?id=samusil`,
       pdf_url: signedUrl,
+      file_name: null,
+      file_kind: "pdf" as const,
+      file_url: "",
       stored: true,
     } satisfies DeptBulletinItem;
   }));
