@@ -8,7 +8,19 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 export const preferredRegion = "icn1";
 
-type DeptFileKind = "pdf" | "pptx" | "hwp" | "unknown";
+// 부서 주보 파일 유형 표준 체계 — 어떤 부서가 어떤 형식으로 올려도 유형별 뷰어가 대응한다.
+//  pdf → PDF 캔버스 뷰어 / pptx → 슬라이드 렌더링 / hwp → 본문 구조 리메이크 /
+//  image → 이미지 뷰어 / unknown → PDF 시도 후 원문 링크
+// 여러 첨부가 있으면 pdf > pptx > image > hwp 우선순위로 선택 (충실도 높은 쪽 우선).
+type DeptFileKind = "pdf" | "pptx" | "hwp" | "image" | "unknown";
+
+const FILE_KIND_PRIORITY: Record<DeptFileKind, number> = {
+  pdf: 4,
+  pptx: 3,
+  image: 2,
+  hwp: 1,
+  unknown: 0,
+};
 
 type DeptBulletinItem = {
   no: number;
@@ -18,10 +30,10 @@ type DeptBulletinItem = {
   author: string | null;
   url: string;
   pdf_url: string;
-  // 첨부파일 정보 — 부서마다 PDF/PPTX/HWP 로 올려 뷰어가 달라짐 (2026-07 실측:
-  // 초등1부·유아부=pdf, 유치부·청소년부=pptx, 초등2부=hwp)
+  // 선택된 첨부파일 (2026-07 실측: 초등1부·유아부=pdf, 유치부·청소년부=pptx, 초등2부=hwp)
   file_name: string | null;
   file_kind: DeptFileKind;
+  file_fn: number; // UMS 첨부 번호 (filenum)
   file_url: string;
   stored: boolean;
 };
@@ -242,6 +254,7 @@ function parseBoardList(html: string): ListedItem[] {
       url: hrefMatch ? absoluteSamusilUrl(decodeHtml(hrefMatch[1])) : `${VIEW_BASE}?id=samusil&no=${no}`,
       file_name: null,
       file_kind: "unknown",
+      file_fn: 0,
       stored: false,
     });
   }
@@ -265,13 +278,32 @@ function fileKindOf(fileName: string | null): DeptFileKind {
   if (ext === "pdf") return "pdf";
   if (ext === "pptx") return "pptx";
   if (ext === "hwp") return "hwp";
+  if (ext && ["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) return "image";
   return "unknown";
 }
 
-// 게시글 본문에서 첨부파일명 추출 — m_download 링크 뒤에 <b>파일명.확장자</b> 형태
-function extractAttachmentName(html: string): string | null {
-  const match = html.match(/m_download\.php[^>]*>\s*(?:<b[^>]*>)?\s*([^<]+?\.(?:pdf|hwpx?|pptx?|docx?|xlsx?|zip|jpe?g|png))\s*</i);
-  return match ? decodeHtml(match[1]).trim() : null;
+type Attachment = { fn: number; name: string; kind: DeptFileKind };
+
+// 게시글 본문에서 첨부파일 목록 추출 — m_download 링크(filenum=N) 뒤에 <b>파일명.확장자</b> 형태
+function extractAttachments(html: string): Attachment[] {
+  const out: Attachment[] = [];
+  const re = /m_download\.php\?[^"'<>]*filenum=(\d+)[^"'<>]*["'][^>]*>\s*(?:<b[^>]*>)?\s*([^<]+?\.[a-z0-9]{2,5})\s*</gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    const name = decodeHtml(m[2]).trim();
+    out.push({ fn: parseInt(m[1], 10), name, kind: fileKindOf(name) });
+  }
+  // filenum 중복 제거 (같은 링크가 목록/본문에 반복 노출되는 경우)
+  const seen = new Set<number>();
+  return out.filter((a) => (seen.has(a.fn) ? false : (seen.add(a.fn), true)));
+}
+
+// 여러 첨부 중 뷰어 충실도가 높은 유형 우선 선택
+function pickBestAttachment(attachments: Attachment[]): Attachment | null {
+  if (attachments.length === 0) return null;
+  return [...attachments].sort(
+    (a, b) => FILE_KIND_PRIORITY[b.kind] - FILE_KIND_PRIORITY[a.kind] || a.fn - b.fn,
+  )[0];
 }
 
 async function enrichFromPost(item: ListedItem): Promise<ListedItem> {
@@ -282,8 +314,8 @@ async function enrichFromPost(item: ListedItem): Promise<ListedItem> {
       { name: "direct-post", url: DIRECT_POST_URL(item.no), headers: BROWSER_HEADERS },
     ]);
 
-    const fileName = extractAttachmentName(html);
-    let fileKind = fileKindOf(fileName);
+    const best = pickBestAttachment(extractAttachments(html));
+    let fileKind = best?.kind ?? "unknown";
     // 확장자를 못 읽었어도 PDF 미리보기 이미지(__pdf.jpg)가 있으면 PDF 첨부
     if (fileKind === "unknown" && /data\/samusil\/\d+\/[a-f0-9]+__pdf\.jpg/i.test(html)) {
       fileKind = "pdf";
@@ -297,8 +329,9 @@ async function enrichFromPost(item: ListedItem): Promise<ListedItem> {
       ...item,
       title: ogTitle || item.title,
       issue_date: issueDate,
-      file_name: fileName,
+      file_name: best?.name ?? null,
       file_kind: fileKind,
+      file_fn: best?.fn ?? 0,
     };
   } catch {
     return item;
@@ -341,10 +374,11 @@ function withSignedPdfUrls(items: ListedItem[], origin: string): DeptBulletinIte
   return items.map((item) => {
     const sig = signPdfUrl(item.no, expiresAt);
     const namePart = item.file_name ? `&name=${encodeURIComponent(item.file_name)}` : "";
+    const fnPart = item.file_fn ? `&fn=${item.file_fn}` : "";
     return {
       ...item,
       pdf_url: `${origin}/api/dept-bulletin/pdf?no=${item.no}&exp=${expiresAt}&sig=${sig}`,
-      file_url: `${origin}/api/dept-bulletin/file?no=${item.no}&exp=${expiresAt}&sig=${sig}${namePart}`,
+      file_url: `${origin}/api/dept-bulletin/file?no=${item.no}&exp=${expiresAt}&sig=${sig}${fnPart}${namePart}`,
     };
   });
 }
@@ -415,6 +449,7 @@ async function loadStoredItems(deptKey: string): Promise<DeptBulletinItem[]> {
       pdf_url: signedUrl,
       file_name: null,
       file_kind: "pdf" as const,
+      file_fn: 0,
       file_url: "",
       stored: true,
     } satisfies DeptBulletinItem;

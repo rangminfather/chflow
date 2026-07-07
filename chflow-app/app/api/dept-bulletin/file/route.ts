@@ -2,15 +2,18 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import * as CFB from "cfb";
 import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
+import { parseHwpBlocks } from "@/lib/bulletin/hwp-parse";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 export const preferredRegion = "icn1";
 
-// UMS samusil 첨부파일 프록시.
-// 부서 주보가 PDF 가 아닌 경우(초등2부 hwp, 유치부·청소년부 pptx)를 위한 라우트.
-//  - as=raw         : 원본 파일 그대로 (다운로드/클라이언트 pptx 렌더링용)
+// UMS samusil 첨부파일 프록시 — 부서 주보 파일 유형 표준 체계의 서버측.
+// 부서마다 PDF/PPTX/HWP/이미지로 올려도 클라이언트 뷰어가 이 라우트 하나로 대응한다.
+//  - as=raw         : 원본 파일 그대로 (다운로드 / pptx·이미지 렌더링용)
 //  - as=hwp-preview : HWP 내장 첫 페이지 미리보기 이미지(PrvImage) 추출
+//  - as=hwp-json    : HWP 본문 구조(문단/표) JSON — 리메이크 렌더링용
+//  - fn=N           : 첨부파일 번호 (기본 0, 여러 첨부 중 선택)
 // 서명 방식은 /api/dept-bulletin/pdf 와 동일 (samusil:no:exp HMAC).
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -18,8 +21,8 @@ const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const SIGNING_SECRET = process.env.SUPABASE_SERVICE_ROLE_KEY || ANON_KEY;
 const PROXY_BASE = `${SUPABASE_URL}/functions/v1/ums-fetch`;
 const UMS_BBS_BASE = "http://ums.or.kr/bbs";
-const DOWNLOAD_PATH = (no: number) =>
-  `/bbs/skin/PSM_Revolution_DragDrop_board_domi_t_reply_comment/m_download.php?id=samusil&no=${no}&filenum=0&snum=0&hit=0`;
+const DOWNLOAD_PATH = (no: number, fn: number) =>
+  `/bbs/skin/PSM_Revolution_DragDrop_board_domi_t_reply_comment/m_download.php?id=samusil&no=${no}&filenum=${fn}&snum=0&hit=0`;
 
 const BROWSER_HEADERS = {
   "User-Agent":
@@ -49,6 +52,10 @@ function looksLikeFile(buf: Uint8Array) {
 
 function detectContentType(buf: Uint8Array, fileName: string | null) {
   if (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) return "application/pdf";
+  if (buf[0] === 0x89 && buf[1] === 0x50) return "image/png";
+  if (buf[0] === 0xff && buf[1] === 0xd8) return "image/jpeg";
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return "image/gif";
+  if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 && buf[8] === 0x57 && buf[9] === 0x45) return "image/webp";
   const ext = fileName?.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
   if (buf[0] === 0x50 && buf[1] === 0x4b) {
     if (ext === "pptx") return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
@@ -67,16 +74,18 @@ async function fetchBuffer(url: string, headers?: HeadersInit) {
   return { ok: res.ok, buf };
 }
 
-async function downloadAttachment(no: number): Promise<Uint8Array> {
-  const worker = await umsViaCf(DOWNLOAD_PATH(no), {
+async function downloadAttachment(no: number, fn: number): Promise<Uint8Array> {
+  const worker = await umsViaCf(DOWNLOAD_PATH(no, fn), {
     referer: `${UMS_BBS_BASE}/zboard.php?id=samusil&no=${no}`,
   });
   if (worker.status >= 200 && worker.status < 300 && looksLikeFile(worker.body)) return worker.body;
 
-  const proxied = await fetchBuffer(`${PROXY_BASE}?action=pdf&board=samusil&no=${no}`);
-  if (proxied.ok && looksLikeFile(proxied.buf)) return proxied.buf;
+  if (fn === 0) {
+    const proxied = await fetchBuffer(`${PROXY_BASE}?action=pdf&board=samusil&no=${no}`);
+    if (proxied.ok && looksLikeFile(proxied.buf)) return proxied.buf;
+  }
 
-  const direct = await fetchBuffer(`http://www.ums.or.kr${DOWNLOAD_PATH(no)}`, {
+  const direct = await fetchBuffer(`http://www.ums.or.kr${DOWNLOAD_PATH(no, fn)}`, {
     ...BROWSER_HEADERS,
     Referer: `${UMS_BBS_BASE}/zboard.php?id=samusil&no=${no}`,
   });
@@ -118,6 +127,10 @@ export async function GET(req: NextRequest) {
     const sig = url.searchParams.get("sig") || "";
     const as = url.searchParams.get("as") || "raw";
     const fileName = url.searchParams.get("name");
+    const fn = Number(url.searchParams.get("fn") || "0");
+    if (!Number.isInteger(fn) || fn < 0 || fn > 20) {
+      return NextResponse.json({ ok: false, error: "Invalid file URL" }, { status: 400 });
+    }
 
     if (!Number.isInteger(no) || no <= 0 || !Number.isInteger(expiresAt) || expiresAt <= 0 || !/^[0-9a-f]{64}$/i.test(sig)) {
       return NextResponse.json({ ok: false, error: "Invalid file URL" }, { status: 400 });
@@ -129,7 +142,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
     }
 
-    const file = await downloadAttachment(no);
+    const file = await downloadAttachment(no, fn);
 
     if (as === "hwp-preview") {
       const preview = extractHwpPreview(file);
@@ -142,6 +155,19 @@ export async function GET(req: NextRequest) {
           "Cache-Control": "private, max-age=600",
         },
       });
+    }
+
+    if (as === "hwp-json") {
+      try {
+        const blocks = parseHwpBlocks(Buffer.from(file));
+        if (blocks.length === 0) throw new Error("empty");
+        return NextResponse.json(
+          { ok: true, blocks },
+          { headers: { "Cache-Control": "private, max-age=600" } },
+        );
+      } catch {
+        return NextResponse.json({ ok: false, error: "HWP 본문을 해석하지 못했습니다" }, { status: 422 });
+      }
     }
 
     return new NextResponse(new Uint8Array(file), {

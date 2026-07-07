@@ -8,6 +8,7 @@ import HeaderLogo from "@/components/HeaderLogo";
 import PdfCanvasViewer from "@/components/PdfCanvasViewer";
 import PptxCanvasViewer from "@/components/PptxCanvasViewer";
 import HwpPreviewViewer from "@/components/HwpPreviewViewer";
+import ImageCanvasViewer from "@/components/ImageCanvasViewer";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
 
@@ -20,10 +21,29 @@ type DeptBulletinItem = {
   url: string;
   pdf_url: string;
   file_name: string | null;
-  file_kind: "pdf" | "pptx" | "hwp" | "unknown";
+  file_kind: "pdf" | "pptx" | "hwp" | "image" | "unknown";
+  file_fn: number;
   file_url: string;
   stored: boolean;
 };
+
+// 파일 유형 표준 체계 — 어떤 부서가 어떤 형식으로 올려도 유형별 뷰어로 표시:
+//  pdf → PdfCanvasViewer / pptx → PptxCanvasViewer / hwp → HwpPreviewViewer(리메이크)
+//  image → ImageCanvasViewer / unknown → PDF 시도 후 원문 링크
+function BulletinFileViewer({ item }: { item: DeptBulletinItem }) {
+  if (item.file_kind === "pptx" && item.file_url) {
+    return <PptxCanvasViewer key={item.file_url} url={item.file_url} fallbackUrl={item.url} />;
+  }
+  if (item.file_kind === "hwp" && item.file_url) {
+    return <HwpPreviewViewer key={item.file_url} downloadUrl={item.file_url} fallbackUrl={item.url} />;
+  }
+  if (item.file_kind === "image" && item.file_url) {
+    return <ImageCanvasViewer key={item.file_url} url={item.file_url} fallbackUrl={item.url} />;
+  }
+  // pdf: 첨부번호 0이면 검증된 pdf 전용 라우트, 그 외 첨부는 원본 프록시로
+  const pdfUrl = item.file_kind === "pdf" && item.file_fn > 0 && item.file_url ? item.file_url : item.pdf_url;
+  return <PdfCanvasViewer key={pdfUrl} url={pdfUrl} fallbackUrl={item.url} />;
+}
 
 type DeptBulletinResponse = {
   ok: boolean;
@@ -184,26 +204,7 @@ export default function DepartmentBulletinPage() {
         ) : latest ? (
           <>
             <section style={pdfFrameWrapStyle}>
-              {latest.file_kind === "pptx" && latest.file_url ? (
-                <PptxCanvasViewer
-                  key={latest.file_url}
-                  url={latest.file_url}
-                  fallbackUrl={latest.url}
-                />
-              ) : latest.file_kind === "hwp" && latest.file_url ? (
-                <HwpPreviewViewer
-                  key={latest.file_url}
-                  previewUrl={`${latest.file_url}&as=hwp-preview`}
-                  downloadUrl={latest.file_url}
-                  fallbackUrl={latest.url}
-                />
-              ) : (
-                <PdfCanvasViewer
-                  key={latest.pdf_url}
-                  url={latest.pdf_url}
-                  fallbackUrl={latest.url}
-                />
-              )}
+              <BulletinFileViewer item={latest} />
             </section>
 
             {showList && (
