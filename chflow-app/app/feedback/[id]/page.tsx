@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { Lock, AlertTriangle, MessageSquare, Reply, Trash2 } from "lucide-react";
 
 type FeedbackStatus = "submitted" | "received" | "reviewing" | "resolved" | "rejected";
@@ -46,12 +47,12 @@ type PostDetail = {
   comments: Comment[];
 };
 
-const STATUS_META: Record<FeedbackStatus, { label: string; bg: string; fg: string }> = {
-  submitted: { label: "미접수", bg: "var(--danger-soft)", fg: "var(--danger)" },
-  received:  { label: "접수",   bg: "var(--warning-soft)", fg: "var(--warning)" },
-  reviewing: { label: "검토중", bg: "var(--accent-soft)", fg: "var(--accent-strong)" },
-  resolved:  { label: "처리완료", bg: "var(--success-soft)", fg: "var(--success)" },
-  rejected:  { label: "처리불가", bg: "var(--hairline)", fg: "var(--ink-mid)" },
+const STATUS_META: Record<FeedbackStatus, { label: string; desc: string; bg: string; fg: string }> = {
+  submitted: { label: "미접수", desc: "접수된 내용을 운영자가 확인하기 전 입니다.", bg: "var(--danger-soft)", fg: "var(--danger)" },
+  received:  { label: "접수",   desc: "접수된 내용을 운영자가 확인했습니다.", bg: "var(--warning-soft)", fg: "var(--warning)" },
+  reviewing: { label: "검토중", desc: "접수된 내용에 대해 조치중입니다.", bg: "var(--accent-soft)", fg: "var(--accent-strong)" },
+  resolved:  { label: "처리완료", desc: "접수된 내용에 대한 처리가 완료되었습니다.", bg: "var(--success-soft)", fg: "var(--success)" },
+  rejected:  { label: "처리불가", desc: "접수된 내용에 대해 처리가 불가합니다.", bg: "var(--hairline)", fg: "var(--ink-mid)" },
 };
 
 const STATUSES: FeedbackStatus[] = ["submitted", "received", "reviewing", "resolved", "rejected"];
@@ -69,6 +70,7 @@ type LocalAtt = {
 
 export default function FeedbackDetailPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams<{ id: string }>();
   const postId = params?.id;
 
@@ -272,6 +274,12 @@ export default function FeedbackDetailPage() {
   async function changeStatus(next: FeedbackStatus) {
     if (!post) return;
     if (post.status === next) return;
+    // 확정 확인 — 실수로 여러 번 누르는 것을 방지. 확정 시 작성자에게 알림 발송됨.
+    const notice = post.is_mine ? "" : "\n확정하면 작성자에게 알림이 발송됩니다.";
+    const ok = await confirm(
+      `처리 상태를 '${STATUS_META[post.status].label}' → '${STATUS_META[next].label}'(으)로 변경하시겠습니까?${notice}`,
+    );
+    if (!ok) return;
     setUpdatingStatus(true);
     const { error: e } = await supabase.rpc("update_feedback_status", {
       p_post_id: postId,
@@ -308,9 +316,9 @@ export default function FeedbackDetailPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
           <span style={seqBadge}>#{post.seq}</span>
           {post.is_private && <span style={{ ...lockBadge, display: "inline-flex", alignItems: "center", gap: 4 }}><Lock size={12} strokeWidth={1.8} /> 비공개</span>}
-          <span style={{
+          <span title={meta.desc} style={{
             padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800,
-            background: meta.bg, color: meta.fg,
+            background: meta.bg, color: meta.fg, cursor: "help",
           }}>{meta.label}</span>
         </div>
 
@@ -346,6 +354,7 @@ export default function FeedbackDetailPage() {
                 return (
                   <button
                     key={s}
+                    title={sm.desc}
                     disabled={updatingStatus || active}
                     onClick={() => changeStatus(s)}
                     style={{

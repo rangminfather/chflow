@@ -26,12 +26,12 @@ type FeedbackListItem = {
   updated_at: string;
 };
 
-const STATUS_META: Record<FeedbackStatus, { label: string; bg: string; fg: string }> = {
-  submitted: { label: "미접수", bg: "var(--danger-soft)", fg: "var(--danger)" },
-  received:  { label: "접수",   bg: "var(--warning-soft)", fg: "var(--warning)" },
-  reviewing: { label: "검토중", bg: "var(--accent-soft)", fg: "var(--accent-strong)" },
-  resolved:  { label: "처리완료", bg: "var(--success-soft)", fg: "var(--success)" },
-  rejected:  { label: "처리불가", bg: "var(--hairline)", fg: "var(--ink-mid)" },
+const STATUS_META: Record<FeedbackStatus, { label: string; desc: string; bg: string; fg: string }> = {
+  submitted: { label: "미접수", desc: "접수된 내용을 운영자가 확인하기 전 입니다.", bg: "var(--danger-soft)", fg: "var(--danger)" },
+  received:  { label: "접수",   desc: "접수된 내용을 운영자가 확인했습니다.", bg: "var(--warning-soft)", fg: "var(--warning)" },
+  reviewing: { label: "검토중", desc: "접수된 내용에 대해 조치중입니다.", bg: "var(--accent-soft)", fg: "var(--accent-strong)" },
+  resolved:  { label: "처리완료", desc: "접수된 내용에 대한 처리가 완료되었습니다.", bg: "var(--success-soft)", fg: "var(--success)" },
+  rejected:  { label: "처리불가", desc: "접수된 내용에 대해 처리가 불가합니다.", bg: "var(--hairline)", fg: "var(--ink-mid)" },
 };
 
 const FILTERS: { value: FeedbackStatus | "all"; label: string }[] = [
@@ -260,7 +260,7 @@ function FeedbackRow({ item, onClick, selectMode = false, checked = false }: { i
             </div>
           </div>
         </div>
-        <span style={{
+        <span title={meta.desc} style={{
           padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
           background: meta.bg, color: meta.fg, flexShrink: 0, whiteSpace: "nowrap",
         }}>{meta.label}</span>
