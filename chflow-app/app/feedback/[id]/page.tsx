@@ -6,8 +6,13 @@ import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { Lock, AlertTriangle, MessageSquare, Reply, Trash2 } from "lucide-react";
-
-type FeedbackStatus = "submitted" | "received" | "reviewing" | "resolved" | "rejected";
+import {
+  STATUS_META,
+  FEEDBACK_STATUSES,
+  StatusBadge,
+  StatusGuideButton,
+  type FeedbackStatus,
+} from "@/components/FeedbackStatusInfo";
 
 type Attachment = {
   id: string;
@@ -47,15 +52,6 @@ type PostDetail = {
   comments: Comment[];
 };
 
-const STATUS_META: Record<FeedbackStatus, { label: string; desc: string; bg: string; fg: string }> = {
-  submitted: { label: "미접수", desc: "접수된 내용을 운영자가 확인하기 전 입니다.", bg: "var(--danger-soft)", fg: "var(--danger)" },
-  received:  { label: "접수",   desc: "접수된 내용을 운영자가 확인했습니다.", bg: "var(--warning-soft)", fg: "var(--warning)" },
-  reviewing: { label: "검토중", desc: "접수된 내용에 대해 조치중입니다.", bg: "var(--accent-soft)", fg: "var(--accent-strong)" },
-  resolved:  { label: "처리완료", desc: "접수된 내용에 대한 처리가 완료되었습니다.", bg: "var(--success-soft)", fg: "var(--success)" },
-  rejected:  { label: "처리불가", desc: "접수된 내용에 대해 처리가 불가합니다.", bg: "var(--hairline)", fg: "var(--ink-mid)" },
-};
-
-const STATUSES: FeedbackStatus[] = ["submitted", "received", "reviewing", "resolved", "rejected"];
 const MAX_FILES = 6;
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -301,7 +297,6 @@ export default function FeedbackDetailPage() {
     </div>
   );
 
-  const meta = STATUS_META[post.status];
   const topLevelComments = post.comments.filter((comment) => !comment.parent_comment_id);
 
   return (
@@ -316,10 +311,8 @@ export default function FeedbackDetailPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
           <span style={seqBadge}>#{post.seq}</span>
           {post.is_private && <span style={{ ...lockBadge, display: "inline-flex", alignItems: "center", gap: 4 }}><Lock size={12} strokeWidth={1.8} /> 비공개</span>}
-          <span title={meta.desc} style={{
-            padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800,
-            background: meta.bg, color: meta.fg, cursor: "help",
-          }}>{meta.label}</span>
+          <StatusBadge status={post.status} />
+          <StatusGuideButton style={{ marginLeft: "auto" }} />
         </div>
 
         <h2 style={titleStyle}>{post.title}</h2>
@@ -346,9 +339,9 @@ export default function FeedbackDetailPage() {
         {/* 관리자 상태 변경 */}
         {post.is_admin && (
           <div style={statusBoxStyle}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 8 }}>처리 상태 변경 (관리자)</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 8 }}>처리 상태</div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {STATUSES.map((s) => {
+              {FEEDBACK_STATUSES.map((s) => {
                 const sm = STATUS_META[s];
                 const active = post.status === s;
                 return (

@@ -7,8 +7,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Lightbulb, Lock, MessageSquare, Paperclip, Trash2, CheckSquare, Square } from "lucide-react";
-
-type FeedbackStatus = "submitted" | "received" | "reviewing" | "resolved" | "rejected";
+import { StatusBadge, StatusGuideButton, type FeedbackStatus } from "@/components/FeedbackStatusInfo";
 
 type FeedbackListItem = {
   id: string;
@@ -24,14 +23,6 @@ type FeedbackListItem = {
   attachment_count: number;
   created_at: string;
   updated_at: string;
-};
-
-const STATUS_META: Record<FeedbackStatus, { label: string; desc: string; bg: string; fg: string }> = {
-  submitted: { label: "미접수", desc: "접수된 내용을 운영자가 확인하기 전 입니다.", bg: "var(--danger-soft)", fg: "var(--danger)" },
-  received:  { label: "접수",   desc: "접수된 내용을 운영자가 확인했습니다.", bg: "var(--warning-soft)", fg: "var(--warning)" },
-  reviewing: { label: "검토중", desc: "접수된 내용에 대해 조치중입니다.", bg: "var(--accent-soft)", fg: "var(--accent-strong)" },
-  resolved:  { label: "처리완료", desc: "접수된 내용에 대한 처리가 완료되었습니다.", bg: "var(--success-soft)", fg: "var(--success)" },
-  rejected:  { label: "처리불가", desc: "접수된 내용에 대해 처리가 불가합니다.", bg: "var(--hairline)", fg: "var(--ink-mid)" },
 };
 
 const FILTERS: { value: FeedbackStatus | "all"; label: string }[] = [
@@ -199,6 +190,7 @@ export default function FeedbackListPage() {
           <button onClick={() => setScope("all")} style={scope === "all" ? pillActive : pill}>전체</button>
           <button onClick={() => setScope("mine")} style={scope === "mine" ? pillActive : pill}>내 글</button>
           <div style={{ flex: 1 }} />
+          <StatusGuideButton />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as FeedbackStatus | "all")}
@@ -235,7 +227,6 @@ export default function FeedbackListPage() {
 }
 
 function FeedbackRow({ item, onClick, selectMode = false, checked = false }: { item: FeedbackListItem; onClick: () => void; selectMode?: boolean; checked?: boolean }) {
-  const meta = STATUS_META[item.status];
   const titleDisplay = item.is_locked
     ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Lock size={14} strokeWidth={1.8} /> 비공개 글입니다</span>
     : item.title;
@@ -260,10 +251,7 @@ function FeedbackRow({ item, onClick, selectMode = false, checked = false }: { i
             </div>
           </div>
         </div>
-        <span title={meta.desc} style={{
-          padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
-          background: meta.bg, color: meta.fg, flexShrink: 0, whiteSpace: "nowrap",
-        }}>{meta.label}</span>
+        <StatusBadge status={item.status} style={{ flexShrink: 0, fontWeight: 700 }} />
       </button>
     </li>
   );
