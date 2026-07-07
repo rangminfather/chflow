@@ -12,6 +12,7 @@ import {
   Medal, Users, Inbox, BookText, CalendarPlus, BookOpen, FileText, BarChart3,
   TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks, FileSearch,
   Settings, Award, Lock, CircleHelp, Construction, Cog, X, Pencil, MessageSquareText,
+  ChevronUp, ChevronDown,
 } from "lucide-react";
 import ModalBackdrop from "@/components/ModalBackdrop";
 
@@ -178,6 +179,7 @@ export default function DepartmentDetailPage() {
   const [menuSettings, setMenuSettings] = useState<MenuSettings>({});
   const [editCatId, setEditCatId] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ catId: string; itemId: string } | null>(null);
+  const [sectionOrder, setSectionOrder] = useState<string[]>(ADMIN_SECTIONS.map((s) => s.id));
 
   useEffect(() => {
     (async () => {
@@ -185,7 +187,7 @@ export default function DepartmentDetailPage() {
       if (!session) { router.replace("/login"); return; }
       setAuthChecked(true);
       setLoading(true);
-      const [deptResp, gradeResp, teacherResp, settingsResp] = await Promise.all([
+      const [deptResp, gradeResp, teacherResp, settingsResp, sectionOrderResp] = await Promise.all([
         supabase.rpc("get_department_info", { p_dept_id: deptId }),
         supabase.rpc("get_user_grade", { p_dept_id: deptId }),
         supabase
@@ -196,9 +198,13 @@ export default function DepartmentDetailPage() {
           .eq("is_active", true)
           .maybeSingle(),
         supabase.rpc("get_dept_menu_settings", { p_department_id: deptId }),
+        supabase.rpc("get_dept_admin_section_order", { p_department_id: deptId }),
       ]);
       if (!settingsResp.error && settingsResp.data) {
         setMenuSettings(settingsResp.data as MenuSettings);
+      }
+      if (!sectionOrderResp.error && Array.isArray(sectionOrderResp.data) && sectionOrderResp.data.length === ADMIN_SECTIONS.length) {
+        setSectionOrder(sectionOrderResp.data as string[]);
       }
       if (!deptResp.error && deptResp.data && deptResp.data.length > 0) {
         setDept(deptResp.data[0]);
@@ -224,6 +230,21 @@ export default function DepartmentDetailPage() {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2800);
+  };
+
+  const moveSection = async (id: string, dir: -1 | 1) => {
+    const idx = sectionOrder.indexOf(id);
+    const swapIdx = idx + dir;
+    if (idx < 0 || swapIdx < 0 || swapIdx >= sectionOrder.length) return;
+    const prev = sectionOrder;
+    const next = [...sectionOrder];
+    [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
+    setSectionOrder(next);
+    const { error } = await supabase.rpc("set_dept_admin_section_order", { p_department_id: deptId, p_order: next });
+    if (error) {
+      setSectionOrder(prev);
+      showToast(`순서 저장 실패: ${error.message}`);
+    }
   };
 
   const handleItemClick = (item: MenuItem) => {
@@ -446,10 +467,15 @@ export default function DepartmentDetailPage() {
               );
               // 행정관리: 섹션별 소제목으로 묶어 표시 (섹션이 1개뿐이면 평면 그리드)
               if (cat.id === "admin") {
-                const groups = ADMIN_SECTIONS
+                const orderedSecDefs = sectionOrder
+                  .map((id) => ADMIN_SECTIONS.find((s) => s.id === id))
+                  .filter((s): s is (typeof ADMIN_SECTIONS)[number] => !!s);
+                ADMIN_SECTIONS.forEach((s) => { if (!orderedSecDefs.includes(s)) orderedSecDefs.push(s); });
+                const groups = orderedSecDefs
                   .map((sec) => ({ sec, items: visibleItems.filter((it) => (it.section ?? "ops") === sec.id) }))
                   .filter((g) => g.items.length > 0);
                 if (groups.length > 1) {
+                  const sectionsEditable = editCatId === "admin" && canEditCat("admin");
                   return groups.map(({ sec, items }, gi) => (
                     <div key={sec.id} style={{ marginTop: gi === 0 ? 0 : 16 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
@@ -458,6 +484,24 @@ export default function DepartmentDetailPage() {
                           {sec.label}
                         </span>
                         <div style={{ flex: 1, height: 1, background: "var(--hairline)" }} />
+                        {sectionsEditable && (
+                          <div style={{ display: "flex", gap: 2 }}>
+                            <button
+                              type="button"
+                              onClick={() => moveSection(sec.id, -1)}
+                              disabled={gi === 0}
+                              title="위로 이동"
+                              style={sectionMoveBtnStyle(gi === 0)}
+                            ><ChevronUp size={14} strokeWidth={2.2} /></button>
+                            <button
+                              type="button"
+                              onClick={() => moveSection(sec.id, 1)}
+                              disabled={gi === groups.length - 1}
+                              title="아래로 이동"
+                              style={sectionMoveBtnStyle(gi === groups.length - 1)}
+                            ><ChevronDown size={14} strokeWidth={2.2} /></button>
+                          </div>
+                        )}
                       </div>
                       {renderGrid(items)}
                     </div>
@@ -662,6 +706,12 @@ function EditMenuPopup({
     </ModalBackdrop>
   );
 }
+
+const sectionMoveBtnStyle = (disabled: boolean): React.CSSProperties => ({
+  display: "inline-flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 6,
+  border: "1px solid var(--hairline)", background: "var(--card)", color: disabled ? "var(--ink-faint)" : "var(--ink-mid)",
+  cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.4 : 1,
+});
 
 const modalLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", letterSpacing: 0.2 };
 const modalInput: React.CSSProperties = { width: "100%", marginTop: 5, padding: "10px 12px", fontSize: 14, background: "var(--card)", border: "1.5px solid var(--hairline)", borderRadius: 9, outline: "none", fontFamily: "inherit", boxSizing: "border-box", color: "var(--ink)", fontWeight: 500 };
