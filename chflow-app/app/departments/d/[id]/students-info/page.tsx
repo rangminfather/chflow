@@ -115,6 +115,7 @@ export default function StudentsInfoPage() {
   const [classes, setClasses] = useState<DeptClass[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [draft, setDraft] = useState<EditableStudent | null>(null);
+  const [newDraft, setNewDraft] = useState<EditableStudent | null>(null);
   const [families, setFamilies] = useState<Record<string, FamilyRow[]>>({});
   const [classFilter, setClassFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -274,8 +275,7 @@ export default function StudentsInfoPage() {
   function openNewStudent() {
     const firstClass = classes[0];
     const nextNo = nextStudentNo(students);
-    setSelectedId("__new__");
-    setDraft({
+    setNewDraft({
       id: "__new__",
       member_id: null,
       student_no: nextNo,
@@ -292,7 +292,6 @@ export default function StudentsInfoPage() {
       gender: "",
       address: "",
     });
-    setEditMode(true);
   }
 
   function updateDraft<K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) {
@@ -308,17 +307,29 @@ export default function StudentsInfoPage() {
     });
   }
 
-  async function handleSave() {
-    if (!draft) return;
-    if (!draft.name.trim()) {
+  function updateNewDraft<K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) {
+    setNewDraft((current) => {
+      if (!current) return current;
+      const next = { ...current, [key]: value };
+      if (key === "class_no") {
+        const cls = classes.find((item) => item.class_no === value);
+        next.grade_year = cls?.grade_year ?? next.grade_year;
+        next.teacher_name = cls?.teacher_name || "";
+      }
+      return next;
+    });
+  }
+
+  async function persistStudent(target: EditableStudent) {
+    if (!target.name.trim()) {
       showToast("이름을 입력하세요");
-      return;
+      return false;
     }
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       router.replace("/login");
-      return;
+      return false;
     }
 
     setSaving(true);
@@ -330,29 +341,29 @@ export default function StudentsInfoPage() {
       },
       body: JSON.stringify({
         dept_id: deptId,
-        student_id: draft.id === "__new__" ? null : draft.id,
+        student_id: target.id === "__new__" ? null : target.id,
         student: {
-          id: draft.id === "__new__" ? null : draft.id,
-          name: draft.name,
-          student_type: draft.student_type,
-          student_no: draft.student_no,
-          grade: draft.grade || null,
-          grade_year: draft.grade_year,
-          class_no: draft.class_no,
-          order_no: draft.order_no,
-          school_name: draft.school_name || null,
-          phone: draft.phone || null,
-          birth_date: draft.birth_date || null,
-          gender: draft.gender || null,
-          address: draft.address || null,
+          id: target.id === "__new__" ? null : target.id,
+          name: target.name,
+          student_type: target.student_type,
+          student_no: target.student_no,
+          grade: target.grade || null,
+          grade_year: target.grade_year,
+          class_no: target.class_no,
+          order_no: target.order_no,
+          school_name: target.school_name || null,
+          phone: target.phone || null,
+          birth_date: target.birth_date || null,
+          gender: target.gender || null,
+          address: target.address || null,
         },
-        member: draft.member_id
+        member: target.member_id
           ? {
-              id: draft.member_id,
-              phone: draft.phone || null,
-              birth_date: draft.birth_date || null,
-              gender: draft.gender || null,
-              address: draft.address || null,
+              id: target.member_id,
+              phone: target.phone || null,
+              birth_date: target.birth_date || null,
+              gender: target.gender || null,
+              address: target.address || null,
             }
           : undefined,
       }),
@@ -363,11 +374,23 @@ export default function StudentsInfoPage() {
 
     if (!response.ok || !result.ok) {
       showToast(result.error || "저장에 실패했습니다");
-      return;
+      return false;
     }
 
-    showToast(draft.id === "__new__" ? "학생을 등록했습니다" : "저장되었습니다");
+    showToast(target.id === "__new__" ? "학생을 등록했습니다" : "저장되었습니다");
     await loadStudents();
+    return true;
+  }
+
+  async function handleSave() {
+    if (!draft) return;
+    await persistStudent(draft);
+  }
+
+  async function handleSaveNew() {
+    if (!newDraft) return;
+    const ok = await persistStudent(newDraft);
+    if (ok) setNewDraft(null);
   }
 
   function cancelEdit() {
@@ -652,15 +675,6 @@ export default function StudentsInfoPage() {
         </section>
 
         <aside className="min-w-0 space-y-4">
-          <Panel title="현재 메뉴 문제점과 개선책">
-            <ul className="space-y-2 text-[13px] font-semibold leading-6 text-ink-mid">
-              <li>· 기존 화면은 학생 조회/부분 수정만 가능해 새 학기 명단 입력을 다른 메뉴에 의존했습니다.</li>
-              <li>· 반·학년 정보가 보이기만 해서 행정담당자가 명단을 바로 정리하기 어려웠습니다.</li>
-              <li>· 대량 명단 반영 수단이 없어 부서별 반복 입력 비용이 컸습니다.</li>
-              <li>· 개선: 이 화면에서 단건 등록, 반/학년 수정, CSV/XLSX 일괄 업로드를 모두 처리합니다.</li>
-            </ul>
-          </Panel>
-
           <Panel title="일괄 업로드">
             <div className="rounded-md border border-hairline bg-surface p-3 text-[13px] font-semibold leading-6 text-ink-mid">
               <div className="font-extrabold text-ink">지원 파일</div>
@@ -738,6 +752,16 @@ export default function StudentsInfoPage() {
         </aside>
       </main>
 
+      {newDraft && (
+        <NewStudentModal
+          draft={newDraft}
+          classes={classes}
+          saving={saving}
+          onClose={() => setNewDraft(null)}
+          onSave={handleSaveNew}
+          onChange={updateNewDraft}
+        />
+      )}
       {toast && <div style={toastStyle}>{toast}</div>}
     </div>
   );
@@ -750,6 +774,94 @@ function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typ
       <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>부서홈</button>
       <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
         <FileText size={18} strokeWidth={1.8} /> 학생정보관리
+      </div>
+    </div>
+  );
+}
+
+function NewStudentModal({
+  draft,
+  classes,
+  saving,
+  onClose,
+  onSave,
+  onChange,
+}: {
+  draft: EditableStudent;
+  classes: DeptClass[];
+  saving: boolean;
+  onClose: () => void;
+  onSave: () => void;
+  onChange: <K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) => void;
+}) {
+  return (
+    <div style={modalBackdropStyle} role="presentation" onMouseDown={onClose}>
+      <div style={modalCardStyle} role="dialog" aria-modal="true" aria-label="학생 등록" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
+          <div>
+            <div className="text-[18px] font-extrabold text-ink">학생 등록</div>
+            <div className="mt-1 text-[12px] font-semibold text-ink-faint">이 화면에서 새 학생을 바로 명단에 추가합니다.</div>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-hairline bg-card text-ink-soft">
+            <X size={17} strokeWidth={2.2} />
+          </button>
+        </div>
+
+        <div className="grid max-h-[70vh] gap-4 overflow-y-auto p-4 md:grid-cols-2">
+          <Field label="이름">
+            <input value={draft.name} onChange={(event) => onChange("name", event.target.value)} className={inputClass} autoFocus />
+          </Field>
+          <Field label="구분">
+            <select value={draft.student_type} onChange={(event) => onChange("student_type", normalizeStudentType(event.target.value))} className={inputClass}>
+              {STUDENT_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </Field>
+          <Field label="번호">
+            <input type="number" value={draft.student_no ?? ""} onChange={(event) => onChange("student_no", numberOrNull(event.target.value))} className={inputClass} />
+          </Field>
+          <Field label="학년">
+            <input type="number" value={draft.grade_year ?? ""} onChange={(event) => onChange("grade_year", numberOrNull(event.target.value))} className={inputClass} />
+          </Field>
+          <Field label="반">
+            <select value={draft.class_no || ""} onChange={(event) => onChange("class_no", event.target.value || null)} className={inputClass}>
+              <option value="">반 미배정</option>
+              {classes.map((item) => (
+                <option key={item.class_no} value={item.class_no}>
+                  {classLabel({ grade_year: item.grade_year, class_no: item.class_no })}
+                  {item.teacher_name ? ` / ${item.teacher_name}` : ""}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="학교">
+            <input value={draft.school_name} onChange={(event) => onChange("school_name", event.target.value)} className={inputClass} />
+          </Field>
+          <Field label="성별">
+            <select value={draft.gender} onChange={(event) => onChange("gender", event.target.value)} className={inputClass}>
+              <option value="">미등록</option>
+              <option value="M">남</option>
+              <option value="F">여</option>
+            </select>
+          </Field>
+          <Field label="생년월일">
+            <input type="date" value={draft.birth_date} onChange={(event) => onChange("birth_date", event.target.value)} className={inputClass} />
+          </Field>
+          <Field label="연락처">
+            <input value={draft.phone} onChange={(event) => onChange("phone", event.target.value)} placeholder="010-0000-0000" className={inputClass} />
+          </Field>
+          <Field label="주소">
+            <input value={draft.address} onChange={(event) => onChange("address", event.target.value)} className={inputClass} />
+          </Field>
+        </div>
+
+        <div className="flex gap-2 border-t border-hairline p-4">
+          <button type="button" onClick={onClose} disabled={saving} className="inline-flex min-h-11 flex-1 items-center justify-center rounded-md bg-bg-soft text-[15px] font-extrabold text-ink-mid">
+            취소
+          </button>
+          <button type="button" onClick={onSave} disabled={saving} className="inline-flex min-h-11 flex-[1.4] items-center justify-center gap-2 rounded-md bg-ink text-[15px] font-extrabold text-white disabled:opacity-60">
+            <Save size={16} strokeWidth={2.2} /> {saving ? "등록 중..." : "등록"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -991,3 +1103,5 @@ const headerStyle: CSSProperties = { background: "var(--card)", borderBottom: "1
 const titleStyle: CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 };
 const backBtnStyle: CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 };
 const toastStyle: CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 14, fontWeight: 700, zIndex: 1100, fontFamily: "inherit", whiteSpace: "nowrap" };
+const modalBackdropStyle: CSSProperties = { position: "fixed", inset: 0, zIndex: 1050, background: "rgba(0,0,0,0.38)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 };
+const modalCardStyle: CSSProperties = { width: "min(720px, 100%)", maxHeight: "calc(100vh - 32px)", overflow: "hidden", borderRadius: 8, background: "var(--card)", border: "1px solid var(--hairline)", boxShadow: "0 18px 60px rgba(0,0,0,0.22)" };
