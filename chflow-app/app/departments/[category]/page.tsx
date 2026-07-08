@@ -129,41 +129,28 @@ export default function CategoryPage() {
   const searchRef = useRef<HTMLInputElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadKeyMembers = useCallback(async (deptIds: string[]) => {
-    if (!deptIds.length) return;
-    const allRoles = ROLE_SLOTS.flatMap(s => s.roles);
-    const { data: members } = await supabase
-      .from("department_members")
-      .select("department_id, member_role, grade, user_id")
-      .in("department_id", deptIds)
-      .eq("status", "approved")
-      .in("member_role", allRoles)
-      .order("grade", { ascending: true });
-    if (!members?.length) return;
-    const userIds = [...new Set(members.map(m => m.user_id))];
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("user_id, name, avatar_url, photo_url")
-      .in("user_id", userIds);
-    const profileMap = Object.fromEntries((profiles || []).map(p => [p.user_id, p]));
+  // RPC(list_dept_key_faces): members(app_user_id) 우선, profiles 폴백
+  // (department_members RLS 가 자기 행만 허용이라 직접 조회 불가)
+  const loadKeyMembers = useCallback(async () => {
+    const { data } = await supabase.rpc("list_dept_key_faces", { p_category: category });
+    type Row = { department_id: string; member_role: string; grade: number; name: string | null; photo_url: string | null };
     const result: DeptKeyMembers = {};
-    for (const m of members) {
-      const slotDef = ROLE_SLOTS.find(s => s.roles.includes(m.member_role));
+    for (const r of ((data as Row[]) || [])) {
+      const slotDef = ROLE_SLOTS.find(s => s.roles.includes(r.member_role));
       if (!slotDef) continue;
-      if (!result[m.department_id]) result[m.department_id] = { 대표: null, 부장: null, 총무: null, 담임: null };
-      if (result[m.department_id][slotDef.key]) continue;
-      const p = profileMap[m.user_id];
-      result[m.department_id][slotDef.key] = { photoUrl: p?.avatar_url || p?.photo_url || null, name: p?.name ?? null };
+      if (!result[r.department_id]) result[r.department_id] = { 대표: null, 부장: null, 총무: null, 담임: null };
+      if (result[r.department_id][slotDef.key]) continue;
+      result[r.department_id][slotDef.key] = { photoUrl: r.photo_url, name: r.name };
     }
     setKeyMembers(result);
-  }, []);
+  }, [category]);
 
   const load = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase.rpc("get_departments_by_category", { p_category: category });
     if (!error && data) {
       setDepts(data);
-      loadKeyMembers(data.map((d: Department) => d.id));
+      loadKeyMembers();
     }
     setLoading(false);
   }, [category, loadKeyMembers]);
