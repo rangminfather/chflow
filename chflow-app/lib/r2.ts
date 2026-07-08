@@ -197,3 +197,37 @@ function from(bucketName: string) {
 }
 
 export const r2 = { from };
+
+export interface R2BucketUsage {
+  bytes: number;
+  count: number;
+  thumbBytes: number;
+  thumbCount: number;
+}
+
+// 전체 버킷 1회 스캔 — 논리 버킷(첫 경로 세그먼트)별 용량 집계.
+// 수천 객체 = ListObjectsV2 몇 번 수준이라 관리자 열람 시 온디맨드로 충분.
+export async function r2Usage(): Promise<Record<string, R2BucketUsage>> {
+  const agg: Record<string, R2BucketUsage> = {};
+  let token: string | undefined = undefined;
+  do {
+    const res: import("@aws-sdk/client-s3").ListObjectsV2CommandOutput = await s3.send(
+      new ListObjectsV2Command({ Bucket: BUCKET, ContinuationToken: token })
+    );
+    for (const obj of res.Contents || []) {
+      const key = obj.Key ?? "";
+      const size = obj.Size ?? 0;
+      const [bucketName, seg2] = key.split("/");
+      if (!bucketName) continue;
+      const a = (agg[bucketName] ??= { bytes: 0, count: 0, thumbBytes: 0, thumbCount: 0 });
+      a.bytes += size;
+      a.count += 1;
+      if (seg2 === "__thumbs") {
+        a.thumbBytes += size;
+        a.thumbCount += 1;
+      }
+    }
+    token = res.IsTruncated ? res.NextContinuationToken : undefined;
+  } while (token);
+  return agg;
+}
