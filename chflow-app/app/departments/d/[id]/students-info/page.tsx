@@ -7,6 +7,9 @@ import { Workbook } from "exceljs";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase, formatPhone } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
+import StudentPhotoEditor from "@/components/StudentPhotoEditor";
+import PendingStudentPhotoPicker from "@/components/PendingStudentPhotoPicker";
+import { saveStudentPendingPhoto } from "@/lib/studentPhotoUpload";
 import {
   AlertTriangle,
   Download,
@@ -39,6 +42,7 @@ interface StudentRow {
   birth_date: string | null;
   phone: string | null;
   address: string | null;
+  photo_url: string | null;
 }
 
 interface MemberRow {
@@ -47,6 +51,7 @@ interface MemberRow {
   birth_date: string | null;
   gender: string | null;
   address: string | null;
+  photo_url: string | null;
 }
 
 interface DeptClass {
@@ -72,6 +77,7 @@ interface EditableStudent {
   birth_date: string;
   gender: string;
   address: string;
+  photo_url: string | null;
 }
 
 interface FamilyRow {
@@ -133,6 +139,8 @@ export default function StudentsInfoPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [showImportPanel, setShowImportPanel] = useState(false);
   const [page, setPage] = useState(1);
+  const [newStudentPhotoFile, setNewStudentPhotoFile] = useState<File | null>(null);
+  const [newStudentPhotoPreview, setNewStudentPhotoPreview] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -171,7 +179,7 @@ export default function StudentsInfoPage() {
     const [studentResp, teacherResp, classResp] = await Promise.all([
       supabase
         .from("edu_students")
-        .select("id, student_no, name, student_type, grade, grade_year, class_no, order_no, member_id, teacher_id, school_name, gender, birth_date, phone, address")
+        .select("id, student_no, name, student_type, grade, grade_year, class_no, order_no, member_id, teacher_id, school_name, gender, birth_date, phone, address, photo_url")
         .eq("department_id", deptId)
         .eq("is_active", true),
       supabase
@@ -201,7 +209,7 @@ export default function StudentsInfoPage() {
     if (memberIds.length > 0) {
       const { data: members } = await supabase
         .from("members")
-        .select("id, phone, birth_date, gender, address")
+        .select("id, phone, birth_date, gender, address, photo_url")
         .in("id", memberIds);
       ((members || []) as MemberRow[]).forEach((member) => {
         memberMap[member.id] = member;
@@ -226,6 +234,7 @@ export default function StudentsInfoPage() {
         birth_date: member?.birth_date || student.birth_date || "",
         gender: member?.gender || student.gender || "",
         address: member?.address || student.address || "",
+        photo_url: member?.photo_url || student.photo_url || null,
       };
     }).sort(compareStudents);
 
@@ -312,7 +321,10 @@ export default function StudentsInfoPage() {
       birth_date: firstClass?.grade_year ? birthDateWithYear("", birthYearForGrade(firstClass.grade_year)) : "",
       gender: "",
       address: "",
+      photo_url: null,
     });
+    setNewStudentPhotoFile(null);
+    setNewStudentPhotoPreview(null);
   }
 
   function updateDraft<K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) {
@@ -345,16 +357,21 @@ export default function StudentsInfoPage() {
     });
   }
 
+  function updateStudentPhoto(studentId: string, url: string | null) {
+    setStudents((current) => current.map((student) => (student.id === studentId ? { ...student, photo_url: url } : student)));
+    setDraft((current) => (current?.id === studentId ? { ...current, photo_url: url } : current));
+  }
+
   async function persistStudent(target: EditableStudent) {
     if (!target.name.trim()) {
       showToast("이름을 입력하세요");
-      return false;
+      return null;
     }
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       router.replace("/login");
-      return false;
+      return null;
     }
 
     setSaving(true);
@@ -399,12 +416,12 @@ export default function StudentsInfoPage() {
 
     if (!response.ok || !result.ok) {
       showToast(result.error || "저장에 실패했습니다");
-      return false;
+      return null;
     }
 
     showToast(target.id === "__new__" ? "학생을 등록했습니다" : "저장되었습니다");
     await loadStudents();
-    return true;
+    return (result.results?.[0]?.id || target.id) as string;
   }
 
   async function handleSave() {
@@ -418,8 +435,26 @@ export default function StudentsInfoPage() {
       showToast("학년을 선택하세요");
       return;
     }
-    const ok = await persistStudent(newDraft);
-    if (ok) setNewDraft(null);
+    const savedId = await persistStudent(newDraft);
+    if (savedId) {
+      if (newStudentPhotoFile || newDraft.photo_url) {
+        try {
+          await saveStudentPendingPhoto({
+            deptId,
+            studentId: savedId,
+            memberId: newDraft.member_id,
+            file: newStudentPhotoFile,
+            avatarUrl: newDraft.photo_url,
+          });
+          await loadStudents();
+        } catch (photoError) {
+          showToast(`학생은 등록됐지만 사진 저장 실패: ${photoError instanceof Error ? photoError.message : "오류"}`);
+        }
+      }
+      setNewDraft(null);
+      setNewStudentPhotoFile(null);
+      setNewStudentPhotoPreview(null);
+    }
   }
 
   function cancelEdit() {
@@ -597,27 +632,41 @@ export default function StudentsInfoPage() {
             <>
               <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {pagedStudents.map((student) => (
-                  <button
+                  <div
                     key={student.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => selectStudent(student)}
+                    onKeyDown={(event) => { if (event.key === "Enter") selectStudent(student); }}
                     className={[
-                      "min-h-[96px] rounded-lg border px-3 py-3 text-left transition",
+                      "min-h-[112px] cursor-pointer rounded-lg border px-3 py-3 text-left transition",
                       selectedId === student.id ? "border-amber-400 bg-amber-50" : "border-hairline bg-card hover:bg-surface",
                     ].join(" ")}
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-3">
+                      <span onClick={(event) => event.stopPropagation()}>
+                        <StudentPhotoEditor
+                          deptId={deptId}
+                          studentId={student.id}
+                          memberId={student.member_id}
+                          name={student.name}
+                          gender={student.gender}
+                          photoUrl={student.photo_url}
+                          size={56}
+                          onUpdate={(url) => updateStudentPhoto(student.id, url)}
+                        />
+                      </span>
                       <div className="min-w-0">
                         <div className="truncate text-[16px] font-extrabold text-ink">{student.name}</div>
                         <div className="mt-1 truncate text-[13px] font-semibold text-ink-faint">{classLabel(student)}</div>
+                        <div className="mt-2 truncate text-[12px] font-semibold text-ink-faint">
+                          {student.teacher_name ? `담임 ${student.teacher_name}` : "담임 미배정"}
+                          {student.phone ? ` · ${formatPhone(student.phone)}` : ""}
+                        </div>
                       </div>
                       <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-[12px] font-bold text-ink-faint">{genderLabel(student.gender)}</span>
                     </div>
-                    <div className="mt-3 truncate text-[12px] font-semibold text-ink-faint">
-                      {student.teacher_name ? `담임 ${student.teacher_name}` : "담임 미배정"}
-                      {student.phone ? ` · ${formatPhone(student.phone)}` : ""}
-                    </div>
-                  </button>
+                  </div>
                 ))}
               </div>
 
@@ -671,13 +720,25 @@ export default function StudentsInfoPage() {
           draft={newDraft}
           classes={classes}
           saving={saving}
+          photoPreviewUrl={newStudentPhotoPreview}
           onClose={() => setNewDraft(null)}
           onSave={handleSaveNew}
           onChange={updateNewDraft}
+          onPhotoFile={(file, previewUrl) => {
+            setNewStudentPhotoFile(file);
+            setNewStudentPhotoPreview(previewUrl);
+            updateNewDraft("photo_url", null);
+          }}
+          onPhotoAvatar={(url) => {
+            setNewStudentPhotoFile(null);
+            setNewStudentPhotoPreview(null);
+            updateNewDraft("photo_url", url);
+          }}
         />
       )}
       {detailOpen && draft && (
         <StudentDetailModal
+          deptId={deptId}
           draft={draft}
           classes={classes}
           families={families[draft.id] || []}
@@ -691,6 +752,7 @@ export default function StudentsInfoPage() {
           onChange={updateDraft}
           onSave={handleSave}
           onCancel={cancelEdit}
+          onPhotoUpdate={updateStudentPhoto}
         />
       )}
       {toast && <div style={toastStyle}>{toast}</div>}
@@ -807,6 +869,7 @@ function ImportPanel({
 }
 
 function StudentDetailModal({
+  deptId,
   draft,
   classes,
   families,
@@ -817,7 +880,9 @@ function StudentDetailModal({
   onChange,
   onSave,
   onCancel,
+  onPhotoUpdate,
 }: {
+  deptId: string;
   draft: EditableStudent;
   classes: DeptClass[];
   families: FamilyRow[];
@@ -828,15 +893,28 @@ function StudentDetailModal({
   onChange: <K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) => void;
   onSave: () => void;
   onCancel: () => void;
+  onPhotoUpdate: (studentId: string, url: string | null) => void;
 }) {
   return (
     <div style={modalBackdropStyle} role="presentation" onMouseDown={onClose}>
       <div style={wideModalCardStyle} role="dialog" aria-modal="true" aria-label="학생 상세" onMouseDown={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
-          <div className="min-w-0">
-            <div className="truncate text-[19px] font-extrabold text-ink">{draft.name || "새 학생"}</div>
-            <div className="mt-1 text-[13px] font-semibold text-ink-faint">
-              {classLabel(draft)}{draft.teacher_name ? ` · 담임 ${draft.teacher_name}` : ""}
+          <div className="flex min-w-0 items-center gap-3">
+            <StudentPhotoEditor
+              deptId={deptId}
+              studentId={draft.id}
+              memberId={draft.member_id}
+              name={draft.name || "학생"}
+              gender={draft.gender}
+              photoUrl={draft.photo_url}
+              size={78}
+              onUpdate={(url) => onPhotoUpdate(draft.id, url)}
+            />
+            <div className="min-w-0">
+              <div className="truncate text-[19px] font-extrabold text-ink">{draft.name || "새 학생"}</div>
+              <div className="mt-1 text-[13px] font-semibold text-ink-faint">
+                {classLabel(draft)}{draft.teacher_name ? ` · 담임 ${draft.teacher_name}` : ""}
+              </div>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -947,16 +1025,22 @@ function NewStudentModal({
   draft,
   classes,
   saving,
+  photoPreviewUrl,
   onClose,
   onSave,
   onChange,
+  onPhotoFile,
+  onPhotoAvatar,
 }: {
   draft: EditableStudent;
   classes: DeptClass[];
   saving: boolean;
+  photoPreviewUrl: string | null;
   onClose: () => void;
   onSave: () => void;
   onChange: <K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) => void;
+  onPhotoFile: (file: File, previewUrl: string) => void;
+  onPhotoAvatar: (url: string) => void;
 }) {
   const gradeOptions = gradeOptionsFromClasses(classes);
   const birth = splitBirthDate(draft.birth_date);
@@ -985,6 +1069,17 @@ function NewStudentModal({
         </div>
 
         <div className="grid max-h-[70vh] gap-4 overflow-y-auto p-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <PendingStudentPhotoPicker
+              name={draft.name}
+              gender={draft.gender}
+              seed={draft.name || "new-student"}
+              photoUrl={draft.photo_url}
+              previewUrl={photoPreviewUrl}
+              onAvatar={onPhotoAvatar}
+              onFile={onPhotoFile}
+            />
+          </div>
           <Field label="이름 *">
             <input value={draft.name} onChange={(event) => onChange("name", event.target.value)} className={inputClass} autoFocus />
           </Field>

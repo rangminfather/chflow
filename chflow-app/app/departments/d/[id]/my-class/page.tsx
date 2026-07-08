@@ -7,6 +7,9 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { supabase, formatPhone } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
+import StudentPhotoEditor from "@/components/StudentPhotoEditor";
+import PendingStudentPhotoPicker from "@/components/PendingStudentPhotoPicker";
+import { saveStudentPendingPhoto } from "@/lib/studentPhotoUpload";
 import { Baby, Cog, MoonStar, Plus, Save, UserPlus, X } from "lucide-react";
 
 interface StudentRow {
@@ -24,6 +27,7 @@ interface StudentRow {
   order_no: number | null;
   member_id: string | null;
   teacher_id: string | null;
+  photo_url: string | null;
 }
 
 interface MemberRow {
@@ -33,6 +37,7 @@ interface MemberRow {
   birth_date: string | null;
   gender: string | null;
   address: string | null;
+  photo_url: string | null;
 }
 
 interface EditableStudent {
@@ -49,6 +54,7 @@ interface EditableStudent {
   birth_date: string;
   gender: string;
   address: string;
+  photo_url: string | null;
 }
 
 interface FamilyRow {
@@ -91,6 +97,9 @@ interface NewFriendForm {
   guideGrade: string;      // 인도자 학생 학년 필터
   guide_student_id: string;
   guide_name: string;
+  photo_url: string | null;
+  photoFile: File | null;
+  photoPreviewUrl: string | null;
 }
 
 const EMPTY_NEW_FRIEND: NewFriendForm = {
@@ -108,6 +117,9 @@ const EMPTY_NEW_FRIEND: NewFriendForm = {
   guideGrade: "",
   guide_student_id: "",
   guide_name: "",
+  photo_url: null,
+  photoFile: null,
+  photoPreviewUrl: null,
 };
 
 const FAMILY_RELATIONS = ["부", "모", "형", "누나", "오빠", "언니", "동생", "조부", "조모", "기타"];
@@ -177,8 +189,8 @@ export default function MyClassPage() {
     setLoading(true);
 
     const { data: studentRows, error: studentErr } = await supabase
-      .from("edu_students")
-      .select("id, department_id, student_no, name, student_type, mgmt_status, grade, grade_year, class_no, school_name, is_active, order_no, member_id, teacher_id")
+        .from("edu_students")
+      .select("id, department_id, student_no, name, student_type, mgmt_status, grade, grade_year, class_no, school_name, is_active, order_no, member_id, teacher_id, photo_url")
       .eq("department_id", deptId)
       .eq("teacher_id", teacherId)
       .eq("is_active", true)
@@ -194,12 +206,12 @@ export default function MyClassPage() {
 
     const rows = (studentRows || []) as StudentRow[];
     const memberIds = rows.map((row) => row.member_id).filter(Boolean) as string[];
-    const memberMap: Record<string, MemberRow> = {};
+    const memberMap: Record<string, MemberRow & { photo_url?: string | null }> = {};
 
     if (memberIds.length > 0) {
       const { data: members } = await supabase
         .from("members")
-        .select("id, name, phone, birth_date, gender, address")
+        .select("id, name, phone, birth_date, gender, address, photo_url")
         .in("id", memberIds);
 
       ((members || []) as MemberRow[]).forEach((member) => {
@@ -223,6 +235,7 @@ export default function MyClassPage() {
         birth_date: member?.birth_date || "",
         gender: member?.gender || "",
         address: member?.address || "",
+        photo_url: member?.photo_url || student.photo_url || null,
       };
     });
 
@@ -259,6 +272,11 @@ export default function MyClassPage() {
 
   function updateDraft<K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) {
     setDraft((current) => (current ? { ...current, [key]: value } : current));
+  }
+
+  function updateStudentPhoto(studentId: string, url: string | null) {
+    setStudents((current) => current.map((student) => (student.id === studentId ? { ...student, photo_url: url } : student)));
+    setDraft((current) => (current?.id === studentId ? { ...current, photo_url: url } : current));
   }
 
   /** 학생 저장 (수정 저장 + 장기결석 토글이 공유) */
@@ -381,7 +399,7 @@ export default function MyClassPage() {
       .filter((entry) => entry.name);
 
     setNewSaving(true);
-    const { error } = await supabase.rpc("edu_save_new_friend", {
+    const { data: newFriendId, error } = await supabase.rpc("edu_save_new_friend", {
       p_id: null,
       p_dept_id: deptId,
       p_name: newFriend.name.trim(),
@@ -413,6 +431,26 @@ export default function MyClassPage() {
     if (error) {
       showToast("새친구 등록 실패: " + error.message);
       return;
+    }
+
+    if ((newFriend.photoFile || newFriend.photo_url) && newFriendId) {
+      try {
+        const { data: savedFriend } = await supabase
+          .from("edu_new_friends")
+          .select("student_id")
+          .eq("id", newFriendId)
+          .maybeSingle();
+        if (savedFriend?.student_id) {
+          await saveStudentPendingPhoto({
+            deptId,
+            studentId: savedFriend.student_id,
+            file: newFriend.photoFile,
+            avatarUrl: newFriend.photo_url,
+          });
+        }
+      } catch (photoError) {
+        showToast(`새친구는 등록됐지만 사진 저장 실패: ${photoError instanceof Error ? photoError.message : "오류"}`);
+      }
     }
 
     setShowNewFriend(false);
@@ -449,7 +487,7 @@ export default function MyClassPage() {
     <div style={pageStyle}>
       <PageHeader deptId={deptId} router={router} myClassName={myClassName} />
 
-      <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-4 md:grid-cols-[280px_1fr]">
+      <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-4 lg:grid-cols-[360px_1fr]">
         <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-card">
           <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
             <div>
@@ -467,22 +505,36 @@ export default function MyClassPage() {
           ) : students.length === 0 ? (
             <div className="px-4 py-12 text-center text-[15px] leading-6 text-ink-faint">해당 반 학생이 없습니다.</div>
           ) : (
-            <div className="flex flex-col gap-2 p-3">
+            <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-1">
               {students.map((student) => (
-                <button
+                <div
                   key={student.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => selectStudent(student)}
+                  onKeyDown={(event) => { if (event.key === "Enter") selectStudent(student); }}
                   className={[
-                    "w-full rounded-lg border px-3 py-3 text-left",
+                    "flex w-full cursor-pointer items-center gap-3 rounded-lg border px-3 py-3 text-left",
                     selectedId === student.id ? "border-amber-400 bg-amber-50" : "border-hairline bg-card",
                   ].join(" ")}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-[16px] font-extrabold text-ink">{student.name}</span>
-                    <span className="shrink-0 text-[12px] font-bold text-ink-faint">{genderLabel(student.gender)}</span>
+                  <span onClick={(event) => event.stopPropagation()}>
+                    <StudentPhotoEditor
+                      deptId={deptId}
+                      studentId={student.id}
+                      memberId={student.member_id}
+                      name={student.name}
+                      gender={student.gender}
+                      photoUrl={student.photo_url}
+                      size={54}
+                      onUpdate={(url) => updateStudentPhoto(student.id, url)}
+                    />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[16px] font-extrabold text-ink">{student.name}</div>
+                    <div className="mt-0.5 text-[12px] font-bold text-ink-faint">{genderLabel(student.gender)}</div>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           )}
@@ -494,10 +546,22 @@ export default function MyClassPage() {
           ) : (
             <>
               <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
-                <div className="min-w-0">
-                  <div className="truncate text-[19px] font-extrabold text-ink">{draft.name}</div>
-                  <div className="mt-1 text-[13px] font-semibold text-ink-faint">
-                    {draft.grade_year ? `${draft.grade_year}학년 · ` : ""}{draft.class_no ? `${draft.class_no}반` : "반 정보 없음"}
+                <div className="flex min-w-0 items-center gap-3">
+                  <StudentPhotoEditor
+                    deptId={deptId}
+                    studentId={draft.id}
+                    memberId={draft.member_id}
+                    name={draft.name}
+                    gender={draft.gender}
+                    photoUrl={draft.photo_url}
+                    size={76}
+                    onUpdate={(url) => updateStudentPhoto(draft.id, url)}
+                  />
+                  <div className="min-w-0">
+                    <div className="truncate text-[19px] font-extrabold text-ink">{draft.name}</div>
+                    <div className="mt-1 text-[13px] font-semibold text-ink-faint">
+                      {draft.grade_year ? `${draft.grade_year}학년 · ` : ""}{draft.class_no ? `${draft.class_no}반` : "반 정보 없음"}
+                    </div>
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -672,6 +736,18 @@ function NewFriendModal({
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-ink/50 p-4" onClick={onCancel}>
       <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-lg bg-card p-5" onClick={(event) => event.stopPropagation()}>
         <div className="mb-4 text-[19px] font-extrabold text-ink">새친구 등록</div>
+
+        <div className="mb-3">
+          <PendingStudentPhotoPicker
+            name={form.name}
+            gender={form.gender}
+            seed={form.name || "new-friend"}
+            photoUrl={form.photo_url}
+            previewUrl={form.photoPreviewUrl}
+            onAvatar={(url) => onChange({ ...form, photo_url: url, photoFile: null, photoPreviewUrl: null })}
+            onFile={(file, previewUrl) => onChange({ ...form, photoFile: file, photoPreviewUrl: previewUrl, photo_url: null })}
+          />
+        </div>
 
         <div className="grid gap-x-3 md:grid-cols-2">
           <Field label="이름 *">

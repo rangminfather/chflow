@@ -168,7 +168,7 @@ export default function MyClassAttendancePage() {
     const enriched = mine.map((student) => ({
       ...student,
       gender: student.member_id ? memberInfo[student.member_id]?.gender ?? null : null,
-      photo_url: student.member_id ? memberInfo[student.member_id]?.photo_url ?? null : null,
+      photo_url: student.member_id ? memberInfo[student.member_id]?.photo_url ?? student.photo_url ?? null : student.photo_url ?? null,
       school_name: student.school_name ?? null,
     }));
 

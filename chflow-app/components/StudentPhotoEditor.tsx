@@ -93,14 +93,14 @@ export default function StudentPhotoEditor({
 
   const handleCropConfirm = async () => {
     if (!cropImageSrc || !croppedAreaPixels) return;
-    if (!memberId) { setError("연결된 성도 정보가 없어 사진을 저장할 수 없습니다"); return; }
     setUploading(true);
     setError("");
     try {
       const blob = await getCroppedBlob(cropImageSrc, croppedAreaPixels, 512);
       if (!blob) { setError("이미지 처리 실패"); setUploading(false); return; }
 
-      const path = `${memberId}/student_${Date.now()}.jpg`;
+      const ownerPath = memberId || `students/${studentId}`;
+      const path = `${ownerPath}/student_${Date.now()}.jpg`;
       const form = new FormData();
       form.append("file", new File([blob], "student.jpg", { type: "image/jpeg" }));
       const uploadRes = await fetch(`/api/storage/member-photos/${path}`, { method: "POST", body: form });
@@ -128,7 +128,6 @@ export default function StudentPhotoEditor({
   };
 
   const handleRevert = async () => {
-    if (!memberId) return;
     setUploading(true);
     setError("");
     const { error: rpcError } = await supabase.rpc("edu_set_student_photo", {
@@ -144,9 +143,8 @@ export default function StudentPhotoEditor({
     setShowModal(false);
   };
 
-  // 기본 얼굴 일러스트 선택 → members.photo_url 에 경로 저장(사진 아님, + 배지 유지).
+  // 기본 얼굴 일러스트 선택 → photo_url 에 경로 저장(사진 아님, + 배지 유지).
   const handlePickDefault = async (face: string) => {
-    if (!memberId) { setError("연결된 성도 정보가 없어 저장할 수 없습니다"); return; }
     if (face === currentUrl) { setShowModal(false); return; }
     setUploading(true);
     setError("");
@@ -264,7 +262,7 @@ export default function StudentPhotoEditor({
                     key={face}
                     type="button"
                     onClick={() => handlePickDefault(face)}
-                    disabled={!memberId || uploading}
+                    disabled={uploading}
                     aria-label="기본 얼굴 선택"
                     className="relative grid place-items-center overflow-hidden p-0"
                     style={{
@@ -272,7 +270,7 @@ export default function StudentPhotoEditor({
                       borderRadius: 999,
                       background: "color-mix(in srgb, var(--accent-muted) 14%, #f7f2e8)",
                       border: active ? "2.5px solid var(--accent)" : "1px solid var(--hairline)",
-                      cursor: memberId && !uploading ? "pointer" : "not-allowed",
+                      cursor: uploading ? "not-allowed" : "pointer",
                     }}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -295,11 +293,6 @@ export default function StudentPhotoEditor({
                 );
               })}
             </div>
-            {!memberId && (
-              <div style={{ ...noticeStyle }}>
-                <AlertTriangle size={14} strokeWidth={1.8} /> 연결된 성도 정보가 없어 사진을 저장할 수 없습니다
-              </div>
-            )}
             {error && <div style={errorStyle}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>}
 
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: "none" }} />
@@ -308,8 +301,7 @@ export default function StudentPhotoEditor({
               <button onClick={() => setShowModal(false)} style={btnSecondary}>닫기</button>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={!memberId}
-                style={{ ...btnPrimary, ...(memberId ? {} : { background: "var(--hairline-strong)", boxShadow: "none", cursor: "not-allowed" }) }}
+                style={btnPrimary}
               >
                 <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                   <Camera size={15} strokeWidth={1.8} /> {showPhoto ? "사진 변경" : "사진 등록"}
@@ -386,7 +378,6 @@ const overlayStyle: React.CSSProperties = { position: "fixed", inset: 0, backgro
 const cardStyle: React.CSSProperties = { background: "var(--card)", borderRadius: 20, padding: "24px 20px", maxWidth: 380, width: "100%", maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)", fontFamily: "'Noto Sans KR', sans-serif" };
 const titleStyle: React.CSSProperties = { fontSize: 18, fontWeight: 800, color: "var(--ink)", marginBottom: 14, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 };
 const errorStyle: React.CSSProperties = { padding: "10px 14px", background: "var(--danger-soft)", border: "1px solid var(--danger-soft)", borderRadius: 10, fontSize: 12, color: "var(--danger)", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 };
-const noticeStyle: React.CSSProperties = { padding: "10px 14px", background: "var(--warning-soft)", border: "1px solid color-mix(in srgb, var(--warning) 26%, transparent)", borderRadius: 10, fontSize: 12, color: "var(--ink-mid)", marginBottom: 14, display: "flex", alignItems: "center", gap: 6 };
 const btnSecondary: React.CSSProperties = { flex: 1, padding: "12px", background: "var(--bg-soft)", color: "var(--ink-soft)", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const btnPrimary: React.CSSProperties = { flex: 1.5, padding: "12px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 6px 16px rgba(62, 90, 74, 0.3)" };
 const btnRevert: React.CSSProperties = { width: "100%", marginTop: 8, padding: "11px", background: "var(--card)", color: "var(--ink-soft)", border: "1px solid var(--hairline-strong)", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 };
