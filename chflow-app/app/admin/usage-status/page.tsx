@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Activity, AlertTriangle, BarChart3, CalendarDays, Database, ExternalLink, HardDrive, Repeat, Users } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, CalendarDays, CheckCircle2, ClipboardCopy, Database, ExternalLink, Gauge, HardDrive, Repeat, Users } from "lucide-react";
 
 interface UsageSummary {
   today: number;
@@ -44,6 +44,14 @@ interface TrendRow {
 interface QueryGrowth { q: string; calls_delta: number; ms_delta: number; rows_delta: number }
 interface TableGrowth { name: string; bytes: number; bytes_delta: number }
 interface GrowthReport { latest_date?: string; query_growth: QueryGrowth[]; table_growth: TableGrowth[] }
+
+// 종합 진단 — 코드는 [chflow-usage-report v1] 리포트에 그대로 실려 CLI(Claude)가 해석
+interface Finding {
+  code: string;
+  severity: "danger" | "warn";
+  text: string;
+  hint: string;
+}
 
 const SUPABASE_PROJECT = "https://supabase.com/dashboard/project/klsrjvvdwtofialqknng";
 const FREE_PLAN_DB_LIMIT = 500 * 1024 * 1024; // 500MB
@@ -163,6 +171,73 @@ export default function AdminUsageStatusPage() {
     return { median, max: Math.max(1, ...deltas) };
   }, [trend]);
 
+  // 종합 진단 — 서버 이상감지와 동일 기준 + 용량·원인 신호를 한 곳에 모음
+  const findings = useMemo<Finding[]>(() => {
+    const out: Finding[] = [];
+    if (dbHealth) {
+      const pct = dbHealth.db_size_bytes / FREE_PLAN_DB_LIMIT;
+      if (pct > 0.8) {
+        out.push({ code: "DB_CAPACITY", severity: "danger", text: `DB 용량 ${Math.round(pct * 100)}% — 무료플랜 한도 임박`, hint: "로그성 테이블 보존기간 정리 또는 플랜 상향 확인 필요" });
+      } else if (pct > 0.6) {
+        out.push({ code: "DB_CAPACITY", severity: "warn", text: `DB 용량 ${Math.round(pct * 100)}%`, hint: "상위 테이블 증가 추이 확인 필요" });
+      }
+    }
+    if (r2Usage && r2Usage !== "error") {
+      const pct = r2Usage.totalBytes / FREE_PLAN_R2_LIMIT;
+      if (pct > 0.8) {
+        out.push({ code: "R2_CAPACITY", severity: "danger", text: `R2 저장 ${Math.round(pct * 100)}% — 무료플랜 한도 임박`, hint: "대용량 버킷(사진 원본) 정리·아카이브 확인 필요" });
+      } else if (pct > 0.6) {
+        out.push({ code: "R2_CAPACITY", severity: "warn", text: `R2 저장 ${Math.round(pct * 100)}%`, hint: "버킷별 용량 추이 확인 필요" });
+      }
+    }
+    const last7 = trend.slice(-7);
+    const spikes = last7.filter((t) => (t.calls_delta ?? 0) >= 2000 && (t.calls_delta ?? 0) > 3 * Math.max(callsStats.median, 100));
+    if (spikes.length > 0) {
+      const peak = Math.max(...spikes.map((s) => s.calls_delta ?? 0));
+      out.push({ code: "QUERY_SPIKE", severity: "warn", text: `최근 7일 중 ${spikes.length}일 쿼리 호출 급증 (최대 ${peak.toLocaleString("ko-KR")}건/일)`, hint: "클라이언트 폴링·재시도 루프 쪽 확인 필요" });
+    }
+    const dbSpikes = last7.filter((t) => (t.db_delta ?? 0) >= 5 * 1024 * 1024);
+    if (dbSpikes.length > 0) {
+      out.push({ code: "DB_GROWTH_SPIKE", severity: "warn", text: `최근 7일 중 ${dbSpikes.length}일 DB가 하루 5MB 이상 증가`, hint: "원인분석 카드의 테이블 증가 항목 확인 필요" });
+    }
+    const heavy = (growth?.query_growth || []).find((g) => g.calls_delta > 500 && g.rows_delta / Math.max(g.calls_delta, 1) > 50);
+    if (heavy) {
+      out.push({ code: "QUERY_HEAVY_ROWS", severity: "warn", text: `호출당 행 과다 쿼리 감지 (+${heavy.calls_delta.toLocaleString("ko-KR")}회): ${heavy.q.slice(0, 60)}…`, hint: "해당 쿼리 인덱스·limit·페이지네이션 쪽 확인 필요" });
+    }
+    const bigTable = (growth?.table_growth || []).find((t) => t.bytes_delta > 20 * 1024 * 1024);
+    if (bigTable) {
+      out.push({ code: "TABLE_GROWTH", severity: "warn", text: `${bigTable.name} 테이블 주간 +${formatBytes(bigTable.bytes_delta)}`, hint: "로그성 적재 여부·보존기간 정리 쪽 확인 필요" });
+    }
+    return out;
+  }, [dbHealth, r2Usage, trend, growth, callsStats]);
+
+  const overall: "ok" | "warn" | "danger" = findings.some((f) => f.severity === "danger")
+    ? "danger" : findings.length > 0 ? "warn" : "ok";
+
+  // CLI(Claude)에 붙여넣는 기계 판독용 리포트
+  const reportText = useMemo(() => {
+    const lines = [`[chflow-usage-report v1] date=${new Date().toISOString().slice(0, 10)} status=${overall}`];
+    if (dbHealth) lines.push(`db=${formatBytes(dbHealth.db_size_bytes)}/500MB(${Math.round((dbHealth.db_size_bytes / FREE_PLAN_DB_LIMIT) * 100)}%)`);
+    if (r2Usage && r2Usage !== "error") lines.push(`r2=${formatBytes(r2Usage.totalBytes)}/10GB(${(r2Usage.totalBytes / FREE_PLAN_R2_LIMIT * 100).toFixed(1)}%)`);
+    if (summary) lines.push(`visitors: today=${summary.today} 7d=${summary.unique7} 30d=${summary.unique30}`);
+    if (findings.length === 0) {
+      lines.push("findings: none");
+    } else {
+      lines.push("findings:");
+      findings.forEach((f) => lines.push(`- ${f.code} [${f.severity}] ${f.text} | hint: ${f.hint}`));
+    }
+    return lines.join("\n");
+  }, [overall, dbHealth, r2Usage, summary, findings]);
+
+  const [copied, setCopied] = useState(false);
+  const copyReport = async () => {
+    try {
+      await navigator.clipboard.writeText(reportText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* clipboard 미지원 브라우저 — 무시 */ }
+  };
+
   // 활동이 있는 부서 우선 정렬 (전부 0인 부서는 아래로)
   const sortedDeptRows = useMemo(() => {
     const total = (r: DeptActivityRow) => r.attendance_saves + r.talent_records + r.notices + r.new_friends;
@@ -196,6 +271,64 @@ export default function AdminUsageStatusPage() {
           </div>
         ) : (
           <>
+            {/* 종합 진단 대시보드 */}
+            <div
+              className="mb-4 rounded-lg border bg-card p-4"
+              style={{
+                borderColor: overall === "danger" ? "var(--danger)" : overall === "warn" ? "var(--warning)" : "var(--hairline)",
+                borderWidth: overall === "ok" ? 1 : 1.5,
+              }}
+            >
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-[15px] font-extrabold text-ink">
+                  <Gauge size={15} strokeWidth={2} /> 트래픽·성능 종합 진단
+                  <span
+                    className="rounded-full px-2.5 py-0.5 text-[11px] font-extrabold"
+                    style={overall === "danger"
+                      ? { background: "var(--danger-soft)", color: "var(--danger)" }
+                      : overall === "warn"
+                        ? { background: "var(--warning-soft)", color: "var(--warning)" }
+                        : { background: "var(--success-soft)", color: "var(--success)" }}
+                  >
+                    {overall === "danger" ? "조치 필요" : overall === "warn" ? "확인 권장" : "정상"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyReport}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-surface px-3 py-1.5 text-[12px] font-extrabold text-ink-soft"
+                  style={{ cursor: "pointer" }}
+                >
+                  {copied ? <CheckCircle2 size={13} strokeWidth={2.2} style={{ color: "var(--success)" }} /> : <ClipboardCopy size={13} strokeWidth={2.2} />}
+                  {copied ? "복사됨" : "진단 리포트 복사"}
+                </button>
+              </div>
+              {findings.length === 0 ? (
+                <div className="flex items-center gap-2 rounded-md bg-bg-soft px-3 py-2 text-[13px] font-bold text-ink-soft">
+                  <CheckCircle2 size={14} strokeWidth={2} style={{ color: "var(--success)" }} />
+                  모든 지표 정상 — 지금 조치가 필요한 항목이 없습니다.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {findings.map((f, i) => (
+                    <div key={i} className="rounded-md border border-hairline bg-surface px-3 py-2 text-[12.5px] leading-5">
+                      <span
+                        className="mr-1.5 font-extrabold"
+                        style={{ color: f.severity === "danger" ? "var(--danger)" : "var(--warning)" }}
+                      >
+                        {f.severity === "danger" ? "●" : "▲"}
+                      </span>
+                      <span className="font-bold text-ink">{f.text}</span>
+                      <span className="ml-1.5 text-ink-faint">→ {f.hint}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="mt-2 text-[12px] leading-5 text-ink-faint">
+                확인이 필요한 항목이 뜨면 [진단 리포트 복사]를 눌러 Claude(CLI)에 그대로 붙여넣으세요 — 리포트 코드로 원인 분석부터 이어서 진행합니다. (Vercel 대역폭·Supabase egress는 여기서 판정 불가 — 아래 진단 채널 참고)
+              </div>
+            </div>
+
             {/* 방문자 요약 */}
             <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4">
               <SummaryCard label="오늘 방문자" value={`${summary?.today ?? 0}명`} accent />
