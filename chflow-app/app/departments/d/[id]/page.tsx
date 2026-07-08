@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import DeptIcon from "@/components/DeptIcon";
@@ -12,7 +12,7 @@ import {
   Medal, Users, Inbox, BookText, CalendarPlus, BookOpen, FileText, BarChart3,
   TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks, FileSearch,
   Settings, Award, Lock, CircleHelp, Construction, Cog, X, Pencil, MessageSquareText,
-  ChevronUp, ChevronDown, User,
+  ChevronUp, ChevronDown, User, GripVertical,
 } from "lucide-react";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { photoThumb } from "@/lib/photo";
@@ -189,6 +189,14 @@ export default function DepartmentDetailPage() {
   const [editCatId, setEditCatId] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ catId: string; itemId: string } | null>(null);
   const [sectionOrder, setSectionOrder] = useState<string[]>(ADMIN_SECTIONS.map((s) => s.id));
+  const [itemOrder, setItemOrder] = useState<Record<string, string[]>>({});
+  // 드래그 정렬 (편집모드) — Pointer Events 라 마우스·터치 모두 동작
+  const [draggingKey, setDraggingKey] = useState<string | null>(null); // `${catId}:${itemId}`
+  const itemRefs = useRef(new Map<string, HTMLDivElement>());
+  const dragRef = useRef<{
+    catId: string; itemId: string; gridIds: string[];
+    startOrder: string[]; currentOrder: string[];
+  } | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
   const [deptMembers, setDeptMembers] = useState<DeptMemberRow[] | null>(null);
   const [membersLoading, setMembersLoading] = useState(false);
@@ -199,7 +207,7 @@ export default function DepartmentDetailPage() {
       if (!session) { router.replace("/login"); return; }
       setAuthChecked(true);
       setLoading(true);
-      const [deptResp, gradeResp, teacherResp, settingsResp, sectionOrderResp] = await Promise.all([
+      const [deptResp, gradeResp, teacherResp, settingsResp, sectionOrderResp, itemOrderResp] = await Promise.all([
         supabase.rpc("get_department_info", { p_dept_id: deptId }),
         supabase.rpc("get_user_grade", { p_dept_id: deptId }),
         supabase
@@ -211,7 +219,11 @@ export default function DepartmentDetailPage() {
           .maybeSingle(),
         supabase.rpc("get_dept_menu_settings", { p_department_id: deptId }),
         supabase.rpc("get_dept_admin_section_order", { p_department_id: deptId }),
+        supabase.rpc("get_dept_menu_item_order", { p_department_id: deptId }),
       ]);
+      if (!itemOrderResp.error && itemOrderResp.data && typeof itemOrderResp.data === "object") {
+        setItemOrder(itemOrderResp.data as Record<string, string[]>);
+      }
       if (!settingsResp.error && settingsResp.data) {
         setMenuSettings(settingsResp.data as MenuSettings);
       }
@@ -242,6 +254,61 @@ export default function DepartmentDetailPage() {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2800);
+  };
+
+  // 드래그 시작 (편집모드 그립 핸들) — 같은 그리드(섹션) 안에서만 이동
+  const startItemDrag = (
+    e: React.PointerEvent,
+    catId: string,
+    itemId: string,
+    gridIds: string[],
+    fullOrder: string[],
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = { catId, itemId, gridIds, startOrder: fullOrder, currentOrder: fullOrder };
+    setDraggingKey(`${catId}:${itemId}`);
+
+    const onMove = (ev: PointerEvent) => {
+      const st = dragRef.current;
+      if (!st) return;
+      for (const oid of st.gridIds) {
+        if (oid === st.itemId) continue;
+        const el = itemRefs.current.get(`${st.catId}:${oid}`);
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) {
+          const next = [...st.currentOrder];
+          const from = next.indexOf(st.itemId);
+          const to = next.indexOf(oid);
+          if (from < 0 || to < 0 || from === to) break;
+          next.splice(from, 1);
+          next.splice(to, 0, st.itemId);
+          st.currentOrder = next;
+          setItemOrder((prev) => ({ ...prev, [st.catId]: next }));
+          break;
+        }
+      }
+    };
+    const onUp = async () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      const st = dragRef.current;
+      dragRef.current = null;
+      setDraggingKey(null);
+      if (!st || st.currentOrder.join("|") === st.startOrder.join("|")) return;
+      const { error } = await supabase.rpc("set_dept_menu_item_order", {
+        p_department_id: deptId, p_category: st.catId, p_order: st.currentOrder,
+      });
+      if (error) {
+        setItemOrder((prev) => ({ ...prev, [st.catId]: st.startOrder }));
+        showToast(`순서 저장 실패: ${error.message}`);
+      }
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
   };
 
   const moveSection = async (id: string, dir: -1 | 1) => {
@@ -484,9 +551,17 @@ export default function DepartmentDetailPage() {
               )}
             </div>
             {(() => {
-              const visibleItems = cat.items
+              const filtered = cat.items
                 .map((item) => resolveItem(cat, item))
                 .filter((item) => itemDeptOk(cat, item) && grade <= (item.maxGrade ?? cat.maxGrade));
+              // 저장된 순서 적용 (미포함 항목은 기본 순서대로 뒤에)
+              const orderArr = itemOrder[cat.id] || [];
+              const visibleItems = filtered
+                .map((it, i) => ({ it, p: orderArr.indexOf(it.id) === -1 ? orderArr.length + i : orderArr.indexOf(it.id) }))
+                .sort((a, b) => a.p - b.p)
+                .map((x) => x.it);
+              const orderedIds = visibleItems.map((it) => it.id);
+              const editingCat = editCatId === cat.id && canEditCat(cat.id);
               const renderGrid = (items: MenuItem[]) => (
                 <div style={{
                   display: "grid",
@@ -498,9 +573,18 @@ export default function DepartmentDetailPage() {
                       key={item.id}
                       item={item}
                       onClick={() => handleItemClick(item)}
-                      onEdit={editCatId === cat.id && canEditCat(cat.id)
+                      onEdit={editingCat
                         && (cat.id !== "notices" || COMMON_MENU_KEYS.includes(item.id))
                         ? () => setEditing({ catId: cat.id, itemId: item.id }) : undefined}
+                      cardRef={(el) => {
+                        const key = `${cat.id}:${item.id}`;
+                        if (el) itemRefs.current.set(key, el);
+                        else itemRefs.current.delete(key);
+                      }}
+                      dragging={draggingKey === `${cat.id}:${item.id}`}
+                      onDragHandle={editingCat
+                        ? (e) => startItemDrag(e, cat.id, item.id, items.map((x) => x.id), orderedIds)
+                        : undefined}
                     />
                   ))}
                 </div>
@@ -807,22 +891,31 @@ const sectionMoveBtnStyle = (disabled: boolean): React.CSSProperties => ({
 const modalLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", letterSpacing: 0.2 };
 const modalInput: React.CSSProperties = { width: "100%", marginTop: 5, padding: "10px 12px", fontSize: 14, background: "var(--card)", border: "1.5px solid var(--hairline)", borderRadius: 9, outline: "none", fontFamily: "inherit", boxSizing: "border-box", color: "var(--ink)", fontWeight: 500 };
 
-function MenuCard({ item, onClick, onEdit }: { item: MenuItem; onClick: () => void; onEdit?: () => void }) {
+function MenuCard({ item, onClick, onEdit, cardRef, dragging, onDragHandle }: {
+  item: MenuItem;
+  onClick: () => void;
+  onEdit?: () => void;
+  cardRef?: (el: HTMLDivElement | null) => void;
+  dragging?: boolean;
+  onDragHandle?: (e: React.PointerEvent) => void;
+}) {
   const dim = !item.implemented;
   return (
     <div
+      ref={cardRef}
       onClick={onEdit ? onEdit : onClick}
       style={{
         background: dim ? "var(--surface)" : "var(--card)",
-        border: `1.5px solid ${dim ? "var(--hairline)" : `color-mix(in srgb, ${item.color} 26%, transparent)`}`,
+        border: `1.5px solid ${dragging ? "var(--accent)" : dim ? "var(--hairline)" : `color-mix(in srgb, ${item.color} 26%, transparent)`}`,
         borderRadius: 12,
         padding: "14px 14px",
         cursor: "pointer",
-        transition: "all 0.15s",
+        transition: dragging ? "none" : "all 0.15s",
         display: "flex",
         alignItems: "center",
         gap: 12,
-        opacity: dim ? 0.7 : 1,
+        opacity: dragging ? 0.55 : dim ? 0.7 : 1,
+        boxShadow: dragging ? "0 8px 20px color-mix(in srgb, var(--accent) 25%, transparent)" : undefined,
         position: "relative",
       }}
       onMouseOver={(e) => {
@@ -837,6 +930,21 @@ function MenuCard({ item, onClick, onEdit }: { item: MenuItem; onClick: () => vo
         e.currentTarget.style.boxShadow = "none";
       }}
     >
+      {onDragHandle && (
+        <span
+          onPointerDown={onDragHandle}
+          onClick={(e) => e.stopPropagation()}
+          title="드래그로 순서 변경"
+          style={{
+            touchAction: "none", cursor: dragging ? "grabbing" : "grab",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 26, height: 40, marginLeft: -8, marginRight: -6,
+            color: "var(--ink-faint)", flexShrink: 0,
+          }}
+        >
+          <GripVertical size={15} strokeWidth={2} />
+        </span>
+      )}
       <div style={{
         width: 36, height: 36, borderRadius: 9,
         background: dim ? "var(--hairline)" : `color-mix(in srgb, ${item.color} 9%, transparent)`,
