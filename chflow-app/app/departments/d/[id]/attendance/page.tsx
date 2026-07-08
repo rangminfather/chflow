@@ -1,6 +1,8 @@
 "use client";
 
-// 출결 통합 조회 — 전 반 한 달치 출결 체크(출/결/인 탭 순환) + 달란트 체크 현황(읽기 전용).
+// 출결 통합 조회 — 전 반 한 달치 종합 그리드. 탭으로 출석체크/달란트체크 화면 전환.
+//  - 출석체크: 종이 출석부식 기호(/ 출석, · 결석, Ø 출석인정), 칸 탭 시 순환 수정.
+//  - 달란트체크: 달란트통장 체크 항목을 ①②③ 번호로 종합 표시 (읽기 전용, 체크는 달란트통장에서).
 // 학생 추가/삭제는 학생정보관리 메뉴에서 수행. 학생 이름 클릭 → 출결 이력 모달(기간 조회).
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -75,9 +77,12 @@ interface HistoryRow {
 // 출결 상태 순환: 미기록 → 출석 → 결석 → 출석인정 → 출석 …
 const STATUS_CYCLE: Record<string, string> = { "": "출", 출: "결", 결: "인", 인: "출" };
 const STATUS_FULL: Record<string, string> = { 출: "출석", 결: "결석", 인: "출석인정", 빠: "빠짐" };
+// 종이 출석부식 기호
+const STATUS_SYMBOL: Record<string, string> = { 출: "/", 결: "·", 인: "Ø" };
 const STATUS_COLOR: Record<string, string> = {
   출: "var(--success)", 결: "var(--danger)", 인: "var(--accent)", 빠: "var(--warning)",
 };
+const CIRCLED = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫", "⑬", "⑭", "⑮"];
 // 출석부 자동연동 키 — 달란트통장과 동일 기준으로 수동 체크 칩에서 제외
 const SYSTEM_AUTO_KEYS = new Set(["attendance", "prayer", "church_school", "worship", "lesson", "bible"]);
 const PROMOTION_KEY = "new_friend_promotion";
@@ -96,6 +101,7 @@ export default function AttendancePage() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [viewMode, setViewMode] = useState<"attendance" | "talent">("attendance");
   const [students, setStudents] = useState<Student[]>([]);
   const [attData, setAttData] = useState<AttendRow[]>([]);
   const [rules, setRules] = useState<TalentRule[]>([]);
@@ -185,16 +191,16 @@ export default function AttendancePage() {
 
   const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
 
-  // 달란트 수동 체크 칩 규칙 (달란트통장과 동일 기준)
+  // 달란트 수동 체크 칩 규칙 (달란트통장과 동일 기준) — 표시 순서 = 범례 번호 순서
   const checkRules = useMemo(
     () => rules
       .filter((r) => r.rule_kind === "weekly" && r.is_active && !SYSTEM_AUTO_KEYS.has(r.rule_key) && r.rule_key !== PROMOTION_KEY)
       .sort((a, b) => (a.order_no || 0) - (b.order_no || 0)),
     [rules]
   );
-  const ruleById = useMemo(() => {
-    const m: Record<string, TalentRule> = {};
-    checkRules.forEach((r) => { m[r.id] = r; });
+  const ruleIndexById = useMemo(() => {
+    const m: Record<string, number> = {};
+    checkRules.forEach((r, i) => { m[r.id] = i; });
     return m;
   }, [checkRules]);
 
@@ -209,18 +215,19 @@ export default function AttendancePage() {
     return m;
   }, [attData]);
 
-  // `${student_id}_${date}` → 체크된 달란트 규칙 목록
+  // `${student_id}_${date}` → 체크된 달란트 규칙 index 목록 (범례 번호순)
   const extraMap = useMemo(() => {
-    const m: Record<string, TalentRule[]> = {};
+    const m: Record<string, number[]> = {};
     extras.forEach((e) => {
-      const rule = ruleById[e.rule_id];
-      if (!rule) return;
+      const idx = ruleIndexById[e.rule_id];
+      if (idx === undefined) return;
       const key = `${e.student_id}_${e.attend_date}`;
       if (!m[key]) m[key] = [];
-      m[key].push(rule);
+      m[key].push(idx);
     });
+    Object.values(m).forEach((arr) => arr.sort((a, b) => a - b));
     return m;
-  }, [extras, ruleById]);
+  }, [extras, ruleIndexById]);
 
   const getCell = (studentId: string, date: string): AttendRow | undefined =>
     attMap[studentId]?.[date];
@@ -272,6 +279,18 @@ export default function AttendancePage() {
       absent:  cells.filter((c) => c?.attend_status === "결").length,
       excused: cells.filter((c) => c?.attend_status === "인").length,
     };
+  };
+
+  // 달란트 월합계 — 체크 개수 / 점수 합
+  const talentSummary = (studentId: string) => {
+    let count = 0, points = 0;
+    sundays.forEach((d) => {
+      (extraMap[`${studentId}_${d}`] || []).forEach((idx) => {
+        count += 1;
+        points += checkRules[idx]?.points || 0;
+      });
+    });
+    return { count, points };
   };
 
   // ── 출결 이력 모달 ──
@@ -332,15 +351,33 @@ export default function AttendancePage() {
       </div>
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: 16 }}>
-        {/* 월 선택 */}
+        {/* 월 선택 + 화면 전환 탭 */}
         <div style={{ ...cardStyle, marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", minWidth: 120, textAlign: "center" }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", minWidth: 110, textAlign: "center" }}>
             {year}년 {month}월
           </div>
           <button onClick={() => nextMonth(year, month, setYear, setMonth)} style={navBtnStyle}>▶</button>
-          <div style={{ marginLeft: "auto", fontSize: 11, color: "var(--ink-faint)" }}>
-            출결 칸 탭 = 출석 → 결석 → 출석인정 순환 · 이름 클릭 = 이력 조회 · 학생 추가/삭제는 학생정보관리에서
+
+          <div style={{ display: "flex", gap: 4, marginLeft: "auto", background: "var(--bg-soft)", borderRadius: 10, padding: 3 }}>
+            {([
+              { key: "attendance", label: "출석체크" },
+              { key: "talent", label: "달란트체크" },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setViewMode(t.key)}
+                style={{
+                  padding: "7px 16px", border: "none", borderRadius: 8, cursor: "pointer",
+                  fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+                  background: viewMode === t.key ? "var(--card)" : "transparent",
+                  color: viewMode === t.key ? "var(--accent)" : "var(--ink-soft)",
+                  boxShadow: viewMode === t.key ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -383,6 +420,29 @@ export default function AttendancePage() {
 
         {/* 그리드 */}
         <div style={{ ...cardStyle, overflowX: "auto", padding: 0 }}>
+          {/* 범례 */}
+          <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--hairline)", display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center", fontSize: 11 }}>
+            <span style={{ fontWeight: 800, color: "var(--ink-soft)" }}>범례</span>
+            {viewMode === "attendance" ? (
+              <>
+                <span><b style={{ color: STATUS_COLOR["출"], fontSize: 13 }}>/</b> <span style={{ color: "var(--ink-soft)" }}>출석</span></span>
+                <span><b style={{ color: STATUS_COLOR["결"], fontSize: 13 }}>·</b> <span style={{ color: "var(--ink-soft)" }}>결석</span></span>
+                <span><b style={{ color: STATUS_COLOR["인"], fontSize: 13 }}>Ø</b> <span style={{ color: "var(--ink-soft)" }}>출석인정</span></span>
+                <span style={{ color: "var(--ink-faint)" }}>빈칸 = 미기록 · 칸을 탭하면 출석 → 결석 → 출석인정 순환 · 이름 클릭 = 이력</span>
+              </>
+            ) : (
+              <>
+                {checkRules.map((r, i) => (
+                  <span key={r.id} style={{ whiteSpace: "nowrap" }}>
+                    <b style={{ color: "var(--accent)" }}>{CIRCLED[i] || `(${i + 1})`}</b>{" "}
+                    <span style={{ color: "var(--ink-soft)" }}>{r.label} +{r.points}</span>
+                  </span>
+                ))}
+                <span style={{ color: "var(--ink-faint)" }}>체크·수정은 달란트통장 메뉴에서 (여기는 종합 현황)</span>
+              </>
+            )}
+          </div>
+
           {loading ? (
             <LoadingView padding={60} label="불러오는 중..." />
           ) : students.length === 0 ? (
@@ -390,28 +450,29 @@ export default function AttendancePage() {
               학생이 없습니다. 학생정보관리에서 학생을 등록하세요.
             </div>
           ) : (
-            <table className="att-table" style={{ width: "100%", minWidth: 640, fontSize: 11 }}>
+            <table className="att-table" style={{ width: "100%", minWidth: 560, fontSize: 11 }}>
               <thead style={{ background: "var(--surface)" }}>
                 <tr>
-                  <th rowSpan={2} style={thStyle(36)}>번호</th>
-                  <th rowSpan={2} style={thStyle(72)}>이름</th>
-                  <th rowSpan={2} style={thStyle(44)}>등반</th>
+                  <th style={thStyle(36)}>번호</th>
+                  <th style={thStyle(72)}>이름</th>
+                  <th style={thStyle(44)}>등반</th>
                   {sundays.map((d, i) => (
-                    <th key={d} colSpan={2} style={{ ...thStyle(0), textAlign: "center" }}>
-                      {i + 1}주 ({formatMD(d)})
+                    <th key={d} style={{ ...thStyle(viewMode === "attendance" ? 44 : 72), textAlign: "center" }}>
+                      {i + 1}주<br />({formatMD(d)})
                     </th>
                   ))}
-                  <th rowSpan={2} style={thStyle(40)}>출석</th>
-                  <th rowSpan={2} style={thStyle(40)}>결석</th>
-                  <th rowSpan={2} style={thStyle(52)}>출석인정</th>
-                </tr>
-                <tr>
-                  {sundays.map((d) => (
+                  {viewMode === "attendance" ? (
                     <>
-                      <th key={`${d}-att`} style={thStyle(40)}>출결</th>
-                      <th key={`${d}-talent`} style={thStyle(44)}>달란트</th>
+                      <th style={thStyle(40)}>출석</th>
+                      <th style={thStyle(40)}>결석</th>
+                      <th style={thStyle(52)}>출석인정</th>
                     </>
-                  ))}
+                  ) : (
+                    <>
+                      <th style={thStyle(40)}>체크</th>
+                      <th style={thStyle(44)}>점수</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -425,7 +486,7 @@ export default function AttendancePage() {
                     if (ca !== cb) return ca.localeCompare(cb);
                     return a.order_no - b.order_no;
                   });
-                  const colSpan = 3 + sundays.length * 2 + 3;
+                  const colSpan = 3 + sundays.length + (viewMode === "attendance" ? 3 : 2);
                   let lastGroup = "__init__";
                   const rows: React.ReactNode[] = [];
                   sorted.forEach((s) => {
@@ -451,7 +512,6 @@ export default function AttendancePage() {
                         </tr>
                       );
                     }
-                    const summary = monthlySummary(s.id);
                     rows.push(
                       <tr key={s.id} style={{ borderBottom: "1px solid var(--bg-soft)" }}>
                         <td style={{ textAlign: "center", padding: 3, fontWeight: 700 }}>{s.student_no ?? ""}</td>
@@ -477,54 +537,74 @@ export default function AttendancePage() {
                           )}
                         </td>
 
-                        {sundays.map((d) => {
-                          const cell = getCell(s.id, d);
-                          const status = cell?.attend_status ?? "";
-                          const key = `${s.id}-${d}`;
-                          const checked = extraMap[`${s.id}_${d}`] || [];
-                          return (
-                            <>
-                              <td key={`${d}-att`} style={{ textAlign: "center", padding: 2 }}>
-                                <button
-                                  className="status-btn"
-                                  onClick={() => cycleStatus(s.id, d)}
-                                  disabled={saving === key}
-                                  title={status ? STATUS_FULL[status] : "미기록 (탭하여 체크)"}
-                                  style={{
-                                    width: 32, height: 24, borderRadius: 5, border: "none",
-                                    background: status ? `color-mix(in srgb, ${STATUS_COLOR[status]} 18%, transparent)` : "var(--bg-soft)",
-                                    color: status ? STATUS_COLOR[status] : "var(--hairline-strong)",
-                                    fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
-                                    display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto",
-                                  }}
+                        {viewMode === "attendance" ? (
+                          <>
+                            {sundays.map((d) => {
+                              const cell = getCell(s.id, d);
+                              const status = cell?.attend_status ?? "";
+                              const key = `${s.id}-${d}`;
+                              return (
+                                <td key={d} style={{ textAlign: "center", padding: 2 }}>
+                                  <button
+                                    className="status-btn"
+                                    onClick={() => cycleStatus(s.id, d)}
+                                    disabled={saving === key}
+                                    title={status ? STATUS_FULL[status] : "미기록 (탭하여 체크)"}
+                                    style={{
+                                      width: 34, height: 26, borderRadius: 5, border: "none",
+                                      background: status ? `color-mix(in srgb, ${STATUS_COLOR[status]} 15%, transparent)` : "var(--bg-soft)",
+                                      color: status ? STATUS_COLOR[status] : "var(--hairline-strong)",
+                                      fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+                                      display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto",
+                                    }}
+                                  >
+                                    {saving === key ? "…" : STATUS_SYMBOL[status] ?? ""}
+                                  </button>
+                                </td>
+                              );
+                            })}
+                            {(() => {
+                              const summary = monthlySummary(s.id);
+                              return (
+                                <>
+                                  <td style={{ textAlign: "center", padding: 3, fontWeight: 700, color: "var(--success)" }}>{summary.attend}</td>
+                                  <td style={{ textAlign: "center", padding: 3, fontWeight: 700, color: "var(--danger)" }}>{summary.absent}</td>
+                                  <td style={{ textAlign: "center", padding: 3, fontWeight: 700, color: "var(--accent)" }}>{summary.excused}</td>
+                                </>
+                              );
+                            })()}
+                          </>
+                        ) : (
+                          <>
+                            {sundays.map((d) => {
+                              const checked = extraMap[`${s.id}_${d}`] || [];
+                              return (
+                                <td
+                                  key={d}
+                                  title={checked.length > 0 ? checked.map((idx) => `${checkRules[idx]?.label} +${checkRules[idx]?.points}`).join(" · ") : undefined}
+                                  style={{ textAlign: "center", padding: "3px 4px", cursor: checked.length > 0 ? "help" : "default" }}
                                 >
-                                  {saving === key ? "…" : status || "·"}
-                                </button>
-                              </td>
-                              <td
-                                key={`${d}-talent`}
-                                title={checked.length > 0 ? checked.map((r) => `${r.label} +${r.points}`).join(" · ") : "달란트 체크 없음 (체크는 달란트통장에서)"}
-                                style={{ textAlign: "center", padding: 2, cursor: checked.length > 0 ? "help" : "default" }}
-                              >
-                                {checked.length > 0 ? (
-                                  <span style={{
-                                    fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 8,
-                                    background: "var(--accent-soft)", color: "var(--accent)", whiteSpace: "nowrap",
-                                  }}>
-                                    {checked.length}개 +{checked.reduce((sum, r) => sum + r.points, 0)}
-                                  </span>
-                                ) : (
-                                  <span style={{ color: "var(--hairline-strong)" }}>·</span>
-                                )}
-                              </td>
-                            </>
-                          );
-                        })}
-
-                        {/* 월합계: 출석 / 결석 / 출석인정 */}
-                        <td style={{ textAlign: "center", padding: 3, fontWeight: 700, color: "var(--success)" }}>{summary.attend}</td>
-                        <td style={{ textAlign: "center", padding: 3, fontWeight: 700, color: "var(--danger)" }}>{summary.absent}</td>
-                        <td style={{ textAlign: "center", padding: 3, fontWeight: 700, color: "var(--accent)" }}>{summary.excused}</td>
+                                  {checked.length > 0 ? (
+                                    <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 12, letterSpacing: 1, whiteSpace: "nowrap" }}>
+                                      {checked.map((idx) => CIRCLED[idx] || `(${idx + 1})`).join("")}
+                                    </span>
+                                  ) : (
+                                    <span style={{ color: "var(--hairline-strong)" }}> </span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            {(() => {
+                              const t = talentSummary(s.id);
+                              return (
+                                <>
+                                  <td style={{ textAlign: "center", padding: 3, fontWeight: 700, color: "var(--ink-soft)" }}>{t.count || ""}</td>
+                                  <td style={{ textAlign: "center", padding: 3, fontWeight: 700, color: "var(--accent)" }}>{t.points ? `+${t.points}` : ""}</td>
+                                </>
+                              );
+                            })()}
+                          </>
+                        )}
                       </tr>
                     );
                   });
