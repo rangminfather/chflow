@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, ReactNode, RefObject } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Workbook } from "exceljs";
@@ -101,6 +101,11 @@ const STUDENT_TYPE_OPTIONS: StudentType[] = ["정", "체험", "소"];
 const UNASSIGNED = "반 미배정";
 const TEMPLATE_HEADERS = ["이름", "구분", "번호", "학년", "반", "성별", "생년월일", "연락처", "주소", "학교", "정렬순서"];
 const TEMPLATE_EXAMPLE = ["김하준", "정", "12", "3", "3-1", "남", "2017-04-18", "010-1234-5678", "서울시 ...", "언약초", "12"];
+const PAGE_SIZE = 12;
+
+function birthYearForGrade(gradeYear: number): string {
+  return String(new Date().getFullYear() - 6 - gradeYear);
+}
 
 export default function StudentsInfoPage() {
   const router = useRouter();
@@ -125,6 +130,9 @@ export default function StudentsInfoPage() {
   const [importRows, setImportRows] = useState<ImportRow[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [showImportPanel, setShowImportPanel] = useState(false);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     (async () => {
@@ -266,10 +274,23 @@ export default function StudentsInfoPage() {
     });
   }, [students, classFilter, search]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [classFilter, search, students.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pagedStudents = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const visiblePages = useMemo(() => {
+    const start = Math.max(1, Math.min(page - 3, totalPages - 6));
+    const end = Math.min(totalPages, start + 6);
+    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+  }, [page, totalPages]);
+
   function selectStudent(student: EditableStudent) {
     setSelectedId(student.id);
     setDraft({ ...student });
     setEditMode(false);
+    setDetailOpen(true);
   }
 
   function openNewStudent() {
@@ -288,7 +309,7 @@ export default function StudentsInfoPage() {
       teacher_name: firstClass?.teacher_name || "",
       school_name: "",
       phone: "",
-      birth_date: "",
+      birth_date: firstClass?.grade_year ? birthDateWithYear("", birthYearForGrade(firstClass.grade_year)) : "",
       gender: "",
       address: "",
     });
@@ -315,6 +336,10 @@ export default function StudentsInfoPage() {
         const cls = classes.find((item) => item.class_no === value);
         next.grade_year = cls?.grade_year ?? next.grade_year;
         next.teacher_name = cls?.teacher_name || "";
+        if (cls?.grade_year) next.birth_date = birthDateWithYear(next.birth_date, birthYearForGrade(cls.grade_year));
+      }
+      if (key === "grade_year" && typeof value === "number" && value > 0) {
+        next.birth_date = birthDateWithYear(next.birth_date, birthYearForGrade(value));
       }
       return next;
     });
@@ -389,6 +414,10 @@ export default function StudentsInfoPage() {
 
   async function handleSaveNew() {
     if (!newDraft) return;
+    if (!newDraft.grade_year) {
+      showToast("학년을 선택하세요");
+      return;
+    }
     const ok = await persistStudent(newDraft);
     if (ok) setNewDraft(null);
   }
@@ -403,6 +432,7 @@ export default function StudentsInfoPage() {
     setImportRows([]);
     setImportErrors([]);
     if (!file) return;
+    setShowImportPanel(true);
 
     try {
       const rows = /\.csv$/i.test(file.name)
@@ -452,6 +482,7 @@ export default function StudentsInfoPage() {
     showToast(`${result.saved}명을 반영했습니다`);
     setImportRows([]);
     setImportErrors([]);
+    setShowImportPanel(false);
     await loadStudents();
   }
 
@@ -496,260 +527,143 @@ export default function StudentsInfoPage() {
     <div style={pageStyle}>
       <PageHeader deptId={deptId} router={router} />
 
-      <main className="mx-auto grid w-full max-w-7xl gap-4 px-4 py-4 xl:grid-cols-[310px_1fr_360px]">
-        <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-card">
-          <div className="border-b border-hairline px-4 py-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-[17px] font-extrabold text-ink">학생 명단</div>
-              <div className="inline-flex items-center gap-1 text-[13px] font-bold text-ink-faint">
-                <Users size={14} strokeWidth={2} /> {filtered.length}명
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4">
+        <section className="overflow-hidden rounded-lg border border-hairline bg-card">
+          <div className="grid gap-3 border-b border-hairline p-4 lg:grid-cols-[1fr_auto]">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="text-[18px] font-extrabold text-ink">학생 명단</div>
+                <div className="inline-flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-[13px] font-bold text-ink-faint">
+                  <Users size={14} strokeWidth={2} /> {filtered.length}명
+                </div>
+              </div>
+              <div className="mt-3 grid gap-2 md:grid-cols-[1fr_220px]">
+                <div className="flex items-center gap-2 rounded-md border border-hairline bg-surface px-2.5">
+                  <Search size={14} strokeWidth={2.2} className="shrink-0 text-ink-faint" />
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="이름, 연락처, 학교 검색"
+                    className="min-h-10 w-full bg-transparent text-[15px] font-bold text-ink outline-none"
+                  />
+                </div>
+                <select
+                  value={classFilter}
+                  onChange={(event) => setClassFilter(event.target.value)}
+                  className="min-h-10 w-full rounded-md border border-hairline bg-card px-2 text-[14px] font-bold text-ink outline-none"
+                >
+                  <option value="">전체 반 ({students.length}명)</option>
+                  {classOptions.map((option) => (
+                    <option key={option.label} value={option.label}>{option.label} ({option.count}명)</option>
+                  ))}
+                </select>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={openNewStudent}
-              className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-ink text-[14px] font-extrabold text-white"
-            >
-              <Plus size={16} strokeWidth={2.2} /> 학생 등록
-            </button>
-            <div className="mt-3 flex items-center gap-2 rounded-md border border-hairline bg-surface px-2.5">
-              <Search size={14} strokeWidth={2.2} className="shrink-0 text-ink-faint" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="이름, 연락처, 학교 검색"
-                className="min-h-10 w-full bg-transparent text-[15px] font-bold text-ink outline-none"
-              />
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-start">
+              <button
+                type="button"
+                onClick={openNewStudent}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-[14px] font-extrabold text-white"
+              >
+                <Plus size={16} strokeWidth={2.2} /> 학생 등록
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowImportPanel((value) => !value)}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-hairline bg-card px-4 text-[14px] font-extrabold text-ink"
+              >
+                <Upload size={16} strokeWidth={2.2} /> 일괄 업로드
+              </button>
             </div>
-            <select
-              value={classFilter}
-              onChange={(event) => setClassFilter(event.target.value)}
-              className="mt-2 min-h-10 w-full rounded-md border border-hairline bg-card px-2 text-[14px] font-bold text-ink outline-none"
-            >
-              <option value="">전체 반 ({students.length}명)</option>
-              {classOptions.map((option) => (
-                <option key={option.label} value={option.label}>{option.label} ({option.count}명)</option>
-              ))}
-            </select>
           </div>
 
-          {loading ? (
-            <div className="py-12 text-center text-[15px] text-ink-faint">불러오는 중...</div>
-          ) : filtered.length === 0 ? (
-            <div className="px-4 py-12 text-center text-[15px] leading-6 text-ink-faint">조건에 맞는 학생이 없습니다.</div>
-          ) : (
-            <div className="flex max-h-[68vh] flex-col gap-2 overflow-y-auto p-3">
-              {filtered.map((student) => (
-                <button
-                  key={student.id}
-                  type="button"
-                  onClick={() => selectStudent(student)}
-                  className={[
-                    "w-full rounded-lg border px-3 py-2.5 text-left",
-                    selectedId === student.id ? "border-amber-400 bg-amber-50" : "border-hairline bg-card",
-                  ].join(" ")}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-[15px] font-extrabold text-ink">{student.name}</span>
-                    <span className="shrink-0 text-[12px] font-bold text-ink-faint">{genderLabel(student.gender)}</span>
-                  </div>
-                  <div className="mt-0.5 truncate text-[12px] font-semibold text-ink-faint">
-                    {classLabel(student)}{student.teacher_name ? ` · 담임 ${student.teacher_name}` : ""}
-                  </div>
-                </button>
-              ))}
-            </div>
+          {(showImportPanel || importRows.length > 0 || importErrors.length > 0) && (
+            <ImportPanel
+              fileInputRef={fileInputRef}
+              importRows={importRows}
+              importErrors={importErrors}
+              importing={importing}
+              onFile={handleFile}
+              onDownloadTemplate={downloadTemplate}
+              onImport={importStudents}
+            />
           )}
-        </section>
 
-        <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-card">
-          {!draft ? (
-            <div className="py-20 text-center text-[16px] text-ink-faint">학생을 선택하거나 새로 등록하세요.</div>
+          {loading ? (
+            <div className="py-14 text-center text-[15px] text-ink-faint">불러오는 중...</div>
+          ) : filtered.length === 0 ? (
+            <div className="px-4 py-14 text-center text-[15px] leading-6 text-ink-faint">조건에 맞는 학생이 없습니다.</div>
           ) : (
             <>
-              <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
-                <div className="min-w-0">
-                  <div className="truncate text-[19px] font-extrabold text-ink">{draft.name || "새 학생"}</div>
-                  <div className="mt-1 text-[13px] font-semibold text-ink-faint">
-                    {classLabel(draft)}{draft.teacher_name ? ` · 담임 ${draft.teacher_name}` : ""}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setEditMode((value) => !value)}
-                  className={[
-                    "inline-flex min-h-10 shrink-0 items-center justify-center rounded-md border px-3 text-[14px] font-extrabold",
-                    editMode ? "border-amber-400 bg-amber-50 text-amber-800" : "border-hairline bg-card text-ink-soft",
-                  ].join(" ")}
-                >
-                  {editMode ? "수정 중" : "수정"}
-                </button>
+              <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {pagedStudents.map((student) => (
+                  <button
+                    key={student.id}
+                    type="button"
+                    onClick={() => selectStudent(student)}
+                    className={[
+                      "min-h-[96px] rounded-lg border px-3 py-3 text-left transition",
+                      selectedId === student.id ? "border-amber-400 bg-amber-50" : "border-hairline bg-card hover:bg-surface",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-[16px] font-extrabold text-ink">{student.name}</div>
+                        <div className="mt-1 truncate text-[13px] font-semibold text-ink-faint">{classLabel(student)}</div>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-[12px] font-bold text-ink-faint">{genderLabel(student.gender)}</span>
+                    </div>
+                    <div className="mt-3 truncate text-[12px] font-semibold text-ink-faint">
+                      {student.teacher_name ? `담임 ${student.teacher_name}` : "담임 미배정"}
+                      {student.phone ? ` · ${formatPhone(student.phone)}` : ""}
+                    </div>
+                  </button>
+                ))}
               </div>
 
-              <div className="grid gap-4 p-4 lg:grid-cols-2">
-                <Panel title="학생 정보">
-                  <InfoField label="이름" editMode={editMode} value={draft.name || "미등록"}>
-                    <input value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} className={inputClass} />
-                  </InfoField>
-                  <InfoField label="구분" editMode={editMode} value={draft.student_type}>
-                    <select value={draft.student_type} onChange={(event) => updateDraft("student_type", normalizeStudentType(event.target.value))} className={inputClass}>
-                      {STUDENT_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
-                    </select>
-                  </InfoField>
-                  <InfoField label="번호" editMode={editMode} value={draft.student_no ? String(draft.student_no) : "미등록"}>
-                    <input type="number" value={draft.student_no ?? ""} onChange={(event) => updateDraft("student_no", numberOrNull(event.target.value))} className={inputClass} />
-                  </InfoField>
-                  <InfoField label="학년" editMode={editMode} value={draft.grade_year ? `${draft.grade_year}학년` : "미등록"}>
-                    <input type="number" value={draft.grade_year ?? ""} onChange={(event) => updateDraft("grade_year", numberOrNull(event.target.value))} className={inputClass} />
-                  </InfoField>
-                  <InfoField label="반" editMode={editMode} value={classLabel(draft)}>
-                    <select value={draft.class_no || ""} onChange={(event) => updateDraft("class_no", event.target.value || null)} className={inputClass}>
-                      <option value="">반 미배정</option>
-                      {classes.map((item) => (
-                        <option key={item.class_no} value={item.class_no}>
-                          {classLabel({ grade_year: item.grade_year, class_no: item.class_no })}
-                          {item.teacher_name ? ` / ${item.teacher_name}` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </InfoField>
-                  <InfoField label="학교" editMode={editMode} value={draft.school_name || "미등록"}>
-                    <input value={draft.school_name} onChange={(event) => updateDraft("school_name", event.target.value)} className={inputClass} />
-                  </InfoField>
-                </Panel>
-
-                <Panel title="인적사항">
-                  {!draft.member_id && editMode && (
-                    <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] leading-6 text-amber-900">
-                      교적과 연결되지 않은 학생입니다. 연락처·생년월일·주소는 학생 명단 보조 정보로 저장됩니다.
-                    </div>
-                  )}
-                  <InfoField label="성별" editMode={editMode} value={genderLabel(draft.gender)}>
-                    <select value={draft.gender} onChange={(event) => updateDraft("gender", event.target.value)} className={inputClass}>
-                      <option value="">미등록</option>
-                      <option value="M">남</option>
-                      <option value="F">여</option>
-                    </select>
-                  </InfoField>
-                  <InfoField label="생년월일" editMode={editMode} value={draft.birth_date || "미등록"}>
-                    <input type="date" value={draft.birth_date} onChange={(event) => updateDraft("birth_date", event.target.value)} className={inputClass} />
-                  </InfoField>
-                  <InfoField label="본인연락처" editMode={editMode} value={draft.phone ? formatPhone(draft.phone) : "미등록"}>
-                    <input value={draft.phone} onChange={(event) => updateDraft("phone", event.target.value)} placeholder="010-0000-0000" className={inputClass} />
-                  </InfoField>
-                  <InfoField label="주소" editMode={editMode} value={draft.address || "미등록"}>
-                    <input value={draft.address} onChange={(event) => updateDraft("address", event.target.value)} className={inputClass} />
-                  </InfoField>
-                </Panel>
-
-                <Panel title="가족관계" wide>
-                  {draft.id === "__new__" ? (
-                    <div className="rounded-md border border-hairline bg-card px-3 py-4 text-[14px] font-semibold text-ink-faint">등록 후 교적 연결이 있으면 가족관계를 볼 수 있습니다.</div>
-                  ) : (families[draft.id] || []).length === 0 ? (
-                    <div className="rounded-md border border-hairline bg-card px-3 py-4 text-[14px] font-semibold text-ink-faint">등록된 가족관계가 없습니다.</div>
-                  ) : (
-                    <div className="grid gap-2 md:grid-cols-2">
-                      {(families[draft.id] || []).map((family) => (
-                        <div key={`${family.relative_id}-${family.kind}-${family.direction}`} className="rounded-md border border-hairline bg-card px-3 py-2">
-                          <div className="text-[14px] font-extrabold text-ink">{relationLabel(family)} · {family.relative_name}</div>
-                          <div className="mt-1 text-[13px] font-semibold text-ink-faint">{family.relative_phone ? formatPhone(family.relative_phone) : "연락처 없음"}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </Panel>
-
-                {editMode && (
-                  <div className="flex gap-2 lg:col-span-2">
-                    <button type="button" onClick={cancelEdit} disabled={saving} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-bg-soft text-[15px] font-extrabold text-ink-mid">
-                      <X size={16} strokeWidth={2.2} /> 취소
-                    </button>
-                    <button type="button" onClick={handleSave} disabled={saving} className="inline-flex min-h-11 flex-[1.5] items-center justify-center gap-2 rounded-md bg-ink text-[15px] font-extrabold text-white disabled:opacity-60">
-                      <Save size={16} strokeWidth={2.2} /> {saving ? "저장 중..." : "저장"}
-                    </button>
-                  </div>
-                )}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hairline px-4 py-3">
+                <div className="text-[13px] font-bold text-ink-faint">
+                  {filtered.length}명 중 {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, filtered.length)}명 표시
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPage((value) => Math.max(1, value - 1))}
+                    disabled={page <= 1}
+                    className="min-h-9 rounded-md border border-hairline bg-card px-3 text-[13px] font-extrabold text-ink disabled:opacity-40"
+                  >
+                    이전
+                  </button>
+                  {visiblePages[0] > 1 && <span className="px-1 text-[13px] font-bold text-ink-faint">...</span>}
+                  {visiblePages.map((pageNo) => {
+                    return (
+                      <button
+                        key={pageNo}
+                        type="button"
+                        onClick={() => setPage(pageNo)}
+                        className={[
+                          "min-h-9 min-w-9 rounded-md border px-2 text-[13px] font-extrabold",
+                          page === pageNo ? "border-ink bg-ink text-white" : "border-hairline bg-card text-ink",
+                        ].join(" ")}
+                      >
+                        {pageNo}
+                      </button>
+                    );
+                  })}
+                  {visiblePages[visiblePages.length - 1] < totalPages && <span className="px-1 text-[13px] font-bold text-ink-faint">...</span>}
+                  <button
+                    type="button"
+                    onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                    disabled={page >= totalPages}
+                    className="min-h-9 rounded-md border border-hairline bg-card px-3 text-[13px] font-extrabold text-ink disabled:opacity-40"
+                  >
+                    다음
+                  </button>
+                </div>
               </div>
             </>
           )}
         </section>
-
-        <aside className="min-w-0 space-y-4">
-          <Panel title="일괄 업로드">
-            <div className="rounded-md border border-hairline bg-surface p-3 text-[13px] font-semibold leading-6 text-ink-mid">
-              <div className="font-extrabold text-ink">지원 파일</div>
-              <div>CSV(.csv), 엑셀(.xlsx)</div>
-              <div className="mt-3 font-extrabold text-ink">필수 컬럼</div>
-              <div>이름</div>
-              <div className="mt-3 font-extrabold text-ink">선택 컬럼</div>
-              <div>구분, 번호, 학년, 반, 성별, 생년월일, 연락처, 주소, 학교, 정렬순서</div>
-              <div className="mt-3 font-extrabold text-ink">예시</div>
-              <div className="overflow-x-auto rounded border border-hairline bg-card p-2 text-[12px]">
-                이름,구분,번호,학년,반,성별,생년월일,연락처,주소,학교,정렬순서<br />
-                김하준,정,12,3,3-1,남,2017-04-18,010-1234-5678,서울시 ...,언약초,12
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" onClick={downloadTemplate} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-hairline bg-card text-[13px] font-extrabold text-ink">
-                <Download size={15} strokeWidth={2.1} /> 예시 CSV
-              </button>
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-ink text-[13px] font-extrabold text-white">
-                <Upload size={15} strokeWidth={2.1} /> 파일 선택
-              </button>
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              onChange={(event) => handleFile(event.target.files?.[0] || null)}
-              className="hidden"
-            />
-            {importErrors.length > 0 && (
-              <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-[13px] font-semibold leading-6 text-red-800">
-                {importErrors.map((error) => <div key={error}>· {error}</div>)}
-              </div>
-            )}
-            {importRows.length > 0 && (
-              <div className="mt-3">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <div className="text-[13px] font-extrabold text-ink">미리보기 {importRows.length}명</div>
-                  <button type="button" onClick={importStudents} disabled={importing || importErrors.length > 0} className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md bg-amber-600 px-3 text-[13px] font-extrabold text-white disabled:opacity-50">
-                    <FileSpreadsheet size={14} strokeWidth={2.1} /> {importing ? "반영 중..." : "명단 반영"}
-                  </button>
-                </div>
-                <div className="max-h-56 overflow-auto rounded-md border border-hairline">
-                  <table className="w-full min-w-[460px] text-left text-[12px]">
-                    <thead className="bg-surface text-ink-faint">
-                      <tr>
-                        <th className="px-2 py-2">이름</th>
-                        <th className="px-2 py-2">구분</th>
-                        <th className="px-2 py-2">학년</th>
-                        <th className="px-2 py-2">반</th>
-                        <th className="px-2 py-2">연락처</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {importRows.slice(0, 20).map((row, index) => (
-                        <tr key={`${row.name}-${index}`} className="border-t border-hairline">
-                          <td className="px-2 py-2 font-bold text-ink">{row.name}</td>
-                          <td className="px-2 py-2 text-ink-mid">{row.student_type}</td>
-                          <td className="px-2 py-2 text-ink-mid">{row.grade_year || ""}</td>
-                          <td className="px-2 py-2 text-ink-mid">{row.class_no || ""}</td>
-                          <td className="px-2 py-2 text-ink-mid">{row.phone || ""}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </Panel>
-
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[13px] font-semibold leading-6 text-amber-900">
-            <AlertTriangle size={15} strokeWidth={2} className="mr-1 inline-block align-[-2px]" />
-            같은 번호의 기존 학생이 있으면 업데이트하고, 없으면 새 학생으로 등록합니다. 번호가 비어 있으면 새 학생으로 추가됩니다.
-          </div>
-        </aside>
       </main>
 
       {newDraft && (
@@ -760,6 +674,23 @@ export default function StudentsInfoPage() {
           onClose={() => setNewDraft(null)}
           onSave={handleSaveNew}
           onChange={updateNewDraft}
+        />
+      )}
+      {detailOpen && draft && (
+        <StudentDetailModal
+          draft={draft}
+          classes={classes}
+          families={families[draft.id] || []}
+          editMode={editMode}
+          saving={saving}
+          onClose={() => {
+            setDetailOpen(false);
+            setEditMode(false);
+          }}
+          onToggleEdit={() => setEditMode((value) => !value)}
+          onChange={updateDraft}
+          onSave={handleSave}
+          onCancel={cancelEdit}
         />
       )}
       {toast && <div style={toastStyle}>{toast}</div>}
@@ -774,6 +705,239 @@ function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typ
       <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>부서홈</button>
       <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
         <FileText size={18} strokeWidth={1.8} /> 학생정보관리
+      </div>
+    </div>
+  );
+}
+
+function ImportPanel({
+  fileInputRef,
+  importRows,
+  importErrors,
+  importing,
+  onFile,
+  onDownloadTemplate,
+  onImport,
+}: {
+  fileInputRef: RefObject<HTMLInputElement | null>;
+  importRows: ImportRow[];
+  importErrors: string[];
+  importing: boolean;
+  onFile: (file: File | null) => void;
+  onDownloadTemplate: () => void;
+  onImport: () => void;
+}) {
+  return (
+    <div className="border-b border-hairline bg-surface p-4">
+      <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+        <div className="rounded-md border border-hairline bg-card p-3 text-[13px] font-semibold leading-6 text-ink-mid">
+          <div><span className="font-extrabold text-ink">지원 파일</span> CSV(.csv), 엑셀(.xlsx)</div>
+          <div><span className="font-extrabold text-ink">필수 컬럼</span> 이름</div>
+          <div><span className="font-extrabold text-ink">선택 컬럼</span> 구분, 번호, 학년, 반, 성별, 생년월일, 연락처, 주소, 학교, 정렬순서</div>
+          <div className="mt-2 overflow-x-auto rounded border border-hairline bg-surface p-2 text-[12px]">
+            이름,구분,번호,학년,반,성별,생년월일,연락처,주소,학교,정렬순서<br />
+            김하준,정,12,3,3-1,남,2017-04-18,010-1234-5678,서울시 ...,언약초,12
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 lg:w-[260px]">
+          <button type="button" onClick={onDownloadTemplate} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-hairline bg-card text-[13px] font-extrabold text-ink">
+            <Download size={15} strokeWidth={2.1} /> 예시 CSV
+          </button>
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-ink text-[13px] font-extrabold text-white">
+            <Upload size={15} strokeWidth={2.1} /> 파일 선택
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            onChange={(event) => onFile(event.target.files?.[0] || null)}
+            className="hidden"
+          />
+        </div>
+      </div>
+
+      {importErrors.length > 0 && (
+        <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-[13px] font-semibold leading-6 text-red-800">
+          {importErrors.map((error) => <div key={error}>· {error}</div>)}
+        </div>
+      )}
+
+      {importRows.length > 0 && (
+        <div className="mt-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="text-[13px] font-extrabold text-ink">미리보기 {importRows.length}명</div>
+            <button type="button" onClick={onImport} disabled={importing || importErrors.length > 0} className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md bg-amber-600 px-3 text-[13px] font-extrabold text-white disabled:opacity-50">
+              <FileSpreadsheet size={14} strokeWidth={2.1} /> {importing ? "반영 중..." : "명단 반영"}
+            </button>
+          </div>
+          <div className="max-h-56 overflow-auto rounded-md border border-hairline bg-card">
+            <table className="w-full min-w-[560px] text-left text-[12px]">
+              <thead className="bg-surface text-ink-faint">
+                <tr>
+                  <th className="px-2 py-2">이름</th>
+                  <th className="px-2 py-2">구분</th>
+                  <th className="px-2 py-2">학년</th>
+                  <th className="px-2 py-2">반</th>
+                  <th className="px-2 py-2">연락처</th>
+                </tr>
+              </thead>
+              <tbody>
+                {importRows.slice(0, 20).map((row, index) => (
+                  <tr key={`${row.name}-${index}`} className="border-t border-hairline">
+                    <td className="px-2 py-2 font-bold text-ink">{row.name}</td>
+                    <td className="px-2 py-2 text-ink-mid">{row.student_type}</td>
+                    <td className="px-2 py-2 text-ink-mid">{row.grade_year || ""}</td>
+                    <td className="px-2 py-2 text-ink-mid">{row.class_no || ""}</td>
+                    <td className="px-2 py-2 text-ink-mid">{row.phone || ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {importRows.length > 20 && <div className="mt-2 text-[12px] font-bold text-ink-faint">미리보기는 20명까지만 표시합니다.</div>}
+        </div>
+      )}
+
+      <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-[13px] font-semibold leading-6 text-amber-900">
+        <AlertTriangle size={15} strokeWidth={2} className="mr-1 inline-block align-[-2px]" />
+        같은 번호의 기존 학생이 있으면 업데이트하고, 없으면 새 학생으로 등록합니다. 번호가 비어 있으면 새 학생으로 추가됩니다.
+      </div>
+    </div>
+  );
+}
+
+function StudentDetailModal({
+  draft,
+  classes,
+  families,
+  editMode,
+  saving,
+  onClose,
+  onToggleEdit,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  draft: EditableStudent;
+  classes: DeptClass[];
+  families: FamilyRow[];
+  editMode: boolean;
+  saving: boolean;
+  onClose: () => void;
+  onToggleEdit: () => void;
+  onChange: <K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div style={modalBackdropStyle} role="presentation" onMouseDown={onClose}>
+      <div style={wideModalCardStyle} role="dialog" aria-modal="true" aria-label="학생 상세" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
+          <div className="min-w-0">
+            <div className="truncate text-[19px] font-extrabold text-ink">{draft.name || "새 학생"}</div>
+            <div className="mt-1 text-[13px] font-semibold text-ink-faint">
+              {classLabel(draft)}{draft.teacher_name ? ` · 담임 ${draft.teacher_name}` : ""}
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={onToggleEdit}
+              className={[
+                "inline-flex min-h-10 items-center justify-center rounded-md border px-3 text-[14px] font-extrabold",
+                editMode ? "border-amber-400 bg-amber-50 text-amber-800" : "border-hairline bg-card text-ink-soft",
+              ].join(" ")}
+            >
+              {editMode ? "수정 중" : "수정"}
+            </button>
+            <button type="button" onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-hairline bg-card text-ink-soft">
+              <X size={17} strokeWidth={2.2} />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid max-h-[72vh] gap-4 overflow-y-auto p-4 lg:grid-cols-2">
+          <Panel title="학생 정보">
+            <InfoField label="이름" editMode={editMode} value={draft.name || "미등록"}>
+              <input value={draft.name} onChange={(event) => onChange("name", event.target.value)} className={inputClass} />
+            </InfoField>
+            <InfoField label="구분" editMode={editMode} value={draft.student_type}>
+              <select value={draft.student_type} onChange={(event) => onChange("student_type", normalizeStudentType(event.target.value))} className={inputClass}>
+                {STUDENT_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </InfoField>
+            <InfoField label="번호" editMode={editMode} value={draft.student_no ? String(draft.student_no) : "미등록"}>
+              <input type="number" value={draft.student_no ?? ""} onChange={(event) => onChange("student_no", numberOrNull(event.target.value))} className={inputClass} />
+            </InfoField>
+            <InfoField label="학년" editMode={editMode} value={draft.grade_year ? `${draft.grade_year}학년` : "미등록"}>
+              <input type="number" value={draft.grade_year ?? ""} onChange={(event) => onChange("grade_year", numberOrNull(event.target.value))} className={inputClass} />
+            </InfoField>
+            <InfoField label="반" editMode={editMode} value={classLabel(draft)}>
+              <select value={draft.class_no || ""} onChange={(event) => onChange("class_no", event.target.value || null)} className={inputClass}>
+                <option value="">반 미배정</option>
+                {classes.map((item) => (
+                  <option key={item.class_no} value={item.class_no}>
+                    {classLabel({ grade_year: item.grade_year, class_no: item.class_no })}
+                    {item.teacher_name ? ` / ${item.teacher_name}` : ""}
+                  </option>
+                ))}
+              </select>
+            </InfoField>
+            <InfoField label="학교" editMode={editMode} value={draft.school_name || "미등록"}>
+              <input value={draft.school_name} onChange={(event) => onChange("school_name", event.target.value)} className={inputClass} />
+            </InfoField>
+          </Panel>
+
+          <Panel title="인적사항">
+            {!draft.member_id && editMode && (
+              <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] leading-6 text-amber-900">
+                교적과 연결되지 않은 학생입니다. 연락처·생년월일·주소는 학생 명단 보조 정보로 저장됩니다.
+              </div>
+            )}
+            <InfoField label="성별" editMode={editMode} value={genderLabel(draft.gender)}>
+              <select value={draft.gender} onChange={(event) => onChange("gender", event.target.value)} className={inputClass}>
+                <option value="">미등록</option>
+                <option value="M">남</option>
+                <option value="F">여</option>
+              </select>
+            </InfoField>
+            <InfoField label="생년월일" editMode={editMode} value={draft.birth_date || "미등록"}>
+              <input type="date" value={draft.birth_date} onChange={(event) => onChange("birth_date", event.target.value)} className={inputClass} />
+            </InfoField>
+            <InfoField label="본인연락처" editMode={editMode} value={draft.phone ? formatPhone(draft.phone) : "미등록"}>
+              <input value={draft.phone} onChange={(event) => onChange("phone", event.target.value)} placeholder="010-0000-0000" className={inputClass} />
+            </InfoField>
+            <InfoField label="주소" editMode={editMode} value={draft.address || "미등록"}>
+              <input value={draft.address} onChange={(event) => onChange("address", event.target.value)} className={inputClass} />
+            </InfoField>
+          </Panel>
+
+          <Panel title="가족관계" wide>
+            {families.length === 0 ? (
+              <div className="rounded-md border border-hairline bg-card px-3 py-4 text-[14px] font-semibold text-ink-faint">등록된 가족관계가 없습니다.</div>
+            ) : (
+              <div className="grid gap-2 md:grid-cols-2">
+                {families.map((family) => (
+                  <div key={`${family.relative_id}-${family.kind}-${family.direction}`} className="rounded-md border border-hairline bg-card px-3 py-2">
+                    <div className="text-[14px] font-extrabold text-ink">{relationLabel(family)} · {family.relative_name}</div>
+                    <div className="mt-1 text-[13px] font-semibold text-ink-faint">{family.relative_phone ? formatPhone(family.relative_phone) : "연락처 없음"}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </div>
+
+        {editMode && (
+          <div className="flex gap-2 border-t border-hairline p-4">
+            <button type="button" onClick={onCancel} disabled={saving} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-bg-soft text-[15px] font-extrabold text-ink-mid">
+              <X size={16} strokeWidth={2.2} /> 취소
+            </button>
+            <button type="button" onClick={onSave} disabled={saving} className="inline-flex min-h-11 flex-[1.5] items-center justify-center gap-2 rounded-md bg-ink text-[15px] font-extrabold text-white disabled:opacity-60">
+              <Save size={16} strokeWidth={2.2} /> {saving ? "저장 중..." : "저장"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -794,13 +958,26 @@ function NewStudentModal({
   onSave: () => void;
   onChange: <K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) => void;
 }) {
+  const gradeOptions = gradeOptionsFromClasses(classes);
+  const birth = splitBirthDate(draft.birth_date);
+  const setBirthPart = (part: "year" | "month" | "day", value: string) => {
+    const clean = value.replace(/\D/g, "").slice(0, part === "year" ? 4 : 2);
+    const next = { ...birth, [part]: clean };
+    onChange("birth_date", birthDateFromParts(next.year, next.month, next.day));
+  };
+  const setGrade = (value: string) => {
+    const grade = numberOrNull(value);
+    onChange("grade_year", grade);
+    if (grade) onChange("birth_date", birthDateWithYear(draft.birth_date, birthYearForGrade(grade)));
+  };
+
   return (
     <div style={modalBackdropStyle} role="presentation" onMouseDown={onClose}>
       <div style={modalCardStyle} role="dialog" aria-modal="true" aria-label="학생 등록" onMouseDown={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
           <div>
             <div className="text-[18px] font-extrabold text-ink">학생 등록</div>
-            <div className="mt-1 text-[12px] font-semibold text-ink-faint">이 화면에서 새 학생을 바로 명단에 추가합니다.</div>
+            <div className="mt-1 text-[12px] font-semibold text-ink-faint">학년을 선택하면 생년 연도가 자동으로 채워집니다.</div>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-hairline bg-card text-ink-soft">
             <X size={17} strokeWidth={2.2} />
@@ -808,7 +985,7 @@ function NewStudentModal({
         </div>
 
         <div className="grid max-h-[70vh] gap-4 overflow-y-auto p-4 md:grid-cols-2">
-          <Field label="이름">
+          <Field label="이름 *">
             <input value={draft.name} onChange={(event) => onChange("name", event.target.value)} className={inputClass} autoFocus />
           </Field>
           <Field label="구분">
@@ -816,11 +993,31 @@ function NewStudentModal({
               {STUDENT_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
             </select>
           </Field>
-          <Field label="번호">
-            <input type="number" value={draft.student_no ?? ""} onChange={(event) => onChange("student_no", numberOrNull(event.target.value))} className={inputClass} />
+          <Field label="성별">
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: "M", label: "남" },
+                { value: "F", label: "여" },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onChange("gender", option.value)}
+                  className={[
+                    "min-h-11 rounded-md border text-[15px] font-extrabold",
+                    draft.gender === option.value ? "border-amber-400 bg-amber-50 text-ink" : "border-hairline bg-card text-ink-soft",
+                  ].join(" ")}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </Field>
-          <Field label="학년">
-            <input type="number" value={draft.grade_year ?? ""} onChange={(event) => onChange("grade_year", numberOrNull(event.target.value))} className={inputClass} />
+          <Field label="학년 *">
+            <select value={draft.grade_year ?? ""} onChange={(event) => setGrade(event.target.value)} className={inputClass}>
+              <option value="">학년 선택</option>
+              {gradeOptions.map((grade) => <option key={grade} value={grade}>{grade}학년</option>)}
+            </select>
           </Field>
           <Field label="반">
             <select value={draft.class_no || ""} onChange={(event) => onChange("class_no", event.target.value || null)} className={inputClass}>
@@ -833,18 +1030,18 @@ function NewStudentModal({
               ))}
             </select>
           </Field>
+          <Field label="생년월일 — 학년 선택 시 연도 자동">
+            <div className="grid grid-cols-3 gap-2">
+              <input value={birth.year} onChange={(event) => setBirthPart("year", event.target.value)} placeholder="년" inputMode="numeric" className={inputClass} />
+              <input value={birth.month} onChange={(event) => setBirthPart("month", event.target.value)} placeholder="월" inputMode="numeric" className={inputClass} />
+              <input value={birth.day} onChange={(event) => setBirthPart("day", event.target.value)} placeholder="일" inputMode="numeric" className={inputClass} />
+            </div>
+          </Field>
+          <Field label="번호">
+            <input type="number" value={draft.student_no ?? ""} onChange={(event) => onChange("student_no", numberOrNull(event.target.value))} className={inputClass} />
+          </Field>
           <Field label="학교">
             <input value={draft.school_name} onChange={(event) => onChange("school_name", event.target.value)} className={inputClass} />
-          </Field>
-          <Field label="성별">
-            <select value={draft.gender} onChange={(event) => onChange("gender", event.target.value)} className={inputClass}>
-              <option value="">미등록</option>
-              <option value="M">남</option>
-              <option value="F">여</option>
-            </select>
-          </Field>
-          <Field label="생년월일">
-            <input type="date" value={draft.birth_date} onChange={(event) => onChange("birth_date", event.target.value)} className={inputClass} />
           </Field>
           <Field label="연락처">
             <input value={draft.phone} onChange={(event) => onChange("phone", event.target.value)} placeholder="010-0000-0000" className={inputClass} />
@@ -852,6 +1049,9 @@ function NewStudentModal({
           <Field label="주소">
             <input value={draft.address} onChange={(event) => onChange("address", event.target.value)} className={inputClass} />
           </Field>
+          <div className="rounded-md border border-hairline bg-bg-soft px-3 py-2 text-[12.5px] leading-5 text-ink-soft md:col-span-2">
+            반을 선택하면 해당 반 담임으로 자동 배정됩니다. 반을 비워두면 반 미배정 학생으로 등록됩니다.
+          </div>
         </div>
 
         <div className="flex gap-2 border-t border-hairline p-4">
@@ -939,6 +1139,33 @@ function numberOrNull(value: string) {
   if (value.trim() === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function gradeOptionsFromClasses(classes: DeptClass[]) {
+  const grades = Array.from(new Set(classes.map((item) => item.grade_year).filter((grade): grade is number => !!grade))).sort((a, b) => a - b);
+  return grades.length > 0 ? grades : [1, 2, 3, 4, 5, 6];
+}
+
+function splitBirthDate(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return { year: "", month: "", day: "" };
+  return {
+    year: match[1],
+    month: match[2] === "01" ? "" : String(Number(match[2])),
+    day: match[3] === "01" ? "" : String(Number(match[3])),
+  };
+}
+
+function birthDateWithYear(current: string, year: string) {
+  const parts = splitBirthDate(current);
+  return birthDateFromParts(year, parts.month, parts.day);
+}
+
+function birthDateFromParts(year: string, month: string, day: string) {
+  if (!/^\d{4}$/.test(year)) return "";
+  const mm = String(Math.min(12, Math.max(1, Number(month) || 1))).padStart(2, "0");
+  const dd = String(Math.min(31, Math.max(1, Number(day) || 1))).padStart(2, "0");
+  return `${year}-${mm}-${dd}`;
 }
 
 function nextStudentNo(students: EditableStudent[]) {
@@ -1105,3 +1332,4 @@ const backBtnStyle: CSSProperties = { padding: "8px 14px", background: "var(--bg
 const toastStyle: CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 14, fontWeight: 700, zIndex: 1100, fontFamily: "inherit", whiteSpace: "nowrap" };
 const modalBackdropStyle: CSSProperties = { position: "fixed", inset: 0, zIndex: 1050, background: "rgba(0,0,0,0.38)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 };
 const modalCardStyle: CSSProperties = { width: "min(720px, 100%)", maxHeight: "calc(100vh - 32px)", overflow: "hidden", borderRadius: 8, background: "var(--card)", border: "1px solid var(--hairline)", boxShadow: "0 18px 60px rgba(0,0,0,0.22)" };
+const wideModalCardStyle: CSSProperties = { ...modalCardStyle, width: "min(980px, 100%)" };
