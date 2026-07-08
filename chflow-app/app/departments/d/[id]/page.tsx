@@ -259,38 +259,26 @@ export default function DepartmentDetailPage() {
     }
   };
 
-  // 참여 멤버 팝업 — [category] 페이지와 동일하게 department_members + profiles 직접 조회
+  // 참여 멤버 팝업 — RPC(list_dept_member_faces): members(app_user_id) 우선, profiles 폴백
+  // (department_members RLS 가 자기 행만 허용이라 직접 조회 불가)
   const openMembers = async () => {
     setMembersOpen(true);
     if (deptMembers || membersLoading) return;
     setMembersLoading(true);
-    const { data: rows } = await supabase
-      .from("department_members")
-      .select("user_id, member_role, grade")
-      .eq("department_id", deptId)
-      .eq("status", "approved");
-    const userIds = [...new Set((rows || []).map((r) => r.user_id))];
-    let profileMap: Record<string, { name: string | null; avatar_url: string | null; photo_url: string | null }> = {};
-    if (userIds.length) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, name, avatar_url, photo_url")
-        .in("user_id", userIds);
-      profileMap = Object.fromEntries((profiles || []).map((p) => [p.user_id, p]));
-    }
-    const list: DeptMemberRow[] = (rows || []).map((r) => {
-      const p = profileMap[r.user_id];
-      return {
+    const { data, error } = await supabase.rpc("list_dept_member_faces", { p_dept_id: deptId });
+    if (error) {
+      showToast(`멤버 조회 실패: ${error.message}`);
+      setMembersOpen(false);
+    } else {
+      type Row = { user_id: string; name: string | null; photo_url: string | null; member_role: string | null; grade: number | null };
+      setDeptMembers(((data as Row[]) || []).map((r) => ({
         user_id: r.user_id,
-        name: p?.name ?? null,
-        role: r.member_role ?? null,
-        grade: typeof r.grade === "number" ? r.grade : null,
-        photoUrl: p?.avatar_url || p?.photo_url || null,
-      };
-    });
-    list.sort((a, b) =>
-      (a.grade ?? 99) - (b.grade ?? 99) || (a.name ?? "").localeCompare(b.name ?? "", "ko"));
-    setDeptMembers(list);
+        name: r.name,
+        role: r.member_role,
+        grade: r.grade,
+        photoUrl: r.photo_url,
+      })));
+    }
     setMembersLoading(false);
   };
 
