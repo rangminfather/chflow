@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { BarChart3, CalendarDays, Database, ExternalLink, Repeat, Users } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, CalendarDays, Database, ExternalLink, HardDrive, Repeat, Users } from "lucide-react";
 
 interface UsageSummary {
   today: number;
@@ -27,8 +27,27 @@ interface DbHealth {
   top_tables: { name: string; bytes: number }[];
 }
 
+interface R2UsageResp {
+  totalBytes: number;
+  buckets: { bucket: string; bytes: number; count: number; thumbBytes: number; thumbCount: number }[];
+}
+
+interface TrendRow {
+  snap_date: string;
+  db_size_bytes: number;
+  db_delta: number | null;
+  calls_delta: number | null;
+  exec_ms_delta: number | null;
+  visitors: number;
+}
+
+interface QueryGrowth { q: string; calls_delta: number; ms_delta: number; rows_delta: number }
+interface TableGrowth { name: string; bytes: number; bytes_delta: number }
+interface GrowthReport { latest_date?: string; query_growth: QueryGrowth[]; table_growth: TableGrowth[] }
+
 const SUPABASE_PROJECT = "https://supabase.com/dashboard/project/klsrjvvdwtofialqknng";
 const FREE_PLAN_DB_LIMIT = 500 * 1024 * 1024; // 500MB
+const FREE_PLAN_R2_LIMIT = 10 * 1024 * 1024 * 1024; // 10GB
 
 // 트래픽·성능 진단이 필요할 때 쫓아갈 채널 (자체 수집 대신 전문 도구)
 const DIAGNOSTIC_CHANNELS = [
@@ -68,6 +87,9 @@ export default function AdminUsageStatusPage() {
   const [deptLoading, setDeptLoading] = useState(false);
   const [weekly, setWeekly] = useState<WeeklyRow[]>([]);
   const [dbHealth, setDbHealth] = useState<DbHealth | null>(null);
+  const [r2Usage, setR2Usage] = useState<R2UsageResp | null | "error">(null);
+  const [trend, setTrend] = useState<TrendRow[]>([]);
+  const [growth, setGrowth] = useState<GrowthReport | null>(null);
   // 모바일: 막대 탭으로 날짜·인원 확인 (hover 불가 대응)
   const [selectedVisit, setSelectedVisit] = useState<VisitRow | null>(null);
 
@@ -97,11 +119,13 @@ export default function AdminUsageStatusPage() {
       }
       setAuthChecked(true);
 
-      const [summaryR, visitsR, weeklyR, dbR] = await Promise.all([
+      const [summaryR, visitsR, weeklyR, dbR, trendR, growthR] = await Promise.all([
         supabase.rpc("admin_usage_summary"),
         supabase.rpc("admin_usage_visits", { p_days: 30 }),
         supabase.rpc("admin_usage_weekly", { p_weeks: 8 }),
         supabase.rpc("admin_db_health"),
+        supabase.rpc("admin_usage_resource_trend", { p_days: 30 }),
+        supabase.rpc("admin_usage_growth_report"),
       ]);
       if (summaryR.error) {
         setError(summaryR.error.message);
@@ -110,9 +134,16 @@ export default function AdminUsageStatusPage() {
         setVisits(((visitsR.data || []) as VisitRow[]));
         setWeekly(((weeklyR.data || []) as WeeklyRow[]));
         setDbHealth((dbR.data || null) as DbHealth | null);
+        setTrend(((trendR.data || []) as TrendRow[]));
+        setGrowth((growthR.data || null) as GrowthReport | null);
       }
       setLoading(false);
       loadDeptActivity(now.getFullYear(), now.getMonth() + 1);
+      // R2 집계는 목록 스캔이라 별도 로드 (페이지 표시를 막지 않음)
+      fetch("/api/admin/r2-usage")
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((j) => setR2Usage(j as R2UsageResp))
+        .catch(() => setR2Usage("error"));
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, loadDeptActivity]);
@@ -121,6 +152,16 @@ export default function AdminUsageStatusPage() {
     () => Math.max(1, ...visits.map((v) => v.visitors)),
     [visits],
   );
+
+  // 쿼리 호출 증분 — 이상 판정용 중앙값 (서버 이상감지와 같은 기준: 중앙값×3, 바닥 2000건)
+  const callsStats = useMemo(() => {
+    const deltas = trend
+      .map((t) => t.calls_delta)
+      .filter((v): v is number => v !== null && v >= 0);
+    const sorted = [...deltas].sort((a, b) => a - b);
+    const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+    return { median, max: Math.max(1, ...deltas) };
+  }, [trend]);
 
   // 활동이 있는 부서 우선 정렬 (전부 0인 부서는 아래로)
   const sortedDeptRows = useMemo(() => {
@@ -271,10 +312,149 @@ export default function AdminUsageStatusPage() {
                   ))}
                 </div>
                 <div className="mt-2 text-[12px] leading-5 text-ink-faint">
-                  전송량(egress, 월 5GB)은 SQL로 조회할 수 없어 아래 Supabase 사용량 리포트에서 확인하세요. DB 80% 초과 시 오래된 로그성 데이터 정리를 검토하세요.
+                  전송량(egress, 월 5GB)은 SQL로 조회할 수 없어 아래 Supabase 사용량 리포트에서 확인하세요. 이미지·파일은 R2로 서빙되므로 Supabase egress는 JSON만 소모합니다.
                 </div>
               </div>
             )}
+
+            {/* R2 스토리지 (Cloudflare) */}
+            <div className="mb-4 rounded-lg border border-hairline bg-card p-4">
+              <div className="mb-3 flex items-center gap-2 text-[15px] font-extrabold text-ink">
+                <HardDrive size={15} strokeWidth={2} /> R2 스토리지 (Cloudflare)
+              </div>
+              {r2Usage === null ? (
+                <div className="text-[12px] font-bold text-ink-faint">집계 중...</div>
+              ) : r2Usage === "error" ? (
+                <div className="text-[12px] font-bold text-ink-faint">조회 실패 — 잠시 후 새로고침 해주세요</div>
+              ) : (
+                <>
+                  <div className="mb-1 flex items-center justify-between text-[12px] font-bold text-ink-soft">
+                    <span>저장 용량</span>
+                    <span>{formatBytes(r2Usage.totalBytes)} / 10GB ({(r2Usage.totalBytes / FREE_PLAN_R2_LIMIT * 100).toFixed(1)}%)</span>
+                  </div>
+                  <div className="h-4 overflow-hidden rounded bg-bg-soft">
+                    <div
+                      className="h-full rounded"
+                      style={{
+                        width: `${Math.max(1, Math.min(100, Math.round((r2Usage.totalBytes / FREE_PLAN_R2_LIMIT) * 100)))}%`,
+                        background: r2Usage.totalBytes / FREE_PLAN_R2_LIMIT > 0.8 ? "var(--danger)" : "var(--accent)",
+                      }}
+                    />
+                  </div>
+                  <div className="mt-3 grid gap-1.5 md:grid-cols-2">
+                    {r2Usage.buckets.map((b) => (
+                      <div key={b.bucket} className="flex items-center justify-between rounded-md border border-hairline bg-surface px-3 py-1.5 text-[12px]">
+                        <span className="truncate font-bold text-ink-soft">
+                          {b.bucket}
+                          <span className="ml-1.5 font-medium text-ink-faint">{b.count.toLocaleString("ko-KR")}개</span>
+                        </span>
+                        <span className="shrink-0 font-extrabold text-ink">
+                          {formatBytes(b.bytes)}
+                          {b.thumbBytes > 0 && <span className="ml-1 font-bold text-ink-faint">(캐시 {formatBytes(b.thumbBytes)})</span>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-2 text-[12px] leading-5 text-ink-faint">
+                    R2는 전송량(egress) 과금이 없어 저장 용량만 보면 됩니다. (캐시)는 썸네일 캐시로, 커지면 삭제해도 자동 재생성됩니다.
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* 리소스 추이 · 이상 감지 */}
+            <div className="mb-4 rounded-lg border border-hairline bg-card p-4">
+              <div className="mb-1 flex items-center gap-2 text-[15px] font-extrabold text-ink">
+                <Activity size={15} strokeWidth={2} /> 리소스 추이 (일별)
+              </div>
+              <div className="mb-3 text-[12px] leading-5 text-ink-faint">
+                매일 새벽 3:45 DB 안에서 자동 스냅샷 (외부 전송 0). 일 증분이 30일 중앙값의 3배를 넘으면 관리자에게 알림이 자동 발송됩니다.
+              </div>
+              {trend.length < 2 ? (
+                <div className="rounded-md bg-bg-soft px-3 py-2 text-[12px] font-bold text-ink-soft">
+                  스냅샷이 쌓이는 중입니다 — 내일부터 일별 추이가 표시됩니다.
+                </div>
+              ) : (
+                <>
+                  <div className="mb-1 text-[12px] font-bold text-ink-soft">DB 쿼리 호출량 (일별)</div>
+                  <div className="flex h-16 items-end gap-[2px]">
+                    {trend.map((t) => {
+                      const v = t.calls_delta ?? 0;
+                      const abnormal = v >= 2000 && v > 3 * Math.max(callsStats.median, 100);
+                      return (
+                        <div
+                          key={t.snap_date}
+                          title={`${shortDate(t.snap_date)} · ${v.toLocaleString("ko-KR")}건${abnormal ? " (이상)" : ""}`}
+                          className="flex h-full flex-1 items-end"
+                        >
+                          <div
+                            className="w-full rounded-t"
+                            style={{
+                              height: `${Math.round((Math.max(0, v) / callsStats.max) * 100)}%`,
+                              minHeight: v > 0 ? 3 : 1,
+                              background: abnormal ? "var(--danger)" : v > 0 ? "var(--accent)" : "var(--hairline)",
+                            }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] font-bold text-ink-soft">
+                    <span>DB 용량 {formatBytes(trend[0].db_size_bytes)} → {formatBytes(trend[trend.length - 1].db_size_bytes)}</span>
+                    <span>기간 방문자 합 {trend.reduce((s, t) => s + t.visitors, 0).toLocaleString("ko-KR")}명</span>
+                    <span className="text-ink-faint">이상 일자는 빨간 막대</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* 트래픽 원인 분석 */}
+            <div className="mb-4 rounded-lg border border-hairline bg-card p-4">
+              <div className="mb-1 flex items-center gap-2 text-[15px] font-extrabold text-ink">
+                <AlertTriangle size={15} strokeWidth={2} /> 트래픽 원인 분석 (전일 증가분)
+              </div>
+              <div className="mb-3 text-[12px] leading-5 text-ink-faint">
+                어제 하루 동안 호출이 늘어난 쿼리·커진 테이블입니다. 코드/정리로 해소 가능한지 항목별로 표시합니다.
+              </div>
+              {!growth || (growth.query_growth.length === 0 && growth.table_growth.length === 0) ? (
+                <div className="rounded-md bg-bg-soft px-3 py-2 text-[12px] font-bold text-ink-soft">
+                  전일 대비 눈에 띄는 증가가 없습니다. (스냅샷 2일 이상 쌓이면 비교가 시작됩니다)
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {growth.query_growth.map((g, i) => {
+                    const heavyRows = g.calls_delta > 0 && g.rows_delta / Math.max(g.calls_delta, 1) > 50;
+                    return (
+                      <div key={i} className="rounded-md border border-hairline bg-surface px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[12px] font-extrabold text-ink">+{g.calls_delta.toLocaleString("ko-KR")}회 호출</span>
+                          <span
+                            className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold"
+                            style={heavyRows
+                              ? { background: "var(--warning-soft)", color: "var(--warning)" }
+                              : { background: "var(--accent-soft)", color: "var(--accent-strong)" }}
+                          >
+                            {heavyRows ? "행 과다 — 인덱스·limit 검토 (해소 가능)" : "급증 시 폴링·루프 점검 (해소 가능)"}
+                          </span>
+                        </div>
+                        <div className="mt-1 overflow-x-auto whitespace-nowrap font-mono text-[11px] text-ink-faint">{g.q}</div>
+                      </div>
+                    );
+                  })}
+                  {growth.table_growth.map((t) => (
+                    <div key={t.name} className="flex items-center justify-between rounded-md border border-hairline bg-surface px-3 py-2 text-[12px]">
+                      <span className="font-bold text-ink-soft">{t.name} <span className="font-medium text-ink-faint">테이블 +{formatBytes(t.bytes_delta)}/주</span></span>
+                      <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold" style={{ background: "var(--warning-soft)", color: "var(--warning)" }}>
+                        로그성이면 보존기간 정리로 해소 가능
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="mt-2 text-[12px] leading-5 text-ink-faint">
+                방문자 증가로 인한 상승은 결함이 아니라 성장 신호입니다 — 이 경우 해소가 아니라 플랜 상향을 판단하세요.
+              </div>
+            </div>
 
             {/* 트래픽·성능 진단 채널 */}
             <div className="mb-4 rounded-lg border border-hairline bg-card p-4">
