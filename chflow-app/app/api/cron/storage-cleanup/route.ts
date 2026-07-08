@@ -1,10 +1,11 @@
 // 매일 새벽 4시 실행 (Vercel Cron)
 // 1. messenger-attachments 30일 초과 → R2 + DB 삭제
 // 2. bulletins 52개 초과 (jubo/dept 각각) → R2 삭제 + pdf_url null
+// 5. R2 용량 80% 초과 시 관리자 알림 (DB 스냅샷 cron 은 R2 를 못 보므로 여기서)
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { r2 } from "@/lib/r2";
+import { r2, r2Usage } from "@/lib/r2";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -108,6 +109,45 @@ export async function GET(req: NextRequest) {
     }
   } catch (e) {
     results.monthly_xls_error = (e as Error).message;
+  }
+
+  // ── 5. R2 용량 감시 — 무료플랜 10GB의 80% 초과 시 관리자 알림 (3일 dedupe) ──
+  try {
+    const R2_LIMIT = 10 * 1024 * 1024 * 1024;
+    const usage = await r2Usage();
+    const total = Object.values(usage).reduce((s, u) => s + u.bytes, 0);
+    const pct = Math.round((total / R2_LIMIT) * 100);
+    if (total > R2_LIMIT * 0.8) {
+      const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: recent } = await admin
+        .from("notifications")
+        .select("id")
+        .eq("type", "usage_r2_capacity")
+        .gt("created_at", since)
+        .limit(1);
+      if (recent && recent.length > 0) {
+        results.r2_watch = `중복 스킵 (${pct}%)`;
+      } else {
+        const { data: admins } = await admin
+          .from("profiles")
+          .select("id")
+          .in("role", ["admin", "office", "pastor"])
+          .eq("status", "active");
+        const rows = (admins ?? []).map((a: { id: string }) => ({
+          user_id: a.id,
+          type: "usage_r2_capacity",
+          title: "R2 저장용량 경고",
+          body: `R2 저장 ${pct}% — 무료플랜 10GB의 80% 초과. 사진 원본·버킷 정리 확인 필요`,
+          link_url: "/admin/usage-status",
+        }));
+        if (rows.length > 0) await admin.from("notifications").insert(rows);
+        results.r2_watch = `알림 발송 (${pct}%)`;
+      }
+    } else {
+      results.r2_watch = `정상 (${(total / R2_LIMIT * 100).toFixed(1)}%)`;
+    }
+  } catch (e) {
+    results.r2_watch_error = (e as Error).message;
   }
 
   return NextResponse.json({ ok: true, ...results });
