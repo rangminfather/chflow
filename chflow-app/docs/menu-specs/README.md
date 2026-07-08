@@ -40,7 +40,6 @@
 | 34 | 부서 내부 메뉴 > 행정관리 | 선생님 등록 / 출석 | 구현 | [상세보기](department-teacher-attendance.md) |
 | 35 | 부서 내부 메뉴 > 행정관리 | 담임선생님 지정 | 구현 | [상세보기](department-teacher-assign.md) |
 | 36 | 부서 내부 메뉴 > 행정관리 | 출결 통합 조회 | 구현 | [상세보기](department-attendance.md) |
-| 37 | 부서 내부 메뉴 > 행정관리 | 학생 출결 조회 | 구현 | [상세보기](department-student-record.md) |
 | 38 | 부서 내부 메뉴 > 부서관리 | 사역 가입 승인 | 구현 | [상세보기](department-approval.md) |
 | 39 | 부서 내부 메뉴 > 부서관리 | 부서원 등급 관리 | 구현 | [상세보기](department-members-grade.md) |
 | 40 | 부서 내부 메뉴 > 부서관리 | 진급 마법사 | 구현 | [상세보기](department-promote.md) |

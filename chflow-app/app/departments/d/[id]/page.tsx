@@ -10,7 +10,7 @@ import {
   type LucideIcon,
   Megaphone, CalendarDays, Newspaper, GraduationCap, ClipboardCheck, ClipboardList,
   Medal, Users, Inbox, BookText, CalendarPlus, BookOpen, FileText, BarChart3,
-  TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks, FileSearch,
+  TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks,
   Settings, Award, Lock, CircleHelp, Construction, Cog, X, Pencil, MessageSquareText,
   ChevronUp, ChevronDown, User, GripVertical,
 } from "lucide-react";
@@ -123,8 +123,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
       { id: "monthly-plan-upload", label: "월간교육등록", icon: CalendarPlus, desc: "월간 교육계획서 등록", color: "var(--accent)", implemented: true, section: "docs" },
       { id: "review-upload", label: "복습문제 관리", icon: BookOpen, desc: "공과 복습문제 PPTX 업로드·삭제", color: "#6B4F8C", implemented: true, section: "docs" },
       // ── 출결 ──
-      { id: "attendance", label: "출결 통합 조회", icon: ListChecks, desc: "전 반 학생 출결 (관리자 강제 수정 가능)", color: "var(--success)", implemented: true, section: "attendance" },
-      { id: "student-record", label: "학생 출결 조회", icon: FileSearch, desc: "개별 학생 출결 이력", color: "var(--warning)", implemented: true, section: "attendance" },
+      { id: "attendance", label: "출결 통합 조회", icon: ListChecks, desc: "전 반 출결 체크 · 달란트 현황 · 학생별 이력", color: "var(--success)", implemented: true, section: "attendance" },
       { id: "attendance-stats", label: "출결통계", icon: BarChart3, desc: "선생님·학생 출석 통계", color: "#7A8C3D", implemented: true, section: "attendance" },
       { id: "teacher-attendance", label: "선생님 등록 / 출석", icon: UserCheck, desc: "교사 출석부 · 월별 관리", color: "#4A7B96", implemented: true, section: "attendance" },
       // ── 달란트 ──

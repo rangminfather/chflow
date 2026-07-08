@@ -1,12 +1,16 @@
 "use client";
 
+// 출결 통합 조회 — 전 반 한 달치 출결 체크(출/결/인 탭 순환) + 달란트 체크 현황(읽기 전용).
+// 학생 추가/삭제는 학생정보관리 메뉴에서 수행. 학생 이름 클릭 → 출결 이력 모달(기간 조회).
+
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
-import { LoadingView } from "@/components/StatusViews";
-import { ClipboardList, BookOpen, Trash2 } from "lucide-react";
+import ModalBackdrop from "@/components/ModalBackdrop";
+import { LoadingView, EmptyState } from "@/components/StatusViews";
+import { ClipboardList, BookOpen, Medal, Search, X } from "lucide-react";
 
 interface Student {
   id: string;
@@ -23,10 +27,6 @@ interface Student {
 
 interface AttendRow {
   student_id: string;
-  student_no: number;
-  student_name: string;
-  student_type: string;
-  order_no: number;
   attend_date: string | null;
   had_prayer: boolean;
   had_church_sch: boolean;
@@ -35,6 +35,22 @@ interface AttendRow {
   had_bible: boolean;
   attend_status: string;
   memo: string | null;
+}
+
+interface TalentRule {
+  id: string;
+  rule_kind: string;
+  rule_key: string;
+  label: string;
+  points: number;
+  order_no: number;
+  is_active: boolean;
+}
+
+interface WeeklyExtra {
+  student_id: string;
+  attend_date: string;
+  rule_id: string;
 }
 
 interface PromoRow {
@@ -50,18 +66,21 @@ interface PromoRow {
   guide_student_name: string | null;
 }
 
-const CHECKS = [
-  { key: "had_prayer",    label: "기" },
-  { key: "had_church_sch", label: "교" },
-  { key: "had_worship",   label: "예" },
-  { key: "had_lesson",    label: "공" },
-  { key: "had_bible",     label: "성" },
-];
+interface HistoryRow {
+  attend_date: string;
+  attend_status: string;
+  memo: string | null;
+}
 
-const STATUS_LIST = ["출", "빠", "결", "인"];
+// 출결 상태 순환: 미기록 → 출석 → 결석 → 출석인정 → 출석 …
+const STATUS_CYCLE: Record<string, string> = { "": "출", 출: "결", 결: "인", 인: "출" };
+const STATUS_FULL: Record<string, string> = { 출: "출석", 결: "결석", 인: "출석인정", 빠: "빠짐" };
 const STATUS_COLOR: Record<string, string> = {
-  출: "var(--success)", 빠: "var(--warning)", 결: "var(--danger)", 인: "var(--accent)",
+  출: "var(--success)", 결: "var(--danger)", 인: "var(--accent)", 빠: "var(--warning)",
 };
+// 출석부 자동연동 키 — 달란트통장과 동일 기준으로 수동 체크 칩에서 제외
+const SYSTEM_AUTO_KEYS = new Set(["attendance", "prayer", "church_school", "worship", "lesson", "bible"]);
+const PROMOTION_KEY = "new_friend_promotion";
 
 function classLabel(row: { grade_year: number | null; class_no: string | null }): string {
   const grade = row.grade_year ? `${row.grade_year}학년 ` : "";
@@ -79,18 +98,24 @@ export default function AttendancePage() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [students, setStudents] = useState<Student[]>([]);
   const [attData, setAttData] = useState<AttendRow[]>([]);
+  const [rules, setRules] = useState<TalentRule[]>([]);
+  const [extras, setExtras] = useState<WeeklyExtra[]>([]);
   const [loading, setLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newNo, setNewNo] = useState("");
-  const [newName, setNewName] = useState("");
-  const [newGrade, setNewGrade] = useState("");
   const [toast, setToast] = useState("");
-  const [saving, setSaving] = useState<string>("");
-  const [editMemo, setEditMemo] = useState<Record<string, string>>({});
-  const [newFriendMap, setNewFriendMap] = useState<Record<string, boolean>>({}); // student_id → promoted
+  const [saving, setSaving] = useState("");
+  const [newFriendMap, setNewFriendMap] = useState<Record<string, boolean>>({});
   const [board, setBoard] = useState<PromoRow[]>([]);
   const [promoting, setPromoting] = useState("");
+
+  // 출결 이력 모달
+  const [histStudent, setHistStudent] = useState<Student | null>(null);
+  const [histRows, setHistRows] = useState<HistoryRow[]>([]);
+  const [histLoading, setHistLoading] = useState(false);
+  const [histYearFrom, setHistYearFrom] = useState(now.getFullYear());
+  const [histMonthFrom, setHistMonthFrom] = useState(1);
+  const [histYearTo, setHistYearTo] = useState(now.getFullYear());
+  const [histMonthTo, setHistMonthTo] = useState(now.getMonth() + 1);
 
   const loadPromotion = useCallback(async () => {
     const [{ data: flags }, { data: rows }] = await Promise.all([
@@ -118,26 +143,32 @@ export default function AttendancePage() {
     (meta || []).forEach((m: { id: string; class_no: string | null; grade_year: number | null }) => {
       metaMap[m.id] = { class_no: m.class_no, grade_year: m.grade_year };
     });
-    const merged = baseList.map((s) => ({
+    setStudents(baseList.map((s) => ({
       ...s,
       class_no: metaMap[s.id]?.class_no ?? null,
       grade_year: metaMap[s.id]?.grade_year ?? null,
-    }));
-    setStudents(merged);
+    })));
   }, [deptId]);
 
   const loadAttendance = useCallback(async () => {
-    const { data } = await supabase.rpc("edu_get_student_attendance", {
-      p_dept_id: deptId, p_year: year, p_month: month,
-    });
-    setAttData(data || []);
+    const [{ data: att }, { data: extra }] = await Promise.all([
+      supabase.rpc("edu_get_student_attendance", { p_dept_id: deptId, p_year: year, p_month: month }),
+      supabase.rpc("get_dept_weekly_extra", { p_dept_id: deptId, p_year: year, p_month: month }),
+    ]);
+    setAttData((att || []) as AttendRow[]);
+    setExtras((extra || []) as WeeklyExtra[]);
   }, [deptId, month, year]);
+
+  const loadRules = useCallback(async () => {
+    const { data } = await supabase.rpc("list_talent_rules", { p_dept_id: deptId });
+    setRules((data || []) as TalentRule[]);
+  }, [deptId]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadStudents(), loadAttendance(), loadPromotion()]);
+    await Promise.all([loadStudents(), loadAttendance(), loadRules(), loadPromotion()]);
     setLoading(false);
-  }, [loadAttendance, loadStudents, loadPromotion]);
+  }, [loadAttendance, loadStudents, loadRules, loadPromotion]);
 
   useEffect(() => {
     (async () => {
@@ -148,29 +179,24 @@ export default function AttendancePage() {
     })();
   }, [loadAll, router]);
 
-  // 등반 대상/예정 — 전체 출결관리 화면에 표시(반 무관). 확정 권한은 출석부 접근 권한과 동일.
-  const readyList = useMemo(() => board.filter((b) => b.state === "ready"), [board]);
-  const upcomingList = useMemo(() => board.filter((b) => b.state === "upcoming"), [board]);
-
-  const confirmPromotion = async (row: PromoRow) => {
-    const guideNote = row.guide_kind === "student" && row.guide_student_name
-      ? `\n\n인도자 ${row.guide_student_name} 학생에게 새친구등반 달란트가 적립됩니다.`
-      : "";
-    const ok = await confirm(`${row.name} 학생을 등반(정회원) 확정할까요?${guideNote}`);
-    if (!ok) return;
-    setPromoting(row.new_friend_id);
-    const { error } = await supabase.rpc("edu_confirm_promotion", { p_new_friend_id: row.new_friend_id });
-    setPromoting("");
-    if (error) { setToast(`등반 확정 실패: ${error.message}`); return; }
-    setToast(`${row.name} 학생 등반 확정 완료`);
-    await Promise.all([loadStudents(), loadPromotion()]);
-  };
-
   useEffect(() => {
     if (authChecked) loadAttendance();
   }, [authChecked, loadAttendance]);
 
   const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
+
+  // 달란트 수동 체크 칩 규칙 (달란트통장과 동일 기준)
+  const checkRules = useMemo(
+    () => rules
+      .filter((r) => r.rule_kind === "weekly" && r.is_active && !SYSTEM_AUTO_KEYS.has(r.rule_key) && r.rule_key !== PROMOTION_KEY)
+      .sort((a, b) => (a.order_no || 0) - (b.order_no || 0)),
+    [rules]
+  );
+  const ruleById = useMemo(() => {
+    const m: Record<string, TalentRule> = {};
+    checkRules.forEach((r) => { m[r.id] = r; });
+    return m;
+  }, [checkRules]);
 
   // student_id → {date → AttendRow}
   const attMap = useMemo(() => {
@@ -183,42 +209,28 @@ export default function AttendancePage() {
     return m;
   }, [attData]);
 
+  // `${student_id}_${date}` → 체크된 달란트 규칙 목록
+  const extraMap = useMemo(() => {
+    const m: Record<string, TalentRule[]> = {};
+    extras.forEach((e) => {
+      const rule = ruleById[e.rule_id];
+      if (!rule) return;
+      const key = `${e.student_id}_${e.attend_date}`;
+      if (!m[key]) m[key] = [];
+      m[key].push(rule);
+    });
+    return m;
+  }, [extras, ruleById]);
+
   const getCell = (studentId: string, date: string): AttendRow | undefined =>
     attMap[studentId]?.[date];
 
-  const toggleCheck = async (studentId: string, date: string, checkKey: string) => {
+  const cycleStatus = async (studentId: string, date: string) => {
     const cell = getCell(studentId, date);
-    const key = `${studentId}-${date}-${checkKey}`;
+    const next = STATUS_CYCLE[cell?.attend_status ?? ""] ?? "출";
+    const key = `${studentId}-${date}`;
     setSaving(key);
-
-    const current: Record<string, boolean> = {
-      had_prayer:    cell?.had_prayer    ?? false,
-      had_church_sch: cell?.had_church_sch ?? false,
-      had_worship:   cell?.had_worship   ?? false,
-      had_lesson:    cell?.had_lesson    ?? false,
-      had_bible:     cell?.had_bible     ?? false,
-    };
-    current[checkKey] = !current[checkKey];
-
-    await supabase.rpc("edu_set_student_attendance", {
-      p_student_id: studentId,
-      p_dept_id:    deptId,
-      p_date:       date,
-      p_prayer:     current.had_prayer,
-      p_church_sch: current.had_church_sch,
-      p_worship:    current.had_worship,
-      p_lesson:     current.had_lesson,
-      p_bible:      current.had_bible,
-      p_status:     cell?.attend_status ?? "출",
-      p_memo:       editMemo[`${studentId}-${date}`] ?? cell?.memo ?? null,
-    });
-    await loadAttendance();
-    setSaving("");
-  };
-
-  const setStatus = async (studentId: string, date: string, status: string) => {
-    const cell = getCell(studentId, date);
-    await supabase.rpc("edu_set_student_attendance", {
+    const { error } = await supabase.rpc("edu_set_student_attendance", {
       p_student_id: studentId,
       p_dept_id:    deptId,
       p_date:       date,
@@ -227,48 +239,71 @@ export default function AttendancePage() {
       p_worship:    cell?.had_worship   ?? false,
       p_lesson:     cell?.had_lesson    ?? false,
       p_bible:      cell?.had_bible     ?? false,
-      p_status:     status,
+      p_status:     next,
       p_memo:       cell?.memo ?? null,
     });
+    setSaving("");
+    if (error) { showToast(`저장 실패: ${error.message}`); return; }
     await loadAttendance();
   };
 
-  const addStudent = async () => {
-    if (!newName.trim()) return;
-    const { error } = await supabase.rpc("edu_save_student", {
-      p_id:       null,
-      p_dept_id:  deptId,
-      p_no:       parseInt(newNo) || null,
-      p_name:     newName.trim(),
-      p_type:     "정",
-      p_grade:    newGrade.trim() || null,
-      p_order_no: students.length,
-    });
-    if (!error) {
-      showToast("학생이 추가되었습니다");
-      setNewNo(""); setNewName(""); setNewGrade("");
-      setShowAddForm(false);
-      await loadAll();
-    }
+  const readyList = useMemo(() => board.filter((b) => b.state === "ready"), [board]);
+  const upcomingList = useMemo(() => board.filter((b) => b.state === "upcoming"), [board]);
+
+  const confirmPromotion = async (row: PromoRow) => {
+    const guideNote = row.guide_kind === "student" && row.guide_student_name
+      ? `\n\n인도자 ${row.guide_student_name} 학생에게 새친구등반 달란트가 적립됩니다.`
+      : "";
+    const ok = await confirm(`${row.name} 학생을 등반(정회원) 확정할까요?${guideNote}`);
+    if (!ok) return;
+    setPromoting(row.new_friend_id);
+    const { error } = await supabase.rpc("edu_confirm_promotion", { p_new_friend_id: row.new_friend_id });
+    setPromoting("");
+    if (error) { showToast(`등반 확정 실패: ${error.message}`); return; }
+    showToast(`${row.name} 학생 등반 확정 완료`);
+    await Promise.all([loadStudents(), loadPromotion()]);
   };
 
-  const deleteStudent = async (id: string, name: string) => {
-    if (!await confirm(`"${name}" 학생을 삭제하시겠습니까?`)) return;
-    await supabase.rpc("edu_delete_student", { p_id: id });
-    await loadAll();
-    showToast("삭제되었습니다");
-  };
-
-  // 월합계 계산
+  // 월합계 — 출석 / 결석 / 출석인정 카운트
   const monthlySummary = (studentId: string) => {
     const cells = sundays.map((d) => getCell(studentId, d));
-    const total  = sundays.length;
-    const attend  = cells.filter((c) => c?.attend_status === "출").length;
-    const skip    = cells.filter((c) => c?.attend_status === "빠").length;
-    const absent  = cells.filter((c) => c?.attend_status === "결").length;
-    const excused = cells.filter((c) => c?.attend_status === "인").length;
-    return { total, attend, skip, absent, excused };
+    return {
+      attend:  cells.filter((c) => c?.attend_status === "출").length,
+      absent:  cells.filter((c) => c?.attend_status === "결").length,
+      excused: cells.filter((c) => c?.attend_status === "인").length,
+    };
   };
+
+  // ── 출결 이력 모달 ──
+  const openHistory = (s: Student) => {
+    setHistStudent(s);
+    setHistRows([]);
+    setHistYearFrom(now.getFullYear());
+    setHistMonthFrom(1);
+    setHistYearTo(now.getFullYear());
+    setHistMonthTo(now.getMonth() + 1);
+    loadHistory(s.id, now.getFullYear(), 1, now.getFullYear(), now.getMonth() + 1);
+  };
+
+  const loadHistory = async (studentId: string, yf: number, mf: number, yt: number, mt: number) => {
+    setHistLoading(true);
+    const { data } = await supabase.rpc("edu_get_student_history", {
+      p_student_id: studentId,
+      p_year_from:  yf,
+      p_month_from: mf,
+      p_year_to:    yt,
+      p_month_to:   mt,
+    });
+    setHistRows((data || []) as HistoryRow[]);
+    setHistLoading(false);
+  };
+
+  const histSummary = useMemo(() => ({
+    total:   histRows.length,
+    attend:  histRows.filter((h) => h.attend_status === "출").length,
+    absent:  histRows.filter((h) => h.attend_status === "결").length,
+    excused: histRows.filter((h) => h.attend_status === "인").length,
+  }), [histRows]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -283,49 +318,36 @@ export default function AttendancePage() {
       <style>{`
         .att-table { border-collapse: collapse; }
         .att-table th, .att-table td { border: 1px solid var(--hairline); }
-        .check-btn { transition: all 0.1s; }
-        .check-btn:hover { filter: brightness(0.9); }
+        .status-btn { transition: all 0.1s; }
+        .status-btn:hover { filter: brightness(0.92); }
+        .name-btn:hover { text-decoration: underline; }
       `}</style>
 
       {/* Header */}
       <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
         <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><ClipboardList size={18} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 출결 (학생출석부)</div>
-        <button className="app-header-actions" onClick={() => setShowAddForm(!showAddForm)} style={addBtnStyle}>+ 학생 추가</button>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><ClipboardList size={18} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 출결 통합 조회</div>
+        <div />
       </div>
 
-      <div style={{ maxWidth: 1400, margin: "0 auto", padding: 16 }}>
-        {/* 학생 추가 폼 */}
-        {showAddForm && (
-          <div style={{ ...cardStyle, marginBottom: 16 }}>
-            <div style={sectionLabel}>학생 추가</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              <input type="number" value={newNo} onChange={(e) => setNewNo(e.target.value)} placeholder="번호" style={{ ...inputStyle, width: 70 }} />
-              <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="이름" style={{ ...inputStyle, width: 120 }} />
-              <input type="text" value={newGrade} onChange={(e) => setNewGrade(e.target.value)} placeholder="학년 (선택)" style={{ ...inputStyle, width: 100 }} />
-              <button onClick={addStudent} style={saveBtnStyle}>추가</button>
-              <button onClick={() => setShowAddForm(false)} style={cancelBtnStyle}>취소</button>
-            </div>
-          </div>
-        )}
-
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: 16 }}>
         {/* 월 선택 */}
-        <div style={{ ...cardStyle, marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ ...cardStyle, marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
           <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", minWidth: 120, textAlign: "center" }}>
             {year}년 {month}월
           </div>
           <button onClick={() => nextMonth(year, month, setYear, setMonth)} style={navBtnStyle}>▶</button>
           <div style={{ marginLeft: "auto", fontSize: 11, color: "var(--ink-faint)" }}>
-            주일: {sundays.length}주 · 기=기도, 교=교회학교, 예=예배, 공=공과, 성=성경읽기
+            출결 칸 탭 = 출석 → 결석 → 출석인정 순환 · 이름 클릭 = 이력 조회 · 학생 추가/삭제는 학생정보관리에서
           </div>
         </div>
 
         {/* 등반 확정 대상 ('출' 4회 이상) — 출석부 접근자 누구나 확정 가능 */}
         {readyList.length > 0 && (
           <div style={{ ...cardStyle, marginBottom: 16, border: "1px solid color-mix(in srgb, var(--accent) 35%, transparent)", background: "var(--accent-soft)" }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", marginBottom: 10 }}>🎖️ 등반 확정 대상</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", marginBottom: 10, display: "inline-flex", alignItems: "center", gap: 6 }}><Medal size={15} strokeWidth={1.8} /> 등반 확정 대상</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {readyList.map((row) => (
                 <div key={row.new_friend_id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -365,39 +387,30 @@ export default function AttendancePage() {
             <LoadingView padding={60} label="불러오는 중..." />
           ) : students.length === 0 ? (
             <div style={{ color: "var(--ink-faint)", textAlign: "center", padding: 60 }}>
-              학생이 없습니다. 상단 &quot;학생 추가&quot;를 눌러 추가하세요.
+              학생이 없습니다. 학생정보관리에서 학생을 등록하세요.
             </div>
           ) : (
-            <table className="att-table" style={{ width: "100%", minWidth: 800, fontSize: 11 }}>
+            <table className="att-table" style={{ width: "100%", minWidth: 640, fontSize: 11 }}>
               <thead style={{ background: "var(--surface)" }}>
                 <tr>
-                  <th rowSpan={2} style={thStyle2(50)}>번호</th>
-                  <th rowSpan={2} style={thStyle2(80)}>이름</th>
-                  <th rowSpan={2} style={thStyle2(50)}>등반</th>
+                  <th rowSpan={2} style={thStyle(36)}>번호</th>
+                  <th rowSpan={2} style={thStyle(72)}>이름</th>
+                  <th rowSpan={2} style={thStyle(44)}>등반</th>
                   {sundays.map((d, i) => (
-                    <th key={d} colSpan={6} style={{ ...thStyle2(0), textAlign: "center", borderBottom: "none" }}>
-                      <div style={{ fontWeight: 700 }}>{i + 1}주 ({formatMD(d)})</div>
+                    <th key={d} colSpan={2} style={{ ...thStyle(0), textAlign: "center" }}>
+                      {i + 1}주 ({formatMD(d)})
                     </th>
                   ))}
-                  <th colSpan={5} rowSpan={1} style={{ ...thStyle2(0), textAlign: "center" }}>월합계</th>
-                  <th rowSpan={2} style={thStyle2(60)}>MEMO</th>
-                  <th rowSpan={2} style={thStyle2(40)}>관리</th>
+                  <th rowSpan={2} style={thStyle(40)}>출석</th>
+                  <th rowSpan={2} style={thStyle(40)}>결석</th>
+                  <th rowSpan={2} style={thStyle(52)}>출석인정</th>
                 </tr>
                 <tr>
                   {sundays.map((d) => (
                     <>
-                      {CHECKS.map((c) => (
-                        <th key={`${d}-${c.key}`} style={thStyle2(28)}>
-                          <span title={c.key === "had_prayer" ? "기도" : c.key === "had_church_sch" ? "교회학교" : c.key === "had_worship" ? "예배" : c.key === "had_lesson" ? "공과" : "성경읽기"}>
-                            {c.label}
-                          </span>
-                        </th>
-                      ))}
-                      <th key={`${d}-status`} style={thStyle2(32)}>상태</th>
+                      <th key={`${d}-att`} style={thStyle(40)}>출결</th>
+                      <th key={`${d}-talent`} style={thStyle(44)}>달란트</th>
                     </>
-                  ))}
-                  {["계","출","빠","결","인"].map((l) => (
-                    <th key={l} style={thStyle2(28)}>{l}</th>
                   ))}
                 </tr>
               </thead>
@@ -412,7 +425,7 @@ export default function AttendancePage() {
                     if (ca !== cb) return ca.localeCompare(cb);
                     return a.order_no - b.order_no;
                   });
-                  const colSpan = 3 + sundays.length * 6 + 5 + 1 + 1;
+                  const colSpan = 3 + sundays.length * 2 + 3;
                   let lastGroup = "__init__";
                   const rows: React.ReactNode[] = [];
                   sorted.forEach((s) => {
@@ -425,15 +438,15 @@ export default function AttendancePage() {
                       rows.push(
                         <tr key={`g-${group}`}>
                           <td colSpan={colSpan} style={{
-                            background: "linear-gradient(90deg, var(--accent-soft) 0%, #F2EDF6 100%)",
-                            padding: "10px 14px",
+                            background: "var(--accent-soft)",
+                            padding: "8px 12px",
                             fontWeight: 800,
                             fontSize: 12,
                             color: "var(--ink)",
                             borderTop: "2px solid var(--accent-line)",
                             borderBottom: "1px solid var(--accent-line)",
                           }}>
-                            <BookOpen size={14} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> {className}반 <span style={{ color: "var(--ink-soft)", fontWeight: 600, fontSize: 11, marginLeft: 8 }}>· 담임 {teacherName} · {count}명</span>
+                            <BookOpen size={13} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> {className}반 <span style={{ color: "var(--ink-soft)", fontWeight: 600, fontSize: 11, marginLeft: 8 }}>· 담임 {teacherName} · {count}명</span>
                           </td>
                         </tr>
                       );
@@ -441,93 +454,78 @@ export default function AttendancePage() {
                     const summary = monthlySummary(s.id);
                     rows.push(
                       <tr key={s.id} style={{ borderBottom: "1px solid var(--bg-soft)" }}>
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700 }}>{s.student_no ?? ""}</td>
-                      <td style={{ padding: "4px 8px", fontWeight: 700, whiteSpace: "nowrap" }}>{s.name}</td>
-                      <td style={{ textAlign: "center", padding: 4 }}>
-                        {s.id in newFriendMap && (
-                          <span style={{
-                            fontSize: 10, padding: "1px 5px", borderRadius: 4,
-                            background: newFriendMap[s.id] ? "var(--accent-soft)" : "var(--warning-soft)",
-                            color: newFriendMap[s.id] ? "var(--accent)" : "var(--warning)",
-                            fontWeight: 700,
-                          }}>
-                            {newFriendMap[s.id] ? "등반" : "등반전"}
-                          </span>
-                        )}
-                      </td>
+                        <td style={{ textAlign: "center", padding: 3, fontWeight: 700 }}>{s.student_no ?? ""}</td>
+                        <td style={{ padding: "3px 6px", whiteSpace: "nowrap" }}>
+                          <button
+                            className="name-btn"
+                            onClick={() => openHistory(s)}
+                            style={{ background: "none", border: "none", padding: 0, fontWeight: 700, fontSize: 11, color: "var(--accent)", cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            {s.name}
+                          </button>
+                        </td>
+                        <td style={{ textAlign: "center", padding: 3 }}>
+                          {s.id in newFriendMap && (
+                            <span style={{
+                              fontSize: 10, padding: "1px 5px", borderRadius: 4,
+                              background: newFriendMap[s.id] ? "var(--accent-soft)" : "var(--warning-soft)",
+                              color: newFriendMap[s.id] ? "var(--accent)" : "var(--warning)",
+                              fontWeight: 700,
+                            }}>
+                              {newFriendMap[s.id] ? "등반" : "등반전"}
+                            </span>
+                          )}
+                        </td>
 
-                      {sundays.map((d) => {
-                        const cell = getCell(s.id, d);
-                        return (
-                          <>
-                            {CHECKS.map((c) => {
-                              const val = cell ? (cell as unknown as Record<string, boolean>)[c.key] : false;
-                              const key = `${s.id}-${d}-${c.key}`;
-                              return (
-                                <td key={`${d}-${c.key}`} style={{ textAlign: "center", padding: 2 }}>
-                                  <button
-                                    className="check-btn"
-                                    onClick={() => toggleCheck(s.id, d, c.key)}
-                                    disabled={saving === key}
-                                    style={{
-                                      width: 24, height: 24, borderRadius: 4, border: "none",
-                                      background: val ? "var(--accent)" : "var(--bg-soft)",
-                                      color: val ? "#fff" : "var(--hairline-strong)",
-                                      fontSize: 12, cursor: "pointer",
-                                      display: "flex", alignItems: "center", justifyContent: "center",
-                                      margin: "0 auto",
-                                    }}
-                                  >
-                                    {val ? "✓" : "·"}
-                                  </button>
-                                </td>
-                              );
-                            })}
-                            <td key={`${d}-status`} style={{ textAlign: "center", padding: 2 }}>
-                              <select
-                                value={cell?.attend_status ?? "출"}
-                                onChange={(e) => setStatus(s.id, d, e.target.value)}
-                                style={{
-                                  fontSize: 10, padding: "2px 2px", borderRadius: 4,
-                                  border: "1px solid var(--hairline)",
-                                  background: STATUS_COLOR[cell?.attend_status ?? "출"] + "22",
-                                  color: STATUS_COLOR[cell?.attend_status ?? "출"],
-                                  fontWeight: 700, width: 36, fontFamily: "inherit",
-                                }}
+                        {sundays.map((d) => {
+                          const cell = getCell(s.id, d);
+                          const status = cell?.attend_status ?? "";
+                          const key = `${s.id}-${d}`;
+                          const checked = extraMap[`${s.id}_${d}`] || [];
+                          return (
+                            <>
+                              <td key={`${d}-att`} style={{ textAlign: "center", padding: 2 }}>
+                                <button
+                                  className="status-btn"
+                                  onClick={() => cycleStatus(s.id, d)}
+                                  disabled={saving === key}
+                                  title={status ? STATUS_FULL[status] : "미기록 (탭하여 체크)"}
+                                  style={{
+                                    width: 32, height: 24, borderRadius: 5, border: "none",
+                                    background: status ? `color-mix(in srgb, ${STATUS_COLOR[status]} 18%, transparent)` : "var(--bg-soft)",
+                                    color: status ? STATUS_COLOR[status] : "var(--hairline-strong)",
+                                    fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+                                    display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto",
+                                  }}
+                                >
+                                  {saving === key ? "…" : status || "·"}
+                                </button>
+                              </td>
+                              <td
+                                key={`${d}-talent`}
+                                title={checked.length > 0 ? checked.map((r) => `${r.label} +${r.points}`).join(" · ") : "달란트 체크 없음 (체크는 달란트통장에서)"}
+                                style={{ textAlign: "center", padding: 2, cursor: checked.length > 0 ? "help" : "default" }}
                               >
-                                {STATUS_LIST.map((st) => (
-                                  <option key={st} value={st}>{st}</option>
-                                ))}
-                              </select>
-                            </td>
-                          </>
-                        );
-                      })}
+                                {checked.length > 0 ? (
+                                  <span style={{
+                                    fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 8,
+                                    background: "var(--accent-soft)", color: "var(--accent)", whiteSpace: "nowrap",
+                                  }}>
+                                    {checked.length}개 +{checked.reduce((sum, r) => sum + r.points, 0)}
+                                  </span>
+                                ) : (
+                                  <span style={{ color: "var(--hairline-strong)" }}>·</span>
+                                )}
+                              </td>
+                            </>
+                          );
+                        })}
 
-                      {/* 월합계 */}
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "var(--ink-soft)" }}>{summary.total}</td>
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "var(--success)" }}>{summary.attend}</td>
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "var(--warning)" }}>{summary.skip}</td>
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "var(--danger)" }}>{summary.absent}</td>
-                      <td style={{ textAlign: "center", padding: 4, fontWeight: 700, color: "var(--accent)" }}>{summary.excused}</td>
-
-                      {/* MEMO (첫 주 데이터 기준) */}
-                      <td style={{ padding: 4 }}>
-                        <input
-                          type="text"
-                          defaultValue={attData.find((a) => a.student_id === s.id)?.memo ?? ""}
-                          placeholder="메모"
-                          onChange={(e) => setEditMemo((m) => ({ ...m, [`${s.id}-memo`]: e.target.value }))}
-                          style={{ width: "100%", fontSize: 10, border: "1px solid var(--hairline)", borderRadius: 4, padding: "2px 4px", boxSizing: "border-box", fontFamily: "inherit" }}
-                        />
-                      </td>
-                      <td style={{ textAlign: "center", padding: 4 }}>
-                        <button
-                          onClick={() => deleteStudent(s.id, s.name)}
-                          style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", fontSize: 14 }}
-                        ><Trash2 size={14} strokeWidth={1.8} /></button>
-                      </td>
-                    </tr>
+                        {/* 월합계: 출석 / 결석 / 출석인정 */}
+                        <td style={{ textAlign: "center", padding: 3, fontWeight: 700, color: "var(--success)" }}>{summary.attend}</td>
+                        <td style={{ textAlign: "center", padding: 3, fontWeight: 700, color: "var(--danger)" }}>{summary.absent}</td>
+                        <td style={{ textAlign: "center", padding: 3, fontWeight: 700, color: "var(--accent)" }}>{summary.excused}</td>
+                      </tr>
                     );
                   });
                   return rows;
@@ -537,6 +535,93 @@ export default function AttendancePage() {
           )}
         </div>
       </div>
+
+      {/* 출결 이력 모달 */}
+      {histStudent && (
+        <ModalBackdrop onClose={() => setHistStudent(null)}>
+          <div style={{ background: "var(--card)", borderRadius: 16, padding: 20, width: "min(560px, 100%)", maxHeight: "85dvh", overflowY: "auto", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>
+                {histStudent.name} 출결 이력
+              </div>
+              <button onClick={() => setHistStudent(null)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--ink-soft)", padding: 4 }}>
+                <X size={18} strokeWidth={2} />
+              </button>
+            </div>
+
+            {/* 기간 선택 */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
+              <input type="number" value={histYearFrom} onChange={(e) => setHistYearFrom(Number(e.target.value))} style={{ ...inputStyle, width: 72 }} />
+              <select value={histMonthFrom} onChange={(e) => setHistMonthFrom(Number(e.target.value))} style={{ ...inputStyle, width: 64 }}>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m}월</option>)}
+              </select>
+              <span style={{ color: "var(--ink-faint)", fontWeight: 700 }}>~</span>
+              <input type="number" value={histYearTo} onChange={(e) => setHistYearTo(Number(e.target.value))} style={{ ...inputStyle, width: 72 }} />
+              <select value={histMonthTo} onChange={(e) => setHistMonthTo(Number(e.target.value))} style={{ ...inputStyle, width: 64 }}>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m}월</option>)}
+              </select>
+              <button
+                onClick={() => loadHistory(histStudent.id, histYearFrom, histMonthFrom, histYearTo, histMonthTo)}
+                style={{ ...searchBtnStyle, display: "inline-flex", alignItems: "center", gap: 5 }}
+              >
+                <Search size={13} strokeWidth={1.8} /> 조회
+              </button>
+            </div>
+
+            {histLoading ? (
+              <LoadingView padding={30} label="불러오는 중..." />
+            ) : histRows.length === 0 ? (
+              <EmptyState message="선택한 기간에 출결 기록이 없습니다" />
+            ) : (
+              <>
+                {/* 요약 */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 14 }}>
+                  {[
+                    { label: "전체 주일", value: histSummary.total, color: "var(--ink-soft)" },
+                    { label: "출석", value: histSummary.attend, color: "var(--success)" },
+                    { label: "결석", value: histSummary.absent, color: "var(--danger)" },
+                    { label: "출석인정", value: histSummary.excused, color: "var(--accent)" },
+                  ].map((s) => (
+                    <div key={s.label} style={{ background: "var(--bg-soft)", borderRadius: 10, textAlign: "center", padding: "10px 6px" }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</div>
+                      <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 2 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 이력 목록 */}
+                <table style={{ borderCollapse: "collapse", width: "100%" }}>
+                  <thead>
+                    <tr style={{ background: "var(--surface)" }}>
+                      <th style={histThStyle("left")}>날짜</th>
+                      <th style={histThStyle("center")}>상태</th>
+                      <th style={histThStyle("left")}>메모</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {histRows.map((h) => (
+                      <tr key={h.attend_date} style={{ borderBottom: "1px solid var(--bg-soft)" }}>
+                        <td style={{ padding: "8px 10px", fontWeight: 700, fontSize: 12, whiteSpace: "nowrap" }}>{formatDate(h.attend_date)}</td>
+                        <td style={{ textAlign: "center", padding: 6 }}>
+                          <span style={{
+                            display: "inline-block", padding: "2px 10px", borderRadius: 12,
+                            fontSize: 11, fontWeight: 800,
+                            background: `color-mix(in srgb, ${STATUS_COLOR[h.attend_status] || "var(--ink-soft)"} 15%, transparent)`,
+                            color: STATUS_COLOR[h.attend_status] || "var(--ink-soft)",
+                          }}>
+                            {STATUS_FULL[h.attend_status] || h.attend_status}
+                          </span>
+                        </td>
+                        <td style={{ padding: "8px 10px", fontSize: 11, color: "var(--ink-soft)" }}>{h.memo || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+          </div>
+        </ModalBackdrop>
+      )}
 
       {toast && <div style={toastStyle}>{toast}</div>}
     </div>
@@ -559,6 +644,11 @@ function formatMD(d: string) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
+function formatDate(d: string) {
+  const date = new Date(d);
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
+}
+
 function prevMonth(year: number, month: number, setYear: (y: number) => void, setMonth: (m: number) => void) {
   if (month === 1) { setYear(year - 1); setMonth(12); }
   else setMonth(month - 1);
@@ -571,14 +661,10 @@ function nextMonth(year: number, month: number, setYear: (y: number) => void, se
 
 const headerStyle: React.CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between" };
 const cardStyle: React.CSSProperties = { background: "var(--card)", borderRadius: 14, padding: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
-const inputStyle: React.CSSProperties = { padding: "9px 12px", border: "1.5px solid var(--hairline)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
-const sectionLabel: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.5, marginBottom: 10 };
-const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit",
-  whiteSpace: "nowrap", flexShrink: 0,
-};
-const addBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const saveBtnStyle: React.CSSProperties = { padding: "9px 18px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const cancelBtnStyle: React.CSSProperties = { padding: "9px 14px", background: "var(--bg-soft)", color: "var(--ink-soft)", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "inherit" };
+const inputStyle: React.CSSProperties = { padding: "8px 10px", border: "1.5px solid var(--hairline)", borderRadius: 8, fontSize: 12, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
+const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 12, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 };
+const searchBtnStyle: React.CSSProperties = { padding: "8px 16px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const navBtnStyle: React.CSSProperties = { padding: "6px 12px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "inherit", color: "var(--ink-mid)" };
-const thStyle2 = (minWidth: number): React.CSSProperties => ({ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 700, color: "var(--ink-soft)", background: "var(--surface)", whiteSpace: "nowrap", minWidth });
+const thStyle = (minWidth: number): React.CSSProperties => ({ padding: "5px 4px", textAlign: "center", fontSize: 10, fontWeight: 700, color: "var(--ink-soft)", background: "var(--surface)", whiteSpace: "nowrap", minWidth });
+const histThStyle = (align: "left" | "center"): React.CSSProperties => ({ padding: "8px 10px", textAlign: align, fontSize: 10, fontWeight: 700, color: "var(--ink-soft)", borderBottom: "2px solid var(--hairline)", background: "var(--surface)", whiteSpace: "nowrap" });
 const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap" };
