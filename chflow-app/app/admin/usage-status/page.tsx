@@ -325,7 +325,7 @@ export default function AdminUsageStatusPage() {
                 </div>
               )}
               <div className="mt-2 text-[12px] leading-5 text-ink-faint">
-                확인이 필요한 항목이 뜨면 [진단 리포트 복사]를 눌러 Claude(CLI)에 그대로 붙여넣으세요 — 리포트 코드로 원인 분석부터 이어서 진행합니다. (Vercel 대역폭·Supabase egress는 여기서 판정 불가 — 아래 진단 채널 참고)
+                Vercel 대역폭·Supabase egress는 여기서 판정 불가 — 아래 진단 채널 참고
               </div>
             </div>
 
