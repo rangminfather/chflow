@@ -43,7 +43,32 @@ export default function MessengerDiagnosticsPage() {
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Diagnostics | null>(null);
+  const [mode, setMode] = useState<"recent" | "search">("recent");
   const [error, setError] = useState("");
+
+  async function fetchDiagnostics(params: string): Promise<Diagnostics | null> {
+    setLoading(true);
+    setError("");
+    setResult(null);
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await fetch(`/api/admin/messenger-diagnostics?${params}`, {
+      headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+    });
+    const json = await response.json();
+    setLoading(false);
+    if (!response.ok || !json.ok) {
+      setError(json.error || "진단 조회에 실패했습니다.");
+      return null;
+    }
+    return json as Diagnostics;
+  }
+
+  async function loadRecent() {
+    setMode("recent");
+    setSearched(true);
+    const json = await fetchDiagnostics("recent=1");
+    if (json) setResult(json);
+  }
 
   useEffect(() => {
     (async () => {
@@ -59,7 +84,9 @@ export default function MessengerDiagnosticsPage() {
         return;
       }
       setAuthChecked(true);
+      loadRecent(); // 진입하자마자 최근 48시간 자동 점검
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   const summary = useMemo(() => {
@@ -79,23 +106,10 @@ export default function MessengerDiagnosticsPage() {
       setError("검색어는 2자 이상 입력하세요.");
       return;
     }
-
-    setLoading(true);
+    setMode("search");
     setSearched(true);
-    setError("");
-    setResult(null);
-    const { data: { session } } = await supabase.auth.getSession();
-    const response = await fetch(`/api/admin/messenger-diagnostics?q=${encodeURIComponent(q)}`, {
-      headers: { Authorization: `Bearer ${session?.access_token || ""}` },
-    });
-    const json = await response.json();
-    setLoading(false);
-
-    if (!response.ok || !json.ok) {
-      setError(json.error || "진단 조회에 실패했습니다.");
-      return;
-    }
-    setResult(json as Diagnostics);
+    const json = await fetchDiagnostics(`q=${encodeURIComponent(q)}`);
+    if (json) setResult(json);
   }
 
   const nameOf = (userId: string) => {
@@ -129,15 +143,27 @@ export default function MessengerDiagnosticsPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={(event) => { if (event.key === "Enter") runSearch(); }}
-              placeholder="message id, conversation id, notification id, 이름, 아이디, 본문 검색"
+              placeholder="이름 · 아이디 · 메시지 내용 (ID 붙여넣기도 가능)"
               style={inputStyle}
             />
             <button type="button" onClick={runSearch} disabled={loading} style={primaryButtonStyle}>
               {loading ? <RefreshCw size={15} className="spin" /> : <Search size={15} />} 조회
             </button>
+            <button type="button" onClick={loadRecent} disabled={loading} style={ghostButtonStyle} title="최근 48시간 자동 점검으로 돌아가기">
+              <RefreshCw size={15} /> 최근 점검
+            </button>
+          </div>
+          <div style={helpStyle}>
+            예: 특정 사람이 못 받았다면 그 사람 <b>이름</b>으로, 특정 메시지가 문제면 <b>내용 일부</b>로 검색하세요. 검색 없이도 열면 최근 48시간이 자동 점검됩니다.
           </div>
           {error && <div style={errorStyle}>{error}</div>}
         </section>
+
+        {result && !loading && (
+          <div style={modeBadgeStyle}>
+            {mode === "recent" ? "최근 48시간 메시지 자동 점검 결과" : `"${query.trim()}" 검색 결과`}
+          </div>
+        )}
 
         {loading ? (
           <LoadingView padding={56} />
@@ -278,6 +304,8 @@ const inputStyle: React.CSSProperties = { flex: 1, minWidth: 0, height: 42, bord
 const primaryButtonStyle: React.CSSProperties = { height: 42, border: "none", borderRadius: 8, background: "var(--accent)", color: "#fff", padding: "0 14px", fontSize: 13, fontWeight: 900, display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" };
 const ghostButtonStyle: React.CSSProperties = { height: 38, border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--surface)", color: "var(--ink-mid)", padding: "0 12px", fontSize: 13, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" };
 const errorStyle: React.CSSProperties = { marginTop: 10, color: "var(--danger)", fontSize: 13, fontWeight: 800 };
+const helpStyle: React.CSSProperties = { marginTop: 8, color: "var(--ink-faint)", fontSize: 12, lineHeight: 1.5, fontWeight: 600 };
+const modeBadgeStyle: React.CSSProperties = { marginBottom: 12, fontSize: 13, fontWeight: 800, color: "var(--ink-soft)" };
 const summaryGridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 10, marginBottom: 14 };
 const summaryCardStyle: React.CSSProperties = { minHeight: 74, background: "var(--card)", border: "1px solid var(--hairline)", borderRadius: 8, padding: 12, display: "grid", gap: 4 };
 const summaryIconStyle: React.CSSProperties = { color: "var(--accent)", display: "inline-flex" };

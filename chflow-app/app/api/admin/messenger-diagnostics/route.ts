@@ -90,6 +90,11 @@ type TokenRow = {
   updated_at: string;
 };
 
+type BlockRow = {
+  blocker_id: string;
+  blocked_id: string;
+};
+
 async function getCaller(req: NextRequest): Promise<{ id: string; role: string } | null> {
   const auth = req.headers.get("Authorization") || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
@@ -130,17 +135,21 @@ async function loadProfiles(admin: SupabaseClient, userIds: string[]) {
   return new Map(((data || []) as ProfileRow[]).map((row) => [row.id, row]));
 }
 
+// .or() 문자열은 검색어에 쉼표·괄호가 들어가면 문법이 깨지므로 개별 쿼리로 분리
 async function searchProfiles(admin: SupabaseClient, query: string, uuid: boolean): Promise<ProfileRow[]> {
-  const base = admin
-    .from("profiles")
-    .select("id, name, username, role, sub_role, avatar_url")
-    .limit(20);
-
-  const { data } = uuid
-    ? await base.eq("id", query)
-    : await base.or(`name.ilike.%${query}%,username.ilike.%${query}%`);
-
-  return (data || []) as ProfileRow[];
+  const select = "id, name, username, role, sub_role, avatar_url";
+  if (uuid) {
+    const { data } = await admin.from("profiles").select(select).eq("id", query).limit(20);
+    return (data || []) as ProfileRow[];
+  }
+  const [byName, byUsername] = await Promise.all([
+    admin.from("profiles").select(select).ilike("name", `%${query}%`).limit(20),
+    admin.from("profiles").select(select).ilike("username", `%${query}%`).limit(20),
+  ]);
+  return uniqueRows<ProfileRow>([
+    ...((byName.data || []) as ProfileRow[]),
+    ...((byUsername.data || []) as ProfileRow[]),
+  ]).slice(0, 20);
 }
 
 function metadataValue(row: NotificationRow, key: string): string | null {
@@ -153,14 +162,29 @@ function buildFlags(
   participants: ParticipantRow[],
   notifications: NotificationRow[],
   deliveries: DeliveryRow[],
-  tokens: TokenRow[]
+  tokens: TokenRow[],
+  blocks: BlockRow[]
 ) {
   const flags: { level: "warn" | "error" | "info"; text: string }[] = [];
   const activeTokenUsers = new Set(tokens.filter((token) => token.enabled).map((token) => token.user_id));
+  const blockedPairs = new Set<string>();
+  for (const block of blocks) {
+    blockedPairs.add(`${block.blocker_id}:${block.blocked_id}`);
+    blockedPairs.add(`${block.blocked_id}:${block.blocker_id}`);
+  }
+  const tokenWarned = new Set<string>();
 
   for (const message of messages) {
+    const sentAt = new Date(message.created_at).getTime();
+    // 발송 RPC(send_messenger_message_v2)와 동일 기준:
+    //   mute 중·차단 관계는 알림을 만들지 않음 / archived 는 알림 받음 / 발송 이후 참여자는 대상 아님
     const expectedRecipients = participants
-      .filter((row) => row.conversation_id === message.conversation_id && row.user_id !== message.sender_id && !row.archived_at)
+      .filter((row) =>
+        row.conversation_id === message.conversation_id
+        && row.user_id !== message.sender_id
+        && new Date(row.joined_at).getTime() <= sentAt
+        && !(row.muted_until && new Date(row.muted_until).getTime() > sentAt)
+        && !blockedPairs.has(`${message.sender_id}:${row.user_id}`))
       .map((row) => row.user_id);
     const messageNotifications = notifications.filter((row) => metadataValue(row, "message_id") === message.id);
     const notifiedUsers = new Set(messageNotifications.map((row) => row.user_id));
@@ -169,7 +193,8 @@ function buildFlags(
       if (!notifiedUsers.has(userId)) {
         flags.push({ level: "error", text: `message ${message.id} recipient ${userId} has no message_new notification` });
       }
-      if (!activeTokenUsers.has(userId)) {
+      if (!activeTokenUsers.has(userId) && !tokenWarned.has(userId)) {
+        tokenWarned.add(userId);
         flags.push({ level: "warn", text: `recipient ${userId} has no active push token` });
       }
     }
@@ -209,7 +234,8 @@ function buildFlags(
     const conversationId = notification ? metadataValue(notification, "conversation_id") : null;
     if (!conversationId) continue;
     const participant = participantByUserConversation.get(`${delivery.user_id}:${conversationId}`);
-    if (participant?.muted_until && new Date(participant.muted_until).getTime() > Date.now()) {
+    // 발송 시점 기준으로 mute 였는지 판정 (지금 mute 라고 과거 발송이 잘못은 아님)
+    if (participant?.muted_until && new Date(participant.muted_until).getTime() > new Date(delivery.created_at).getTime()) {
       flags.push({ level: "warn", text: `push delivery exists while recipient is muted: ${delivery.user_id}:${conversationId}` });
     }
   }
@@ -221,18 +247,29 @@ export async function GET(req: NextRequest) {
   const caller = await getCaller(req);
   if (!caller) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
+  const recent = req.nextUrl.searchParams.get("recent") === "1";
   const q = (req.nextUrl.searchParams.get("q") || "").trim();
-  if (q.length < 2) {
+  if (!recent && q.length < 2) {
     return NextResponse.json({ ok: false, error: "Query must be at least 2 characters" }, { status: 400 });
   }
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
-  const uuid = isUuid(q);
-  const matchedProfiles = await searchProfiles(admin, q, uuid);
+  const uuid = !recent && isUuid(q);
+  const matchedProfiles = recent ? [] : await searchProfiles(admin, q, uuid);
   const matchedUserIds = matchedProfiles.map((row) => row.id);
 
   let messages: MessageRow[] = [];
-  if (uuid) {
+  if (recent) {
+    // 자동 점검 모드 — 최근 48시간 메시지 전수 (검색어 불필요)
+    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const { data } = await admin
+      .from("messenger_messages")
+      .select("id, conversation_id, sender_id, kind, body, created_at, edited_at, deleted_at")
+      .gte("created_at", cutoff)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    messages = (data || []) as MessageRow[];
+  } else if (uuid) {
     const { data } = await admin
       .from("messenger_messages")
       .select("id, conversation_id, sender_id, kind, body, created_at, edited_at, deleted_at")
@@ -251,7 +288,17 @@ export async function GET(req: NextRequest) {
   }
 
   let notifications: NotificationRow[] = [];
-  if (uuid) {
+  if (recent) {
+    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const { data } = await admin
+      .from("notifications")
+      .select("id, user_id, type, title, body, link_url, is_read, created_by, metadata, created_at, read_at")
+      .eq("type", "message_new")
+      .gte("created_at", cutoff)
+      .order("created_at", { ascending: false })
+      .limit(300);
+    notifications = (data || []) as NotificationRow[];
+  } else if (uuid) {
     const [byId, byMessage, byConversation, byUser] = await Promise.all([
       admin
         .from("notifications")
@@ -284,13 +331,19 @@ export async function GET(req: NextRequest) {
       ...((byUser.data || []) as NotificationRow[]),
     ]);
   } else {
-    const [byText, byUsers] = await Promise.all([
+    const [byTitle, byBody, byUsers] = await Promise.all([
       admin
-      .from("notifications")
-      .select("id, user_id, type, title, body, link_url, is_read, created_by, metadata, created_at, read_at")
-      .or(`title.ilike.%${q}%,body.ilike.%${q}%`)
-      .order("created_at", { ascending: false })
-      .limit(50),
+        .from("notifications")
+        .select("id, user_id, type, title, body, link_url, is_read, created_by, metadata, created_at, read_at")
+        .ilike("title", `%${q}%`)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      admin
+        .from("notifications")
+        .select("id, user_id, type, title, body, link_url, is_read, created_by, metadata, created_at, read_at")
+        .ilike("body", `%${q}%`)
+        .order("created_at", { ascending: false })
+        .limit(50),
       matchedUserIds.length > 0
         ? admin
           .from("notifications")
@@ -301,7 +354,8 @@ export async function GET(req: NextRequest) {
         : Promise.resolve({ data: [] }),
     ]);
     notifications = uniqueRows<NotificationRow>([
-      ...((byText.data || []) as NotificationRow[]),
+      ...((byTitle.data || []) as NotificationRow[]),
+      ...((byBody.data || []) as NotificationRow[]),
       ...((byUsers.data || []) as NotificationRow[]),
     ]);
   }
@@ -341,7 +395,9 @@ export async function GET(req: NextRequest) {
     messages = (data || []) as MessageRow[];
   }
 
-  if (conversationIds.length > 0) {
+  // recent 모드는 48시간 창으로 이미 완결 — 대화 전체로 확장하면 알림 조회 창(48h) 밖
+  // 메시지가 "알림 누락" 오탐을 만들므로 검색 모드에서만 확장
+  if (!recent && conversationIds.length > 0) {
     const { data } = await admin
       .from("messenger_messages")
       .select("id, conversation_id, sender_id, kind, body, created_at, edited_at, deleted_at")
@@ -390,7 +446,7 @@ export async function GET(req: NextRequest) {
     ...notifications.map((row) => row.created_by || ""),
     ...deliveries.map((row) => row.user_id),
   ]);
-  const [profiles, tokenResult] = await Promise.all([
+  const [profiles, tokenResult, blockResult] = await Promise.all([
     loadProfiles(admin, userIds),
     userIds.length > 0
       ? admin
@@ -400,8 +456,11 @@ export async function GET(req: NextRequest) {
         .order("last_seen_at", { ascending: false })
         .limit(200)
       : Promise.resolve({ data: [] }),
+    // 차단 관계 — 발송 RPC 가 차단 시 알림을 만들지 않으므로 플래그 판정에 필요 (소규모 테이블 전량)
+    admin.from("messenger_user_blocks").select("blocker_id, blocked_id").limit(1000),
   ]);
   const tokens = (tokenResult.data || []) as TokenRow[];
+  const blocks = (blockResult.data || []) as BlockRow[];
   const profileObject = Object.fromEntries(profiles.entries());
 
   return NextResponse.json({
@@ -416,7 +475,8 @@ export async function GET(req: NextRequest) {
       deliveries: deliveries.length,
       tokens: tokens.length,
     },
-    flags: buildFlags(messages, participants, notifications, deliveries, tokens),
+    flags: buildFlags(messages, participants, notifications, deliveries, tokens, blocks),
+    mode: recent ? "recent" : "search",
     matched_users: matchedProfiles,
     profiles: profileObject,
     conversations: (conversationResult.data || []) as ConversationRow[],
