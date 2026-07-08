@@ -12,9 +12,10 @@ import {
   Medal, Users, Inbox, BookText, CalendarPlus, BookOpen, FileText, BarChart3,
   TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks, FileSearch,
   Settings, Award, Lock, CircleHelp, Construction, Cog, X, Pencil, MessageSquareText,
-  ChevronUp, ChevronDown,
+  ChevronUp, ChevronDown, User,
 } from "lucide-react";
 import ModalBackdrop from "@/components/ModalBackdrop";
+import { photoThumb } from "@/lib/photo";
 
 interface DeptInfo {
   id: string;
@@ -26,6 +27,14 @@ interface DeptInfo {
   is_member: boolean;
   my_status: string | null;
   is_admin: boolean;
+}
+
+interface DeptMemberRow {
+  user_id: string;
+  name: string | null;
+  role: string | null;
+  grade: number | null;
+  photoUrl: string | null;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -180,6 +189,9 @@ export default function DepartmentDetailPage() {
   const [editCatId, setEditCatId] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ catId: string; itemId: string } | null>(null);
   const [sectionOrder, setSectionOrder] = useState<string[]>(ADMIN_SECTIONS.map((s) => s.id));
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [deptMembers, setDeptMembers] = useState<DeptMemberRow[] | null>(null);
+  const [membersLoading, setMembersLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -245,6 +257,41 @@ export default function DepartmentDetailPage() {
       setSectionOrder(prev);
       showToast(`순서 저장 실패: ${error.message}`);
     }
+  };
+
+  // 참여 멤버 팝업 — [category] 페이지와 동일하게 department_members + profiles 직접 조회
+  const openMembers = async () => {
+    setMembersOpen(true);
+    if (deptMembers || membersLoading) return;
+    setMembersLoading(true);
+    const { data: rows } = await supabase
+      .from("department_members")
+      .select("user_id, member_role, grade")
+      .eq("department_id", deptId)
+      .eq("status", "approved");
+    const userIds = [...new Set((rows || []).map((r) => r.user_id))];
+    let profileMap: Record<string, { name: string | null; avatar_url: string | null; photo_url: string | null }> = {};
+    if (userIds.length) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, name, avatar_url, photo_url")
+        .in("user_id", userIds);
+      profileMap = Object.fromEntries((profiles || []).map((p) => [p.user_id, p]));
+    }
+    const list: DeptMemberRow[] = (rows || []).map((r) => {
+      const p = profileMap[r.user_id];
+      return {
+        user_id: r.user_id,
+        name: p?.name ?? null,
+        role: r.member_role ?? null,
+        grade: typeof r.grade === "number" ? r.grade : null,
+        photoUrl: p?.avatar_url || p?.photo_url || null,
+      };
+    });
+    list.sort((a, b) =>
+      (a.grade ?? 99) - (b.grade ?? 99) || (a.name ?? "").localeCompare(b.name ?? "", "ko"));
+    setDeptMembers(list);
+    setMembersLoading(false);
   };
 
   const handleItemClick = (item: MenuItem) => {
@@ -391,12 +438,17 @@ export default function DepartmentDetailPage() {
               {dept.description}
             </div>
           )}
-          <div style={{
-            display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", background: "rgba(255,255,255,0.2)",
-            borderRadius: 20, fontSize: 11, fontWeight: 600,
-          }}>
+          <button
+            onClick={openMembers}
+            title="참여 멤버 보기"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 14px", background: "rgba(255,255,255,0.2)",
+              borderRadius: 20, fontSize: 11, fontWeight: 600, color: "#fff",
+              border: "none", cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
             <Users size={13} strokeWidth={1.8} /> {dept.member_count}명
-          </div>
+          </button>
         </div>
 
         {/* 비교육사역국: 콘텐츠 안내 (관리 메뉴는 아래에 표시) */}
@@ -530,6 +582,57 @@ export default function DepartmentDetailPage() {
       </div>
 
       {toast && <div style={toastStyle}>{toast}</div>}
+
+      {membersOpen && (
+        <ModalBackdrop onClose={() => setMembersOpen(false)}>
+          <div style={{
+            width: "100%", maxWidth: 420, background: "var(--card)", borderRadius: 18,
+            overflow: "hidden", maxHeight: "76vh", display: "flex", flexDirection: "column",
+          }}>
+            <div style={{ borderBottom: "1px solid var(--hairline)", padding: "15px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 7 }}>
+                <Users size={16} strokeWidth={2} /> 참여 멤버
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-faint)" }}>
+                  {deptMembers ? `${deptMembers.length}명` : `${dept.member_count}명`}
+                </span>
+              </div>
+              <button onClick={() => setMembersOpen(false)} style={{ width: 30, height: 30, borderRadius: 8, border: "none", background: "var(--bg-soft)", color: "var(--ink-mid)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <X size={16} strokeWidth={2} />
+              </button>
+            </div>
+            <div style={{ padding: 18, overflowY: "auto" }}>
+              {membersLoading || !deptMembers ? (
+                <LoadingView padding={30} />
+              ) : deptMembers.length === 0 ? (
+                <EmptyState icon={<Users size={22} strokeWidth={1.6} />} message="참여 중인 멤버가 없습니다" padding={20} />
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(74px, 1fr))", gap: "14px 8px" }}>
+                  {deptMembers.map((m) => (
+                    <div key={m.user_id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 0 }}>
+                      {m.photoUrl ? (
+                        <img
+                          src={photoThumb(m.photoUrl, 128) ?? undefined}
+                          alt={m.name || ""}
+                          loading="lazy"
+                          decoding="async"
+                          style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", objectPosition: "top center", border: "2px solid var(--hairline)" }}
+                        />
+                      ) : (
+                        <div style={{ width: 52, height: 52, borderRadius: "50%", background: "var(--bg-soft)", border: "2px solid var(--hairline)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <User size={22} strokeWidth={1.6} style={{ color: "var(--ink-faint)" }} />
+                        </div>
+                      )}
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink)", textAlign: "center", width: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {m.name || "이름 없음"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </ModalBackdrop>
+      )}
 
       {editing && (
         <EditMenuPopup
