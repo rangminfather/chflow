@@ -2,7 +2,7 @@
 
 // 출결 통합 조회 — 전 반 한 달치 종합 그리드. 탭으로 출석체크/달란트체크 화면 전환.
 //  - 출석체크: 종이 출석부식 기호(/ 출석, · 결석, Ø 출석인정), 칸 탭 시 순환 수정.
-//  - 달란트체크: 달란트통장 체크 항목을 ①②③ 번호로 종합 표시 (읽기 전용, 체크는 달란트통장에서).
+//  - 달란트체크: 달란트통장 체크 항목을 ①②③ 번호로 종합 표시, 칸 탭 → 팝업에서 체크 수정.
 // 학생 추가/삭제는 학생정보관리 메뉴에서 수행. 학생 이름 클릭 → 출결 이력 모달(기간 조회).
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -113,6 +113,10 @@ export default function AttendancePage() {
   const [newFriendMap, setNewFriendMap] = useState<Record<string, boolean>>({});
   const [board, setBoard] = useState<PromoRow[]>([]);
   const [promoting, setPromoting] = useState("");
+
+  // 달란트 체크 팝업 (학생 × 주일)
+  const [talentEdit, setTalentEdit] = useState<{ student: Student; date: string } | null>(null);
+  const [chipSaving, setChipSaving] = useState("");
 
   // 출결 이력 모달
   const [histStudent, setHistStudent] = useState<Student | null>(null);
@@ -281,6 +285,26 @@ export default function AttendancePage() {
     };
   };
 
+  // 달란트 체크 토글 — 담임 달란트통장과 동일 RPC. 임원(grade≤2)은 전 학생 수정 가능.
+  const toggleTalentChip = async (student: Student, date: string, rule: TalentRule) => {
+    const key = `${student.id}_${date}`;
+    const wasChecked = (extraMap[key] || []).includes(ruleIndexById[rule.id]);
+    const savingKey = `${key}_${rule.id}`;
+    setChipSaving(savingKey);
+    const { error } = await supabase.rpc("toggle_weekly_extra", {
+      p_student_id: student.id,
+      p_dept_id:    deptId,
+      p_date:       date,
+      p_rule_id:    rule.id,
+      p_checked:    !wasChecked,
+    });
+    setChipSaving("");
+    if (error) { showToast(`저장 실패: ${error.message}`); return; }
+    setExtras((prev) => wasChecked
+      ? prev.filter((e) => !(e.student_id === student.id && e.attend_date === date && e.rule_id === rule.id))
+      : [...prev, { student_id: student.id, attend_date: date, rule_id: rule.id }]);
+  };
+
   // 달란트 월합계 — 체크 개수 / 점수 합
   const talentSummary = (studentId: string) => {
     let count = 0, points = 0;
@@ -438,7 +462,7 @@ export default function AttendancePage() {
                     <span style={{ color: "var(--ink-soft)" }}>{r.label} +{r.points}</span>
                   </span>
                 ))}
-                <span style={{ color: "var(--ink-faint)" }}>체크·수정은 달란트통장 메뉴에서 (여기는 종합 현황)</span>
+                <span style={{ color: "var(--ink-faint)" }}>칸을 탭하면 그 주 체크 수정</span>
               </>
             )}
           </div>
@@ -579,18 +603,27 @@ export default function AttendancePage() {
                             {sundays.map((d) => {
                               const checked = extraMap[`${s.id}_${d}`] || [];
                               return (
-                                <td
-                                  key={d}
-                                  title={checked.length > 0 ? checked.map((idx) => `${checkRules[idx]?.label} +${checkRules[idx]?.points}`).join(" · ") : undefined}
-                                  style={{ textAlign: "center", padding: "3px 4px", cursor: checked.length > 0 ? "help" : "default" }}
-                                >
-                                  {checked.length > 0 ? (
-                                    <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 12, letterSpacing: 1, whiteSpace: "nowrap" }}>
-                                      {checked.map((idx) => CIRCLED[idx] || `(${idx + 1})`).join("")}
-                                    </span>
-                                  ) : (
-                                    <span style={{ color: "var(--hairline-strong)" }}> </span>
-                                  )}
+                                <td key={d} style={{ textAlign: "center", padding: 0 }}>
+                                  <button
+                                    className="status-btn"
+                                    onClick={() => setTalentEdit({ student: s, date: d })}
+                                    title={checked.length > 0
+                                      ? checked.map((idx) => `${checkRules[idx]?.label} +${checkRules[idx]?.points}`).join(" · ")
+                                      : "탭하여 달란트 체크"}
+                                    style={{
+                                      width: "100%", minHeight: 26, border: "none", background: "transparent",
+                                      cursor: "pointer", fontFamily: "inherit", padding: "3px 4px",
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                    }}
+                                  >
+                                    {checked.length > 0 ? (
+                                      <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 12, letterSpacing: 1, whiteSpace: "nowrap" }}>
+                                        {checked.map((idx) => CIRCLED[idx] || `(${idx + 1})`).join("")}
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: "var(--hairline-strong)", fontSize: 12 }}>·</span>
+                                    )}
+                                  </button>
                                 </td>
                               );
                             })}
@@ -615,6 +648,57 @@ export default function AttendancePage() {
           )}
         </div>
       </div>
+
+      {/* 달란트 체크 팝업 */}
+      {talentEdit && (
+        <ModalBackdrop onClose={() => setTalentEdit(null)}>
+          <div style={{ background: "var(--card)", borderRadius: 16, padding: 20, width: "min(420px, 100%)", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>
+                {talentEdit.student.name} · {formatMD(talentEdit.date)} 달란트 체크
+              </div>
+              <button onClick={() => setTalentEdit(null)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--ink-soft)", padding: 4 }}>
+                <X size={18} strokeWidth={2} />
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: "var(--ink-faint)", marginBottom: 14 }}>
+              담임 달란트통장과 같은 항목입니다. 탭하면 바로 저장됩니다.
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {checkRules.map((r, i) => {
+                const isOn = (extraMap[`${talentEdit.student.id}_${talentEdit.date}`] || []).includes(i);
+                const savingKey = `${talentEdit.student.id}_${talentEdit.date}_${r.id}`;
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => toggleTalentChip(talentEdit.student, talentEdit.date, r)}
+                    disabled={chipSaving === savingKey}
+                    style={{
+                      padding: "8px 14px", borderRadius: 20, cursor: "pointer", fontFamily: "inherit",
+                      fontSize: 12, fontWeight: 700,
+                      border: isOn ? "1.5px solid var(--accent)" : "1.5px solid var(--hairline)",
+                      background: isOn ? "var(--accent-soft)" : "var(--card)",
+                      color: isOn ? "var(--accent)" : "var(--ink-soft)",
+                      opacity: chipSaving === savingKey ? 0.5 : 1,
+                    }}
+                  >
+                    {CIRCLED[i] || `(${i + 1})`} {r.label} +{r.points}
+                  </button>
+                );
+              })}
+            </div>
+            {(() => {
+              const idxs = extraMap[`${talentEdit.student.id}_${talentEdit.date}`] || [];
+              const pts = idxs.reduce((sum, idx) => sum + (checkRules[idx]?.points || 0), 0);
+              return (
+                <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--hairline)", fontSize: 12, fontWeight: 700, color: "var(--ink-soft)", textAlign: "right" }}>
+                  이번 주 체크 {idxs.length}개 · <span style={{ color: "var(--accent)" }}>+{pts}점</span>
+                </div>
+              );
+            })()}
+          </div>
+        </ModalBackdrop>
+      )}
 
       {/* 출결 이력 모달 */}
       {histStudent && (

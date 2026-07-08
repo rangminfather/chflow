@@ -23,7 +23,7 @@
 |---:|---|---|---|---|
 | 1 | 부서홈 메뉴 노출 | `app/departments/d/[id]/page.tsx` | MENU_CATEGORIES의 출결 통합 조회 항목으로 정의된다. | 사용자 부서 등급과 부서 조건이 맞으면 카드가 표시된다. |
 | 2 | 출석체크 탭 | `app/departments/d/[id]/attendance/page.tsx` | 반별 그룹 × 해당 월 주일 그리드. 종이 출석부식 기호(/ 출석, · 결석, Ø 출석인정, 빈칸 미기록) + 상단 범례. 칸 탭 시 순환 (`edu_set_student_attendance`). | 전 반 학생을 한 화면에서 체크·수정한다. 월합계는 출석/결석/출석인정 카운트. |
-| 3 | 달란트체크 탭 | `app/departments/d/[id]/attendance/page.tsx` | `get_dept_weekly_extra` + `list_talent_rules`. 체크 항목을 ①②③ 번호로 주별 표시, 상단 범례에 번호↔항목·점수 매핑. 읽기 전용. | 체크 자체는 달란트통장 메뉴에서 수행. 월합계는 체크 개수/점수 합. |
+| 3 | 달란트체크 탭 | `app/departments/d/[id]/attendance/page.tsx` | `get_dept_weekly_extra` + `list_talent_rules`. 체크 항목을 ①②③ 번호로 주별 표시, 상단 범례에 번호↔항목·점수 매핑. 칸 탭 → 팝업에서 `toggle_weekly_extra`로 체크 수정 (담임 달란트통장과 동일 항목·RPC, 임원은 전 학생 수정 가능). | 월합계는 체크 개수/점수 합. |
 | 4 | 학생 출결 이력 모달 | `app/departments/d/[id]/attendance/page.tsx` | 학생 이름 클릭 → `edu_get_student_history`로 기간별 이력 조회. | 기간 선택 + 전체 주일/출석/결석/출석인정 요약 + 날짜별 목록. (구 학생 출결 조회 메뉴를 흡수) |
 | 5 | 등반 확정 | `app/departments/d/[id]/attendance/page.tsx` | `edu_promotion_board` / `edu_confirm_promotion`. | 4주 출석 새친구 등반 확정 보드 유지. |
 | 6 | 권한 기준 | `app/departments/d/[id]/page.tsx` | 카테고리 maxGrade와 항목 maxGrade/onlyForDept 조건으로 노출을 제어한다. | 초등1부 총무/서기 이상 기준으로 접근 범위를 제한한다. |
