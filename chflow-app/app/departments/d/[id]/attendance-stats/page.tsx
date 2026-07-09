@@ -35,6 +35,7 @@ interface StudentMeta {
   student_no: number | null;
   mgmt_status: string | null;
   gender: string | null;
+  member_id: string | null;
 }
 
 interface NewFriendRow {
@@ -119,7 +120,7 @@ export default function AttendanceStatsPage() {
     const [metaResp, friendsResp, ...monthResults] = await Promise.all([
       supabase
         .from("edu_students")
-        .select("id, class_no, grade_year, order_no, student_no, mgmt_status, gender")
+        .select("id, class_no, grade_year, order_no, student_no, mgmt_status, gender, member_id")
         .eq("department_id", deptId)
         .eq("is_active", true),
       supabase
@@ -134,6 +135,20 @@ export default function AttendanceStatsPage() {
 
     const metaMap: Record<string, StudentMeta> = {};
     ((metaResp.data || []) as StudentMeta[]).forEach((meta) => { metaMap[meta.id] = meta; });
+
+    // 성별은 학생정보 화면과 동일하게 members.gender 우선 (edu_students.gender는 대부분 미입력)
+    const memberIds = Object.values(metaMap).map((meta) => meta.member_id).filter(Boolean) as string[];
+    if (memberIds.length > 0) {
+      const { data: memberRows } = await supabase
+        .from("members")
+        .select("id, gender")
+        .in("id", memberIds);
+      const memberGender: Record<string, string | null> = {};
+      ((memberRows || []) as { id: string; gender: string | null }[]).forEach((m) => { memberGender[m.id] = m.gender; });
+      Object.values(metaMap).forEach((meta) => {
+        if (meta.member_id && memberGender[meta.member_id]) meta.gender = memberGender[meta.member_id];
+      });
+    }
     setStudentMeta(metaMap);
     setNewFriends(((friendsResp.data || []) as NewFriendRow[]));
 
