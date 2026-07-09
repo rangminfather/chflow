@@ -708,7 +708,9 @@ function FormRow({ label, children }: { label: string; children: React.ReactNode
 }
 
 function todayDate() {
-  return new Date().toISOString().slice(0, 10);
+  // toISOString은 UTC라 KST 자정~오전9시에 하루 전 날짜가 됨 — 로컬 날짜로 포맷
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function formatDate(d: string) {

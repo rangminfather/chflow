@@ -201,7 +201,8 @@ function nextSundayDate(): string {
   const day = d.getDay();
   const diff = day === 0 ? 0 : 7 - day;
   d.setDate(d.getDate() + diff);
-  return d.toISOString().slice(0, 10);
+  // toISOString은 UTC라 KST 자정~오전9시에 토요일로 하루 밀림 — 로컬 날짜로 포맷
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function formatKoreanDate(iso: string): string {
