@@ -142,11 +142,25 @@ export default function TeacherAttendancePage() {
       <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
         <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><UserCheck size={18} strokeWidth={1.8} /> 선생임 (교사출석부)</div>
-        <button className="app-header-actions" onClick={() => setShowAddForm(!showAddForm)} style={addBtnStyle}>+ 교사 추가</button>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><UserCheck size={18} strokeWidth={1.8} /> 선생님 등록 / 출석</div>
       </div>
 
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16 }}>
+        {/* 연/월 선택 */}
+        <div style={{ ...cardStyle, marginBottom: 16, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => setYear(year - 1)} title="이전 연도" style={navBtnStyle}>«</button>
+          <button onClick={() => prevMonth(year, month, setYear, setMonth)} title="이전 달" style={navBtnStyle}>◀</button>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", minWidth: 110, textAlign: "center" }}>
+            {monthLabel}
+          </div>
+          <button onClick={() => nextMonth(year, month, setYear, setMonth)} title="다음 달" style={navBtnStyle}>▶</button>
+          <button onClick={() => setYear(year + 1)} title="다음 연도" style={navBtnStyle}>»</button>
+          <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
+            일요일: {sundays.length}주
+          </div>
+          <button onClick={() => setShowAddForm(!showAddForm)} style={{ ...addBtnStyle, marginLeft: "auto" }}>+ 교사 추가</button>
+        </div>
+
         {/* 교사 추가 폼 */}
         {showAddForm && (
           <div style={{ ...cardStyle, marginBottom: 16 }}>
@@ -172,25 +186,13 @@ export default function TeacherAttendancePage() {
           </div>
         )}
 
-        {/* 월 선택 */}
-        <div style={{ ...cardStyle, marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
-          <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", minWidth: 120, textAlign: "center" }}>
-            {monthLabel}
-          </div>
-          <button onClick={() => nextMonth(year, month, setYear, setMonth)} style={navBtnStyle}>▶</button>
-          <div style={{ marginLeft: "auto", fontSize: 11, color: "var(--ink-faint)" }}>
-            일요일: {sundays.length}주
-          </div>
-        </div>
-
         {/* 출석 그리드 */}
         <div style={{ ...cardStyle, overflowX: "auto" }}>
           {loading ? (
             <LoadingView padding={40} label="불러오는 중..." />
           ) : teachers.length === 0 ? (
             <div style={{ color: "var(--ink-faint)", textAlign: "center", padding: 40 }}>
-              교사가 없습니다. 상단 &quot;교사 추가&quot;를 눌러 추가하세요.
+              교사가 없습니다. 위의 &quot;+ 교사 추가&quot;를 눌러 추가하세요.
             </div>
           ) : (
             <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 400 }}>
