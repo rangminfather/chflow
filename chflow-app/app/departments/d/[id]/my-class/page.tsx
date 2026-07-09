@@ -492,7 +492,8 @@ export default function MyClassPage() {
       p_family_name: family[0] ? `${family[0].relation} ${family[0].name}` : "",
       p_guide_name: newFriend.guide_kind === "other" ? newFriend.guide_name : null,
       p_school_dist: newFriend.school,
-      p_join_date: new Date().toISOString().slice(0, 10),
+      // toISOString은 UTC라 KST 자정~오전9시에 하루 전 날짜가 됨 — 로컬 날짜로 포맷
+      p_join_date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })(),
       p_special: "",
       p_memo: "",
       p_guide_kind: newFriend.guide_kind,
