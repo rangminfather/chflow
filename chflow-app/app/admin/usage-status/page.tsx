@@ -222,14 +222,17 @@ export default function AdminUsageStatusPage() {
                 <Repeat size={15} strokeWidth={2} /> 주간 방문 · 재방문율
               </div>
               <div className="mb-3 text-[12px] leading-5 text-ink-faint">
-                재방문율 = 지난주 방문자 중 이번주에도 온 비율. 앱이 계속 가치를 주고 있는지 보는 핵심 지표입니다.
+                재방문율 = 지난주 방문자 중 이번주에도 온 비율. 앱이 계속 가치를 주고 있는지 보는 핵심 지표입니다. 주는 주일(일요일)에 시작합니다.
               </div>
               <div className="flex flex-col gap-1.5">
                 {weekly.map((w) => {
                   const rate = w.prev_visitors > 0 ? Math.round((w.returning_visitors / w.prev_visitors) * 100) : null;
+                  const inProgress = w.week_start === kstCurrentWeekStart();
                   return (
                     <div key={w.week_start} className="flex items-center gap-2">
-                      <span className="w-[92px] shrink-0 text-[12px] font-bold text-ink-faint">{shortDate(w.week_start)} 주</span>
+                      <span className="w-[92px] shrink-0 text-[12px] font-bold text-ink-faint">
+                        {shortDate(w.week_start)} 주{inProgress && <span style={{ color: "var(--accent)" }}> 진행중</span>}
+                      </span>
                       <span className="w-[52px] shrink-0 text-right text-[12px] font-bold text-ink-soft">{w.visitors}명</span>
                       <div className="h-4 flex-1 overflow-hidden rounded bg-bg-soft">
                         <div className="h-full rounded" style={{ width: `${rate ?? 0}%`, background: "var(--success)" }} />
@@ -324,7 +327,7 @@ export default function AdminUsageStatusPage() {
                     <thead>
                       <tr className="border-b border-hairline text-ink-faint">
                         <th className="px-4 py-2 text-left font-bold">부서</th>
-                        <th className="px-2 py-2 text-right font-bold">출석 저장</th>
+                        <th className="px-2 py-2 text-right font-bold">출석 기록</th>
                         <th className="px-2 py-2 text-right font-bold">달란트 기록</th>
                         <th className="px-2 py-2 text-right font-bold">공지</th>
                         <th className="px-2 py-2 text-right font-bold">새친구</th>
@@ -383,6 +386,13 @@ function NumCell({ value }: { value: number }) {
 function shortDate(key: string): string {
   const [, m, d] = key.split("-");
   return `${Number(m)}/${Number(d)}`;
+}
+
+// 이번 주(주일 시작, KST)의 시작일 YYYY-MM-DD
+function kstCurrentWeekStart(): string {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const start = new Date(kst.getTime() - kst.getUTCDay() * 24 * 60 * 60 * 1000);
+  return start.toISOString().slice(0, 10);
 }
 
 function formatBytes(bytes: number): string {
