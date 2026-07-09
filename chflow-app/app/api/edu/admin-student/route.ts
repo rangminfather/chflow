@@ -28,11 +28,25 @@ type StudentPayload = {
   address?: string | null;
 };
 
+type FamilyPayload = {
+  name?: string | null;
+  relation?: string | null;
+  phone?: string | null;
+};
+
+type FamilyUpdatePayload = FamilyPayload & {
+  relative_id?: string | null;
+  kind?: string | null;
+  direction?: string | null;
+};
+
 type SaveBody = {
   dept_id: string;
   student_id?: string | null;
   student?: StudentPayload;
   students?: StudentPayload[];
+  family?: FamilyPayload[];
+  family_updates?: FamilyUpdatePayload[];
   member?: {
     id: string | null;
     phone: string | null;
@@ -239,6 +253,205 @@ async function saveOne(
   return { id: savedId };
 }
 
+async function ensureStudentMember(
+  admin: AdminClient,
+  deptId: string,
+  studentId: string,
+  payload: StudentPayload,
+) {
+  const currentMemberId = cleanText(payload.member_id);
+  if (currentMemberId) return currentMemberId;
+
+  const { data: current, error: currentError } = await admin
+    .from("edu_students")
+    .select("member_id, name, phone, birth_date, gender, address")
+    .eq("id", studentId)
+    .eq("department_id", deptId)
+    .maybeSingle();
+  if (currentError) throw currentError;
+  if (current?.member_id) return current.member_id as string;
+
+  const { data: member, error: memberError } = await admin
+    .from("members")
+    .insert({
+      name: cleanText(payload.name) || cleanText(current?.name) || "학생",
+      phone: cleanText(payload.phone) || cleanText(current?.phone),
+      birth_date: cleanText(payload.birth_date) || cleanText(current?.birth_date),
+      gender: normalizeGender(payload.gender) || normalizeGender(current?.gender),
+      address: cleanText(payload.address) || cleanText(current?.address),
+      status: "active",
+    })
+    .select("id")
+    .single();
+  if (memberError) throw memberError;
+
+  const memberId = member.id as string;
+  const { error: updateError } = await admin
+    .from("edu_students")
+    .update({ member_id: memberId })
+    .eq("id", studentId)
+    .eq("department_id", deptId);
+  if (updateError) throw updateError;
+
+  return memberId;
+}
+
+async function findOrCreateFamilyMember(admin: AdminClient, family: FamilyPayload) {
+  const name = cleanText(family.name);
+  if (!name) return null;
+  const phone = cleanText(family.phone);
+
+  if (phone) {
+    const { data: existing, error } = await admin
+      .from("members")
+      .select("id")
+      .eq("name", name)
+      .eq("phone", phone)
+      .maybeSingle();
+    if (error) throw error;
+    if (existing?.id) return existing.id as string;
+  }
+
+  const { data: member, error: insertError } = await admin
+    .from("members")
+    .insert({
+      name,
+      phone,
+      status: "active",
+    })
+    .select("id")
+    .single();
+  if (insertError) throw insertError;
+  return member.id as string;
+}
+
+function relationToKindRole(relation: string | null | undefined) {
+  const value = (relation || "").trim();
+  if (value === "부" || value === "아버지") return { kind: "parent", role: "father" };
+  if (value === "모" || value === "어머니") return { kind: "parent", role: "mother" };
+  if (["형", "오빠", "형제"].includes(value)) return { kind: "sibling", role: "brother" };
+  if (["누나", "언니", "자매"].includes(value)) return { kind: "sibling", role: "sister" };
+  if (value === "동생" || value === "남매") return { kind: "sibling", role: null };
+  if (value === "배우자") return { kind: "spouse", role: null };
+  if (value === "조부" || value === "할아버지") return { kind: "grandparent", role: "grandfather" };
+  if (value === "조모" || value === "할머니") return { kind: "grandparent", role: "grandmother" };
+  return { kind: "sibling", role: null };
+}
+
+async function saveFamily(
+  admin: AdminClient,
+  deptId: string,
+  studentId: string,
+  payload: StudentPayload,
+  family: FamilyPayload[] | undefined,
+) {
+  const rows = (family || []).filter((item) => cleanText(item.name));
+  if (rows.length === 0) return;
+
+  const studentMemberId = await ensureStudentMember(admin, deptId, studentId, payload);
+  for (const row of rows) {
+    const relativeId = await findOrCreateFamilyMember(admin, row);
+    if (!relativeId || relativeId === studentMemberId) continue;
+    const relation = relationToKindRole(row.relation);
+    const { data: existing, error: existingError } = await admin
+      .from("member_relations")
+      .select("id")
+      .eq("subject_id", studentMemberId)
+      .eq("relative_id", relativeId)
+      .eq("kind", relation.kind)
+      .maybeSingle();
+    if (existingError) throw existingError;
+
+    if (existing?.id) {
+      if (!relation.role) continue;
+      const { error } = await admin
+        .from("member_relations")
+        .update({ role: relation.role })
+        .eq("id", existing.id);
+      if (error) throw error;
+      continue;
+    }
+
+    const { error } = await admin
+      .from("member_relations")
+      .insert({
+        subject_id: studentMemberId,
+        relative_id: relativeId,
+        kind: relation.kind,
+        role: relation.role,
+      });
+    if (error) throw error;
+  }
+}
+
+async function updateFamily(
+  admin: AdminClient,
+  deptId: string,
+  studentId: string,
+  payload: StudentPayload,
+  familyUpdates: FamilyUpdatePayload[] | undefined,
+) {
+  const rows = (familyUpdates || []).filter((item) => cleanText(item.name) && cleanText(item.relative_id));
+  if (rows.length === 0) return;
+
+  const studentMemberId = await ensureStudentMember(admin, deptId, studentId, payload);
+  for (const row of rows) {
+    const relativeId = cleanText(row.relative_id);
+    if (!relativeId || relativeId === studentMemberId) continue;
+
+    const { error: memberError } = await admin
+      .from("members")
+      .update({
+        name: cleanText(row.name),
+        phone: cleanText(row.phone),
+      })
+      .eq("id", relativeId);
+    if (memberError) throw memberError;
+
+    const oldSubjectId = row.direction === "descendant" ? relativeId : studentMemberId;
+    const oldRelativeId = row.direction === "descendant" ? studentMemberId : relativeId;
+    const oldKind = cleanText(row.kind);
+    const relation = relationToKindRole(row.relation);
+
+    if (oldKind && oldKind !== relation.kind) {
+      const { error: deleteError } = await admin
+        .from("member_relations")
+        .delete()
+        .eq("subject_id", oldSubjectId)
+        .eq("relative_id", oldRelativeId)
+        .eq("kind", oldKind);
+      if (deleteError) throw deleteError;
+    }
+
+    const { data: existing, error: existingError } = await admin
+      .from("member_relations")
+      .select("id")
+      .eq("subject_id", studentMemberId)
+      .eq("relative_id", relativeId)
+      .eq("kind", relation.kind)
+      .maybeSingle();
+    if (existingError) throw existingError;
+
+    if (existing?.id) {
+      const { error } = await admin
+        .from("member_relations")
+        .update({ role: relation.role })
+        .eq("id", existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await admin
+        .from("member_relations")
+        .insert({
+          subject_id: studentMemberId,
+          relative_id: relativeId,
+          kind: relation.kind,
+          role: relation.role,
+        });
+      if (error) throw error;
+    }
+  }
+}
+
 export async function POST(req: NextRequest) {
   let body: SaveBody;
   try {
@@ -270,6 +483,12 @@ export async function POST(req: NextRequest) {
   for (let i = 0; i < inputs.length; i++) {
     try {
       const saved = await saveOne(admin, body.dept_id, inputs[i], Array.isArray(body.students) ? undefined : body.member);
+      if (!Array.isArray(body.students) && body.family?.length && saved.id) {
+        await saveFamily(admin, body.dept_id, saved.id, inputs[i], body.family);
+      }
+      if (!Array.isArray(body.students) && body.family_updates?.length && saved.id) {
+        await updateFamily(admin, body.dept_id, saved.id, inputs[i], body.family_updates);
+      }
       results.push({ row: i + 1, id: saved.id });
     } catch (e) {
       results.push({ row: i + 1, error: e instanceof Error ? e.message : "저장 실패" });

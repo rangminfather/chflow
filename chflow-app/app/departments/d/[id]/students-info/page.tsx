@@ -89,6 +89,18 @@ interface FamilyRow {
   direction: string | null;
 }
 
+interface FamilyEntry {
+  name: string;
+  relation: string;
+  phone: string;
+}
+
+interface FamilyUpdateEntry extends FamilyEntry {
+  relative_id: string;
+  kind: string | null;
+  direction: string | null;
+}
+
 type ImportRow = {
   name: string;
   student_type: StudentType;
@@ -108,6 +120,7 @@ const UNASSIGNED = "반 미배정";
 const TEMPLATE_HEADERS = ["이름", "구분", "번호", "학년", "반", "성별", "생년월일", "연락처", "주소", "학교", "정렬순서"];
 const TEMPLATE_EXAMPLE = ["김하준", "정", "12", "3", "3-1", "남", "2017-04-18", "010-1234-5678", "서울시 ...", "언약초", "12"];
 const PAGE_SIZE = 12;
+const FAMILY_RELATIONS = ["부", "모", "형", "누나", "오빠", "언니", "동생", "형제", "자매", "조부", "조모", "배우자", "기타"];
 
 function birthYearForGrade(gradeYear: number): string {
   return String(new Date().getFullYear() - 6 - gradeYear);
@@ -128,6 +141,8 @@ export default function StudentsInfoPage() {
   const [draft, setDraft] = useState<EditableStudent | null>(null);
   const [newDraft, setNewDraft] = useState<EditableStudent | null>(null);
   const [families, setFamilies] = useState<Record<string, FamilyRow[]>>({});
+  const [detailFamilyDraft, setDetailFamilyDraft] = useState<FamilyEntry[]>([]);
+  const [familyEditDrafts, setFamilyEditDrafts] = useState<Record<string, FamilyUpdateEntry>>({});
   const [classFilter, setClassFilter] = useState("");
   const [search, setSearch] = useState("");
   const [editMode, setEditMode] = useState(false);
@@ -249,10 +264,28 @@ export default function StudentsInfoPage() {
     setLoading(false);
   }
 
-  async function loadFamily(student: EditableStudent) {
-    if (!student.member_id || families[student.id]) return;
+  async function loadFamily(student: EditableStudent, force = false) {
+    if (!student.member_id || (!force && families[student.id])) return;
     const { data } = await supabase.rpc("get_family_tree", { p_member_id: student.member_id });
     setFamilies((current) => ({ ...current, [student.id]: (data || []) as FamilyRow[] }));
+  }
+
+  async function reloadFamilyByStudentId(studentId: string) {
+    const { data: student } = await supabase
+      .from("edu_students")
+      .select("member_id")
+      .eq("id", studentId)
+      .maybeSingle();
+    if (!student?.member_id) return;
+    const { data } = await supabase.rpc("get_family_tree", { p_member_id: student.member_id });
+    setFamilies((current) => ({ ...current, [studentId]: (data || []) as FamilyRow[] }));
+  }
+
+  async function refreshSavedFamily(studentId: string) {
+    await loadStudents();
+    await reloadFamilyByStudentId(studentId);
+    setDetailFamilyDraft([]);
+    setFamilyEditDrafts({});
   }
 
   useEffect(() => {
@@ -298,6 +331,8 @@ export default function StudentsInfoPage() {
   function selectStudent(student: EditableStudent) {
     setSelectedId(student.id);
     setDraft({ ...student });
+    setDetailFamilyDraft([]);
+    setFamilyEditDrafts({});
     setEditMode(false);
     setDetailOpen(true);
   }
@@ -362,7 +397,11 @@ export default function StudentsInfoPage() {
     setDraft((current) => (current?.id === studentId ? { ...current, photo_url: url } : current));
   }
 
-  async function persistStudent(target: EditableStudent) {
+  async function persistStudent(
+    target: EditableStudent,
+    familyDraft: FamilyEntry[] = [],
+    familyUpdates: FamilyUpdateEntry[] = [],
+  ) {
     if (!target.name.trim()) {
       showToast("이름을 입력하세요");
       return null;
@@ -408,6 +447,19 @@ export default function StudentsInfoPage() {
               address: target.address || null,
             }
           : undefined,
+        family: familyDraft
+          .map((entry) => ({ name: entry.name.trim(), relation: entry.relation, phone: entry.phone.trim() }))
+          .filter((entry) => entry.name),
+        family_updates: familyUpdates
+          .map((entry) => ({
+            relative_id: entry.relative_id,
+            kind: entry.kind,
+            direction: entry.direction,
+            name: entry.name.trim(),
+            relation: entry.relation,
+            phone: entry.phone.trim(),
+          }))
+          .filter((entry) => entry.name && entry.relative_id),
       }),
     });
 
@@ -420,13 +472,27 @@ export default function StudentsInfoPage() {
     }
 
     showToast(target.id === "__new__" ? "학생을 등록했습니다" : "저장되었습니다");
-    await loadStudents();
     return (result.results?.[0]?.id || target.id) as string;
   }
 
   async function handleSave() {
     if (!draft) return;
-    await persistStudent(draft);
+    const savedId = await persistStudent(draft, detailFamilyDraft, Object.values(familyEditDrafts));
+    if (savedId) {
+      await refreshSavedFamily(savedId);
+    }
+  }
+
+  async function handleSaveFamily() {
+    if (!draft) return;
+    if (detailFamilyDraft.length === 0 && Object.keys(familyEditDrafts).length === 0) return;
+    setSaving(true);
+    const savedId = await persistStudent(draft, detailFamilyDraft, Object.values(familyEditDrafts));
+    setSaving(false);
+    if (savedId) {
+      await refreshSavedFamily(savedId);
+      showToast("가족관계가 저장되었습니다");
+    }
   }
 
   async function handleSaveNew() {
@@ -450,6 +516,8 @@ export default function StudentsInfoPage() {
         } catch (photoError) {
           showToast(`학생은 등록됐지만 사진 저장 실패: ${photoError instanceof Error ? photoError.message : "오류"}`);
         }
+      } else {
+        await loadStudents();
       }
       setNewDraft(null);
       setNewStudentPhotoFile(null);
@@ -460,6 +528,8 @@ export default function StudentsInfoPage() {
   function cancelEdit() {
     if (selectedStudent) setDraft({ ...selectedStudent });
     else setDraft(null);
+    setDetailFamilyDraft([]);
+    setFamilyEditDrafts({});
     setEditMode(false);
   }
 
@@ -747,9 +817,16 @@ export default function StudentsInfoPage() {
           onClose={() => {
             setDetailOpen(false);
             setEditMode(false);
+            setDetailFamilyDraft([]);
+            setFamilyEditDrafts({});
           }}
           onToggleEdit={() => setEditMode((value) => !value)}
           onChange={updateDraft}
+          familyDraft={detailFamilyDraft}
+          onFamilyDraftChange={setDetailFamilyDraft}
+          familyEditDrafts={familyEditDrafts}
+          onFamilyEditDraftsChange={setFamilyEditDrafts}
+          onSaveFamily={handleSaveFamily}
           onSave={handleSave}
           onCancel={cancelEdit}
           onPhotoUpdate={updateStudentPhoto}
@@ -873,11 +950,16 @@ function StudentDetailModal({
   draft,
   classes,
   families,
+  familyDraft,
+  familyEditDrafts,
   editMode,
   saving,
   onClose,
   onToggleEdit,
   onChange,
+  onFamilyDraftChange,
+  onFamilyEditDraftsChange,
+  onSaveFamily,
   onSave,
   onCancel,
   onPhotoUpdate,
@@ -886,15 +968,35 @@ function StudentDetailModal({
   draft: EditableStudent;
   classes: DeptClass[];
   families: FamilyRow[];
+  familyDraft: FamilyEntry[];
+  familyEditDrafts: Record<string, FamilyUpdateEntry>;
   editMode: boolean;
   saving: boolean;
   onClose: () => void;
   onToggleEdit: () => void;
   onChange: <K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) => void;
+  onFamilyDraftChange: (next: FamilyEntry[]) => void;
+  onFamilyEditDraftsChange: (next: Record<string, FamilyUpdateEntry>) => void;
+  onSaveFamily: () => void;
   onSave: () => void;
   onCancel: () => void;
   onPhotoUpdate: (studentId: string, url: string | null) => void;
 }) {
+  const setFamily = (index: number, key: keyof FamilyEntry, value: string) => {
+    onFamilyDraftChange(familyDraft.map((entry, i) => (i === index ? { ...entry, [key]: value } : entry)));
+  };
+  const hasFamilyChanges = familyDraft.length > 0 || Object.keys(familyEditDrafts).length > 0;
+  const updateFamilyEdit = (key: string, field: keyof FamilyEntry, value: string) => {
+    const current = familyEditDrafts[key];
+    if (!current) return;
+    onFamilyEditDraftsChange({ ...familyEditDrafts, [key]: { ...current, [field]: value } });
+  };
+  const cancelFamilyEdit = (key: string) => {
+    const next = { ...familyEditDrafts };
+    delete next[key];
+    onFamilyEditDraftsChange(next);
+  };
+
   return (
     <div style={modalBackdropStyle} role="presentation" onMouseDown={onClose}>
       <div style={wideModalCardStyle} role="dialog" aria-modal="true" aria-label="학생 상세" onMouseDown={(event) => event.stopPropagation()}>
@@ -991,15 +1093,69 @@ function StudentDetailModal({
           </Panel>
 
           <Panel title="가족관계" wide>
+            <div className="mb-3 rounded-lg border border-hairline bg-surface p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-[14px] font-extrabold text-ink">가족</div>
+                <button
+                  type="button"
+                  onClick={() => onFamilyDraftChange([...familyDraft, { name: "", relation: "부", phone: "" }])}
+                  className="inline-flex min-h-10 items-center gap-1 rounded-md bg-ink px-3 text-[13px] font-extrabold text-white"
+                >
+                  <Plus size={14} strokeWidth={2.4} /> 가족관계 추가
+                </button>
+              </div>
+              {familyDraft.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {familyDraft.map((entry, index) => (
+                    <div key={index} className="grid grid-cols-[76px_1fr_1fr_34px] items-center gap-1.5 max-sm:grid-cols-[72px_1fr_34px]">
+                      <select value={entry.relation} onChange={(event) => setFamily(index, "relation", event.target.value)} className={inputClass}>
+                        {FAMILY_RELATIONS.map((relation) => <option key={relation} value={relation}>{relation}</option>)}
+                      </select>
+                      <input value={entry.name} onChange={(event) => setFamily(index, "name", event.target.value)} placeholder="이름" className={inputClass} />
+                      <input value={entry.phone} onChange={(event) => setFamily(index, "phone", formatPhone(event.target.value))} placeholder="연락처" className={`${inputClass} max-sm:col-span-2`} />
+                      <button
+                        type="button"
+                        onClick={() => onFamilyDraftChange(familyDraft.filter((_, i) => i !== index))}
+                        aria-label="가족 삭제"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-hairline bg-card text-ink-faint"
+                      >
+                        <X size={14} strokeWidth={2.2} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {hasFamilyChanges && (
+                <button type="button" onClick={onSaveFamily} disabled={saving} className="mt-3 inline-flex min-h-9 items-center justify-center rounded-md bg-ink px-4 text-[13px] font-extrabold text-white disabled:opacity-60">
+                  {saving ? "저장 중..." : "가족관계 저장"}
+                </button>
+              )}
+            </div>
             {families.length === 0 ? (
-              <div className="rounded-md border border-hairline bg-card px-3 py-4 text-[14px] font-semibold text-ink-faint">등록된 가족관계가 없습니다.</div>
+              <div className="rounded-md border border-hairline bg-card px-3 py-4">
+                <div className="text-[14px] font-semibold text-ink-faint">등록된 가족관계가 없습니다.</div>
+                <button
+                  type="button"
+                  onClick={() => onFamilyDraftChange([...familyDraft, { name: "", relation: "부", phone: "" }])}
+                  className="mt-3 inline-flex min-h-10 items-center gap-1 rounded-md bg-ink px-3 text-[13px] font-extrabold text-white"
+                >
+                  <Plus size={14} strokeWidth={2.4} /> 가족관계 추가
+                </button>
+              </div>
             ) : (
               <div className="grid gap-2 md:grid-cols-2">
                 {families.map((family) => (
-                  <div key={`${family.relative_id}-${family.kind}-${family.direction}`} className="rounded-md border border-hairline bg-card px-3 py-2">
-                    <div className="text-[14px] font-extrabold text-ink">{relationLabel(family)} · {family.relative_name}</div>
-                    <div className="mt-1 text-[13px] font-semibold text-ink-faint">{family.relative_phone ? formatPhone(family.relative_phone) : "연락처 없음"}</div>
-                  </div>
+                  <FamilyRelationCard
+                    key={`${family.relative_id}-${family.kind}-${family.direction}`}
+                    family={family}
+                    edit={familyEditDrafts[familyKey(family)]}
+                    onEdit={() => onFamilyEditDraftsChange({
+                      ...familyEditDrafts,
+                      [familyKey(family)]: familyToUpdateEntry(family),
+                    })}
+                    onChange={(field, value) => updateFamilyEdit(familyKey(family), field, value)}
+                    onCancel={() => cancelFamilyEdit(familyKey(family))}
+                  />
                 ))}
               </div>
             )}
@@ -1162,6 +1318,51 @@ function NewStudentModal({
   );
 }
 
+function FamilyRelationCard({
+  family,
+  edit,
+  onEdit,
+  onChange,
+  onCancel,
+}: {
+  family: FamilyRow;
+  edit?: FamilyUpdateEntry;
+  onEdit: () => void;
+  onChange: (field: keyof FamilyEntry, value: string) => void;
+  onCancel: () => void;
+}) {
+  if (edit) {
+    return (
+      <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2">
+        <div className="grid grid-cols-[76px_1fr_1fr] gap-1.5 max-sm:grid-cols-1">
+          <select value={edit.relation} onChange={(event) => onChange("relation", event.target.value)} className={inputClass}>
+            {FAMILY_RELATIONS.map((relation) => <option key={relation} value={relation}>{relation}</option>)}
+          </select>
+          <input value={edit.name} onChange={(event) => onChange("name", event.target.value)} placeholder="이름" className={inputClass} />
+          <input value={edit.phone} onChange={(event) => onChange("phone", formatPhone(event.target.value))} placeholder="연락처" className={inputClass} />
+        </div>
+        <div className="mt-2 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className="rounded-md border border-hairline bg-card px-3 py-1.5 text-[12px] font-extrabold text-ink-soft">취소</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border border-hairline bg-card px-3 py-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-[14px] font-extrabold text-ink">{relationLabel(family)} · {family.relative_name}</div>
+          <div className="mt-1 text-[13px] font-semibold text-ink-faint">{family.relative_phone ? formatPhone(family.relative_phone) : "연락처 없음"}</div>
+        </div>
+        <button type="button" onClick={onEdit} className="shrink-0 rounded-md border border-hairline bg-surface px-2.5 py-1 text-[12px] font-extrabold text-ink-soft">
+          수정
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Panel({ title, wide, children }: { title: string; wide?: boolean; children: ReactNode }) {
   return (
     <div className={`rounded-lg border border-hairline bg-surface p-4 ${wide ? "lg:col-span-2" : ""}`}>
@@ -1224,10 +1425,32 @@ function genderLabel(value: string | null | undefined) {
 function relationLabel(row: FamilyRow) {
   if (row.role === "father") return "부";
   if (row.role === "mother") return "모";
+  if (row.role === "brother") return "형";
+  if (row.role === "sister") return "누나";
   if (row.kind === "spouse") return "배우자";
   if (row.direction === "descendant") return "자녀";
   if (row.direction === "sibling") return "형제";
   return row.role || row.kind || "가족";
+}
+
+function familyKey(row: FamilyRow) {
+  return `${row.relative_id}-${row.kind || ""}-${row.direction || ""}`;
+}
+
+function familyRelationValue(row: FamilyRow) {
+  const label = relationLabel(row);
+  return FAMILY_RELATIONS.includes(label) ? label : "기타";
+}
+
+function familyToUpdateEntry(row: FamilyRow): FamilyUpdateEntry {
+  return {
+    relative_id: row.relative_id,
+    kind: row.kind,
+    direction: row.direction,
+    relation: familyRelationValue(row),
+    name: row.relative_name,
+    phone: row.relative_phone ? formatPhone(row.relative_phone) : "",
+  };
 }
 
 function numberOrNull(value: string) {
