@@ -278,7 +278,8 @@ function getSundaysInMonth(year: number, month: number): string[] {
   const d = new Date(year, month - 1, 1);
   while (d.getDay() !== 0) d.setDate(d.getDate() + 1);
   while (d.getMonth() === month - 1) {
-    sundays.push(d.toISOString().slice(0, 10));
+    // toISOString은 UTC 변환이라 KST에서 토요일로 하루 밀림 — 로컬 날짜로 포맷 (내반출결과 동일 키)
+    sundays.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
     d.setDate(d.getDate() + 7);
   }
   return sundays;
