@@ -91,7 +91,7 @@ export default function PromotePage() {
       setAuthorized(true);
       const rows = (prevR.data as PreviewRow[]) || [];
       setPreview(rows);
-      setTeachers((teachR.data as Teacher[]) || []);
+      setTeachers((((teachR.data as (Teacher & { is_active: boolean })[]) || []).filter((t) => t.is_active)));
 
       // 기본 반 개수: 학년별 학생 수 / 5명 (반올림 올림)
       const stayingByNextGrade: Record<number, number> = {};

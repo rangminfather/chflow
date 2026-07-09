@@ -5,15 +5,22 @@ import ModalBackdrop from "./ModalBackdrop";
 
 type ModalType = "confirm" | "prompt" | "alert";
 
+interface ConfirmOptions {
+  okText?: string;
+  cancelText?: string;
+}
+
 interface ModalConfig {
   type: ModalType;
   message: string;
   defaultValue?: string;
+  okText?: string;
+  cancelText?: string;
   resolve: (value: string | boolean | null) => void;
 }
 
 const ConfirmCtx = createContext<{
-  confirm: (msg: string) => Promise<boolean>;
+  confirm: (msg: string, opts?: ConfirmOptions) => Promise<boolean>;
   prompt: (msg: string, defaultValue?: string) => Promise<string | null>;
   alert: (msg: string) => Promise<void>;
 } | null>(null);
@@ -33,7 +40,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   );
 
   const confirm = useCallback(
-    (msg: string) => open({ type: "confirm", message: msg }) as Promise<boolean>,
+    (msg: string, opts?: ConfirmOptions) =>
+      open({ type: "confirm", message: msg, ...opts }) as Promise<boolean>,
     [open]
   );
   const prompt = useCallback(
@@ -116,11 +124,11 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               {modal.type !== "alert" && (
                 <button onClick={handleCancel} style={cancelStyle}>
-                  취소
+                  {modal.cancelText || "취소"}
                 </button>
               )}
               <button onClick={handleOk} style={okStyle}>
-                확인
+                {modal.okText || "확인"}
               </button>
             </div>
           </div>

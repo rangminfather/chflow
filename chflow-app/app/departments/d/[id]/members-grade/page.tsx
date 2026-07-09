@@ -180,6 +180,36 @@ export default function MembersGradePage() {
     if (!picked) return;
     const role = ROLE_OPTIONS[pickedRoleIdx];
     if (!await confirm(`${picked.name} 님을 ${role.label}(으)로 임명하시겠습니까?`)) return;
+
+    // 출석부에 같은 이름의 임시 등록(계정 미연결) 교사가 있으면 기록 이어받기 제안
+    const { data: placeholders } = await supabase
+      .from("edu_teachers")
+      .select("id, name")
+      .eq("department_id", deptId)
+      .eq("is_active", true)
+      .is("user_id", null)
+      .is("member_id", null)
+      .eq("name", picked.name);
+    if (placeholders && placeholders.length > 0) {
+      const inherit = await confirm(
+        `교사 출석부에 같은 이름의 임시 등록 교사 "${picked.name}"이(가) 있습니다.\n같은 사람이면 기존 출석 기록에 이 계정을 연결합니다.`,
+        { okText: "같은 사람 — 기록 이어받기", cancelText: "다른 사람" },
+      );
+      if (inherit) {
+        const { error: linkErr } = await supabase.rpc("edu_link_teacher_account", {
+          p_teacher_id: placeholders[0].id,
+          p_member_id: picked.member_id,
+        });
+        if (linkErr) { showToast("기록 연결 실패: " + linkErr.message); return; }
+      } else {
+        const proceed = await confirm(
+          `정말 병합하지 않고 새로 등록할까요?\n동명이인으로 처리되어 출석부에 교사가 중복 생성되고, 기존 출석 기록과 연결되지 않습니다.`,
+          { okText: "새로 등록", cancelText: "돌아가기" },
+        );
+        if (!proceed) return;
+      }
+    }
+
     setAppointing(true);
     const { error } = await supabase.rpc("admin_appoint_dept_member", {
       p_dept_id: deptId,

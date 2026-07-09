@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
-import { UserCheck, Trash2 } from "lucide-react";
+import { UserCheck, Trash2, GitMerge, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
 
 interface Teacher {
   id: string;
@@ -14,6 +14,8 @@ interface Teacher {
   teacher_role: string | null;
   order_no: number;
   is_active: boolean;
+  user_id: string | null;
+  member_id: string | null;
 }
 
 interface AttendRow {
@@ -44,10 +46,17 @@ export default function TeacherAttendancePage() {
   const [newRole, setNewRole] = useState("");
   const [toast, setToast] = useState("");
   const [saving, setSaving] = useState<string>("");
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const loadTeachers = useCallback(async () => {
-    const { data } = await supabase.rpc("edu_list_teachers", { p_dept_id: deptId });
-    setTeachers(data || []);
+    // 병합 대상 판별에 user_id/member_id가 필요해서 RPC 대신 직접 조회 (RLS 동일)
+    const { data } = await supabase
+      .from("edu_teachers")
+      .select("id, name, teacher_role, order_no, is_active, user_id, member_id")
+      .eq("department_id", deptId)
+      .order("order_no")
+      .order("name");
+    setTeachers((data as Teacher[]) || []);
   }, [deptId]);
 
   const loadAttendance = useCallback(async () => {
@@ -78,6 +87,22 @@ export default function TeacherAttendancePage() {
 
   // 해당 월의 일요일 날짜 배열
   const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
+
+  const activeTeachers = useMemo(() => teachers.filter((t) => t.is_active), [teachers]);
+  const deletedTeachers = useMemo(() => teachers.filter((t) => !t.is_active), [teachers]);
+
+  // 임시 등록(미연결) 교사 → 같은 이름의 계정 연결된 교사 (병합 대상)
+  const mergeTargetOf = useMemo(() => {
+    const map: Record<string, Teacher> = {};
+    activeTeachers.forEach((t) => {
+      if (t.user_id || t.member_id) return;
+      const target = activeTeachers.find(
+        (o) => o.id !== t.id && o.name === t.name && (o.user_id || o.member_id),
+      );
+      if (target) map[t.id] = target;
+    });
+    return map;
+  }, [activeTeachers]);
 
   // teacher_id → {date → is_present} 맵
   const attMap = useMemo(() => {
@@ -120,10 +145,43 @@ export default function TeacherAttendancePage() {
   };
 
   const deleteTeacher = async (id: string, name: string) => {
-    if (!await confirm(`"${name}" 교사를 삭제하시겠습니까?`)) return;
-    await supabase.rpc("edu_delete_teacher", { p_id: id });
+    if (!await confirm(`"${name}" 교사를 삭제하시겠습니까?\n출석 기록은 보존되며, 아래 "삭제된 교사"에서 복구할 수 있습니다.`)) return;
+    const { error } = await supabase.rpc("edu_delete_teacher", { p_id: id });
+    if (error) { showToast("삭제 실패: " + error.message); return; }
     await loadAll();
-    showToast("삭제되었습니다");
+    showToast("삭제되었습니다 (삭제된 교사에서 복구 가능)");
+  };
+
+  const restoreTeacher = async (id: string, name: string) => {
+    const { error } = await supabase.rpc("edu_restore_teacher", { p_id: id });
+    if (error) { showToast("복구 실패: " + error.message); return; }
+    await loadAll();
+    showToast(`"${name}" 교사가 복구되었습니다`);
+  };
+
+  const purgeTeacher = async (id: string, name: string) => {
+    if (!await confirm(
+      `"${name}" 교사를 영구 삭제하시겠습니까?\n출석 기록도 함께 삭제되며 복구할 수 없습니다.`,
+      { okText: "영구 삭제" },
+    )) return;
+    const { error } = await supabase.rpc("edu_purge_teacher", { p_id: id });
+    if (error) { showToast("영구 삭제 실패: " + error.message); return; }
+    await loadAll();
+    showToast("영구 삭제되었습니다");
+  };
+
+  const mergeTeacher = async (source: Teacher, target: Teacher) => {
+    if (!await confirm(
+      `임시 등록 "${source.name}"의 출석 기록을 계정이 연결된 "${target.name}" 교사에게 합치고 임시 행을 삭제합니다.\n같은 주에 양쪽 다 기록이 있으면 연결된 교사의 기록을 유지합니다.`,
+      { okText: "병합" },
+    )) return;
+    const { data, error } = await supabase.rpc("edu_merge_duplicate_teacher", {
+      p_source_id: source.id,
+      p_target_id: target.id,
+    });
+    if (error) { showToast("병합 실패: " + error.message); return; }
+    await loadAll();
+    showToast(`병합 완료 — 출석 기록 ${data ?? 0}건 이관`);
   };
 
   const showToast = (msg: string) => {
@@ -190,7 +248,7 @@ export default function TeacherAttendancePage() {
         <div style={{ ...cardStyle, overflowX: "auto" }}>
           {loading ? (
             <LoadingView padding={40} label="불러오는 중..." />
-          ) : teachers.length === 0 ? (
+          ) : activeTeachers.length === 0 ? (
             <div style={{ color: "var(--ink-faint)", textAlign: "center", padding: 40 }}>
               교사가 없습니다. 위의 &quot;+ 교사 추가&quot;를 눌러 추가하세요.
             </div>
@@ -210,7 +268,7 @@ export default function TeacherAttendancePage() {
                 </tr>
               </thead>
               <tbody>
-                {teachers.map((t) => {
+                {activeTeachers.map((t) => {
                   const tMap = attMap[t.id] || {};
                   const presentCount = sundays.filter((d) => tMap[d]).length;
                   return (
@@ -254,7 +312,14 @@ export default function TeacherAttendancePage() {
                           {presentCount}/{sundays.length}
                         </span>
                       </td>
-                      <td style={{ textAlign: "center", padding: "6px 4px" }}>
+                      <td style={{ textAlign: "center", padding: "6px 4px", whiteSpace: "nowrap" }}>
+                        {mergeTargetOf[t.id] && (
+                          <button
+                            onClick={() => mergeTeacher(t, mergeTargetOf[t.id])}
+                            title={`계정 연결된 "${mergeTargetOf[t.id].name}" 교사와 병합`}
+                            style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", display: "inline-flex", alignItems: "center", marginRight: 4 }}
+                          ><GitMerge size={15} strokeWidth={1.8} /></button>
+                        )}
                         <button
                           onClick={() => deleteTeacher(t.id, t.name)}
                           style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", display: "inline-flex", alignItems: "center" }}
@@ -267,6 +332,44 @@ export default function TeacherAttendancePage() {
             </table>
           )}
         </div>
+
+        {/* 삭제된 교사 (소프트 삭제 — 복구/영구삭제) */}
+        {deletedTeachers.length > 0 && (
+          <div style={{ ...cardStyle, marginTop: 16 }}>
+            <button
+              onClick={() => setShowDeleted(!showDeleted)}
+              style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--ink-faint)", padding: 0 }}
+            >
+              {showDeleted ? <ChevronUp size={14} strokeWidth={1.8} /> : <ChevronDown size={14} strokeWidth={1.8} />}
+              삭제된 교사 {deletedTeachers.length}명 {showDeleted ? "접기" : "보기"}
+            </button>
+            {showDeleted && (
+              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                {deletedTeachers.map((t) => (
+                  <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "var(--bg-soft)", borderRadius: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-faint)" }}>{t.name}</span>
+                      {t.teacher_role && (
+                        <span style={{ fontSize: 10, color: "var(--ink-faint)", marginLeft: 6 }}>{t.teacher_role}</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => restoreTeacher(t.id, t.name)}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "6px 10px", background: "var(--card)", border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" }}
+                    ><RotateCcw size={12} strokeWidth={1.8} /> 복구</button>
+                    <button
+                      onClick={() => purgeTeacher(t.id, t.name)}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "6px 10px", background: "none", border: "1px solid color-mix(in srgb, var(--danger) 35%, transparent)", borderRadius: 8, fontSize: 11, fontWeight: 700, color: "var(--danger)", cursor: "pointer", fontFamily: "inherit" }}
+                    ><Trash2 size={12} strokeWidth={1.8} /> 영구삭제</button>
+                  </div>
+                ))}
+                <div style={{ fontSize: 11, color: "var(--ink-faint)", lineHeight: 1.6 }}>
+                  복구하면 출석 기록까지 그대로 되살아납니다. 영구삭제는 출석 기록을 함께 삭제하며 되돌릴 수 없습니다.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {toast && <div style={toastStyle}>{toast}</div>}
