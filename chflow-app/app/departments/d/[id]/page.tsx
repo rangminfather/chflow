@@ -12,7 +12,7 @@ import {
   Medal, Users, Inbox, BookText, CalendarPlus, BookOpen, FileText, BarChart3,
   TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks,
   Settings, Award, Lock, CircleHelp, Construction, Cog, X, Pencil, MessageSquareText,
-  ChevronUp, ChevronDown, User, GripVertical,
+  ChevronUp, ChevronDown, User, GripVertical, PartyPopper,
 } from "lucide-react";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { photoThumb } from "@/lib/photo";
@@ -129,6 +129,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
       // ── 달란트 ──
       { id: "talent-rules", label: "달란트 규칙", icon: ScrollText, desc: "매주 적립 규칙", color: "var(--warning)", implemented: true, section: "talent" },
       { id: "talent-stats", label: "달란트통계", icon: TrendingUp, desc: "달란트 누적·랭킹", color: "#7E5F9E", implemented: true, section: "talent" },
+      { id: "talent-feast", label: "달란트잔치", icon: PartyPopper, desc: "통장 출력 · 잔치 후 반기 리셋", color: "#C08A2D", implemented: true, section: "talent" },
       { id: "quiz-talent", label: "공과퀴즈 달란트", icon: ClipboardCheck, desc: "월별 공과시험 달란트 입력 (서기)", color: "#7E5F9E", implemented: true, onlyForCategory: "교육사역국", maxGrade: 2, section: "talent" },
       // ── 명부·부서 운영 ──
       { id: "students-info", label: "학생정보관리", icon: FileText, desc: "학생 명부 · 인적사항", color: "#B97B3D", implemented: true, section: "ops" },
