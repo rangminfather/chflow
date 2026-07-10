@@ -12,7 +12,14 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { ClipboardList, BookOpen, Medal, Search, X } from "lucide-react";
+import { ClipboardList, BookOpen, Medal, RotateCcw, Search, X } from "lucide-react";
+import {
+  type TalentReset,
+  fetchTalentResets,
+  insertTalentReset,
+  deleteTalentReset,
+  formatResetDate,
+} from "@/lib/talentReset";
 
 interface Student {
   id: string;
@@ -118,6 +125,10 @@ export default function AttendancePage() {
   const [talentEdit, setTalentEdit] = useState<{ student: Student; date: string } | null>(null);
   const [chipSaving, setChipSaving] = useState("");
 
+  // 달란트 잔치 정산 리셋 (부서 전체 · 반기별)
+  const [lastReset, setLastReset] = useState<TalentReset | null>(null);
+  const [resetBusy, setResetBusy] = useState(false);
+
   // 출결 이력 모달
   const [histStudent, setHistStudent] = useState<Student | null>(null);
   const [histRows, setHistRows] = useState<HistoryRow[]>([]);
@@ -174,11 +185,16 @@ export default function AttendancePage() {
     setRules((data || []) as TalentRule[]);
   }, [deptId]);
 
+  const loadResets = useCallback(async () => {
+    const resets = await fetchTalentResets(deptId);
+    setLastReset(resets[0] || null);
+  }, [deptId]);
+
   const loadAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadStudents(), loadAttendance(), loadRules(), loadPromotion()]);
+    await Promise.all([loadStudents(), loadAttendance(), loadRules(), loadPromotion(), loadResets()]);
     setLoading(false);
-  }, [loadAttendance, loadStudents, loadRules, loadPromotion]);
+  }, [loadAttendance, loadStudents, loadRules, loadPromotion, loadResets]);
 
   useEffect(() => {
     (async () => {
@@ -303,6 +319,36 @@ export default function AttendancePage() {
     setExtras((prev) => wasChecked
       ? prev.filter((e) => !(e.student_id === student.id && e.attend_date === date && e.rule_id === rule.id))
       : [...prev, { student_id: student.id, attend_date: date, rule_id: rule.id }]);
+  };
+
+  // 달란트 잔치 정산 리셋 — 달란트통장과 동일 동작 (기록 보존, 리셋일만 기록)
+  const handleTalentReset = async () => {
+    const ok = await confirm(
+      "달란트 잔치 정산으로 부서 전체 달란트를 리셋할까요?\n\n오늘까지 적립분이 정산되고, 내일 적립부터 총 달란트에 새로 계산됩니다.\n기록은 삭제되지 않으며 '리셋 취소'로 되돌릴 수 있습니다.",
+      { okText: "리셋" },
+    );
+    if (!ok) return;
+    setResetBusy(true);
+    const errMsg = await insertTalentReset(deptId);
+    setResetBusy(false);
+    if (errMsg) { showToast(`리셋 실패: ${errMsg}`); return; }
+    await loadResets();
+    showToast("달란트가 리셋되었습니다");
+  };
+
+  const handleTalentResetUndo = async () => {
+    if (!lastReset) return;
+    const ok = await confirm(
+      `마지막 리셋(${formatResetDate(lastReset.reset_date)})을 취소할까요?\n리셋 이전 적립분이 다시 총 달란트에 합산됩니다.`,
+      { okText: "리셋 취소" },
+    );
+    if (!ok) return;
+    setResetBusy(true);
+    const errMsg = await deleteTalentReset(lastReset.id);
+    setResetBusy(false);
+    if (errMsg) { showToast(`취소 실패: ${errMsg}`); return; }
+    await loadResets();
+    showToast("리셋이 취소되었습니다");
   };
 
   // 달란트 월합계 — 체크 개수 / 점수 합
@@ -466,6 +512,44 @@ export default function AttendancePage() {
               </>
             )}
           </div>
+
+          {/* 달란트 잔치 정산 리셋 (달란트체크 탭 전용) */}
+          {viewMode === "talent" && (
+            <div style={{ padding: "8px 14px", borderBottom: "1px solid var(--hairline)", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", fontSize: 11 }}>
+              <span style={{ color: "var(--ink-faint)", fontWeight: 600 }}>
+                {lastReset
+                  ? `총 달란트 = ${formatResetDate(lastReset.reset_date)} 리셋 이후 적립분`
+                  : "총 달란트 = 전체 기간 누적 (리셋 이력 없음)"}
+              </span>
+              <button
+                onClick={handleTalentReset}
+                disabled={resetBusy || loading}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  padding: "5px 12px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 11, fontWeight: 800,
+                  border: "1px solid color-mix(in srgb, var(--danger) 40%, transparent)",
+                  background: "color-mix(in srgb, var(--danger) 8%, var(--card))",
+                  color: "var(--danger)",
+                }}
+              >
+                <RotateCcw size={12} strokeWidth={2.2} /> 달란트 리셋
+              </button>
+              {lastReset && (
+                <button
+                  onClick={handleTalentResetUndo}
+                  disabled={resetBusy || loading}
+                  style={{
+                    padding: "5px 12px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
+                    fontSize: 11, fontWeight: 700,
+                    border: "1px solid var(--hairline)", background: "var(--card)", color: "var(--ink-soft)",
+                  }}
+                >
+                  리셋 취소
+                </button>
+              )}
+            </div>
+          )}
 
           {loading ? (
             <LoadingView padding={60} label="불러오는 중..." />
