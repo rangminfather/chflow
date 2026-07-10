@@ -156,7 +156,8 @@ const MENU_CATEGORIES: MenuCategory[] = [
 // 메뉴 설정
 //  - 공통메뉴: 임원진(grade<=2)이 이름/주석 수정, monthly-plan·review-problems 는 접근등급(3/4)도 변경
 //  - 담임메뉴·행정관리: 임원진이 이름/주석만 수정
-//  - 부서관리(교육부서): 전도사·교육사·부장(0~1)이 수정, 접근범위 0(전도사만)/1(부장까지)/2(임원진까지)
+//  - 부서관리(교육부서): 접근범위 0(전도사만)/1(부장까지)/2(임원진까지) 안의 등급이 이름/주석 수정,
+//    접근범위(권한) 변경은 전도사·교육사(0)만
 // ─────────────────────────────────────────────────────────────────
 type MenuSetting = { label: string | null; description: string | null; max_grade: number | null; section?: string | null };
 type MenuSettings = Record<string, MenuSetting>;
@@ -403,8 +404,9 @@ export default function DepartmentDetailPage() {
   const isEduDept = dept.category === "교육사역국";
   const grade = myGrade ?? 99;
   const canEditMenu = grade <= 2; // 임원진(총무·서기) 이상
-  // 부서관리 설정(접근 위임)은 전도사·교육사·부장(0~1)
-  const canEditCat = (catId: string) => (catId === "department" ? isEduDept && grade <= 1 : canEditMenu);
+  // 부서관리: 접근 범위 안이면 이름/설명 수정 가능 (표시되는 항목 = 이미 범위 안).
+  // 접근 범위(권한) 변경 자체는 전도사·교육사만 — 수정 모달과 RPC 에서 제한.
+  const canEditCat = (catId: string) => (catId === "department" ? isEduDept && canEditMenu : canEditMenu);
 
   // 메뉴 설정(이름/주석/접근등급) 반영
   const resolveItem = (cat: MenuCategory, item: MenuItem): MenuItem => {
@@ -712,6 +714,7 @@ export default function DepartmentDetailPage() {
           catId={editing.catId}
           itemId={editing.itemId}
           setting={menuSettings[settingKeyOf(editing.catId, editing.itemId)]}
+          myGrade={grade}
           onClose={() => setEditing(null)}
           onSaved={(next) => { setMenuSettings(next); setEditing(null); showToast("메뉴를 수정했습니다"); }}
         />
@@ -723,17 +726,19 @@ export default function DepartmentDetailPage() {
 // ─────────────────────────────────────────────────────────────────
 // 단일 메뉴 수정 팝업 (편집모드에서 "수정" 클릭 시)
 //  - 공통메뉴 일부: 접근범위 3(선생님만)/4(학부모까지)
-//  - 부서관리: 접근범위 0(전도사·교육사만)/2(임원진까지) — 위임
+//  - 부서관리: 접근범위 0(전도사·교육사만)/1(부장까지)/2(임원진까지) — 위임.
+//    범위 안 등급은 제목/설명 수정 가능, 접근범위 변경은 전도사·교육사(0)만
 //  - 그 외: 제목/설명만
 // ─────────────────────────────────────────────────────────────────
 function EditMenuPopup({
-  deptId, deptName, catId, itemId, setting, onClose, onSaved,
+  deptId, deptName, catId, itemId, setting, myGrade, onClose, onSaved,
 }: {
   deptId: string;
   deptName: string;
   catId: string;
   itemId: string;
   setting?: MenuSetting;
+  myGrade: number;
   onClose: () => void;
   onSaved: (next: MenuSettings) => void;
 }) {
@@ -742,17 +747,20 @@ function EditMenuPopup({
   const menuKey = settingKeyOf(catId, itemId);
   const defLabel = (item?.label ?? "").replace("{dept}", deptName);
   const defDesc = item?.desc ?? "";
+  // 부서관리 접근 범위(권한) 변경은 전도사·교육사(0)만 — 그 외 등급은 제목/설명만
+  const canSetAccess = catId !== "department" || myGrade === 0;
   const accessOptions =
     catId === "notices" && ACCESS_CONFIGURABLE.has(itemId)
       ? [{ g: 3, t: "선생님만" }, { g: 4, t: "학부모까지" }]
-      : catId === "department"
+      : catId === "department" && canSetAccess
         ? [{ g: 0, t: "전도사·교육사만" }, { g: 1, t: "부장까지" }, { g: 2, t: "임원진까지" }]
         : null;
   const defaultMax = catId === "department" ? 1 : (item?.maxGrade ?? 4);
   const fixedAccessNote =
-    catId === "students" ? "이 메뉴는 반 담임 선생님에게 표시됩니다 (접근 범위 고정)"
-      : catId === "admin" ? "이 메뉴는 임원진(전도사~서기)에게 표시됩니다 (접근 범위 고정)"
-        : "이 메뉴는 항상 학부모까지 공개됩니다 (접근 범위 고정)";
+    catId === "department" ? "권한 설정은 전도사(교육사)만 가능합니다."
+      : catId === "students" ? "이 메뉴는 반 담임 선생님에게 표시됩니다 (접근 범위 고정)"
+        : catId === "admin" ? "이 메뉴는 임원진(전도사~서기)에게 표시됩니다 (접근 범위 고정)"
+          : "이 메뉴는 항상 학부모까지 공개됩니다 (접근 범위 고정)";
 
   // 행정관리: 섹션 배정 변경 가능
   const sectionEditable = catId === "admin";
