@@ -26,6 +26,7 @@ interface CardMonth {
   month: number;
   weeks: PlanWeek[];
   notes: string[];
+  sourceCreatedAt: string | null; // 이 월 카드를 만든 xlsx 업로드 시각
 }
 
 type NavGroup =
@@ -140,7 +141,7 @@ export default function MonthlyPlanPage() {
       for (const m of json.months) {
         const key = `${yr}-${pad2(m.month)}`;
         if (!monthMap.has(key)) {
-          monthMap.set(key, { key, year: yr, month: m.month, weeks: m.weeks, notes: m.notes });
+          monthMap.set(key, { key, year: yr, month: m.month, weeks: m.weeks, notes: m.notes, sourceCreatedAt: file.created_at });
         }
       }
     }
@@ -166,24 +167,32 @@ export default function MonthlyPlanPage() {
     await loadFiles(session.access_token);
   }
 
-  // 월별 통합 그룹: 카드 월 + (비대상 파일: 이미지·PDF·양식불일치 xlsx). 같은 달이면 카드 우선.
+  // 월별 통합 그룹: 카드 월 + (비대상 파일: 이미지·PDF·양식불일치 xlsx).
+  // 같은 달에 둘 다 있으면 최신 업로드 우선 — 카드를 만든 xlsx보다 나중에 올린 파일이 있으면 파일을 보여준다.
   const groups: NavGroup[] = useMemo(() => {
-    const map = new Map<string, NavGroup>();
-    for (const cm of cardMonths) {
-      map.set(cm.key, { key: cm.key, year: cm.year, month: cm.month, label: `${cm.year}년 ${cm.month}월`, kind: "cards", weeks: cm.weeks, notes: cm.notes });
-    }
+    const fileBuckets = new Map<string, PlanFile[]>();
     for (const f of files) {
       if (!f.year || !f.month) continue;
       if (cardPaths.has(f.path)) continue; // 카드로 소비된 xlsx 제외
       if (!isImage(f.url) && !isPdf(f.url) && !isXlsx(f.url)) continue;
       const key = `${f.year}-${pad2(f.month)}`;
-      const existing = map.get(key);
-      if (existing) {
-        if (existing.kind === "cards") continue; // 카드 우선
-        existing.files.push(f);
-      } else {
-        map.set(key, { key, year: f.year, month: f.month, label: `${f.year}년 ${f.month}월`, kind: "files", files: [f] });
+      const bucket = fileBuckets.get(key);
+      if (bucket) bucket.push(f);
+      else fileBuckets.set(key, [f]);
+    }
+
+    const map = new Map<string, NavGroup>();
+    for (const cm of cardMonths) {
+      map.set(cm.key, { key: cm.key, year: cm.year, month: cm.month, label: `${cm.year}년 ${cm.month}월`, kind: "cards", weeks: cm.weeks, notes: cm.notes });
+    }
+    for (const [key, bucket] of fileBuckets) {
+      const cm = cardMonths.find((c) => c.key === key);
+      if (cm) {
+        const newestFile = bucket.reduce<string>((acc, f) => (f.created_at && f.created_at > acc ? f.created_at : acc), "");
+        if (!newestFile || (cm.sourceCreatedAt && cm.sourceCreatedAt >= newestFile)) continue; // 카드가 더 최신
       }
+      const f0 = bucket[0];
+      map.set(key, { key, year: f0.year!, month: f0.month!, label: `${f0.year}년 ${f0.month}월`, kind: "files", files: bucket });
     }
     return Array.from(map.values()).sort((a, b) => b.key.localeCompare(a.key));
   }, [cardMonths, cardPaths, files]);
