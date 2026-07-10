@@ -18,7 +18,7 @@ import type React from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   RefreshCw, Copy, Share2, Save, ChevronLeft, ChevronRight, CloudDownload,
-  CircleCheck, CircleAlert, CircleHelp, Lock, Newspaper, CalendarDays, History, X,
+  CircleCheck, CircleAlert, CircleHelp, Lock, Newspaper, CalendarDays, History, X, Menu,
 } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
@@ -230,6 +230,18 @@ export default function WorshipGuidePage() {
 
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [selectedPast, setSelectedPast] = useState<HistoryItem | null>(null);
+  const [listOpen, setListOpen] = useState(false);          // 모바일: 폰 목업 안 목록 패널
+  const [overlayOpacity, setOverlayOpacity] = useState(0.65); // 모바일: 겹쳐보기 투명도
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  // PC(≥980px) = 왼쪽 목록 + 나란히 비교 / 그 미만 = 폰 목업 안 겹쳐보기
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 980px)");
+    const onChange = () => setIsDesktop(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   const [deptBul, setDeptBul] = useState<BulletinFetch>({ status: "idle" });
   const [churchBul, setChurchBul] = useState<BulletinFetch>({ status: "idle" });
@@ -564,6 +576,7 @@ export default function WorshipGuidePage() {
     setPrevRecord(null);
     setMessage("");
     setSelectedPast(null);
+    setListOpen(false);
     load(next);
   };
 
@@ -675,8 +688,7 @@ export default function WorshipGuidePage() {
 
   return (
     <main style={pageStyle}>
-      {/* 비교 패널이 열리면 PC 에서 두 메시지가 나란히 보이도록 폭 확장 */}
-      <section style={{ ...shellStyle, maxWidth: selectedPast ? 1060 : 720 }}>
+      <section style={{ ...shellStyle, maxWidth: isDesktop ? 1140 : 720 }}>
         <header className="app-subpage-header" style={headerStyle}>
           <button className="app-header-back" type="button" onClick={() => router.push(`/departments/d/${deptId}`)} aria-label="부서홈으로" style={{ ...iconButtonStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}>
             ← 부서홈
@@ -687,6 +699,46 @@ export default function WorshipGuidePage() {
             <h1 style={titleStyle}>예배안내</h1>
           </div>
         </header>
+
+        <div style={{ display: isDesktop ? "grid" : "block", gridTemplateColumns: isDesktop ? "260px minmax(0, 1fr)" : undefined, gap: 16, alignItems: "start" }}>
+          {/* PC: 왼쪽 저장 목록 — 고르면 오른쪽 본문에서 나란히 비교 */}
+          {isDesktop && (
+            <aside style={sidebarStyle}>
+              <div style={historyTitleStyle}>
+                <History size={15} strokeWidth={2} /> 저장된 안내
+              </div>
+              {history.length === 0 ? (
+                <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: "6px 2px" }}>저장된 안내가 없습니다</div>
+              ) : (
+                <div style={historyListStyle}>
+                  {history.map((h) => {
+                    const active = selectedPast?.sunday_date === h.sunday_date;
+                    return (
+                      <button
+                        key={h.sunday_date}
+                        type="button"
+                        onClick={() => setSelectedPast(active ? null : h)}
+                        style={{ ...historyRowStyle, ...(active ? historyRowActiveStyle : null) }}
+                      >
+                        <span style={{ fontWeight: 700, fontSize: 12.5 }}>
+                          {historyDateLabel(h.sunday_date, sunday.slice(0, 4))}
+                          {h.sunday_date === sunday && <span style={currentWeekTagStyle}>지금 주일</span>}
+                        </span>
+                        <span style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 500 }}>
+                          {historySummary(h.fields || {})}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.5 }}>
+                누르면 지금 화면 옆에 나란히 표시됩니다
+              </div>
+            </aside>
+          )}
+
+          <div style={{ minWidth: 0 }}>
 
         {/* 주일 선택 */}
         <div style={weekBarStyle}>
@@ -797,13 +849,39 @@ export default function WorshipGuidePage() {
               </div>
             </div>
 
-            {/* 핸드폰 목업 */}
+            {/* 핸드폰 목업 — PC: 선택본이 왼쪽에 펼쳐지며 폰이 오른쪽으로 밀림 / 모바일: ☰ 목록 + 반투명 겹쳐보기 */}
             <div style={phoneWrapStyle}>
+              {isDesktop && (
+                <div style={{ ...desktopPaneStyle, ...(selectedPast ? desktopPaneOpenStyle : null) }}>
+                  {selectedPast && (
+                    <>
+                      <div style={compareHeadStyle}>
+                        <span style={{ fontSize: 12.5, fontWeight: 800 }}>
+                          {historyDateLabel(selectedPast.sunday_date, sunday.slice(0, 4))} — 저장본
+                        </span>
+                        <button type="button" onClick={() => setSelectedPast(null)} aria-label="비교 닫기" style={compareCloseStyle}>
+                          <X size={15} strokeWidth={2} />
+                        </button>
+                      </div>
+                      <pre style={comparePastBubbleStyle}>{selectedPast.message || "(저장된 메시지 없음)"}</pre>
+                    </>
+                  )}
+                </div>
+              )}
+
               <div style={phoneFrameStyle}>
                 <div style={phoneNotchStyle} />
-                <div style={phoneScreenStyle}>
+                <div style={{ ...phoneScreenStyle, position: "relative" }}>
                   <div style={chatHeaderStyle}>초등1부 교사방</div>
-                  <div style={{ padding: "12px 10px 16px" }}>
+
+                  {/* 모바일: 우측 상단 ☰ — 저장된 안내 목록 열기 */}
+                  {!isDesktop && history.length > 0 && (
+                    <button type="button" onClick={() => setListOpen((v) => !v)} aria-label="저장된 안내 목록" style={hamburgerStyle}>
+                      <Menu size={15} strokeWidth={2} />
+                    </button>
+                  )}
+
+                  <div style={{ padding: `12px 10px ${!isDesktop && selectedPast ? 66 : 16}px`, position: "relative" }}>
                     <textarea
                       ref={textareaRef}
                       value={message}
@@ -815,7 +893,83 @@ export default function WorshipGuidePage() {
                     <div style={{ fontSize: 10.5, color: "var(--ink-faint)", textAlign: "right", marginTop: 4 }}>
                       말풍선을 눌러 자유롭게 수정하세요
                     </div>
+                    {/* 모바일: 선택한 저장본을 반투명으로 겹쳐 비교 */}
+                    {!isDesktop && selectedPast && (
+                      <div style={{ position: "absolute", top: 12, left: 10, right: 10, pointerEvents: "none" }}>
+                        <div style={{ ...onionBubbleStyle, opacity: overlayOpacity }}>
+                          {selectedPast.message || "(저장된 메시지 없음)"}
+                        </div>
+                      </div>
+                    )}
                   </div>
+
+                  {/* 모바일: 목록 패널 (반투명, 오른쪽에서 슬라이드) — 바깥(폰 화면)을 누르면 닫힘 */}
+                  {!isDesktop && (
+                    <>
+                      <div
+                        style={{ ...overlayBackdropStyle, opacity: listOpen ? 1 : 0, pointerEvents: listOpen ? "auto" : "none" }}
+                        onClick={() => setListOpen(false)}
+                      />
+                      <div style={{ ...listPanelStyle, transform: listOpen ? "translateX(0)" : "translateX(110%)" }}>
+                        <div style={{ ...historyTitleStyle, marginBottom: 8, fontSize: 12.5 }}>
+                          <History size={14} strokeWidth={2} /> 저장된 안내
+                        </div>
+                        {history.length === 0 ? (
+                          <div style={{ fontSize: 12, color: "var(--ink-faint)" }}>저장된 안내가 없습니다</div>
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {history.map((h) => {
+                              const active = selectedPast?.sunday_date === h.sunday_date;
+                              return (
+                                <button
+                                  key={h.sunday_date}
+                                  type="button"
+                                  onClick={() => { setSelectedPast(active ? null : h); setListOpen(false); }}
+                                  style={{ ...historyRowStyle, ...(active ? historyRowActiveStyle : null) }}
+                                >
+                                  <span style={{ fontWeight: 700, fontSize: 12.5 }}>
+                                    {historyDateLabel(h.sunday_date, sunday.slice(0, 4))}
+                                    {h.sunday_date === sunday && <span style={currentWeekTagStyle}>지금 주일</span>}
+                                  </span>
+                                  <span style={{ fontSize: 11, color: "var(--ink-soft)", fontWeight: 500 }}>
+                                    {historySummary(h.fields || {})}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* 모바일: 겹쳐보기 투명도 조절 바 — X 를 누르면 목록이 다시 나옴 */}
+                  {!isDesktop && selectedPast && !listOpen && (
+                    <div style={onionBarStyle}>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--ink-soft)", whiteSpace: "nowrap" }}>
+                        {monthDayLabel(selectedPast.sunday_date)}
+                      </span>
+                      <span style={{ fontSize: 10, color: "var(--ink-faint)", whiteSpace: "nowrap" }}>연하게</span>
+                      <input
+                        type="range"
+                        min={10}
+                        max={100}
+                        value={Math.round(overlayOpacity * 100)}
+                        onChange={(e) => setOverlayOpacity(Number(e.target.value) / 100)}
+                        style={{ flex: 1, minWidth: 0 }}
+                        aria-label="겹쳐보기 투명도"
+                      />
+                      <span style={{ fontSize: 10, color: "var(--ink-faint)", whiteSpace: "nowrap" }}>진하게</span>
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedPast(null); setListOpen(true); }}
+                        aria-label="겹쳐보기 닫기"
+                        style={{ ...compareCloseStyle, width: 26, height: 26 }}
+                      >
+                        <X size={13} strokeWidth={2} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -841,66 +995,11 @@ export default function WorshipGuidePage() {
               복사·공유 시 자동 저장됩니다. 공유 버튼은 휴대폰에서 카카오톡을 선택해 교사방으로 바로 보낼 수 있습니다.
             </div>
 
-            {/* 저장된 안내 목록 — 항목을 누르면 아래 비교 패널에 표시 */}
-            {history.length > 0 && (
-              <div style={historyCardStyle}>
-                <div style={historyTitleStyle}>
-                  <History size={15} strokeWidth={2} /> 저장된 안내 목록
-                  <span style={{ fontSize: 11.5, fontWeight: 500, color: "var(--ink-faint)" }}>
-                    {history.length}건 · 누르면 지금 화면과 비교
-                  </span>
-                </div>
-                <div style={historyListStyle}>
-                  {history.map((h) => {
-                    const active = selectedPast?.sunday_date === h.sunday_date;
-                    return (
-                      <button
-                        key={h.sunday_date}
-                        type="button"
-                        onClick={() => setSelectedPast(active ? null : h)}
-                        style={{ ...historyRowStyle, ...(active ? historyRowActiveStyle : null) }}
-                      >
-                        <span style={{ fontWeight: 700, fontSize: 13 }}>
-                          {historyDateLabel(h.sunday_date, sunday.slice(0, 4))}
-                          {h.sunday_date === sunday && (
-                            <span style={{ marginLeft: 6, fontSize: 10.5, color: "var(--accent)", fontWeight: 700 }}>지금 화면 주일</span>
-                          )}
-                        </span>
-                        <span style={{ fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 500 }}>
-                          {historySummary(h.fields || {})}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 비교 패널 — PC 는 두 칸 나란히, 모바일은 위(저장본)·아래(지금 화면) */}
-            {selectedPast && (
-              <div style={compareCardStyle}>
-                <div style={compareHeadStyle}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <History size={15} strokeWidth={2} /> 안내 비교
-                  </span>
-                  <button type="button" onClick={() => setSelectedPast(null)} aria-label="비교 닫기" style={compareCloseStyle}>
-                    <X size={15} strokeWidth={2} />
-                  </button>
-                </div>
-                <div style={compareGridStyle}>
-                  <div>
-                    <div style={compareColTitleStyle}>{historyDateLabel(selectedPast.sunday_date, sunday.slice(0, 4))} — 저장본</div>
-                    <pre style={comparePastBubbleStyle}>{selectedPast.message || "(저장된 메시지 없음)"}</pre>
-                  </div>
-                  <div>
-                    <div style={compareColTitleStyle}>{monthDayLabel(sunday)} 주일 — 지금 화면</div>
-                    <pre style={compareCurrentBubbleStyle}>{message || "(생성된 메시지 없음)"}</pre>
-                  </div>
-                </div>
-              </div>
-            )}
           </>
         )}
+
+          </div>
+        </div>
       </section>
 
       {toast && <div style={toastStyle}>{toast}</div>}
@@ -1170,6 +1269,9 @@ const hintStyle: React.CSSProperties = {
 const phoneWrapStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "center",
+  alignItems: "flex-start",
+  gap: 14,
+  flexWrap: "wrap",
   marginBottom: 16,
 };
 
@@ -1307,12 +1409,15 @@ const primaryButtonStyle: React.CSSProperties = {
   color: "#fff",
 };
 
-const historyCardStyle: React.CSSProperties = {
-  marginTop: 18,
+// ── 저장 목록 (PC 사이드바 · 모바일 패널 공용) ──
+
+const sidebarStyle: React.CSSProperties = {
+  position: "sticky",
+  top: 16,
   border: "1px solid var(--hairline)",
   borderRadius: 12,
   background: "var(--surface)",
-  padding: "12px 14px",
+  padding: "12px 12px 10px",
 };
 
 const historyTitleStyle: React.CSSProperties = {
@@ -1328,8 +1433,15 @@ const historyListStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: 6,
-  maxHeight: 320,
+  maxHeight: "calc(100vh - 200px)",
   overflowY: "auto",
+};
+
+const currentWeekTagStyle: React.CSSProperties = {
+  marginLeft: 6,
+  fontSize: 10,
+  color: "var(--accent)",
+  fontWeight: 700,
 };
 
 const historyRowStyle: React.CSSProperties = {
@@ -1353,12 +1465,20 @@ const historyRowActiveStyle: React.CSSProperties = {
   background: "color-mix(in srgb, var(--accent) 8%, var(--card))",
 };
 
-const compareCardStyle: React.CSSProperties = {
-  marginTop: 12,
-  border: "1px solid var(--hairline)",
-  borderRadius: 12,
-  background: "var(--surface)",
-  padding: "12px 14px",
+// ── PC 비교 패널: 선택 시 폰 왼쪽에서 펼쳐짐 ──
+
+const desktopPaneStyle: React.CSSProperties = {
+  flex: "0 0 0px",
+  maxWidth: 0,
+  opacity: 0,
+  overflow: "hidden",
+  transition: "max-width .3s ease, flex-basis .3s ease, opacity .25s ease",
+};
+
+const desktopPaneOpenStyle: React.CSSProperties = {
+  flex: "1 1 320px",
+  maxWidth: 440,
+  opacity: 1,
 };
 
 const compareHeadStyle: React.CSSProperties = {
@@ -1383,19 +1503,6 @@ const compareCloseStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const compareGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-  gap: 12,
-};
-
-const compareColTitleStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 700,
-  color: "var(--ink-soft)",
-  marginBottom: 6,
-};
-
 const compareBubbleBase: React.CSSProperties = {
   margin: 0,
   whiteSpace: "pre-wrap",
@@ -1415,11 +1522,81 @@ const comparePastBubbleStyle: React.CSSProperties = {
   border: "1px solid var(--hairline)",
 };
 
-const compareCurrentBubbleStyle: React.CSSProperties = {
-  ...compareBubbleBase,
-  background: "#FEE500",
-  color: "#1F1500",
-  border: "1px solid color-mix(in srgb, #1F1500 10%, transparent)",
+// ── 모바일: ☰ 목록 패널 + 반투명 겹쳐보기 ──
+
+const hamburgerStyle: React.CSSProperties = {
+  position: "absolute",
+  top: 24,
+  right: 10,
+  zIndex: 3,
+  width: 30,
+  height: 30,
+  borderRadius: 8,
+  border: "1px solid var(--hairline)",
+  background: "color-mix(in srgb, var(--card) 80%, transparent)",
+  color: "var(--ink)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+};
+
+const overlayBackdropStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  zIndex: 4,
+  background: "color-mix(in srgb, var(--ink) 18%, transparent)",
+  transition: "opacity .25s ease",
+};
+
+const listPanelStyle: React.CSSProperties = {
+  position: "absolute",
+  top: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 5,
+  width: "78%",
+  maxWidth: 300,
+  padding: "16px 12px",
+  overflowY: "auto",
+  background: "color-mix(in srgb, var(--card) 88%, transparent)",
+  backdropFilter: "blur(3px)",
+  WebkitBackdropFilter: "blur(3px)",
+  borderLeft: "1px solid var(--hairline)",
+  transition: "transform .28s ease",
+};
+
+const onionBubbleStyle: React.CSSProperties = {
+  margin: 0,
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
+  borderRadius: "16px 4px 16px 16px",
+  padding: "12px 13px",
+  background: "var(--card)",
+  color: "var(--ink)",
+  border: "1px solid var(--hairline)",
+  fontSize: 13.5,
+  lineHeight: 1.6,
+  fontWeight: 500,
+  fontFamily: "inherit",
+  transition: "opacity .15s ease",
+  boxShadow: "0 1px 3px color-mix(in srgb, var(--ink) 12%, transparent)",
+};
+
+const onionBarStyle: React.CSSProperties = {
+  position: "absolute",
+  left: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 3,
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  padding: "9px 10px",
+  background: "color-mix(in srgb, var(--card) 94%, transparent)",
+  backdropFilter: "blur(2px)",
+  WebkitBackdropFilter: "blur(2px)",
+  borderTop: "1px solid var(--hairline)",
 };
 
 const toastStyle: React.CSSProperties = {
