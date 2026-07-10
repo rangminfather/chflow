@@ -19,20 +19,15 @@ interface Rule {
   is_active: boolean;
 }
 
-const KIND_TABS: { value: Rule["rule_kind"]; label: string; desc: string }[] = [
-  { value: "weekly",  label: "매주 적립",  desc: "출석·헌금·주보요절 등 매주 자동 적립 항목" },
-  { value: "special", label: "특별 지급", desc: "찬양/예배 중 특별 지급 (5달란트 이내 등 가이드)" },
-  { value: "bonus",   label: "누적 보너스", desc: "개근·정근·수료 등 누적 조건 충족 시" },
-];
+const WEEKLY_DESC = "출석·요절·숙제 등 매주 체크해서 적립하는 항목";
 
-// 자동계산 매핑 가능한 시스템 키 (출석부 boolean 컬럼과 매칭)
 const SYSTEM_WEEKLY_KEYS: { key: string; label: string; desc: string }[] = [
-  { key: "attendance",    label: "출석",     desc: "attend_status='출' (출석체크 시)" },
-  { key: "prayer",        label: "기도회",   desc: "had_prayer" },
+  { key: "attendance", label: "출석", desc: "attend_status='출' (출석체크 시)" },
+  { key: "prayer", label: "기도회", desc: "had_prayer" },
   { key: "church_school", label: "교회학교", desc: "had_church_sch" },
-  { key: "worship",       label: "예배",     desc: "had_worship" },
-  { key: "lesson",        label: "공과",     desc: "had_lesson" },
-  { key: "bible",         label: "성경읽기", desc: "had_bible" },
+  { key: "worship", label: "예배", desc: "had_worship" },
+  { key: "lesson", label: "공과", desc: "had_lesson" },
+  { key: "bible", label: "성경읽기", desc: "had_bible" },
 ];
 
 export default function TalentRulesPage() {
@@ -45,10 +40,7 @@ export default function TalentRulesPage() {
   const [myGrade, setMyGrade] = useState<number | null>(null);
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Rule["rule_kind"]>("weekly");
   const [toast, setToast] = useState("");
-
-  // 편집 모달
   const [editing, setEditing] = useState<Partial<Rule> | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -61,14 +53,22 @@ export default function TalentRulesPage() {
     setLoading(true);
     const { data, error } = await supabase.rpc("list_talent_rules", { p_dept_id: deptId });
     setLoading(false);
-    if (error) { showToast("조회 실패: " + error.message); return; }
-    setRules((data as Rule[]) || []);
+    if (error) {
+      showToast("조회 실패: " + error.message);
+      return;
+    }
+    setRules(((data as Rule[]) || []).filter((rule) => rule.rule_kind === "weekly"));
   }, [deptId, showToast]);
 
   useEffect(() => {
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.replace("/login"); return; }
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
       setAuthChecked(true);
       const gradeR = await supabase.rpc("get_user_grade", { p_dept_id: deptId });
       setMyGrade(typeof gradeR.data === "number" ? gradeR.data : Number(gradeR.data));
@@ -77,148 +77,185 @@ export default function TalentRulesPage() {
   }, [deptId, load, router]);
 
   const canEdit = myGrade !== null && myGrade <= 2;
+  const filtered = rules.filter((rule) => rule.rule_kind === "weekly");
+  const systemKeySet = new Set(SYSTEM_WEEKLY_KEYS.map((key) => key.key));
+  const editingRuleKey = editing?.rule_key || "";
+  const isCustomRuleKey = !!editingRuleKey && !systemKeySet.has(editingRuleKey);
 
-  function openNew(kind: Rule["rule_kind"]) {
+  function openNew() {
     setEditing({
-      rule_kind: kind,
+      rule_kind: "weekly",
       rule_key: "",
       label: "",
       points: 0,
       notes: "",
-      order_no: rules.filter(r => r.rule_kind === kind).length,
+      order_no: filtered.length,
       is_active: true,
     });
   }
 
   function openEdit(r: Rule) {
+    if (r.rule_kind !== "weekly") {
+      showToast("매주 적립 규칙만 수정할 수 있습니다");
+      return;
+    }
     setEditing({ ...r });
   }
 
   async function handleSave() {
     if (!editing) return;
-    if (!editing.label?.trim()) { showToast("이름을 입력하세요"); return; }
-    if (!editing.rule_key?.trim()) { showToast("식별자(rule_key)를 입력하세요"); return; }
+    if (editing.rule_kind !== "weekly") {
+      showToast("매주 적립 규칙만 저장할 수 있습니다");
+      return;
+    }
+    if (!editing.label?.trim()) {
+      showToast("이름을 입력하세요");
+      return;
+    }
+    if (!editing.rule_key?.trim()) {
+      showToast("식별자(rule_key)를 입력하세요");
+      return;
+    }
+
     setSaving(true);
     const { error } = await supabase.rpc("save_talent_rule", {
-      p_id:       editing.id || null,
-      p_dept_id:  deptId,
-      p_kind:     editing.rule_kind,
-      p_key:      editing.rule_key.trim(),
-      p_label:    editing.label.trim(),
-      p_points:   editing.points || 0,
-      p_notes:    editing.notes || null,
-      p_order:    editing.order_no || 0,
-      p_active:   editing.is_active ?? true,
+      p_id: editing.id || null,
+      p_dept_id: deptId,
+      p_kind: "weekly",
+      p_key: editing.rule_key.trim(),
+      p_label: editing.label.trim(),
+      p_points: editing.points || 0,
+      p_notes: editing.notes || null,
+      p_order: editing.order_no || 0,
+      p_active: editing.is_active ?? true,
     });
     setSaving(false);
-    if (error) { showToast("저장 실패: " + error.message); return; }
+
+    if (error) {
+      showToast("저장 실패: " + error.message);
+      return;
+    }
     setEditing(null);
     showToast("저장됨");
     await load();
   }
 
   async function handleDelete(r: Rule) {
-    if (!await confirm(`"${r.label}" 규칙을 삭제하시겠습니까?`)) return;
+    if (r.rule_kind !== "weekly") {
+      showToast("매주 적립 규칙만 삭제할 수 있습니다");
+      return;
+    }
+    if (!(await confirm(`"${r.label}" 규칙을 삭제하시겠습니까?`))) return;
     const { error } = await supabase.rpc("delete_talent_rule", { p_id: r.id });
-    if (error) { showToast("삭제 실패: " + error.message); return; }
+    if (error) {
+      showToast("삭제 실패: " + error.message);
+      return;
+    }
     showToast("삭제됨");
     await load();
   }
 
   if (!authChecked || loading) return <LoadingView full />;
 
-  if (!canEdit && rules.length === 0) {
+  if (!canEdit && filtered.length === 0) {
     return (
       <div style={pageStyle}>
         <div style={{ maxWidth: 480, margin: "60px auto", padding: 24 }}>
           <div style={{ background: "var(--card)", borderRadius: 16, padding: 28, textAlign: "center" }}>
-            <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><Medal size={40} strokeWidth={1.8} color="var(--ink-faint)" /></div>
+            <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}>
+              <Medal size={40} strokeWidth={1.8} color="var(--ink-faint)" />
+            </div>
             <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>달란트 규칙 미설정</div>
-            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>임원진(등급 0~2: 부장·총무·서기)만 규칙을 등록·수정할 수 있습니다</div>
-            <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtn}>← 부서홈</button>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>
+              임원진(등급 0~2: 부장·총무·서기)만 규칙을 등록·수정할 수 있습니다
+            </div>
+            <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtn}>
+              ← 부서홈
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  const filtered = rules.filter(r => r.rule_kind === tab);
-
   return (
     <div style={pageStyle}>
-
       <div className="app-subpage-header" style={headerStyle}>
-          <HeaderLogo />
-          <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtn}>← 부서홈</button>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Medal size={18} strokeWidth={1.8} /> 달란트 규칙</div>
+        <HeaderLogo />
+        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtn}>
+          ← 부서홈
+        </button>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <Medal size={18} strokeWidth={1.8} /> 달란트 규칙
+        </div>
         <div style={{ width: 60 }} />
       </div>
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: 16 }}>
-
-        {/* 탭 */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-          {KIND_TABS.map(t => (
-            <button key={t.value} onClick={() => setTab(t.value)} style={{
-              flex: 1, padding: "10px 6px", borderRadius: 10,
-              background: tab === t.value ? "var(--accent)" : "var(--card)",
-              color: tab === t.value ? "#fff" : "var(--ink-mid)",
-              border: tab === t.value ? "none" : "1.5px solid var(--hairline)",
-              fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-            }}>{t.label}</button>
-          ))}
-        </div>
-
-        {/* 안내 */}
         <div style={{ background: "var(--card)", borderRadius: 10, padding: "10px 14px", marginBottom: 12, fontSize: 11, color: "var(--ink-soft)", lineHeight: 1.7 }}>
-          {KIND_TABS.find(t => t.value === tab)?.desc}
+          {WEEKLY_DESC}
         </div>
 
-        {/* 규칙 리스트 */}
         <div style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={sectionLabel}>{KIND_TABS.find(t => t.value === tab)?.label} ({filtered.length}개)</div>
+            <div style={sectionLabel}>매주 적립 ({filtered.length}개)</div>
             {canEdit && (
-              <button onClick={() => openNew(tab)} style={addBtn}>+ 항목 추가</button>
+              <button onClick={openNew} style={addBtn}>
+                + 항목 추가
+              </button>
             )}
           </div>
 
           {filtered.length === 0 ? (
             <div style={{ padding: 30, textAlign: "center", color: "var(--ink-faint)", fontSize: 12 }}>
-              아직 항목이 없습니다.{canEdit ? " 우측 상단 [+ 항목 추가] 로 등록하세요." : ""}
+              아직 항목이 없습니다.{canEdit ? " 우측 상단 [+ 항목 추가]로 등록하세요." : ""}
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {filtered.map(r => (
-                <div key={r.id} style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 10,
-                  background: r.is_active ? "var(--surface)" : "var(--card)",
-                  border: r.is_active ? "1px solid var(--hairline)" : "1.5px dashed var(--hairline-strong)",
-                  opacity: r.is_active ? 1 : 0.6,
-                }}>
+              {filtered.map((r) => (
+                <div
+                  key={r.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    background: r.is_active ? "var(--surface)" : "var(--card)",
+                    border: r.is_active ? "1px solid var(--hairline)" : "1.5px dashed var(--hairline-strong)",
+                    opacity: r.is_active ? 1 : 0.6,
+                  }}
+                >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
                       {r.label}
                       {!r.is_active && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--ink-faint)" }}>비활성</span>}
                     </div>
                     {r.notes && <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>{r.notes}</div>}
-                    <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 2, fontFamily: "monospace" }}>
-                      {r.rule_key}
-                    </div>
+                    <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: 2, fontFamily: "monospace" }}>{r.rule_key}</div>
                   </div>
-                  <div style={{
-                    minWidth: 56, textAlign: "center",
-                    padding: "6px 10px", borderRadius: 8,
-                    background: "var(--accent-soft)", color: "var(--accent-strong)",
-                    fontSize: 14, fontWeight: 800,
-                  }}>
+                  <div
+                    style={{
+                      minWidth: 56,
+                      textAlign: "center",
+                      padding: "6px 10px",
+                      borderRadius: 8,
+                      background: "var(--accent-soft)",
+                      color: "var(--accent-strong)",
+                      fontSize: 14,
+                      fontWeight: 800,
+                    }}
+                  >
                     {r.points}
                   </div>
                   {canEdit && (
                     <div style={{ display: "flex", gap: 4 }}>
-                      <button onClick={() => openEdit(r)} style={smallBtn}>수정</button>
-                      <button onClick={() => handleDelete(r)} style={{ ...smallBtn, color: "var(--danger)", background: "var(--danger-soft)" }}>삭제</button>
+                      <button onClick={() => openEdit(r)} style={smallBtn}>
+                        수정
+                      </button>
+                      <button onClick={() => handleDelete(r)} style={{ ...smallBtn, color: "var(--danger)", background: "var(--danger-soft)" }}>
+                        삭제
+                      </button>
                     </div>
                   )}
                 </div>
@@ -234,70 +271,62 @@ export default function TalentRulesPage() {
         )}
       </div>
 
-      {/* 편집 모달 */}
       {editing && (
         <div style={modalBackdrop} onClick={() => !saving && setEditing(null)}>
           <div style={modalBox} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>
-                {editing.id ? "규칙 수정" : "규칙 추가"} · {KIND_TABS.find(t => t.value === editing.rule_kind)?.label}
-              </div>
-              <button onClick={() => !saving && setEditing(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--ink-faint)" }}>×</button>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>{editing.id ? "규칙 수정" : "규칙 추가"} · 매주 적립</div>
+              <button onClick={() => !saving && setEditing(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--ink-faint)" }}>
+                ×
+              </button>
             </div>
 
             <label style={lbl}>이름 (화면 표시)</label>
-            <input type="text" value={editing.label || ""} onChange={(e) => setEditing(s => ({ ...s!, label: e.target.value }))}
-              placeholder="예: 출석, 헌금, 주보요절..." style={input} />
+            <input type="text" value={editing.label || ""} onChange={(e) => setEditing((s) => ({ ...s!, label: e.target.value }))} placeholder="예: 출석, 요절암송, 숙제..." style={input} />
 
             <label style={lbl}>식별자 (영문/숫자)</label>
-            {editing.rule_kind === "weekly" ? (
-              <select value={editing.rule_key || ""} onChange={(e) => setEditing(s => ({ ...s!, rule_key: e.target.value }))} style={input}>
-                <option value="">— 선택 (자동계산 매핑 또는 직접 입력) —</option>
-                <optgroup label="자동계산 (출석부 연동)">
-                  {SYSTEM_WEEKLY_KEYS.map(k => (
-                    <option key={k.key} value={k.key}>{k.label} — {k.key}</option>
-                  ))}
-                </optgroup>
-                <option value="__custom">직접 입력 (자동계산 X, 주별 수동 체크)</option>
-              </select>
-            ) : null}
-            {(editing.rule_kind !== "weekly" || editing.rule_key === "__custom") && (
-              <input type="text"
-                value={editing.rule_key === "__custom" ? "" : (editing.rule_key || "")}
-                onChange={(e) => setEditing(s => ({ ...s!, rule_key: e.target.value.replace(/[^a-z0-9_]/gi, "_").toLowerCase() }))}
-                placeholder="예: offering, verse, guide_friend"
+            <select value={isCustomRuleKey ? "__custom" : editingRuleKey} onChange={(e) => setEditing((s) => ({ ...s!, rule_key: e.target.value }))} style={input}>
+              <option value="">선택 (자동계산 매핑 또는 직접 입력)</option>
+              <optgroup label="자동계산 (출석부 연동)">
+                {SYSTEM_WEEKLY_KEYS.map((k) => (
+                  <option key={k.key} value={k.key}>
+                    {k.label} - {k.key}
+                  </option>
+                ))}
+              </optgroup>
+              <option value="__custom">직접 입력 (자동계산 X, 주별 수동 체크)</option>
+            </select>
+            {(editing.rule_key === "__custom" || isCustomRuleKey) && (
+              <input
+                type="text"
+                value={editing.rule_key === "__custom" ? "" : editingRuleKey}
+                onChange={(e) => setEditing((s) => ({ ...s!, rule_key: e.target.value.replace(/[^a-z0-9_]/gi, "_").toLowerCase() }))}
+                placeholder="예: verse_memory, lesson_homework"
                 style={input}
               />
             )}
             <div style={{ fontSize: 10, color: "var(--ink-faint)", marginTop: -6, marginBottom: 8 }}>
-              {editing.rule_kind === "weekly"
-                ? "자동계산 키를 고르거나 직접 입력. 직접 입력은 출석부에 별도 체크박스로 표시됩니다."
-                : "이 부서 안에서만 유니크하면 됩니다."}
+              자동계산 키를 고르거나 직접 입력하세요. 직접 입력은 출석부에 별도 체크박스로 표시됩니다.
             </div>
 
             <label style={lbl}>점수 (달란트)</label>
-            <input type="number" value={editing.points ?? 0}
-              onChange={(e) => setEditing(s => ({ ...s!, points: parseInt(e.target.value, 10) || 0 }))}
-              style={input} />
+            <input type="number" value={editing.points ?? 0} onChange={(e) => setEditing((s) => ({ ...s!, points: parseInt(e.target.value, 10) || 0 }))} style={input} />
 
             <label style={lbl}>설명/메모 (선택)</label>
-            <textarea value={editing.notes || ""}
-              onChange={(e) => setEditing(s => ({ ...s!, notes: e.target.value }))}
-              rows={2}
-              placeholder="예: 단, 교회 출석 주보 제출 시"
-              style={{ ...input, resize: "vertical", minHeight: 50, fontFamily: "inherit" }} />
+            <textarea value={editing.notes || ""} onChange={(e) => setEditing((s) => ({ ...s!, notes: e.target.value }))} rows={2} placeholder="예: 교회 출석 주보 제출 시" style={{ ...input, resize: "vertical", minHeight: 50, fontFamily: "inherit" }} />
 
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-              <input type="checkbox" id="active" checked={editing.is_active ?? true}
-                onChange={(e) => setEditing(s => ({ ...s!, is_active: e.target.checked }))} />
-              <label htmlFor="active" style={{ fontSize: 12, color: "var(--ink-mid)", cursor: "pointer" }}>활성</label>
+              <input type="checkbox" id="active" checked={editing.is_active ?? true} onChange={(e) => setEditing((s) => ({ ...s!, is_active: e.target.checked }))} />
+              <label htmlFor="active" style={{ fontSize: 12, color: "var(--ink-mid)", cursor: "pointer" }}>
+                활성
+              </label>
             </div>
 
             <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-              <button onClick={() => !saving && setEditing(null)} disabled={saving}
-                style={{ flex: 1, padding: "10px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" }}>취소</button>
-              <button onClick={handleSave} disabled={saving}
-                style={{ flex: 2, padding: "10px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#fff", cursor: saving ? "wait" : "pointer", fontFamily: "inherit" }}>
+              <button onClick={() => !saving && setEditing(null)} disabled={saving} style={{ flex: 1, padding: "10px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" }}>
+                취소
+              </button>
+              <button onClick={handleSave} disabled={saving} style={{ flex: 2, padding: "10px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#fff", cursor: saving ? "wait" : "pointer", fontFamily: "inherit" }}>
                 {saving ? "저장 중..." : "저장"}
               </button>
             </div>
