@@ -1,7 +1,7 @@
 "use client";
 
 // 달란트통계 — 연도 단위로 넘겨 보며, 선택 연도의 상반기(1~6월)/하반기(7~12월)를
-// 달력 기준으로 나눠 항상 함께 표시한다 (하반기 미진행이어도 표시).
+// 버튼(탭)으로 전환해 본다. 하반기가 미진행이어도 버튼은 항상 표시되고, 누르면 0으로 집계된 표가 나온다.
 // 잔치 리셋과 무관한 기간 집계 화면. 리셋은 출결통합조회 > 달란트체크에서.
 
 import type { CSSProperties } from "react";
@@ -54,6 +54,7 @@ export default function TalentStatsPage() {
   const [authorized, setAuthorized] = useState(true);
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState(new Date().getFullYear());
+  const [half, setHalf] = useState<"h1" | "h2">(new Date().getMonth() + 1 <= 6 ? "h1" : "h2"); // 기본 = 현재 반기
   const [classFilter, setClassFilter] = useState("");
   const [firstHalf, setFirstHalf] = useState<StudentTotal[]>([]);
   const [secondHalf, setSecondHalf] = useState<StudentTotal[]>([]);
@@ -206,12 +207,32 @@ export default function TalentStatsPage() {
       <PageHeader deptId={deptId} router={router} />
 
       <main className="mx-auto w-full max-w-5xl px-4 py-4">
-        {/* 연도 이동 + 반 필터 */}
+        {/* 연도 이동 + 상/하반기 버튼 + 반 필터 */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-card px-4 py-3">
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setYear(year - 1)} style={navBtnStyle}>◀</button>
-            <div className="min-w-[86px] text-center text-[16px] font-extrabold text-ink">{year}년</div>
-            <button type="button" onClick={() => setYear(year + 1)} style={navBtnStyle}>▶</button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setYear(year - 1)} style={navBtnStyle}>◀</button>
+              <div className="min-w-[86px] text-center text-[16px] font-extrabold text-ink">{year}년</div>
+              <button type="button" onClick={() => setYear(year + 1)} style={navBtnStyle}>▶</button>
+            </div>
+            <div className="flex gap-1 rounded-md bg-bg-soft p-1">
+              {([
+                { key: "h1", label: "상반기 (1~6월)" },
+                { key: "h2", label: "하반기 (7~12월)" },
+              ] as const).map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setHalf(option.key)}
+                  className={[
+                    "min-h-9 rounded px-3.5 text-[14px] font-extrabold",
+                    half === option.key ? "bg-card text-ink shadow-sm" : "text-ink-faint",
+                  ].join(" ")}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
           <select
             value={classFilter}
@@ -231,8 +252,11 @@ export default function TalentStatsPage() {
           </div>
         ) : (
           <>
-            <HalfSection title={`${year}년 상반기`} range="1월~6월" totals={firstHalf} classFilter={classFilter} />
-            <HalfSection title={`${year}년 하반기`} range="7월~12월" totals={secondHalf} classFilter={classFilter} />
+            {half === "h1" ? (
+              <HalfSection title={`${year}년 상반기`} range="1월~6월" totals={firstHalf} classFilter={classFilter} />
+            ) : (
+              <HalfSection title={`${year}년 하반기`} range="7월~12월" totals={secondHalf} classFilter={classFilter} />
+            )}
 
             <div className="mt-3 px-1 text-[12px] leading-5 text-ink-faint">
               합계 = 자동적립(출석·주간 체크) + 기타(직접 입력) + 공과퀴즈. 상·하반기는 달력 기준(1~6월 / 7~12월)으로,
@@ -314,12 +338,8 @@ function HalfSection({ title, range, totals, classFilter }: {
         <div className="border-b border-hairline bg-surface px-4 py-2.5 text-[15px] font-extrabold text-ink">
           달란트 랭킹 {classFilter && <span className="ml-1 text-[13px] font-bold text-ink-faint">{classFilter}</span>}
         </div>
-        {grandTotal === 0 ? (
-          <div className="px-4 py-8 text-center text-[13px] font-semibold text-ink-faint">
-            아직 적립된 달란트가 없습니다
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
+        {/* 기록이 없어도 학생 명단을 0으로 표시 (하반기 미진행 등) */}
+        <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] border-collapse text-[13px]">
               <thead>
                 <tr className="border-b border-hairline text-ink-faint">
@@ -354,8 +374,7 @@ function HalfSection({ title, range, totals, classFilter }: {
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
+        </div>
       </div>
     </section>
   );
