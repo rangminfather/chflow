@@ -1,5 +1,9 @@
 "use client";
 
+// 달란트통계 — 연도 단위로 넘겨 보며, 선택 연도의 상반기(1~6월)/하반기(7~12월)를
+// 달력 기준으로 나눠 항상 함께 표시한다 (하반기 미진행이어도 표시).
+// 잔치 리셋과 무관한 기간 집계 화면. 리셋은 출결통합조회 > 달란트체크에서.
+
 import type { CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -7,13 +11,6 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Lock, Medal, TrendingUp } from "lucide-react";
-import {
-  type TalentReset,
-  fetchTalentResets,
-  periodStartAfter,
-  PERIOD_END_MAX,
-  formatResetDate,
-} from "@/lib/talentReset";
 
 interface StudentRow {
   id: string;
@@ -45,14 +42,6 @@ interface StudentTotal {
   rank: number;
 }
 
-// 반기 기준 — 달란트 잔치 리셋일 경계로 집계 (이번 반기 = 마지막 리셋 이후)
-type Period = "current" | "previous";
-
-const PERIOD_OPTIONS: { key: Period; label: string }[] = [
-  { key: "current", label: "이번 반기" },
-  { key: "previous", label: "지난 반기" },
-];
-
 const MEDAL_COLORS = ["#D4A937", "#9AA3AD", "#B97B3D"]; // 1·2·3위
 const UNASSIGNED = "반 미배정";
 
@@ -64,36 +53,13 @@ export default function TalentStatsPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authorized, setAuthorized] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState<Period>("current");
+  const [year, setYear] = useState(new Date().getFullYear());
   const [classFilter, setClassFilter] = useState("");
-  const [totals, setTotals] = useState<StudentTotal[]>([]);
-  const [resets, setResets] = useState<TalentReset[] | null>(null); // 달란트 잔치 리셋 이력 (최신순)
+  const [firstHalf, setFirstHalf] = useState<StudentTotal[]>([]);
+  const [secondHalf, setSecondHalf] = useState<StudentTotal[]>([]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-
-    // 반기 경계 = 리셋일. 이번 반기 = 마지막 리셋 다음날~, 지난 반기 = 직전 리셋 다음날~마지막 리셋일.
-    const resetList = resets || [];
-    const range = period === "current"
-      ? { from: periodStartAfter(resetList[0]), to: PERIOD_END_MAX }
-      : { from: periodStartAfter(resetList[1]), to: resetList[0]?.reset_date ?? PERIOD_END_MAX };
-    const dateFrom = range.from;
-    const dateTo = range.to;
-
-    const { data: studentData, error: studentErr } = await supabase
-      .from("edu_students")
-      .select("id, name, student_no, order_no, class_no, grade_year")
-      .eq("department_id", deptId)
-      .eq("is_active", true);
-
-    if (studentErr) {
-      setTotals([]);
-      setLoading(false);
-      return;
-    }
-
-    const students = (studentData || []) as StudentRow[];
-
+  // 한 반기(날짜 범위) 집계 — 자동적립(RPC) + 기타 + 공과퀴즈
+  const buildHalf = useCallback(async (students: StudentRow[], dateFrom: string, dateTo: string) => {
     const otherQuery = supabase
       .from("edu_talent_records")
       .select("student_id, pts_other, record_date")
@@ -151,10 +117,34 @@ export default function TalentStatsPage() {
     list.forEach((item, index) => {
       item.rank = index > 0 && list[index - 1].total === item.total ? list[index - 1].rank : index + 1;
     });
+    return list;
+  }, [deptId]);
 
-    setTotals(list);
+  const loadData = useCallback(async () => {
+    setLoading(true);
+
+    const { data: studentData, error: studentErr } = await supabase
+      .from("edu_students")
+      .select("id, name, student_no, order_no, class_no, grade_year")
+      .eq("department_id", deptId)
+      .eq("is_active", true);
+
+    if (studentErr) {
+      setFirstHalf([]);
+      setSecondHalf([]);
+      setLoading(false);
+      return;
+    }
+
+    const students = (studentData || []) as StudentRow[];
+    const [h1, h2] = await Promise.all([
+      buildHalf(students, `${year}-01-01`, `${year}-06-30`),
+      buildHalf(students, `${year}-07-01`, `${year}-12-31`),
+    ]);
+    setFirstHalf(h1);
+    setSecondHalf(h2);
     setLoading(false);
-  }, [deptId, period, resets]);
+  }, [deptId, year, buildHalf]);
 
   useEffect(() => {
     (async () => {
@@ -170,65 +160,27 @@ export default function TalentStatsPage() {
         return;
       }
       setAuthorized(true);
-      setResets(await fetchTalentResets(deptId)); // 리셋 이력 로드 → 아래 effect가 집계 실행
+      await loadData();
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deptId, router]);
 
   useEffect(() => {
-    if (authChecked && authorized && resets !== null) loadData();
+    if (authChecked && authorized) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, resets, authChecked, authorized]);
+  }, [year]);
 
   const classOptions = useMemo(() => {
     const seen = new Set<string>();
-    totals.forEach((item) => seen.add(item.classLabel));
+    firstHalf.forEach((item) => seen.add(item.classLabel));
     return Array.from(seen).sort((a, b) => {
       if (a === UNASSIGNED) return 1;
       if (b === UNASSIGNED) return -1;
       return a.localeCompare(b, "ko");
     });
-  }, [totals]);
+  }, [firstHalf]);
 
-  const filtered = useMemo(
-    () => (classFilter ? totals.filter((item) => item.classLabel === classFilter) : totals),
-    [totals, classFilter],
-  );
-
-  // 리셋 이력 없으면 지난 반기 선택 불가 (이번 반기 = 전체 기간)
-  const periodOptions = useMemo(
-    () => PERIOD_OPTIONS.filter((option) => option.key === "current" || (resets || []).length > 0),
-    [resets],
-  );
-
-  const periodCaption = useMemo(() => {
-    const list = resets || [];
-    if (period === "current") {
-      return list[0]
-        ? `${formatResetDate(list[0].reset_date)} 리셋 이후 적립분`
-        : "전체 기간 누적 (리셋 이력 없음)";
-    }
-    if (!list[0]) return "";
-    return `${list[1] ? `${formatResetDate(list[1].reset_date)} 리셋 이후` : "처음"} ~ ${formatResetDate(list[0].reset_date)}`;
-  }, [period, resets]);
-
-  const grandTotal = filtered.reduce((sum, item) => sum + item.total, 0);
-  const average = filtered.length > 0 ? Math.round(grandTotal / filtered.length) : 0;
-  const maxTotal = filtered.length > 0 ? Math.max(...filtered.map((item) => item.total)) : 0;
-
-  const classSummary = useMemo(() => {
-    const map = new Map<string, { label: string; sum: number; count: number }>();
-    totals.forEach((item) => {
-      const entry = map.get(item.classLabel) || { label: item.classLabel, sum: 0, count: 0 };
-      entry.sum += item.total;
-      entry.count += 1;
-      map.set(item.classLabel, entry);
-    });
-    return Array.from(map.values()).sort((a, b) => {
-      if (a.label === UNASSIGNED) return 1;
-      if (b.label === UNASSIGNED) return -1;
-      return b.sum / b.count - a.sum / a.count;
-    });
-  }, [totals]);
+  const noStudents = firstHalf.length === 0 && secondHalf.length === 0;
 
   if (!authChecked) return <LoadingView full />;
 
@@ -254,27 +206,12 @@ export default function TalentStatsPage() {
       <PageHeader deptId={deptId} router={router} />
 
       <main className="mx-auto w-full max-w-5xl px-4 py-4">
-        {/* 기간 + 반 필터 */}
+        {/* 연도 이동 + 반 필터 */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-card px-4 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex gap-1 rounded-md bg-bg-soft p-1">
-              {periodOptions.map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  onClick={() => setPeriod(option.key)}
-                  className={[
-                    "min-h-9 rounded px-3.5 text-[14px] font-extrabold",
-                    period === option.key ? "bg-card text-ink shadow-sm" : "text-ink-faint",
-                  ].join(" ")}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            {periodCaption && (
-              <span className="text-[12px] font-semibold text-ink-faint">{periodCaption}</span>
-            )}
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setYear(year - 1)} style={navBtnStyle}>◀</button>
+            <div className="min-w-[86px] text-center text-[16px] font-extrabold text-ink">{year}년</div>
+            <button type="button" onClick={() => setYear(year + 1)} style={navBtnStyle}>▶</button>
           </div>
           <select
             value={classFilter}
@@ -288,93 +225,139 @@ export default function TalentStatsPage() {
 
         {loading ? (
           <LoadingView padding={60} label="달란트 집계 중..." />
-        ) : totals.length === 0 ? (
+        ) : noStudents ? (
           <div className="rounded-lg border border-hairline bg-card text-center">
             <EmptyState message="집계할 학생이 없습니다" />
           </div>
         ) : (
           <>
-            {/* 요약 카드 */}
-            <div className="mb-4 grid grid-cols-3 gap-2">
-              <SummaryCard label="합계" value={fmt(grandTotal)} accent />
-              <SummaryCard label="1인 평균" value={fmt(average)} />
-              <SummaryCard label="최고 기록" value={fmt(maxTotal)} />
-            </div>
-
-            {/* 반별 평균 (전체 보기일 때만) */}
-            {!classFilter && classSummary.length > 1 && (
-              <div className="mb-4 rounded-lg border border-hairline bg-card p-4">
-                <div className="mb-3 text-[15px] font-extrabold text-ink">반별 1인 평균</div>
-                <div className="flex flex-col gap-1.5">
-                  {classSummary.map((entry) => {
-                    const avg = Math.round(entry.sum / entry.count);
-                    const best = Math.round(classSummary[0].sum / classSummary[0].count) || 1;
-                    return (
-                      <div key={entry.label} className="flex items-center gap-2">
-                        <span className="w-[104px] shrink-0 truncate text-[12px] font-bold text-ink-soft">{entry.label}</span>
-                        <div className="h-4 flex-1 overflow-hidden rounded bg-bg-soft">
-                          <div className="h-full rounded" style={{ width: `${Math.round((avg / best) * 100)}%`, background: "var(--accent)" }} />
-                        </div>
-                        <span className="w-[76px] shrink-0 text-right text-[12px] font-bold text-ink-soft">{fmt(avg)} 달란트</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 랭킹 */}
-            <div className="overflow-hidden rounded-lg border border-hairline bg-card">
-              <div className="border-b border-hairline bg-surface px-4 py-2.5 text-[15px] font-extrabold text-ink">
-                달란트 랭킹 {classFilter && <span className="ml-1 text-[13px] font-bold text-ink-faint">{classFilter}</span>}
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[560px] border-collapse text-[13px]">
-                  <thead>
-                    <tr className="border-b border-hairline text-ink-faint">
-                      <th className="w-14 px-3 py-2 text-center font-bold">순위</th>
-                      <th className="px-2 py-2 text-left font-bold">이름</th>
-                      <th className="px-2 py-2 text-left font-bold">반</th>
-                      <th className="px-2 py-2 text-right font-bold">자동적립</th>
-                      <th className="px-2 py-2 text-right font-bold">기타</th>
-                      <th className="px-2 py-2 text-right font-bold">공과퀴즈</th>
-                      <th className="px-4 py-2 text-right font-bold">합계</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((item) => (
-                      <tr key={item.id} className="border-b border-hairline last:border-b-0">
-                        <td className="px-3 py-2 text-center">
-                          {item.rank <= 3 && item.total > 0 ? (
-                            <span className="inline-flex items-center gap-1 font-extrabold" style={{ color: MEDAL_COLORS[item.rank - 1] }}>
-                              <Medal size={14} strokeWidth={2.2} />{item.rank}
-                            </span>
-                          ) : (
-                            <span className="font-bold text-ink-faint">{item.rank}</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-2 font-extrabold text-ink">{item.name}</td>
-                        <td className="px-2 py-2 font-semibold text-ink-soft">{item.classLabel}</td>
-                        <td className="px-2 py-2 text-right font-semibold text-ink-soft">{fmt(item.auto)}</td>
-                        <td className="px-2 py-2 text-right font-semibold text-ink-soft">{fmt(item.other)}</td>
-                        <td className="px-2 py-2 text-right font-semibold text-ink-soft">{fmt(item.quiz)}</td>
-                        <td className="px-4 py-2 text-right text-[14px] font-extrabold" style={{ color: "var(--accent)" }}>{fmt(item.total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <HalfSection title={`${year}년 상반기`} range="1월~6월" totals={firstHalf} classFilter={classFilter} />
+            <HalfSection title={`${year}년 하반기`} range="7월~12월" totals={secondHalf} classFilter={classFilter} />
 
             <div className="mt-3 px-1 text-[12px] leading-5 text-ink-faint">
-              합계 = 자동적립(출석·주간 체크) + 기타(직접 입력) + 공과퀴즈. 달란트통장 잔액과 동일한 기준으로 집계합니다.
-              <br />
-              반기 구분은 달란트 잔치 리셋일 기준입니다. 리셋은 달란트통장 또는 출결통합조회의 달란트체크 탭에서 할 수 있습니다.
+              합계 = 자동적립(출석·주간 체크) + 기타(직접 입력) + 공과퀴즈. 상·하반기는 달력 기준(1~6월 / 7~12월)으로,
+              잔치 리셋 시점과 무관하게 집계합니다. 리셋(잔치 정산)은 출결통합조회의 달란트체크 탭에서 할 수 있습니다.
             </div>
           </>
         )}
       </main>
     </div>
+  );
+}
+
+// 반기 한 구간 — 요약 카드 + 반별 평균 + 랭킹 (하반기 미진행이어도 0으로 표시)
+function HalfSection({ title, range, totals, classFilter }: {
+  title: string;
+  range: string;
+  totals: StudentTotal[];
+  classFilter: string;
+}) {
+  const filtered = classFilter ? totals.filter((item) => item.classLabel === classFilter) : totals;
+
+  const grandTotal = filtered.reduce((sum, item) => sum + item.total, 0);
+  const average = filtered.length > 0 ? Math.round(grandTotal / filtered.length) : 0;
+  const maxTotal = filtered.length > 0 ? Math.max(...filtered.map((item) => item.total)) : 0;
+
+  const classSummary = useMemo(() => {
+    const map = new Map<string, { label: string; sum: number; count: number }>();
+    totals.forEach((item) => {
+      const entry = map.get(item.classLabel) || { label: item.classLabel, sum: 0, count: 0 };
+      entry.sum += item.total;
+      entry.count += 1;
+      map.set(item.classLabel, entry);
+    });
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.label === UNASSIGNED) return 1;
+      if (b.label === UNASSIGNED) return -1;
+      return b.sum / b.count - a.sum / a.count;
+    });
+  }, [totals]);
+
+  return (
+    <section className="mb-6">
+      <div className="mb-2 flex items-baseline gap-2 px-1">
+        <h2 className="text-[17px] font-extrabold text-ink">{title}</h2>
+        <span className="text-[12px] font-bold text-ink-faint">{range}</span>
+      </div>
+
+      {/* 요약 카드 */}
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        <SummaryCard label="합계" value={fmt(grandTotal)} accent />
+        <SummaryCard label="1인 평균" value={fmt(average)} />
+        <SummaryCard label="최고 기록" value={fmt(maxTotal)} />
+      </div>
+
+      {/* 반별 평균 (전체 보기 + 적립이 있을 때만) */}
+      {!classFilter && classSummary.length > 1 && grandTotal > 0 && (
+        <div className="mb-3 rounded-lg border border-hairline bg-card p-4">
+          <div className="mb-3 text-[15px] font-extrabold text-ink">반별 1인 평균</div>
+          <div className="flex flex-col gap-1.5">
+            {classSummary.map((entry) => {
+              const avg = Math.round(entry.sum / entry.count);
+              const best = Math.round(classSummary[0].sum / classSummary[0].count) || 1;
+              return (
+                <div key={entry.label} className="flex items-center gap-2">
+                  <span className="w-[104px] shrink-0 truncate text-[12px] font-bold text-ink-soft">{entry.label}</span>
+                  <div className="h-4 flex-1 overflow-hidden rounded bg-bg-soft">
+                    <div className="h-full rounded" style={{ width: `${Math.round((avg / best) * 100)}%`, background: "var(--accent)" }} />
+                  </div>
+                  <span className="w-[76px] shrink-0 text-right text-[12px] font-bold text-ink-soft">{fmt(avg)} 달란트</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 랭킹 */}
+      <div className="overflow-hidden rounded-lg border border-hairline bg-card">
+        <div className="border-b border-hairline bg-surface px-4 py-2.5 text-[15px] font-extrabold text-ink">
+          달란트 랭킹 {classFilter && <span className="ml-1 text-[13px] font-bold text-ink-faint">{classFilter}</span>}
+        </div>
+        {grandTotal === 0 ? (
+          <div className="px-4 py-8 text-center text-[13px] font-semibold text-ink-faint">
+            아직 적립된 달란트가 없습니다
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] border-collapse text-[13px]">
+              <thead>
+                <tr className="border-b border-hairline text-ink-faint">
+                  <th className="w-14 px-3 py-2 text-center font-bold">순위</th>
+                  <th className="px-2 py-2 text-left font-bold">이름</th>
+                  <th className="px-2 py-2 text-left font-bold">반</th>
+                  <th className="px-2 py-2 text-right font-bold">자동적립</th>
+                  <th className="px-2 py-2 text-right font-bold">기타</th>
+                  <th className="px-2 py-2 text-right font-bold">공과퀴즈</th>
+                  <th className="px-4 py-2 text-right font-bold">합계</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((item) => (
+                  <tr key={item.id} className="border-b border-hairline last:border-b-0">
+                    <td className="px-3 py-2 text-center">
+                      {item.rank <= 3 && item.total > 0 ? (
+                        <span className="inline-flex items-center gap-1 font-extrabold" style={{ color: MEDAL_COLORS[item.rank - 1] }}>
+                          <Medal size={14} strokeWidth={2.2} />{item.rank}
+                        </span>
+                      ) : (
+                        <span className="font-bold text-ink-faint">{item.rank}</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 font-extrabold text-ink">{item.name}</td>
+                    <td className="px-2 py-2 font-semibold text-ink-soft">{item.classLabel}</td>
+                    <td className="px-2 py-2 text-right font-semibold text-ink-soft">{fmt(item.auto)}</td>
+                    <td className="px-2 py-2 text-right font-semibold text-ink-soft">{fmt(item.other)}</td>
+                    <td className="px-2 py-2 text-right font-semibold text-ink-soft">{fmt(item.quiz)}</td>
+                    <td className="px-4 py-2 text-right text-[14px] font-extrabold" style={{ color: "var(--accent)" }}>{fmt(item.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -412,3 +395,4 @@ const pageStyle: CSSProperties = { minHeight: "100vh", background: "var(--bg-sof
 const headerStyle: CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 };
 const titleStyle: CSSProperties = { fontSize: 19, fontWeight: 800, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 };
 const backBtnStyle: CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 };
+const navBtnStyle: CSSProperties = { padding: "7px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 14, cursor: "pointer", fontFamily: "inherit", color: "var(--ink-mid)" };

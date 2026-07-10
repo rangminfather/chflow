@@ -15,10 +15,12 @@ import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { ClipboardList, BookOpen, Medal, RotateCcw, Search, X } from "lucide-react";
 import {
   type TalentReset,
+  type HalfOption,
   fetchTalentResets,
   insertTalentReset,
   deleteTalentReset,
   formatResetDate,
+  recentEndedHalves,
 } from "@/lib/talentReset";
 
 interface Student {
@@ -125,9 +127,11 @@ export default function AttendancePage() {
   const [talentEdit, setTalentEdit] = useState<{ student: Student; date: string } | null>(null);
   const [chipSaving, setChipSaving] = useState("");
 
-  // 달란트 잔치 정산 리셋 (부서 전체 · 반기별)
+  // 달란트 잔치 정산 리셋 (부서 전체 · 반기 단위 · 임원 전용)
   const [lastReset, setLastReset] = useState<TalentReset | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
+  const [resetModal, setResetModal] = useState(false); // 상반기/하반기 선택 모달
+  const [myGrade, setMyGrade] = useState(99);
 
   // 출결 이력 모달
   const [histStudent, setHistStudent] = useState<Student | null>(null);
@@ -201,9 +205,12 @@ export default function AttendancePage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/login"); return; }
       setAuthChecked(true);
+      const { data: gradeData } = await supabase.rpc("get_user_grade", { p_dept_id: deptId });
+      const grade = typeof gradeData === "number" ? gradeData : Number(gradeData);
+      setMyGrade(Number.isNaN(grade) ? 99 : grade);
       await loadAll();
     })();
-  }, [loadAll, router]);
+  }, [deptId, loadAll, router]);
 
   useEffect(() => {
     if (authChecked) loadAttendance();
@@ -321,25 +328,27 @@ export default function AttendancePage() {
       : [...prev, { student_id: student.id, attend_date: date, rule_id: rule.id }]);
   };
 
-  // 달란트 잔치 정산 리셋 — 달란트통장과 동일 동작 (기록 보존, 리셋일만 기록)
-  const handleTalentReset = async () => {
+  // 달란트 잔치 정산 리셋 — 반기 단위. 리셋일 = 해당 반기 말일(6/30·12/31)로 기록되어
+  // 늦게 눌러도 다음 반기에 이미 체크된 달란트는 보존된다. 기록은 삭제되지 않음.
+  const applyTalentReset = async (half: HalfOption) => {
     const ok = await confirm(
-      "달란트 잔치 정산으로 부서 전체 달란트를 리셋할까요?\n\n오늘까지 적립분이 정산되고, 내일 적립부터 총 달란트에 새로 계산됩니다.\n기록은 삭제되지 않으며 '리셋 취소'로 되돌릴 수 있습니다.",
+      `${half.label} 달란트 집계를 리셋할까요?\n\n${formatResetDate(half.endDate)}까지 적립분이 잔치 정산으로 처리되고, 그 이후 적립분은 그대로 유지됩니다.\n기록은 삭제되지 않으며 '리셋 취소'로 되돌릴 수 있습니다.`,
       { okText: "리셋" },
     );
     if (!ok) return;
     setResetBusy(true);
-    const errMsg = await insertTalentReset(deptId);
+    const errMsg = await insertTalentReset(deptId, half.endDate);
     setResetBusy(false);
     if (errMsg) { showToast(`리셋 실패: ${errMsg}`); return; }
+    setResetModal(false);
     await loadResets();
-    showToast("달란트가 리셋되었습니다");
+    showToast(`${half.label} 달란트가 리셋되었습니다`);
   };
 
   const handleTalentResetUndo = async () => {
     if (!lastReset) return;
     const ok = await confirm(
-      `마지막 리셋(${formatResetDate(lastReset.reset_date)})을 취소할까요?\n리셋 이전 적립분이 다시 총 달란트에 합산됩니다.`,
+      `마지막 리셋(${formatResetDate(lastReset.reset_date)}까지 정산)을 취소할까요?\n리셋 이전 적립분이 다시 총 달란트에 합산됩니다.`,
       { okText: "리셋 취소" },
     );
     if (!ok) return;
@@ -513,16 +522,16 @@ export default function AttendancePage() {
             )}
           </div>
 
-          {/* 달란트 잔치 정산 리셋 (달란트체크 탭 전용) */}
-          {viewMode === "talent" && (
+          {/* 달란트 잔치 정산 리셋 (달란트체크 탭 · 임원 전용) */}
+          {viewMode === "talent" && myGrade <= 2 && (
             <div style={{ padding: "8px 14px", borderBottom: "1px solid var(--hairline)", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", fontSize: 11 }}>
               <span style={{ color: "var(--ink-faint)", fontWeight: 600 }}>
                 {lastReset
-                  ? `총 달란트 = ${formatResetDate(lastReset.reset_date)} 리셋 이후 적립분`
-                  : "총 달란트 = 전체 기간 누적 (리셋 이력 없음)"}
+                  ? `총 달란트 잔액 = ${formatResetDate(lastReset.reset_date)}까지 잔치 정산 완료, 이후 적립분`
+                  : "총 달란트 잔액 = 전체 기간 누적 (잔치 정산 이력 없음)"}
               </span>
               <button
-                onClick={handleTalentReset}
+                onClick={() => setResetModal(true)}
                 disabled={resetBusy || loading}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 4,
@@ -732,6 +741,47 @@ export default function AttendancePage() {
           )}
         </div>
       </div>
+
+      {/* 달란트 리셋 — 정산할 반기 선택 (임원 전용) */}
+      {resetModal && (
+        <ModalBackdrop onClose={() => !resetBusy && setResetModal(false)}>
+          <div style={{ background: "var(--card)", borderRadius: 16, padding: 20, width: "min(400px, 100%)", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>달란트 리셋 — 정산할 반기 선택</div>
+              <button onClick={() => setResetModal(false)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--ink-soft)", padding: 4 }}>
+                <X size={18} strokeWidth={2} />
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: "var(--ink-faint)", lineHeight: 1.6, marginBottom: 14 }}>
+              선택한 반기 말일까지 적립분만 잔치 정산으로 리셋됩니다.
+              <br />그 이후에 체크된 달란트는 그대로 유지되니, 리셋을 몇 주 늦게 눌러도 안전합니다.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {recentEndedHalves().map((half) => (
+                <button
+                  key={half.endDate}
+                  onClick={() => applyTalentReset(half)}
+                  disabled={resetBusy}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                    padding: "12px 14px", borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+                    fontSize: 13, fontWeight: 800, textAlign: "left",
+                    border: "1.5px solid color-mix(in srgb, var(--danger) 35%, transparent)",
+                    background: "color-mix(in srgb, var(--danger) 6%, var(--card))",
+                    color: "var(--ink)",
+                    opacity: resetBusy ? 0.5 : 1,
+                  }}
+                >
+                  <span>{half.label} 리셋</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-faint)", whiteSpace: "nowrap" }}>
+                    ~{formatResetDate(half.endDate)} 정산
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </ModalBackdrop>
+      )}
 
       {/* 달란트 체크 팝업 */}
       {talentEdit && (
