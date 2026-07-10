@@ -18,7 +18,7 @@ import type React from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   RefreshCw, Copy, Share2, Save, ChevronLeft, ChevronRight, CloudDownload,
-  CircleCheck, CircleAlert, CircleHelp, Lock, Newspaper, CalendarDays,
+  CircleCheck, CircleAlert, CircleHelp, Lock, Newspaper, CalendarDays, History, X,
 } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
@@ -48,6 +48,9 @@ type GuideFields = {
 };
 
 type GuideRecord = { sunday_date: string; fields: GuideFields; message: string | null } | null;
+
+/** 저장된 안내 목록 항목 (worship_guide_list) */
+type HistoryItem = { sunday_date: string; fields: GuideFields; message: string | null; updated_at?: string };
 
 /** 주보 PDF 텍스트 수집 상태 (대조 결과는 파생 계산) */
 type BulletinFetch =
@@ -89,6 +92,20 @@ function isFirstSunday(iso: string) {
 
 function monthDayLabel(iso: string) {
   return `${Number(iso.slice(5, 7))}월 ${Number(iso.slice(8, 10))}일`;
+}
+
+/** 목록 표기: 같은 해면 "7월 6일 주일", 다른 해면 연도 포함 */
+function historyDateLabel(iso: string, baseYear: string) {
+  const label = `${monthDayLabel(iso)} 주일`;
+  return iso.slice(0, 4) === baseYear ? label : `${iso.slice(0, 4)}년 ${label}`;
+}
+
+/** 목록 한 줄 요약: 안내반 · 기도반 */
+function historySummary(f: GuideFields) {
+  const parts: string[] = [];
+  if (f.guideClass) parts.push(`안내 ${f.guideClass}반`);
+  if (f.prayerClass) parts.push(f.prayerFixed ? `기도 ${f.prayerClass}` : `기도 ${f.prayerClass}반`);
+  return parts.join(" · ");
 }
 
 // ───────────────────────── 로테이션 헬퍼 ─────────────────────────
@@ -210,6 +227,9 @@ export default function WorshipGuidePage() {
   const [prayerFixed, setPrayerFixed] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [selectedPast, setSelectedPast] = useState<HistoryItem | null>(null);
 
   const [deptBul, setDeptBul] = useState<BulletinFetch>({ status: "idle" });
   const [churchBul, setChurchBul] = useState<BulletinFetch>({ status: "idle" });
@@ -405,6 +425,12 @@ export default function WorshipGuidePage() {
     }
   };
 
+  // ── 저장된 안내 목록 ──
+  const loadHistory = useCallback(async () => {
+    const { data, error } = await supabase.rpc("worship_guide_list", { p_dept_id: deptId });
+    if (!error && Array.isArray(data)) setHistory(data as HistoryItem[]);
+  }, [deptId]);
+
   // ── 데이터 로드 ──
   const load = useCallback(async (date: string) => {
     setLoading(true);
@@ -507,6 +533,7 @@ export default function WorshipGuidePage() {
       setAuthChecked(true);
       setCanShare((typeof navigator !== "undefined" && !!navigator.share) || !!nativeShareBridge());
       await load(sunday);
+      loadHistory();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -536,6 +563,7 @@ export default function WorshipGuidePage() {
     setRecord(null);
     setPrevRecord(null);
     setMessage("");
+    setSelectedPast(null);
     load(next);
   };
 
@@ -573,7 +601,8 @@ export default function WorshipGuidePage() {
     setSaving(false);
     if (error) { showToast("저장 실패: " + error.message); return false; }
     setRecord({ sunday_date: sunday, fields: buildFields(), message });
-    if (!silent) showToast("저장되었습니다");
+    loadHistory();
+    if (!silent) showToast("저장되었습니다 — 아래 목록에서 다시 볼 수 있습니다");
     return true;
   };
 
@@ -646,7 +675,8 @@ export default function WorshipGuidePage() {
 
   return (
     <main style={pageStyle}>
-      <section style={shellStyle}>
+      {/* 비교 패널이 열리면 PC 에서 두 메시지가 나란히 보이도록 폭 확장 */}
+      <section style={{ ...shellStyle, maxWidth: selectedPast ? 1060 : 720 }}>
         <header className="app-subpage-header" style={headerStyle}>
           <button className="app-header-back" type="button" onClick={() => router.push(`/departments/d/${deptId}`)} aria-label="부서홈으로" style={{ ...iconButtonStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}>
             ← 부서홈
@@ -810,6 +840,65 @@ export default function WorshipGuidePage() {
             <div style={{ fontSize: 12, color: "var(--ink-soft)", textAlign: "center", marginTop: 8, lineHeight: 1.55 }}>
               복사·공유 시 자동 저장됩니다. 공유 버튼은 휴대폰에서 카카오톡을 선택해 교사방으로 바로 보낼 수 있습니다.
             </div>
+
+            {/* 저장된 안내 목록 — 항목을 누르면 아래 비교 패널에 표시 */}
+            {history.length > 0 && (
+              <div style={historyCardStyle}>
+                <div style={historyTitleStyle}>
+                  <History size={15} strokeWidth={2} /> 저장된 안내 목록
+                  <span style={{ fontSize: 11.5, fontWeight: 500, color: "var(--ink-faint)" }}>
+                    {history.length}건 · 누르면 지금 화면과 비교
+                  </span>
+                </div>
+                <div style={historyListStyle}>
+                  {history.map((h) => {
+                    const active = selectedPast?.sunday_date === h.sunday_date;
+                    return (
+                      <button
+                        key={h.sunday_date}
+                        type="button"
+                        onClick={() => setSelectedPast(active ? null : h)}
+                        style={{ ...historyRowStyle, ...(active ? historyRowActiveStyle : null) }}
+                      >
+                        <span style={{ fontWeight: 700, fontSize: 13 }}>
+                          {historyDateLabel(h.sunday_date, sunday.slice(0, 4))}
+                          {h.sunday_date === sunday && (
+                            <span style={{ marginLeft: 6, fontSize: 10.5, color: "var(--accent)", fontWeight: 700 }}>지금 화면 주일</span>
+                          )}
+                        </span>
+                        <span style={{ fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 500 }}>
+                          {historySummary(h.fields || {})}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 비교 패널 — PC 는 두 칸 나란히, 모바일은 위(저장본)·아래(지금 화면) */}
+            {selectedPast && (
+              <div style={compareCardStyle}>
+                <div style={compareHeadStyle}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <History size={15} strokeWidth={2} /> 안내 비교
+                  </span>
+                  <button type="button" onClick={() => setSelectedPast(null)} aria-label="비교 닫기" style={compareCloseStyle}>
+                    <X size={15} strokeWidth={2} />
+                  </button>
+                </div>
+                <div style={compareGridStyle}>
+                  <div>
+                    <div style={compareColTitleStyle}>{historyDateLabel(selectedPast.sunday_date, sunday.slice(0, 4))} — 저장본</div>
+                    <pre style={comparePastBubbleStyle}>{selectedPast.message || "(저장된 메시지 없음)"}</pre>
+                  </div>
+                  <div>
+                    <div style={compareColTitleStyle}>{monthDayLabel(sunday)} 주일 — 지금 화면</div>
+                    <pre style={compareCurrentBubbleStyle}>{message || "(생성된 메시지 없음)"}</pre>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </section>
@@ -1216,6 +1305,121 @@ const primaryButtonStyle: React.CSSProperties = {
   border: "none",
   background: "#3E7D74",
   color: "#fff",
+};
+
+const historyCardStyle: React.CSSProperties = {
+  marginTop: 18,
+  border: "1px solid var(--hairline)",
+  borderRadius: 12,
+  background: "var(--surface)",
+  padding: "12px 14px",
+};
+
+const historyTitleStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  fontSize: 13.5,
+  fontWeight: 800,
+  marginBottom: 10,
+};
+
+const historyListStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  maxHeight: 320,
+  overflowY: "auto",
+};
+
+const historyRowStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-start",
+  gap: 2,
+  width: "100%",
+  padding: "9px 12px",
+  borderRadius: 10,
+  border: "1px solid var(--hairline)",
+  background: "var(--card)",
+  color: "var(--ink)",
+  textAlign: "left",
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+const historyRowActiveStyle: React.CSSProperties = {
+  border: "1px solid var(--accent)",
+  background: "color-mix(in srgb, var(--accent) 8%, var(--card))",
+};
+
+const compareCardStyle: React.CSSProperties = {
+  marginTop: 12,
+  border: "1px solid var(--hairline)",
+  borderRadius: 12,
+  background: "var(--surface)",
+  padding: "12px 14px",
+};
+
+const compareHeadStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  fontSize: 13.5,
+  fontWeight: 800,
+  marginBottom: 10,
+};
+
+const compareCloseStyle: React.CSSProperties = {
+  width: 30,
+  height: 30,
+  borderRadius: 8,
+  border: "1px solid var(--hairline)",
+  background: "var(--card)",
+  color: "var(--ink)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+};
+
+const compareGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+  gap: 12,
+};
+
+const compareColTitleStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: "var(--ink-soft)",
+  marginBottom: 6,
+};
+
+const compareBubbleBase: React.CSSProperties = {
+  margin: 0,
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
+  borderRadius: 14,
+  padding: "12px 13px",
+  fontSize: 13,
+  lineHeight: 1.6,
+  fontWeight: 500,
+  fontFamily: "inherit",
+};
+
+const comparePastBubbleStyle: React.CSSProperties = {
+  ...compareBubbleBase,
+  background: "var(--bg-soft)",
+  color: "var(--ink)",
+  border: "1px solid var(--hairline)",
+};
+
+const compareCurrentBubbleStyle: React.CSSProperties = {
+  ...compareBubbleBase,
+  background: "#FEE500",
+  color: "#1F1500",
+  border: "1px solid color-mix(in srgb, #1F1500 10%, transparent)",
 };
 
 const toastStyle: React.CSSProperties = {

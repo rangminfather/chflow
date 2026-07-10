@@ -127,7 +127,7 @@ export default function DeptApprovalPage() {
 
       <div style={{ maxWidth: 800, margin: "0 auto", padding: 16 }}>
         <div style={{ background: "var(--warning-soft)", border: "1px solid #E0C893", borderRadius: 8, padding: 12, fontSize: 12, color: "var(--warning)", marginBottom: 16, lineHeight: 1.6 }}>
-          <AlertTriangle size={14} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> 본 부서로 가입 신청한 사용자만 표시됩니다. 승인 시 등급(권한)을 선택할 수 있고, 추후 <strong>부서원 등급 관리</strong>에서 수정 가능합니다.
+          <AlertTriangle size={14} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> 본 부서로 가입 신청한 사용자만 표시됩니다. 승인 시 등급(권한)을 선택할 수 있고, 추후 <strong>부서원관리</strong>에서 수정 가능합니다.
         </div>
 
         <div style={{ background: "var(--card)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>

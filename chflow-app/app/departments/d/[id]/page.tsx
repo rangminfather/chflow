@@ -144,9 +144,8 @@ const MENU_CATEGORIES: MenuCategory[] = [
     maxGrade: 1,
     desc: "부서원 등급 · 설정",
     items: [
-      { id: "monthly-plan-upload", label: "월간교육등록", icon: CalendarPlus, desc: "월간 교육계획서 등록", color: "var(--accent)", implemented: true, maxGrade: 2 },
       { id: "worship-guide", label: "예배안내", icon: MessageSquareText, desc: "주일 예배 안내 메시지 생성·공유 (카톡용)", color: "#3E7D74", implemented: true, onlyForDept: "초등1부" },
-      { id: "members-grade", label: "부서원 등급 관리", icon: Award, desc: "각 부서원 등급(0~4) 변경 — 전도사·부장만 가능", color: "var(--accent)", implemented: true },
+      { id: "members-grade", label: "부서원관리", icon: Award, desc: "부서원 등급(0~4) 변경 · 임명 — 전도사·부장만 가능", color: "var(--accent)", implemented: true },
       { id: "promote", label: "진급 마법사", icon: GraduationCap, desc: "매년 학년 진급 · 반편성 · 담임배정", color: "var(--danger)", implemented: true },
     ],
   },
@@ -165,7 +164,7 @@ const ACCESS_CONFIGURABLE = new Set(["monthly-plan", "review-problems"]);
 // 설정 대상 공통메뉴 (순서 = 표시 순서)
 const COMMON_MENU_KEYS = ["notices/board", "bulletin", "verse-memory", "monthly-plan", "review-problems"];
 // 카테고리별 설정 키 prefix — 공통메뉴는 기존 키 유지, 나머지는 "prefix/menu-id"
-// (admin 과 department 양쪽에 있는 monthly-plan-upload 같은 중복 id 충돌 방지)
+// (카테고리 간 같은 menu id 가 생겨도 설정 키가 충돌하지 않게)
 const CATEGORY_KEY_PREFIX: Record<string, string> = { students: "students", admin: "admin", department: "dept" };
 const settingKeyOf = (catId: string, itemId: string) =>
   catId === "notices" ? itemId : `${CATEGORY_KEY_PREFIX[catId] || catId}/${itemId}`;
