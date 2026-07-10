@@ -4,10 +4,10 @@
 // 예배안내 — 주일 예배 안내 메시지 생성·공유 (초등1부, 전도사·부장)
 //
 // 생성 소스:
-//  · 안내 → 임원 3인 로테이션 (최성헌 부장 → 김찬규 부감 → 박양흠 부감, 2026-07 개편)
-//  · 기도반 → 전 반 내림차순 로테이션, 첫째주 김정권 장로님 고정.
-//    직전 저장분의 next 가 앵커. 계획서엔 보통 없음 — 폴백만.
+//  · 안내반/기도반 → 로테이션 규칙이 0순위 (안내: 3-2반 제외 내림차순 / 기도: 전 반,
+//    첫째주 김정권 장로님 고정). 직전 저장분의 next 가 앵커. 계획서엔 보통 없음 — 폴백만.
 //  · 예배인도/설교자/제목/성경/찬양율동/2부활동 → 월간 교육계획서.
+//    예배인도 담당은 임원 3인뿐 — "선생님" 대신 직책 표기 (최성헌 부장·김찬규 부감·박양흠 부감).
 // 주보 확인:
 //  · 초등1부 주보 → 안내·기도·설교자·제목·성경 텍스트 자동 대조 (우리가 생성한 PDF라 텍스트 있음)
 //  · 교회주보 → 스캔 이미지 PDF라 자동 대조 불가 — 페이지 미리보기(눈 대조) 전용
@@ -62,20 +62,16 @@ type BulletinFetch =
 
 // ───────────────────────── 상수 ─────────────────────────
 
-// 안내 담당 — 반 로테이션이 아니라 임원 3인 로테이션 (직책 표기, 2026-07 개편)
-const GUIDE_PEOPLE = [
-  { name: "최성헌", title: "부장" },
-  { name: "김찬규", title: "부감" },
-  { name: "박양흠", title: "부감" },
-];
-const GUIDE_NAMES = GUIDE_PEOPLE.map((p) => p.name);
-/** "김찬규" → "김찬규 부감" (목록 밖 값은 그대로 — 옛 저장분의 반 번호 등) */
-function guideLabel(value: string) {
-  const person = GUIDE_PEOPLE.find((p) => p.name === value);
-  return person ? `${person.name} ${person.title}` : value;
-}
-
+const GUIDE_EXCLUDE = ["3-2"];              // 안내 로테이션 제외 반 (안근정 선생님 반)
 const PRAYER_FIXED_LABEL = "김정권 장로님"; // 매월 첫째 주일 고정 기도
+
+// 예배인도 담당은 임원 3인뿐 — "선생님"이 아니라 직책으로 표기 (2026-07-10 사용자 확정)
+// "부감"은 edu_teachers 에 없는 직책이라 여기 상수로 관리.
+const LEADER_TITLES: Record<string, string> = {
+  최성헌: "부장",
+  김찬규: "부감",
+  박양흠: "부감",
+};
 const DEFAULT_THEME_LINE = "더욱 충만한 교회! (성령, 은혜, 말씀)";
 
 // ───────────────────────── 날짜 헬퍼 ─────────────────────────
@@ -113,10 +109,10 @@ function historyDateLabel(iso: string, baseYear: string) {
   return iso.slice(0, 4) === baseYear ? label : `${iso.slice(0, 4)}년 ${label}`;
 }
 
-/** 목록 한 줄 요약: 안내 담당 · 기도반 (옛 저장분은 안내가 반 번호) */
+/** 목록 한 줄 요약: 안내반 · 기도반 */
 function historySummary(f: GuideFields) {
   const parts: string[] = [];
-  if (f.guideClass) parts.push(/^\d+-\d+$/.test(f.guideClass) ? `안내 ${f.guideClass}반` : `안내 ${guideLabel(f.guideClass)}`);
+  if (f.guideClass) parts.push(`안내 ${f.guideClass}반`);
   if (f.prayerClass) parts.push(f.prayerFixed ? `기도 ${f.prayerClass}` : `기도 ${f.prayerClass}반`);
   return parts.join(" · ");
 }
@@ -157,10 +153,12 @@ function normalizeClassToken(value: string | undefined, classes: ClassRow[]): st
 const TITLE_DONE_RE = /(선생님|전도사님|목사님|장로님|선교사님|권사님|집사님|교육사님)$/;
 const TITLE_BARE_RE = /(전도사|목사|장로|선교사|권사|집사|교육사)$/;
 
-/** 예배인도자 호칭: 교사 직책(부장 등) 반영 */
+/** 예배인도자 호칭: 임원 3인은 직책 표기("최성헌 부장"), 그 외는 기존 호칭 규칙 */
 function leaderHonorific(name: string, teachers: TeacherRow[]): string {
   const v = name.trim();
   if (!v) return "";
+  const known = Object.keys(LEADER_TITLES).find((n) => v === n || v.includes(n));
+  if (known) return `${known} ${LEADER_TITLES[known]}`;
   if (TITLE_DONE_RE.test(v)) return v;
   if (TITLE_BARE_RE.test(v)) return `${v}님`;
   const t = teachers.find((t) => t.name === v || v.includes(t.name));
@@ -265,6 +263,7 @@ export default function WorshipGuidePage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const classOrder = useMemo(() => sortClassesDesc(classes), [classes]);
+  const guideOrder = useMemo(() => classOrder.filter((no) => !GUIDE_EXCLUDE.includes(no)), [classOrder]);
   const teacherOf = useCallback(
     (classNo: string) => classes.find((c) => c.class_no === classNo)?.teacher_name || "",
     [classes],
@@ -284,8 +283,10 @@ export default function WorshipGuidePage() {
     const need = "(직접 입력)";
     const year = opts.date.slice(0, 4);
 
-    // 안내 = 임원 직책 표기 ("김찬규 부감"). 옛 저장분(반 번호)은 값 그대로.
-    const guideLine = opts.guideCls ? guideLabel(opts.guideCls) : need;
+    const guideTeacher = teacherOf(opts.guideCls);
+    const guideLine = opts.guideCls
+      ? `${opts.guideCls}반${guideTeacher ? ` ${guideTeacher}` : ""} 선생님`
+      : need;
 
     const praiseNames = [f.praise1, f.praise2].filter(Boolean).join(", ");
     const praiseLine = praiseNames ? `${praiseNames} 선생님` : need;
@@ -331,9 +332,9 @@ export default function WorshipGuidePage() {
   // ── 로테이션 규칙 계산 (힌트/폴백 전용 — 값의 1순위는 월간계획서) ──
   const rotationOf = useCallback((prev: GuideRecord, date: string) => {
     const pf = prev?.fields || {};
-    let g = pf.guideNext && GUIDE_NAMES.includes(pf.guideNext) ? pf.guideNext : "";
-    if (!g && pf.guideClass && GUIDE_NAMES.includes(pf.guideClass)) g = nextOf(pf.guideClass, GUIDE_NAMES);
-    if (!g) g = GUIDE_NAMES[0];
+    let g = pf.guideNext && guideOrder.includes(pf.guideNext) ? pf.guideNext : "";
+    if (!g && pf.guideClass) g = nextOf(pf.guideClass, guideOrder);
+    if (!g) g = guideOrder[0] || "";
 
     const fixed = isFirstSunday(date);
     let p = pf.prayerNext && classOrder.includes(pf.prayerNext) ? pf.prayerNext : "";
@@ -341,7 +342,7 @@ export default function WorshipGuidePage() {
     if (!p) p = classOrder[0] || "";
 
     return { guide: g, prayer: p, fixed };
-  }, [classOrder]);
+  }, [classOrder, guideOrder]);
 
   // ── 주보 텍스트 수집 (초등1부 주보 / 교회주보) ──
   const fetchDeptBulletin = useCallback(async (token: string, date: string): Promise<BulletinFetch> => {
@@ -506,6 +507,7 @@ export default function WorshipGuidePage() {
     setPrevRecord(prev);
 
     const order = sortClassesDesc(cls);
+    const gOrder = order.filter((no) => !GUIDE_EXCLUDE.includes(no));
     if (current) {
       // 저장본 우선
       const f = current.fields || {};
@@ -517,11 +519,14 @@ export default function WorshipGuidePage() {
     } else {
       const pf = prev?.fields || {};
 
-      // 안내: 임원 3인 로테이션 0순위 (직전 저장분의 next → 직전 담당의 다음) → 계획서 이름 폴백 → 첫 사람
-      let g = pf.guideNext && GUIDE_NAMES.includes(pf.guideNext) ? pf.guideNext : "";
-      if (!g && pf.guideClass && GUIDE_NAMES.includes(pf.guideClass)) g = nextOf(pf.guideClass, GUIDE_NAMES);
-      if (!g) g = GUIDE_NAMES.find((n) => (planInfo?.fields.guide || "").includes(n)) || "";
-      if (!g) g = GUIDE_NAMES[0];
+      // 안내: 로테이션 규칙 0순위 (직전 저장분의 next → 직전 반의 다음) → 계획서 폴백 → 첫 반
+      let g = pf.guideNext && gOrder.includes(pf.guideNext) ? pf.guideNext : "";
+      if (!g && pf.guideClass) g = nextOf(pf.guideClass, gOrder);
+      if (!g) {
+        const gPlan = normalizeClassToken(planInfo?.fields.guide, cls);
+        if (gPlan && gPlan !== "FIXED") g = gPlan;
+      }
+      if (!g) g = gOrder[0] || "";
 
       // 기도: 첫째 주일 = 김정권 장로님 고정, 그 외 로테이션 0순위 → 계획서 폴백 → 첫 반
       const fixed = isFirstSunday(date);
@@ -601,7 +606,7 @@ export default function WorshipGuidePage() {
     const carry = prevF.prayerNext || (prevF.prayerClass ? nextOf(prevF.prayerClass, classOrder) : classOrder[0] || "");
     return {
       guideClass,
-      guideNext: nextOf(guideClass, GUIDE_NAMES),
+      guideNext: nextOf(guideClass, guideOrder),
       prayerFixed,
       prayerClass: prayerFixed ? PRAYER_FIXED_LABEL : prayerClass,
       // 첫째주(장로님 고정)는 어린이 로테이션을 소모하지 않고 이월
@@ -659,13 +664,13 @@ export default function WorshipGuidePage() {
     const whole = deptBul.text;
     const has = (v?: string) => { const n = normText(v || ""); return !!n && whole.includes(n); };
     return {
-      안내: guideClass ? has(guideClass) : false,
+      안내: guideClass ? (has(teacherOf(guideClass)) || has(`${guideClass}반`) || has(guideClass)) : false,
       기도: prayerFixed ? has("김정권") : (prayerClass ? has(prayerClass) : false),
       설교자: has(preacherName),
       제목: has(plan?.fields.sermonTitle),
       성경: has(plan?.fields.scripture),
     };
-  }, [deptBul, guideClass, prayerClass, prayerFixed, plan, preacherName]);
+  }, [deptBul, guideClass, prayerClass, prayerFixed, teacherOf, plan, preacherName]);
 
   const anyBulletinMissing = deptBul.status === "missing" || churchBul.status === "missing";
   const churchPdfUrl =
@@ -739,15 +744,14 @@ export default function WorshipGuidePage() {
                   style={selectStyle}
                 >
                   <option value="">직접 입력</option>
-                  {GUIDE_PEOPLE.map((p) => (
-                    <option key={p.name} value={p.name}>{p.name} {p.title}</option>
+                  {classOrder.map((no) => (
+                    <option key={no} value={no}>
+                      {no}반{teacherOf(no) ? ` (${teacherOf(no)})` : ""}{GUIDE_EXCLUDE.includes(no) ? " — 로테이션 제외 반" : ""}
+                    </option>
                   ))}
-                  {guideClass && !GUIDE_NAMES.includes(guideClass) && (
-                    <option value={guideClass}>{guideClass} (이전 방식)</option>
-                  )}
                 </select>
                 {rotation.guide && rotation.guide !== guideClass && (
-                  <span style={hintStyle}>규칙상 {guideLabel(rotation.guide)} 차례</span>
+                  <span style={hintStyle}>규칙상 {rotation.guide}반 차례</span>
                 )}
               </div>
               <div style={controlRowStyle}>
@@ -776,7 +780,7 @@ export default function WorshipGuidePage() {
                 )}
               </div>
               <div style={{ fontSize: 11.5, color: "var(--ink-faint)", lineHeight: 1.5 }}>
-                안내(임원 3인)·기도반은 로테이션 규칙으로 자동 계산됩니다. 순서를 바꿔 진행한 주는 여기서 담당만 바꾸면, 다음 주 차례 계산에도 그대로 반영됩니다.
+                안내·기도반은 로테이션 규칙으로 자동 계산됩니다. 순서를 바꿔 진행한 주는 여기서 반만 바꾸면, 다음 주 차례 계산에도 그대로 반영됩니다.
               </div>
             </div>
             </div>
