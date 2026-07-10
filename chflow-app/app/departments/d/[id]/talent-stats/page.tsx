@@ -7,6 +7,13 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Lock, Medal, TrendingUp } from "lucide-react";
+import {
+  type TalentReset,
+  fetchTalentResets,
+  periodStartAfter,
+  PERIOD_END_MAX,
+  formatResetDate,
+} from "@/lib/talentReset";
 
 interface StudentRow {
   id: string;
@@ -38,12 +45,12 @@ interface StudentTotal {
   rank: number;
 }
 
-type Period = "all" | "year" | "month";
+// 반기 기준 — 달란트 잔치 리셋일 경계로 집계 (이번 반기 = 마지막 리셋 이후)
+type Period = "current" | "previous";
 
 const PERIOD_OPTIONS: { key: Period; label: string }[] = [
-  { key: "all", label: "전체 기간" },
-  { key: "year", label: "올해" },
-  { key: "month", label: "이번 달" },
+  { key: "current", label: "이번 반기" },
+  { key: "previous", label: "지난 반기" },
 ];
 
 const MEDAL_COLORS = ["#D4A937", "#9AA3AD", "#B97B3D"]; // 1·2·3위
@@ -57,22 +64,21 @@ export default function TalentStatsPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authorized, setAuthorized] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState<Period>("all");
+  const [period, setPeriod] = useState<Period>("current");
   const [classFilter, setClassFilter] = useState("");
   const [totals, setTotals] = useState<StudentTotal[]>([]);
+  const [resets, setResets] = useState<TalentReset[] | null>(null); // 달란트 잔치 리셋 이력 (최신순)
 
   const loadData = useCallback(async () => {
     setLoading(true);
 
-    const now = new Date();
-    const range = period === "all"
-      ? { yearFrom: 2000, monthFrom: 1, yearTo: 2100, monthTo: 12 }
-      : period === "year"
-        ? { yearFrom: now.getFullYear(), monthFrom: 1, yearTo: now.getFullYear(), monthTo: 12 }
-        : { yearFrom: now.getFullYear(), monthFrom: now.getMonth() + 1, yearTo: now.getFullYear(), monthTo: now.getMonth() + 1 };
-    const dateFrom = `${range.yearFrom}-${String(range.monthFrom).padStart(2, "0")}-01`;
-    const lastDay = new Date(range.yearTo, range.monthTo, 0).getDate();
-    const dateTo = `${range.yearTo}-${String(range.monthTo).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+    // 반기 경계 = 리셋일. 이번 반기 = 마지막 리셋 다음날~, 지난 반기 = 직전 리셋 다음날~마지막 리셋일.
+    const resetList = resets || [];
+    const range = period === "current"
+      ? { from: periodStartAfter(resetList[0]), to: PERIOD_END_MAX }
+      : { from: periodStartAfter(resetList[1]), to: resetList[0]?.reset_date ?? PERIOD_END_MAX };
+    const dateFrom = range.from;
+    const dateTo = range.to;
 
     const { data: studentData, error: studentErr } = await supabase
       .from("edu_students")
@@ -88,29 +94,27 @@ export default function TalentStatsPage() {
 
     const students = (studentData || []) as StudentRow[];
 
-    let otherQuery = supabase
+    const otherQuery = supabase
       .from("edu_talent_records")
       .select("student_id, pts_other, record_date")
-      .eq("department_id", deptId);
-    let quizQuery = supabase
+      .eq("department_id", deptId)
+      .gte("record_date", dateFrom)
+      .lte("record_date", dateTo);
+    const quizQuery = supabase
       .from("edu_quiz_talent")
       .select("student_id, points, quiz_date")
-      .eq("department_id", deptId);
-    if (period !== "all") {
-      otherQuery = otherQuery.gte("record_date", dateFrom).lte("record_date", dateTo);
-      quizQuery = quizQuery.gte("quiz_date", dateFrom).lte("quiz_date", dateTo);
-    }
+      .eq("department_id", deptId)
+      .gte("quiz_date", dateFrom)
+      .lte("quiz_date", dateTo);
 
     const [otherResp, quizResp, ...autoResults] = await Promise.all([
       otherQuery,
       quizQuery,
       ...students.map((student) =>
-        supabase.rpc("get_student_auto_talent", {
+        supabase.rpc("get_student_auto_talent_range", {
           p_student_id: student.id,
-          p_year_from: range.yearFrom,
-          p_month_from: range.monthFrom,
-          p_year_to: range.yearTo,
-          p_month_to: range.monthTo,
+          p_date_from: dateFrom,
+          p_date_to: dateTo,
         }),
       ),
     ]);
@@ -150,7 +154,7 @@ export default function TalentStatsPage() {
 
     setTotals(list);
     setLoading(false);
-  }, [deptId, period]);
+  }, [deptId, period, resets]);
 
   useEffect(() => {
     (async () => {
@@ -166,15 +170,14 @@ export default function TalentStatsPage() {
         return;
       }
       setAuthorized(true);
-      await loadData();
+      setResets(await fetchTalentResets(deptId)); // 리셋 이력 로드 → 아래 effect가 집계 실행
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deptId, router]);
 
   useEffect(() => {
-    if (authChecked && authorized) loadData();
+    if (authChecked && authorized && resets !== null) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period]);
+  }, [period, resets, authChecked, authorized]);
 
   const classOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -190,6 +193,23 @@ export default function TalentStatsPage() {
     () => (classFilter ? totals.filter((item) => item.classLabel === classFilter) : totals),
     [totals, classFilter],
   );
+
+  // 리셋 이력 없으면 지난 반기 선택 불가 (이번 반기 = 전체 기간)
+  const periodOptions = useMemo(
+    () => PERIOD_OPTIONS.filter((option) => option.key === "current" || (resets || []).length > 0),
+    [resets],
+  );
+
+  const periodCaption = useMemo(() => {
+    const list = resets || [];
+    if (period === "current") {
+      return list[0]
+        ? `${formatResetDate(list[0].reset_date)} 리셋 이후 적립분`
+        : "전체 기간 누적 (리셋 이력 없음)";
+    }
+    if (!list[0]) return "";
+    return `${list[1] ? `${formatResetDate(list[1].reset_date)} 리셋 이후` : "처음"} ~ ${formatResetDate(list[0].reset_date)}`;
+  }, [period, resets]);
 
   const grandTotal = filtered.reduce((sum, item) => sum + item.total, 0);
   const average = filtered.length > 0 ? Math.round(grandTotal / filtered.length) : 0;
@@ -236,20 +256,25 @@ export default function TalentStatsPage() {
       <main className="mx-auto w-full max-w-5xl px-4 py-4">
         {/* 기간 + 반 필터 */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-card px-4 py-3">
-          <div className="flex gap-1 rounded-md bg-bg-soft p-1">
-            {PERIOD_OPTIONS.map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => setPeriod(option.key)}
-                className={[
-                  "min-h-9 rounded px-3.5 text-[14px] font-extrabold",
-                  period === option.key ? "bg-card text-ink shadow-sm" : "text-ink-faint",
-                ].join(" ")}
-              >
-                {option.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1 rounded-md bg-bg-soft p-1">
+              {periodOptions.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setPeriod(option.key)}
+                  className={[
+                    "min-h-9 rounded px-3.5 text-[14px] font-extrabold",
+                    period === option.key ? "bg-card text-ink shadow-sm" : "text-ink-faint",
+                  ].join(" ")}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            {periodCaption && (
+              <span className="text-[12px] font-semibold text-ink-faint">{periodCaption}</span>
+            )}
           </div>
           <select
             value={classFilter}
@@ -343,6 +368,8 @@ export default function TalentStatsPage() {
 
             <div className="mt-3 px-1 text-[12px] leading-5 text-ink-faint">
               합계 = 자동적립(출석·주간 체크) + 기타(직접 입력) + 공과퀴즈. 달란트통장 잔액과 동일한 기준으로 집계합니다.
+              <br />
+              반기 구분은 달란트 잔치 리셋일 기준입니다. 리셋은 달란트통장 또는 출결통합조회의 달란트체크 탭에서 할 수 있습니다.
             </div>
           </>
         )}

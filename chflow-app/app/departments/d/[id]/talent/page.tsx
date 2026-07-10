@@ -6,8 +6,18 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { photoThumb } from "@/lib/photo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Check, ChevronDown, Medal, PiggyBank, Star } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { Check, ChevronDown, Medal, PiggyBank, RotateCcw, Star } from "lucide-react";
 import { kidDefaultFace, kidFaceTransform, isKidDefaultFace } from "@/lib/kidAvatar";
+import {
+  type TalentReset,
+  fetchTalentResets,
+  insertTalentReset,
+  deleteTalentReset,
+  periodStartAfter,
+  PERIOD_END_MAX,
+  formatResetDate,
+} from "@/lib/talentReset";
 
 interface Student {
   id: string;
@@ -89,6 +99,7 @@ const OTHER_EMOJI = "🎁";
 
 export default function TalentPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
   const weekCardRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -105,7 +116,9 @@ export default function TalentPage() {
   const [rules, setRules] = useState<TalentRule[]>([]);
   const [extras, setExtras] = useState<WeeklyExtra[]>([]);
   const [others, setOthers] = useState<OtherRecord[]>([]);
-  const [cumulative, setCumulative] = useState<Record<string, number>>({}); // 학생별 전체기간 누적 잔액
+  const [cumulative, setCumulative] = useState<Record<string, number>>({}); // 학생별 누적 잔액 (마지막 리셋 이후)
+  const [lastReset, setLastReset] = useState<TalentReset | null>(null); // 달란트 잔치 정산 리셋
+  const [resetBusy, setResetBusy] = useState(false);
   const [saving, setSaving] = useState("");
   const [toast, setToast] = useState("");
   const [otherModal, setOtherModal] = useState<{ student: Student; date: string } | null>(null);
@@ -185,27 +198,30 @@ export default function TalentPage() {
     setAttendance(((attRows || []) as AttendRow[]).filter((row) => studentIds.includes(row.student_id)));
     setExtras(((extraRows || []) as WeeklyExtra[]).filter((row) => studentIds.includes(row.student_id)));
     await loadOtherRecords(studentIds);
-    await loadCumulative(classStudents);
+    const resets = await fetchTalentResets(deptId);
+    setLastReset(resets[0] || null);
+    await loadCumulative(classStudents, resets[0] || null);
     setLoading(false);
   }
 
-  // 학생별 전체기간 누적 잔액 = 자동적립(출석×규칙 + 주간적립×규칙) + 기타(pts_other)
-  async function loadCumulative(classStudents: Student[]) {
+  // 학생별 누적 잔액 = 자동적립(출석×규칙 + 주간적립×규칙) + 기타(pts_other)
+  // 마지막 리셋(달란트 잔치 정산) 다음날부터 적립분만 합산
+  async function loadCumulative(classStudents: Student[], reset: TalentReset | null) {
     const ids = classStudents.map((student) => student.id);
     if (ids.length === 0) {
       setCumulative({});
       return;
     }
 
-    // 자동 적립 — 학생별 RPC(전체기간). 활성 weekly 규칙 전체(출석 자동 + 수동 칩)를 점수 반영해 합산.
+    const periodStart = periodStartAfter(reset || undefined);
+
+    // 자동 적립 — 학생별 RPC(리셋 이후 기간). 활성 weekly 규칙 전체(출석 자동 + 수동 칩)를 점수 반영해 합산.
     const autoEntries = await Promise.all(
       classStudents.map(async (student) => {
-        const { data } = await supabase.rpc("get_student_auto_talent", {
+        const { data } = await supabase.rpc("get_student_auto_talent_range", {
           p_student_id: student.id,
-          p_year_from: 2000,
-          p_month_from: 1,
-          p_year_to: 2100,
-          p_month_to: 12,
+          p_date_from: periodStart,
+          p_date_to: PERIOD_END_MAX,
         });
         const sum = ((data || []) as { total: number }[])
           .reduce((acc, row) => acc + (row.total || 0), 0);
@@ -213,12 +229,13 @@ export default function TalentPage() {
       })
     );
 
-    // 기타(pts_other) 전체기간 합
+    // 기타(pts_other) 리셋 이후 합
     const { data: recs } = await supabase
       .from("edu_talent_records")
       .select("student_id, pts_other")
       .eq("department_id", deptId)
       .in("student_id", ids)
+      .gte("record_date", periodStart)
       .gt("pts_other", 0);
 
     const otherSum: Record<string, number> = {};
@@ -226,12 +243,13 @@ export default function TalentPage() {
       otherSum[row.student_id] = (otherSum[row.student_id] || 0) + (row.pts_other || 0);
     });
 
-    // 공과퀴즈 달란트(서기 입력) 전체기간 합
+    // 공과퀴즈 달란트(서기 입력) 리셋 이후 합
     const { data: quizRows } = await supabase
       .from("edu_quiz_talent")
       .select("student_id, points")
       .eq("department_id", deptId)
-      .in("student_id", ids);
+      .in("student_id", ids)
+      .gte("quiz_date", periodStart);
 
     const quizSum: Record<string, number> = {};
     ((quizRows || []) as { student_id: string; points: number }[]).forEach((row) => {
@@ -516,6 +534,48 @@ export default function TalentPage() {
     }
   }
 
+  // 달란트 잔치 정산 리셋 — 부서 전체. 기록은 지우지 않고 리셋일만 기록 (리셋 취소로 복원 가능)
+  async function handleReset() {
+    const ok = await confirm(
+      "달란트 잔치 정산으로 부서 전체 달란트를 리셋할까요?\n\n오늘까지 적립분이 정산되고, 내일 적립부터 총 달란트에 새로 계산됩니다.\n기록은 삭제되지 않으며 '리셋 취소'로 되돌릴 수 있습니다.",
+      { okText: "리셋" },
+    );
+    if (!ok) return;
+    setResetBusy(true);
+    const errMsg = await insertTalentReset(deptId);
+    if (errMsg) {
+      setResetBusy(false);
+      showToast("리셋 실패: " + errMsg);
+      return;
+    }
+    const resets = await fetchTalentResets(deptId);
+    setLastReset(resets[0] || null);
+    await loadCumulative(students, resets[0] || null);
+    setResetBusy(false);
+    showToast("달란트가 리셋되었습니다");
+  }
+
+  async function handleUndoReset() {
+    if (!lastReset) return;
+    const ok = await confirm(
+      `마지막 리셋(${formatResetDate(lastReset.reset_date)})을 취소할까요?\n리셋 이전 적립분이 다시 총 달란트에 합산됩니다.`,
+      { okText: "리셋 취소" },
+    );
+    if (!ok) return;
+    setResetBusy(true);
+    const errMsg = await deleteTalentReset(lastReset.id);
+    if (errMsg) {
+      setResetBusy(false);
+      showToast("취소 실패: " + errMsg);
+      return;
+    }
+    const resets = await fetchTalentResets(deptId);
+    setLastReset(resets[0] || null);
+    await loadCumulative(students, resets[0] || null);
+    setResetBusy(false);
+    showToast("리셋이 취소되었습니다");
+  }
+
   function showToast(message: string) {
     setToast(message);
     window.setTimeout(() => setToast(""), 2400);
@@ -592,6 +652,38 @@ export default function TalentPage() {
                 <div className="mt-1 text-[13px] font-bold" style={{ color: "var(--accent)" }}>
                   {myClassName}반
                 </div>
+              )}
+            </div>
+
+            {/* 달란트 잔치 정산 리셋 (부서 전체 · 반기별) */}
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 border-t border-hairline pt-3">
+              <span className="text-[12px] font-semibold text-ink-faint">
+                {lastReset
+                  ? `총 달란트 = ${formatResetDate(lastReset.reset_date)} 리셋 이후 적립분`
+                  : "총 달란트 = 전체 기간 누적 (리셋 이력 없음)"}
+              </span>
+              <button
+                type="button"
+                onClick={handleReset}
+                disabled={resetBusy || loading}
+                className="inline-flex min-h-8 items-center gap-1 rounded-full border px-3 text-[12px] font-extrabold"
+                style={{
+                  borderColor: "color-mix(in srgb, var(--danger) 40%, transparent)",
+                  background: "color-mix(in srgb, var(--danger) 8%, var(--card))",
+                  color: "var(--danger)",
+                }}
+              >
+                <RotateCcw size={13} strokeWidth={2.2} /> 달란트 리셋
+              </button>
+              {lastReset && (
+                <button
+                  type="button"
+                  onClick={handleUndoReset}
+                  disabled={resetBusy || loading}
+                  className="min-h-8 rounded-full border border-hairline bg-card px-3 text-[12px] font-bold text-ink-soft"
+                >
+                  리셋 취소
+                </button>
               )}
             </div>
           </div>
