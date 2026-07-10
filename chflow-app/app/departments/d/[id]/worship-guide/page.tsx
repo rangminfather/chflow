@@ -243,7 +243,21 @@ export default function WorshipGuidePage() {
   const [selectedPast, setSelectedPast] = useState<HistoryItem | null>(null);
   const [listOpen, setListOpen] = useState(false);          // 모바일: 폰 목업 안 목록 패널
   const [overlayOpacity, setOverlayOpacity] = useState(0.65); // 모바일: 겹쳐보기 투명도
+  const [overlayX, setOverlayX] = useState(44);             // 모바일: 겹쳐보기 좌우 위치 (드래그)
+  const overlayDragRef = useRef<{ startX: number; baseX: number } | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
+
+  // 겹쳐보기 말풍선 좌우 드래그 (touchAction pan-y — 세로 스크롤은 그대로 통과)
+  const onOverlayDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    overlayDragRef.current = { startX: e.clientX, baseX: overlayX };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onOverlayMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = overlayDragRef.current;
+    if (!d) return;
+    setOverlayX(Math.max(-340, Math.min(340, d.baseX + (e.clientX - d.startX))));
+  };
+  const endOverlayDrag = () => { overlayDragRef.current = null; };
 
   // PC(≥980px) = 왼쪽 목록 + 나란히 비교 / 그 미만 = 폰 목업 안 겹쳐보기
   useEffect(() => {
@@ -896,10 +910,25 @@ export default function WorshipGuidePage() {
                     <div style={{ fontSize: 10.5, color: "var(--ink-faint)", textAlign: "right", marginTop: 4 }}>
                       말풍선을 눌러 자유롭게 수정하세요
                     </div>
-                    {/* 모바일: 선택한 저장본을 오른쪽으로 비껴 반투명 겹치기 — 투명도 조절하며 비교 */}
+                    {/* 모바일: 선택한 저장본을 반투명 겹치기 — 투명도 조절 + 손으로 좌우로 밀어 이동 */}
                     {!isDesktop && selectedPast && (
-                      <div style={{ position: "absolute", top: 12, left: 54, right: 10, pointerEvents: "none" }}>
-                        <div style={{ ...onionBubbleStyle, opacity: overlayOpacity }}>
+                      <div style={{ position: "absolute", top: 12, left: 10, right: 10, pointerEvents: "none" }}>
+                        <div
+                          onPointerDown={onOverlayDown}
+                          onPointerMove={onOverlayMove}
+                          onPointerUp={endOverlayDrag}
+                          onPointerCancel={endOverlayDrag}
+                          style={{
+                            ...onionBubbleStyle,
+                            opacity: overlayOpacity,
+                            transform: `translateX(${overlayX}px)`,
+                            pointerEvents: "auto",
+                            touchAction: "pan-y",
+                            cursor: "grab",
+                            userSelect: "none",
+                            WebkitUserSelect: "none",
+                          }}
+                        >
                           {selectedPast.message || "(저장된 메시지 없음)"}
                         </div>
                       </div>
@@ -927,7 +956,7 @@ export default function WorshipGuidePage() {
                                 <button
                                   key={h.sunday_date}
                                   type="button"
-                                  onClick={() => { setSelectedPast(active ? null : h); setListOpen(false); }}
+                                  onClick={() => { setSelectedPast(active ? null : h); setOverlayX(44); setListOpen(false); }}
                                   style={{ ...historyRowStyle, ...(active ? historyRowActiveStyle : null) }}
                                 >
                                   <span style={{ fontWeight: 700, fontSize: 12.5 }}>
