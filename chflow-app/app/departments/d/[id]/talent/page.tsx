@@ -6,14 +6,11 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { photoThumb } from "@/lib/photo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { useConfirm } from "@/components/ConfirmDialog";
-import { Check, ChevronDown, Medal, PiggyBank, RotateCcw, Star } from "lucide-react";
+import { Check, ChevronDown, Medal, PiggyBank, Star } from "lucide-react";
 import { kidDefaultFace, kidFaceTransform, isKidDefaultFace } from "@/lib/kidAvatar";
 import {
   type TalentReset,
   fetchTalentResets,
-  insertTalentReset,
-  deleteTalentReset,
   periodStartAfter,
   PERIOD_END_MAX,
   formatResetDate,
@@ -99,7 +96,6 @@ const OTHER_EMOJI = "🎁";
 
 export default function TalentPage() {
   const router = useRouter();
-  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
   const weekCardRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -117,8 +113,7 @@ export default function TalentPage() {
   const [extras, setExtras] = useState<WeeklyExtra[]>([]);
   const [others, setOthers] = useState<OtherRecord[]>([]);
   const [cumulative, setCumulative] = useState<Record<string, number>>({}); // 학생별 누적 잔액 (마지막 리셋 이후)
-  const [lastReset, setLastReset] = useState<TalentReset | null>(null); // 달란트 잔치 정산 리셋
-  const [resetBusy, setResetBusy] = useState(false);
+  const [lastReset, setLastReset] = useState<TalentReset | null>(null); // 달란트 잔치 정산 리셋 (기록/취소는 행정관리 출결통합조회에서)
   const [saving, setSaving] = useState("");
   const [toast, setToast] = useState("");
   const [otherModal, setOtherModal] = useState<{ student: Student; date: string } | null>(null);
@@ -534,48 +529,6 @@ export default function TalentPage() {
     }
   }
 
-  // 달란트 잔치 정산 리셋 — 부서 전체. 기록은 지우지 않고 리셋일만 기록 (리셋 취소로 복원 가능)
-  async function handleReset() {
-    const ok = await confirm(
-      "달란트 잔치 정산으로 부서 전체 달란트를 리셋할까요?\n\n오늘까지 적립분이 정산되고, 내일 적립부터 총 달란트에 새로 계산됩니다.\n기록은 삭제되지 않으며 '리셋 취소'로 되돌릴 수 있습니다.",
-      { okText: "리셋" },
-    );
-    if (!ok) return;
-    setResetBusy(true);
-    const errMsg = await insertTalentReset(deptId);
-    if (errMsg) {
-      setResetBusy(false);
-      showToast("리셋 실패: " + errMsg);
-      return;
-    }
-    const resets = await fetchTalentResets(deptId);
-    setLastReset(resets[0] || null);
-    await loadCumulative(students, resets[0] || null);
-    setResetBusy(false);
-    showToast("달란트가 리셋되었습니다");
-  }
-
-  async function handleUndoReset() {
-    if (!lastReset) return;
-    const ok = await confirm(
-      `마지막 리셋(${formatResetDate(lastReset.reset_date)})을 취소할까요?\n리셋 이전 적립분이 다시 총 달란트에 합산됩니다.`,
-      { okText: "리셋 취소" },
-    );
-    if (!ok) return;
-    setResetBusy(true);
-    const errMsg = await deleteTalentReset(lastReset.id);
-    if (errMsg) {
-      setResetBusy(false);
-      showToast("취소 실패: " + errMsg);
-      return;
-    }
-    const resets = await fetchTalentResets(deptId);
-    setLastReset(resets[0] || null);
-    await loadCumulative(students, resets[0] || null);
-    setResetBusy(false);
-    showToast("리셋이 취소되었습니다");
-  }
-
   function showToast(message: string) {
     setToast(message);
     window.setTimeout(() => setToast(""), 2400);
@@ -655,37 +608,12 @@ export default function TalentPage() {
               )}
             </div>
 
-            {/* 달란트 잔치 정산 리셋 (부서 전체 · 반기별) */}
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 border-t border-hairline pt-3">
-              <span className="text-[12px] font-semibold text-ink-faint">
-                {lastReset
-                  ? `총 달란트 = ${formatResetDate(lastReset.reset_date)} 리셋 이후 적립분`
-                  : "총 달란트 = 전체 기간 누적 (리셋 이력 없음)"}
-              </span>
-              <button
-                type="button"
-                onClick={handleReset}
-                disabled={resetBusy || loading}
-                className="inline-flex min-h-8 items-center gap-1 rounded-full border px-3 text-[12px] font-extrabold"
-                style={{
-                  borderColor: "color-mix(in srgb, var(--danger) 40%, transparent)",
-                  background: "color-mix(in srgb, var(--danger) 8%, var(--card))",
-                  color: "var(--danger)",
-                }}
-              >
-                <RotateCcw size={13} strokeWidth={2.2} /> 달란트 리셋
-              </button>
-              {lastReset && (
-                <button
-                  type="button"
-                  onClick={handleUndoReset}
-                  disabled={resetBusy || loading}
-                  className="min-h-8 rounded-full border border-hairline bg-card px-3 text-[12px] font-bold text-ink-soft"
-                >
-                  리셋 취소
-                </button>
-              )}
-            </div>
+            {/* 잔치 정산 리셋 안내 (리셋 기록·취소는 행정관리 > 출결통합조회 > 달란트체크에서) */}
+            {lastReset && (
+              <div className="mt-3 border-t border-hairline pt-3 text-center text-[12px] font-semibold text-ink-faint">
+                총 달란트 = {formatResetDate(lastReset.reset_date)} 잔치 정산 이후 적립분
+              </div>
+            )}
           </div>
         </section>
 
