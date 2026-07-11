@@ -13,7 +13,12 @@ const AGE_DEPTS: Record<string, number[]> = {
   청소년부: [14, 15, 16, 17, 18, 19],
 };
 
-const PRESCHOOL_DEPTS = new Set(["영아부", "유아부", "유치부"]);
+// 미취학 부서의 학교 필드 표기 — 영아부는 어린이집만, 유아·유치부는 어린이집·유치원
+const SCHOOL_FIELD: Record<string, { label: string; placeholder: string }> = {
+  영아부: { label: "어린이집", placeholder: "어린이집명" },
+  유아부: { label: "어린이집·유치원", placeholder: "어린이집명 혹은 유치원명" },
+  유치부: { label: "어린이집·유치원", placeholder: "어린이집명 혹은 유치원명" },
+};
 
 export function isAgeBasedDept(deptName?: string | null): boolean {
   return !!AGE_DEPTS[(deptName || "").trim()];
@@ -41,11 +46,11 @@ export function gradeText(deptName: string | null | undefined, gradeYear: number
   return `${gradeYear}${isAgeBasedDept(deptName) ? "세" : "학년"}`;
 }
 
-/** "학교" | "어린이집·유치원" */
+/** "학교" | "어린이집" | "어린이집·유치원" */
 export function schoolFieldLabel(deptName?: string | null): string {
-  return PRESCHOOL_DEPTS.has((deptName || "").trim()) ? "어린이집·유치원" : "학교";
+  return SCHOOL_FIELD[(deptName || "").trim()]?.label ?? "학교";
 }
 
 export function schoolFieldPlaceholder(deptName?: string | null): string {
-  return PRESCHOOL_DEPTS.has((deptName || "").trim()) ? "어린이집명 혹은 유치원명" : "학교명";
+  return SCHOOL_FIELD[(deptName || "").trim()]?.placeholder ?? "학교명";
 }
