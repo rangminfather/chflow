@@ -5,8 +5,8 @@
 //  - 기본: 표 HTML(인라인 표출용) 반환 (legacy)
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { Workbook } from "exceljs";
 import { r2 } from "@/lib/r2";
+import { loadWorkbook } from "@/lib/xlsx-load";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -64,13 +64,8 @@ async function checkAccess(req: NextRequest, deptId: string) {
 
 // xlsx 바이트 → 시트별 HTML 표 (병합 반영) — 양식 안 맞는 파일 폴백용
 async function renderXlsxHtml(bytes: unknown): Promise<string | null> {
-  const wb = new Workbook();
-  try {
-    const load = wb.xlsx.load.bind(wb.xlsx) as (d: unknown) => Promise<unknown>;
-    await load(bytes);
-  } catch {
-    return null;
-  }
+  const wb = await loadWorkbook(bytes as Buffer);
+  if (!wb) return null;
 
   const sheetsHtml: string[] = [];
   wb.eachSheet((ws) => {
@@ -165,13 +160,8 @@ function parseTitleScripture(raw: string): { title: string; scripture: string } 
 }
 
 async function parseXlsxCards(bytes: unknown, fallbackYear: number | null): Promise<CardsResult | null> {
-  const wb = new Workbook();
-  try {
-    const load = wb.xlsx.load.bind(wb.xlsx) as (d: unknown) => Promise<unknown>;
-    await load(bytes);
-  } catch {
-    return null;
-  }
+  const wb = await loadWorkbook(bytes as Buffer);
+  if (!wb) return null;
 
   let year: number | null = fallbackYear;
   const weekMap = new Map<string, PlanWeek>(); // key "M/D" — 셀 단위 병합(채워진 값 우선)
