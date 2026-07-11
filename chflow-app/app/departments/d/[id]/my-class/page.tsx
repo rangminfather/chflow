@@ -11,7 +11,7 @@ import StudentPhotoEditor from "@/components/StudentPhotoEditor";
 import PendingStudentPhotoPicker from "@/components/PendingStudentPhotoPicker";
 import { saveStudentPendingPhoto } from "@/lib/studentPhotoUpload";
 import { Baby, Cog, MoonStar, Plus, Save, UserPlus, X } from "lucide-react";
-import { isNurseryDept, NURSERY_AGE_OPTIONS, birthYearForGrade as birthYearForDeptGrade, gradeFieldLabel, gradeText, schoolFieldLabel, schoolFieldPlaceholder } from "@/lib/eduAge";
+import { isAgeBasedDept, ageOptionsFor, birthYearForGrade as birthYearForDeptGrade, gradeFieldLabel, gradeText, schoolFieldLabel, schoolFieldPlaceholder } from "@/lib/eduAge";
 
 interface StudentRow {
   id: string;
@@ -501,7 +501,7 @@ export default function MyClassPage() {
       p_enroll_grade_year: grade,
       // 담임 반과 같은 학년이면 우리 반으로 편입, 다르면 미배정 (부장이 반 관리에서 배정)
       // 유아부는 반(목장)이 나이와 독립이라 항상 담임 반으로 편입
-      p_enroll_class_no: isNurseryDept(deptName) || grade === myGradeYear ? myClassName || null : null,
+      p_enroll_class_no: isAgeBasedDept(deptName) || grade === myGradeYear ? myClassName || null : null,
       p_family_members: family,
     });
     setNewSaving(false);
@@ -861,7 +861,7 @@ function NewFriendModal({
     .filter((student) => !form.guideGrade || student.grade_year === Number(form.guideGrade))
     .sort((a, b) => (a.class_no || "").localeCompare(b.class_no || "") || a.name.localeCompare(b.name));
 
-  const enrollHint = (isNurseryDept(deptName) || (form.gradeYear && myGradeYear && Number(form.gradeYear) === myGradeYear)) && myClassName
+  const enrollHint = (isAgeBasedDept(deptName) || (form.gradeYear && myGradeYear && Number(form.gradeYear) === myGradeYear)) && myClassName
     ? `저장하면 ${myClassName}반 '체험' 학생으로 출석부·달란트통장에 나타납니다.`
     : "담임 반과 학년이 달라 반 미배정으로 등록됩니다. (반 관리에서 배정 가능)";
 
@@ -906,7 +906,7 @@ function NewFriendModal({
           <Field label={`${gradeFieldLabel(deptName)} *`}>
             <select value={form.gradeYear} onChange={(event) => setGrade(event.target.value)} className={inputClass}>
               <option value="">{gradeFieldLabel(deptName)} 선택</option>
-              {(isNurseryDept(deptName) ? NURSERY_AGE_OPTIONS : [1, 2, 3]).map((g) => (
+              {(isAgeBasedDept(deptName) ? ageOptionsFor(deptName) : [1, 2, 3]).map((g) => (
                 <option key={g} value={String(g)}>{gradeText(deptName, g)}</option>
               ))}
             </select>
@@ -999,7 +999,7 @@ function NewFriendModal({
                 className={inputClass}
               >
                 <option value="">전체 {gradeFieldLabel(deptName)}</option>
-                {(isNurseryDept(deptName) ? NURSERY_AGE_OPTIONS : [1, 2, 3]).map((g) => (
+                {(isAgeBasedDept(deptName) ? ageOptionsFor(deptName) : [1, 2, 3]).map((g) => (
                   <option key={g} value={String(g)}>{gradeText(deptName, g)}</option>
                 ))}
               </select>

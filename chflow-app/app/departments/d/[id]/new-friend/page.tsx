@@ -21,7 +21,7 @@ import { LoadingView, EmptyState } from "@/components/StatusViews";
 import PendingStudentPhotoPicker from "@/components/PendingStudentPhotoPicker";
 import { saveStudentPendingPhoto } from "@/lib/studentPhotoUpload";
 import { Sparkles, User, Plus, X } from "lucide-react";
-import { isNurseryDept, NURSERY_AGE_OPTIONS, birthYearForGrade as birthYearForDeptGrade, gradeFieldLabel, gradeText, schoolFieldLabel, schoolFieldPlaceholder } from "@/lib/eduAge";
+import { isAgeBasedDept, ageOptionsFor, birthYearForGrade as birthYearForDeptGrade, gradeFieldLabel, gradeText, schoolFieldLabel, schoolFieldPlaceholder } from "@/lib/eduAge";
 
 interface FriendSummary {
   id: string;
@@ -226,7 +226,7 @@ export default function NewFriendPage() {
   const setGrade = (value: string) => {
     setForm((p) => {
       const chosen = deptClasses.find((c) => c.class_no === p.enroll_class_no);
-      const classOk = chosen && (isNurseryDept(deptName) || !value || chosen.grade_year === Number(value));
+      const classOk = chosen && (isAgeBasedDept(deptName) || !value || chosen.grade_year === Number(value));
       return {
         ...p,
         gradeYear: value,
@@ -355,7 +355,7 @@ export default function NewFriendPage() {
     .sort((a, b) => (a.class_no || "").localeCompare(b.class_no || "") || a.name.localeCompare(b.name));
 
   const classOptions = deptClasses
-    .filter((c) => isNurseryDept(deptName) || !form.gradeYear || c.grade_year === Number(form.gradeYear));
+    .filter((c) => isAgeBasedDept(deptName) || !form.gradeYear || c.grade_year === Number(form.gradeYear));
 
   const enrollHint = form.enroll_class_no
     ? `저장하면 ${form.enroll_class_no}반 '체험' 학생으로 출석부·달란트통장에 나타납니다.`
@@ -517,7 +517,7 @@ export default function NewFriendPage() {
                 <FormField label={`${gradeFieldLabel(deptName)} *`}>
                   <select value={form.gradeYear} onChange={(e) => setGrade(e.target.value)} style={{ ...inputStyle, appearance: "auto" }}>
                     <option value="">{gradeFieldLabel(deptName)} 선택</option>
-                    {(isNurseryDept(deptName) ? NURSERY_AGE_OPTIONS : [1, 2, 3]).map((g) => (
+                    {(isAgeBasedDept(deptName) ? ageOptionsFor(deptName) : [1, 2, 3]).map((g) => (
                       <option key={g} value={String(g)}>{gradeText(deptName, g)}</option>
                     ))}
                   </select>
@@ -608,7 +608,7 @@ export default function NewFriendPage() {
                         style={{ ...inputStyle, appearance: "auto" }}
                       >
                         <option value="">전체 {gradeFieldLabel(deptName)}</option>
-                        {(isNurseryDept(deptName) ? NURSERY_AGE_OPTIONS : [1, 2, 3]).map((g) => (
+                        {(isAgeBasedDept(deptName) ? ageOptionsFor(deptName) : [1, 2, 3]).map((g) => (
                           <option key={g} value={String(g)}>{gradeText(deptName, g)}</option>
                         ))}
                       </select>
