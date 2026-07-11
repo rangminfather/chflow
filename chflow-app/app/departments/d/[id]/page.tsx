@@ -439,8 +439,8 @@ export default function DepartmentDetailPage() {
   // 카테고리별 표시 여부 결정
   const visibleCategories = MENU_CATEGORIES.filter((cat) => {
     if (cat.requiresHomeroom && !hasHomeroom) return false;
-    // 전도사·교육사(0)는 담임메뉴 제외 — 행정관리의 통합 조회 메뉴 사용
-    if (cat.id === "students" && grade === 0) return false;
+    // 담임메뉴는 실제 담임 배정(requiresHomeroom) 기준 — 등급 0(전도사·관리자)이어도
+    // 반 학생이 배정돼 있으면 표시 (관리자 grade 0 우선 정책과 충돌 방지)
     return cat.items.some((item) => {
       const resolved = resolveItem(cat, item);
       if (!itemDeptOk(cat, resolved)) return false;
