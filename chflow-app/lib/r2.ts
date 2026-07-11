@@ -119,6 +119,16 @@ function from(bucketName: string) {
             };
           })
           .filter((f) => f.name && !f.name.includes("/"));
+        // S3 ListObjectsV2는 키 이름순으로만 반환 — sortBy 요청 시 여기서 정렬
+        if (options?.sortBy) {
+          const { column, order } = options.sortBy;
+          const dir = order === "asc" ? 1 : -1;
+          data.sort((a, b) => {
+            const av = String((a as Record<string, unknown>)[column] ?? "");
+            const bv = String((b as Record<string, unknown>)[column] ?? "");
+            return av < bv ? -dir : av > bv ? dir : 0;
+          });
+        }
         return { data, error: null };
       } catch (e) {
         return { data: null, error: e as Error };
