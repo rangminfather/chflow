@@ -11,6 +11,7 @@ import StudentPhotoEditor from "@/components/StudentPhotoEditor";
 import PendingStudentPhotoPicker from "@/components/PendingStudentPhotoPicker";
 import { saveStudentPendingPhoto } from "@/lib/studentPhotoUpload";
 import { Baby, Cog, MoonStar, Plus, Save, UserPlus, X } from "lucide-react";
+import { isNurseryDept, NURSERY_AGE_OPTIONS, birthYearForGrade as birthYearForDeptGrade, gradeFieldLabel, gradeText, schoolFieldLabel, schoolFieldPlaceholder } from "@/lib/eduAge";
 
 interface StudentRow {
   id: string;
@@ -130,17 +131,13 @@ const EMPTY_NEW_FRIEND: NewFriendForm = {
 
 const FAMILY_RELATIONS = ["부", "모", "형", "누나", "오빠", "언니", "동생", "조부", "조모", "기타"];
 
-/** 초등 학년 → 출생년도 (예: 2026년 초1 = 2019년생). 수정 가능한 기본값. */
-function birthYearForGrade(gradeYear: number): string {
-  return String(new Date().getFullYear() - 6 - gradeYear);
-}
-
 export default function MyClassPage() {
   const router = useRouter();
   const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
 
+  const [deptName, setDeptName] = useState("");
   const [authChecked, setAuthChecked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
@@ -178,6 +175,9 @@ export default function MyClassPage() {
 
       setMyTeacherId(teacher?.id || null);
       setAuthChecked(true);
+      supabase.rpc("get_department_info", { p_dept_id: deptId }).then(({ data }) => {
+        if (data?.[0]?.name) setDeptName(data[0].name as string);
+      });
       if (teacher?.id) await loadStudents(teacher.id);
       else setLoading(false);
     })();
@@ -437,7 +437,7 @@ export default function MyClassPage() {
     setNewFriend({
       ...EMPTY_NEW_FRIEND,
       gradeYear: grade,
-      birthYear: myGradeYear ? birthYearForGrade(myGradeYear) : "",
+      birthYear: myGradeYear ? birthYearForDeptGrade(deptName, myGradeYear) : "",
       guideGrade: grade,
       family: [],
     });
@@ -454,7 +454,7 @@ export default function MyClassPage() {
   async function saveNewFriend() {
     if (!newFriend.name.trim()) { showToast("새친구 이름을 입력하세요"); return; }
     if (newFriend.gender !== "남" && newFriend.gender !== "여") { showToast("성별을 선택하세요"); return; }
-    if (!newFriend.gradeYear) { showToast("학년을 선택하세요"); return; }
+    if (!newFriend.gradeYear) { showToast(`${gradeFieldLabel(deptName)}를 선택하세요`); return; }
     if (newFriend.guide_kind === "student" && !newFriend.guide_student_id) {
       showToast("인도자 학생을 선택하세요");
       return;
@@ -500,7 +500,8 @@ export default function MyClassPage() {
       p_guide_student_id: newFriend.guide_kind === "student" ? newFriend.guide_student_id : null,
       p_enroll_grade_year: grade,
       // 담임 반과 같은 학년이면 우리 반으로 편입, 다르면 미배정 (부장이 반 관리에서 배정)
-      p_enroll_class_no: grade === myGradeYear ? myClassName || null : null,
+      // 유아부는 반(목장)이 나이와 독립이라 항상 담임 반으로 편입
+      p_enroll_class_no: isNurseryDept(deptName) || grade === myGradeYear ? myClassName || null : null,
       p_family_members: family,
     });
     setNewSaving(false);
@@ -639,7 +640,7 @@ export default function MyClassPage() {
                   <div className="min-w-0">
                     <div className="truncate text-[19px] font-extrabold text-ink">{draft.name}</div>
                     <div className="mt-1 text-[13px] font-semibold text-ink-faint">
-                      {draft.grade_year ? `${draft.grade_year}학년 · ` : ""}{draft.class_no ? `${draft.class_no}반` : "반 정보 없음"}
+                      {draft.grade_year ? `${gradeText(deptName, draft.grade_year)} · ` : ""}{draft.class_no ? `${draft.class_no}반` : "반 정보 없음"}
                     </div>
                   </div>
                 </div>
@@ -686,14 +687,14 @@ export default function MyClassPage() {
                     </select>
                   </InfoField>
                   <InfoField
-                    label="학년 · 반"
+                    label={`${gradeFieldLabel(deptName)} · 반`}
                     editMode={false}
-                    value={draft.grade_year ? `${draft.grade_year}학년${draft.class_no ? ` ${draft.class_no}반` : ""}` : "미등록"}
+                    value={draft.grade_year ? `${gradeText(deptName, draft.grade_year)}${draft.class_no ? ` ${draft.class_no}반` : ""}` : "미등록"}
                   >
                     <span />
                   </InfoField>
-                  <InfoField label="학교" editMode={editMode} value={draft.school_name || "미등록"}>
-                    <input value={draft.school_name} onChange={(event) => updateDraft("school_name", event.target.value)} placeholder="학교명" className={inputClass} />
+                  <InfoField label={schoolFieldLabel(deptName)} editMode={editMode} value={draft.school_name || "미등록"}>
+                    <input value={draft.school_name} onChange={(event) => updateDraft("school_name", event.target.value)} placeholder={schoolFieldPlaceholder(deptName)} className={inputClass} />
                   </InfoField>
                 </div>
 
@@ -801,6 +802,7 @@ export default function MyClassPage() {
 
       {showNewFriend && (
         <NewFriendModal
+          deptName={deptName}
           form={newFriend}
           deptStudents={deptStudents}
           myClassName={myClassName}
@@ -818,6 +820,7 @@ export default function MyClassPage() {
 }
 
 function NewFriendModal({
+  deptName,
   form,
   deptStudents,
   myClassName,
@@ -827,6 +830,7 @@ function NewFriendModal({
   onCancel,
   onSave,
 }: {
+  deptName: string;
   form: NewFriendForm;
   deptStudents: DeptStudentOption[];
   myClassName: string;
@@ -838,13 +842,13 @@ function NewFriendModal({
 }) {
   const set = <K extends keyof NewFriendForm>(key: K, value: NewFriendForm[K]) => onChange({ ...form, [key]: value });
 
-  // 학년 선택 → 출생년도 자동 (직접 수정 가능)
+  // 학년(유아부: 나이) 선택 → 출생년도 자동 (직접 수정 가능)
   const setGrade = (value: string) => {
     const grade = Number(value);
     onChange({
       ...form,
       gradeYear: value,
-      birthYear: value ? birthYearForGrade(grade) : form.birthYear,
+      birthYear: value ? birthYearForDeptGrade(deptName, grade) : form.birthYear,
     });
   };
 
@@ -857,7 +861,7 @@ function NewFriendModal({
     .filter((student) => !form.guideGrade || student.grade_year === Number(form.guideGrade))
     .sort((a, b) => (a.class_no || "").localeCompare(b.class_no || "") || a.name.localeCompare(b.name));
 
-  const enrollHint = form.gradeYear && myGradeYear && Number(form.gradeYear) === myGradeYear && myClassName
+  const enrollHint = (isNurseryDept(deptName) || (form.gradeYear && myGradeYear && Number(form.gradeYear) === myGradeYear)) && myClassName
     ? `저장하면 ${myClassName}반 '체험' 학생으로 출석부·달란트통장에 나타납니다.`
     : "담임 반과 학년이 달라 반 미배정으로 등록됩니다. (반 관리에서 배정 가능)";
 
@@ -899,21 +903,21 @@ function NewFriendModal({
               ))}
             </div>
           </Field>
-          <Field label="학년 *">
+          <Field label={`${gradeFieldLabel(deptName)} *`}>
             <select value={form.gradeYear} onChange={(event) => setGrade(event.target.value)} className={inputClass}>
-              <option value="">학년 선택</option>
-              <option value="1">1학년</option>
-              <option value="2">2학년</option>
-              <option value="3">3학년</option>
+              <option value="">{gradeFieldLabel(deptName)} 선택</option>
+              {(isNurseryDept(deptName) ? NURSERY_AGE_OPTIONS : [1, 2, 3]).map((g) => (
+                <option key={g} value={String(g)}>{gradeText(deptName, g)}</option>
+              ))}
             </select>
           </Field>
-          <Field label="학교">
-            <input value={form.school} onChange={(event) => set("school", event.target.value)} placeholder="학교명" className={inputClass} />
+          <Field label={schoolFieldLabel(deptName)}>
+            <input value={form.school} onChange={(event) => set("school", event.target.value)} placeholder={schoolFieldPlaceholder(deptName)} className={inputClass} />
           </Field>
           <Field label="본인연락처">
             <input value={form.mobile} onChange={(event) => set("mobile", formatPhone(event.target.value))} placeholder="010-0000-0000" className={inputClass} />
           </Field>
-          <Field label="생년월일 — 학년 선택 시 연도 자동">
+          <Field label={`생년월일 — ${gradeFieldLabel(deptName)} 선택 시 연도 자동`}>
             <div className="grid grid-cols-3 gap-2">
               <input value={form.birthYear} onChange={(event) => set("birthYear", event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="년" inputMode="numeric" className={inputClass} />
               <input value={form.birthMonth} onChange={(event) => set("birthMonth", event.target.value.replace(/\D/g, "").slice(0, 2))} placeholder="월" inputMode="numeric" className={inputClass} />
@@ -994,10 +998,10 @@ function NewFriendModal({
                 onChange={(event) => onChange({ ...form, guideGrade: event.target.value, guide_student_id: "" })}
                 className={inputClass}
               >
-                <option value="">전체 학년</option>
-                <option value="1">1학년</option>
-                <option value="2">2학년</option>
-                <option value="3">3학년</option>
+                <option value="">전체 {gradeFieldLabel(deptName)}</option>
+                {(isNurseryDept(deptName) ? NURSERY_AGE_OPTIONS : [1, 2, 3]).map((g) => (
+                  <option key={g} value={String(g)}>{gradeText(deptName, g)}</option>
+                ))}
               </select>
               <select value={form.guide_student_id} onChange={(event) => set("guide_student_id", event.target.value)} className={inputClass}>
                 <option value="">인도자 학생 선택</option>

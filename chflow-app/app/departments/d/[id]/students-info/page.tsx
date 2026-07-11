@@ -10,6 +10,7 @@ import { LoadingView, EmptyState } from "@/components/StatusViews";
 import StudentPhotoEditor from "@/components/StudentPhotoEditor";
 import PendingStudentPhotoPicker from "@/components/PendingStudentPhotoPicker";
 import { saveStudentPendingPhoto } from "@/lib/studentPhotoUpload";
+import { isNurseryDept, NURSERY_AGE_OPTIONS, birthYearForGrade as birthYearForDeptGrade, gradeFieldLabel, gradeText, schoolFieldLabel, schoolFieldPlaceholder } from "@/lib/eduAge";
 import {
   AlertTriangle,
   Download,
@@ -122,16 +123,13 @@ const TEMPLATE_EXAMPLE = ["김하준", "정", "12", "3", "3-1", "남", "2017-04-
 const PAGE_SIZE = 12;
 const FAMILY_RELATIONS = ["부", "모", "형", "누나", "오빠", "언니", "동생", "형제", "자매", "조부", "조모", "배우자", "기타"];
 
-function birthYearForGrade(gradeYear: number): string {
-  return String(new Date().getFullYear() - 6 - gradeYear);
-}
-
 export default function StudentsInfoPage() {
   const router = useRouter();
   const params = useParams();
   const deptId = params.id as string;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [deptName, setDeptName] = useState("");
   const [authChecked, setAuthChecked] = useState(false);
   const [authorized, setAuthorized] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -166,7 +164,11 @@ export default function StudentsInfoPage() {
       }
       setAuthChecked(true);
 
-      const { data: gradeData } = await supabase.rpc("get_user_grade", { p_dept_id: deptId });
+      const [{ data: gradeData }, deptResp] = await Promise.all([
+        supabase.rpc("get_user_grade", { p_dept_id: deptId }),
+        supabase.rpc("get_department_info", { p_dept_id: deptId }),
+      ]);
+      if (deptResp.data?.[0]?.name) setDeptName(deptResp.data[0].name as string);
       const grade = typeof gradeData === "number" ? gradeData : Number(gradeData);
       if (Number.isNaN(grade) || grade > 2) {
         setAuthorized(false);
@@ -296,7 +298,7 @@ export default function StudentsInfoPage() {
   const classOptions = useMemo(() => {
     const seen = new Map<string, { label: string; count: number }>();
     students.forEach((student) => {
-      const key = classLabel(student);
+      const key = classLabel(student, deptName);
       const entry = seen.get(key);
       if (entry) entry.count += 1;
       else seen.set(key, { label: key, count: 1 });
@@ -307,7 +309,7 @@ export default function StudentsInfoPage() {
   const filtered = useMemo(() => {
     const keyword = search.trim();
     return students.filter((student) => {
-      if (classFilter && classLabel(student) !== classFilter) return false;
+      if (classFilter && classLabel(student, deptName) !== classFilter) return false;
       if (keyword) {
         const haystack = [student.name, student.phone, student.school_name, student.class_no || ""].join(" ");
         if (!haystack.includes(keyword)) return false;
@@ -353,7 +355,7 @@ export default function StudentsInfoPage() {
       teacher_name: firstClass?.teacher_name || "",
       school_name: "",
       phone: "",
-      birth_date: firstClass?.grade_year ? birthDateWithYear("", birthYearForGrade(firstClass.grade_year)) : "",
+      birth_date: firstClass?.grade_year ? birthDateWithYear("", birthYearForDeptGrade(deptName, firstClass.grade_year)) : "",
       gender: "",
       address: "",
       photo_url: null,
@@ -383,10 +385,10 @@ export default function StudentsInfoPage() {
         const cls = classes.find((item) => item.class_no === value);
         next.grade_year = cls?.grade_year ?? next.grade_year;
         next.teacher_name = cls?.teacher_name || "";
-        if (cls?.grade_year) next.birth_date = birthDateWithYear(next.birth_date, birthYearForGrade(cls.grade_year));
+        if (cls?.grade_year) next.birth_date = birthDateWithYear(next.birth_date, birthYearForDeptGrade(deptName, cls.grade_year));
       }
       if (key === "grade_year" && typeof value === "number" && value > 0) {
-        next.birth_date = birthDateWithYear(next.birth_date, birthYearForGrade(value));
+        next.birth_date = birthDateWithYear(next.birth_date, birthYearForDeptGrade(deptName, value));
       }
       return next;
     });
@@ -498,7 +500,7 @@ export default function StudentsInfoPage() {
   async function handleSaveNew() {
     if (!newDraft) return;
     if (!newDraft.grade_year) {
-      showToast("학년을 선택하세요");
+      showToast(`${gradeFieldLabel(deptName)}를 선택하세요`);
       return;
     }
     const savedId = await persistStudent(newDraft);
@@ -592,8 +594,15 @@ export default function StudentsInfoPage() {
   }
 
   function downloadTemplate() {
-    const csv = [TEMPLATE_HEADERS, TEMPLATE_EXAMPLE]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    const nursery = isNurseryDept(deptName);
+    const headers = nursery
+      ? ["이름", "구분", "번호", "나이", "반", "성별", "생년월일", "연락처", "주소", "어린이집", "정렬순서"]
+      : TEMPLATE_HEADERS;
+    const example = nursery
+      ? ["김하준", "정", "12", "4", "1목장", "남", "2023-04-18", "010-1234-5678", "서울시 ...", "언약어린이집", "12"]
+      : TEMPLATE_EXAMPLE;
+    const csv = [headers, example]
+      .map((row: string[]) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
       .join("\n");
     const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -684,6 +693,7 @@ export default function StudentsInfoPage() {
 
           {(showImportPanel || importRows.length > 0 || importErrors.length > 0) && (
             <ImportPanel
+              deptName={deptName}
               fileInputRef={fileInputRef}
               importRows={importRows}
               importErrors={importErrors}
@@ -728,7 +738,7 @@ export default function StudentsInfoPage() {
                       </span>
                       <div className="min-w-0">
                         <div className="truncate text-[16px] font-extrabold text-ink">{student.name}</div>
-                        <div className="mt-1 truncate text-[13px] font-semibold text-ink-faint">{classLabel(student)}</div>
+                        <div className="mt-1 truncate text-[13px] font-semibold text-ink-faint">{classLabel(student, deptName)}</div>
                         <div className="mt-2 truncate text-[12px] font-semibold text-ink-faint">
                           {student.teacher_name ? `담임 ${student.teacher_name}` : "담임 미배정"}
                           {student.phone ? ` · ${formatPhone(student.phone)}` : ""}
@@ -787,6 +797,7 @@ export default function StudentsInfoPage() {
 
       {newDraft && (
         <NewStudentModal
+          deptName={deptName}
           draft={newDraft}
           classes={classes}
           saving={saving}
@@ -809,6 +820,7 @@ export default function StudentsInfoPage() {
       {detailOpen && draft && (
         <StudentDetailModal
           deptId={deptId}
+          deptName={deptName}
           draft={draft}
           classes={classes}
           families={families[draft.id] || []}
@@ -850,6 +862,7 @@ function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typ
 }
 
 function ImportPanel({
+  deptName,
   fileInputRef,
   importRows,
   importErrors,
@@ -858,6 +871,7 @@ function ImportPanel({
   onDownloadTemplate,
   onImport,
 }: {
+  deptName: string;
   fileInputRef: RefObject<HTMLInputElement | null>;
   importRows: ImportRow[];
   importErrors: string[];
@@ -866,16 +880,26 @@ function ImportPanel({
   onDownloadTemplate: () => void;
   onImport: () => void;
 }) {
+  const nursery = isNurseryDept(deptName);
   return (
     <div className="border-b border-hairline bg-surface p-4">
       <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
         <div className="rounded-md border border-hairline bg-card p-3 text-[13px] font-semibold leading-6 text-ink-mid">
           <div><span className="font-extrabold text-ink">지원 파일</span> CSV(.csv), 엑셀(.xlsx)</div>
           <div><span className="font-extrabold text-ink">필수 컬럼</span> 이름</div>
-          <div><span className="font-extrabold text-ink">선택 컬럼</span> 구분, 번호, 학년, 반, 성별, 생년월일, 연락처, 주소, 학교, 정렬순서</div>
+          <div><span className="font-extrabold text-ink">선택 컬럼</span> 구분, 번호, {nursery ? "나이(4/5)" : "학년"}, 반, 성별, 생년월일, 연락처, 주소, {schoolFieldLabel(deptName)}, 정렬순서</div>
           <div className="mt-2 overflow-x-auto rounded border border-hairline bg-surface p-2 text-[12px]">
-            이름,구분,번호,학년,반,성별,생년월일,연락처,주소,학교,정렬순서<br />
-            김하준,정,12,3,3-1,남,2017-04-18,010-1234-5678,서울시 ...,언약초,12
+            {nursery ? (
+              <>
+                이름,구분,번호,나이,반,성별,생년월일,연락처,주소,어린이집,정렬순서<br />
+                김하준,정,12,4,1목장,남,2023-04-18,010-1234-5678,서울시 ...,언약어린이집,12
+              </>
+            ) : (
+              <>
+                이름,구분,번호,학년,반,성별,생년월일,연락처,주소,학교,정렬순서<br />
+                김하준,정,12,3,3-1,남,2017-04-18,010-1234-5678,서울시 ...,언약초,12
+              </>
+            )}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2 lg:w-[260px]">
@@ -915,7 +939,7 @@ function ImportPanel({
                 <tr>
                   <th className="px-2 py-2">이름</th>
                   <th className="px-2 py-2">구분</th>
-                  <th className="px-2 py-2">학년</th>
+                  <th className="px-2 py-2">{nursery ? "나이" : "학년"}</th>
                   <th className="px-2 py-2">반</th>
                   <th className="px-2 py-2">연락처</th>
                 </tr>
@@ -947,6 +971,7 @@ function ImportPanel({
 
 function StudentDetailModal({
   deptId,
+  deptName,
   draft,
   classes,
   families,
@@ -965,6 +990,7 @@ function StudentDetailModal({
   onPhotoUpdate,
 }: {
   deptId: string;
+  deptName: string;
   draft: EditableStudent;
   classes: DeptClass[];
   families: FamilyRow[];
@@ -1015,7 +1041,7 @@ function StudentDetailModal({
             <div className="min-w-0">
               <div className="truncate text-[19px] font-extrabold text-ink">{draft.name || "새 학생"}</div>
               <div className="mt-1 text-[13px] font-semibold text-ink-faint">
-                {classLabel(draft)}{draft.teacher_name ? ` · 담임 ${draft.teacher_name}` : ""}
+                {classLabel(draft, deptName)}{draft.teacher_name ? ` · 담임 ${draft.teacher_name}` : ""}
               </div>
             </div>
           </div>
@@ -1049,22 +1075,29 @@ function StudentDetailModal({
             <InfoField label="번호" editMode={editMode} value={draft.student_no ? String(draft.student_no) : "미등록"}>
               <input type="number" value={draft.student_no ?? ""} onChange={(event) => onChange("student_no", numberOrNull(event.target.value))} className={inputClass} />
             </InfoField>
-            <InfoField label="학년" editMode={editMode} value={draft.grade_year ? `${draft.grade_year}학년` : "미등록"}>
-              <input type="number" value={draft.grade_year ?? ""} onChange={(event) => onChange("grade_year", numberOrNull(event.target.value))} className={inputClass} />
+            <InfoField label={gradeFieldLabel(deptName)} editMode={editMode} value={draft.grade_year ? gradeText(deptName, draft.grade_year) : "미등록"}>
+              {isNurseryDept(deptName) ? (
+                <select value={draft.grade_year ?? ""} onChange={(event) => onChange("grade_year", numberOrNull(event.target.value))} className={inputClass}>
+                  <option value="">나이 선택</option>
+                  {NURSERY_AGE_OPTIONS.map((age) => <option key={age} value={age}>{age}세</option>)}
+                </select>
+              ) : (
+                <input type="number" value={draft.grade_year ?? ""} onChange={(event) => onChange("grade_year", numberOrNull(event.target.value))} className={inputClass} />
+              )}
             </InfoField>
-            <InfoField label="반" editMode={editMode} value={classLabel(draft)}>
+            <InfoField label="반" editMode={editMode} value={classLabel(draft, deptName)}>
               <select value={draft.class_no || ""} onChange={(event) => onChange("class_no", event.target.value || null)} className={inputClass}>
                 <option value="">반 미배정</option>
                 {classes.map((item) => (
                   <option key={item.class_no} value={item.class_no}>
-                    {classLabel({ grade_year: item.grade_year, class_no: item.class_no })}
+                    {classLabel({ grade_year: item.grade_year, class_no: item.class_no }, deptName)}
                     {item.teacher_name ? ` / ${item.teacher_name}` : ""}
                   </option>
                 ))}
               </select>
             </InfoField>
-            <InfoField label="학교" editMode={editMode} value={draft.school_name || "미등록"}>
-              <input value={draft.school_name} onChange={(event) => onChange("school_name", event.target.value)} className={inputClass} />
+            <InfoField label={schoolFieldLabel(deptName)} editMode={editMode} value={draft.school_name || "미등록"}>
+              <input value={draft.school_name} onChange={(event) => onChange("school_name", event.target.value)} placeholder={schoolFieldPlaceholder(deptName)} className={inputClass} />
             </InfoField>
           </Panel>
 
@@ -1178,6 +1211,7 @@ function StudentDetailModal({
 }
 
 function NewStudentModal({
+  deptName,
   draft,
   classes,
   saving,
@@ -1188,6 +1222,7 @@ function NewStudentModal({
   onPhotoFile,
   onPhotoAvatar,
 }: {
+  deptName: string;
   draft: EditableStudent;
   classes: DeptClass[];
   saving: boolean;
@@ -1198,7 +1233,9 @@ function NewStudentModal({
   onPhotoFile: (file: File, previewUrl: string) => void;
   onPhotoAvatar: (url: string) => void;
 }) {
-  const gradeOptions = gradeOptionsFromClasses(classes);
+  const nursery = isNurseryDept(deptName);
+  const gradeOptions = nursery ? NURSERY_AGE_OPTIONS : gradeOptionsFromClasses(classes);
+  const gradeUnit = gradeFieldLabel(deptName);
   const birth = splitBirthDate(draft.birth_date);
   const setBirthPart = (part: "year" | "month" | "day", value: string) => {
     const clean = value.replace(/\D/g, "").slice(0, part === "year" ? 4 : 2);
@@ -1208,7 +1245,7 @@ function NewStudentModal({
   const setGrade = (value: string) => {
     const grade = numberOrNull(value);
     onChange("grade_year", grade);
-    if (grade) onChange("birth_date", birthDateWithYear(draft.birth_date, birthYearForGrade(grade)));
+    if (grade) onChange("birth_date", birthDateWithYear(draft.birth_date, birthYearForDeptGrade(deptName, grade)));
   };
 
   return (
@@ -1217,7 +1254,7 @@ function NewStudentModal({
         <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
           <div>
             <div className="text-[18px] font-extrabold text-ink">학생 등록</div>
-            <div className="mt-1 text-[12px] font-semibold text-ink-faint">학년을 선택하면 생년 연도가 자동으로 채워집니다.</div>
+            <div className="mt-1 text-[12px] font-semibold text-ink-faint">{gradeUnit}를 선택하면 생년 연도가 자동으로 채워집니다.</div>
           </div>
           <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-hairline bg-card text-ink-soft">
             <X size={17} strokeWidth={2.2} />
@@ -1264,10 +1301,10 @@ function NewStudentModal({
               ))}
             </div>
           </Field>
-          <Field label="학년 *">
+          <Field label={`${gradeUnit} *`}>
             <select value={draft.grade_year ?? ""} onChange={(event) => setGrade(event.target.value)} className={inputClass}>
-              <option value="">학년 선택</option>
-              {gradeOptions.map((grade) => <option key={grade} value={grade}>{grade}학년</option>)}
+              <option value="">{gradeUnit} 선택</option>
+              {gradeOptions.map((grade) => <option key={grade} value={grade}>{gradeText(deptName, grade)}</option>)}
             </select>
           </Field>
           <Field label="반">
@@ -1275,13 +1312,13 @@ function NewStudentModal({
               <option value="">반 미배정</option>
               {classes.map((item) => (
                 <option key={item.class_no} value={item.class_no}>
-                  {classLabel({ grade_year: item.grade_year, class_no: item.class_no })}
+                  {classLabel({ grade_year: item.grade_year, class_no: item.class_no }, deptName)}
                   {item.teacher_name ? ` / ${item.teacher_name}` : ""}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="생년월일 — 학년 선택 시 연도 자동">
+          <Field label={`생년월일 — ${gradeUnit} 선택 시 연도 자동`}>
             <div className="grid grid-cols-3 gap-2">
               <input value={birth.year} onChange={(event) => setBirthPart("year", event.target.value)} placeholder="년" inputMode="numeric" className={inputClass} />
               <input value={birth.month} onChange={(event) => setBirthPart("month", event.target.value)} placeholder="월" inputMode="numeric" className={inputClass} />
@@ -1291,8 +1328,8 @@ function NewStudentModal({
           <Field label="번호">
             <input type="number" value={draft.student_no ?? ""} onChange={(event) => onChange("student_no", numberOrNull(event.target.value))} className={inputClass} />
           </Field>
-          <Field label="학교">
-            <input value={draft.school_name} onChange={(event) => onChange("school_name", event.target.value)} className={inputClass} />
+          <Field label={schoolFieldLabel(deptName)}>
+            <input value={draft.school_name} onChange={(event) => onChange("school_name", event.target.value)} placeholder={schoolFieldPlaceholder(deptName)} className={inputClass} />
           </Field>
           <Field label="연락처">
             <input value={draft.phone} onChange={(event) => onChange("phone", event.target.value)} placeholder="010-0000-0000" className={inputClass} />
@@ -1392,9 +1429,9 @@ function InfoField({ label, value, editMode, children }: { label: string; value:
   );
 }
 
-function classLabel(student: { grade_year: number | null; class_no: string | null }) {
+function classLabel(student: { grade_year: number | null; class_no: string | null }, deptName?: string) {
   if (!student.class_no) return UNASSIGNED;
-  return `${student.grade_year ? `${student.grade_year}학년 ` : ""}${student.class_no}반`;
+  return `${student.grade_year ? `${gradeText(deptName, student.grade_year)} ` : ""}${student.class_no}반`;
 }
 
 function compareStudents(a: EditableStudent, b: EditableStudent) {
@@ -1573,13 +1610,13 @@ function normalizeImportRows(rows: string[][]) {
   const col = {
     type: index(["type", "studenttype", "구분", "학생구분"]),
     no: index(["no", "studentno", "번호", "순번"]),
-    grade: index(["gradeyear", "grade", "학년"]),
+    grade: index(["gradeyear", "grade", "학년", "나이"]),
     classNo: index(["classno", "class", "반"]),
     gender: index(["gender", "성별"]),
     birth: index(["birthdate", "birth", "생년월일"]),
     phone: index(["phone", "mobile", "연락처", "전화번호"]),
     address: index(["address", "주소"]),
-    school: index(["school", "schoolname", "학교"]),
+    school: index(["school", "schoolname", "학교", "어린이집", "유치원"]),
     order: index(["orderno", "order", "정렬순서"]),
   };
 
