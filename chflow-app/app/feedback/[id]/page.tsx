@@ -298,6 +298,72 @@ export default function FeedbackDetailPage() {
   );
 
   const topLevelComments = post.comments.filter((comment) => !comment.parent_comment_id);
+  const childrenOf = (parentId: string) => post.comments.filter((r) => r.parent_comment_id === parentId);
+
+  // 댓글 트리 재귀 렌더링 — 모든 깊이에서 답글(꼬리 답글) 가능, 들여쓰기는 4단계까지만
+  function renderComment(c: Comment, depth: number): React.ReactNode {
+    const isChild = depth > 0;
+    return (
+      <div key={c.id} style={{ marginTop: isChild ? 6 : 0, marginLeft: isChild && depth <= 4 ? 20 : 0 }}>
+        <div style={{
+          padding: 12,
+          borderRadius: 12,
+          background: c.is_admin_reply ? "var(--accent-soft)" : isChild ? "var(--card)" : "var(--surface)",
+          border: c.is_admin_reply && !isChild ? "1px solid var(--accent-line)" : "1px solid var(--hairline)",
+          borderLeft: isChild ? "3px solid var(--accent-line)" : undefined,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
+            {isChild && <Reply size={12} strokeWidth={1.8} color="var(--ink-faint)" />}
+            {c.is_admin_reply && <span style={{ padding: "2px 6px", borderRadius: 6, background: "var(--accent)", color: "#fff", fontSize: 10, fontWeight: 800 }}>관리자</span>}
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>{c.author?.name || "익명"}</span>
+            <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>· {formatDate(c.created_at)}</span>
+          </div>
+          <div style={{ fontSize: 13, color: "var(--ink)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{c.body}</div>
+          {c.attachments.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 6, marginTop: 8 }}>
+              {c.attachments.map((a) => {
+                const url = proxyUrl(a.file_path);
+                return (
+                  <button key={a.id} type="button" onClick={() => setViewerUrl(url)} style={attBtn}>
+                    <img src={url} alt={a.file_name} style={attImg} />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 8 }}>
+            {(post!.is_mine || post!.is_admin) && (
+              <button type="button" onClick={() => {
+                setReplyingToId(replyingToId === c.id ? null : c.id);
+                setNestedReplyBody("");
+              }} style={commentActionBtn}>
+                <Reply size={13} strokeWidth={1.8} /> 답글
+              </button>
+            )}
+            {c.can_delete && (
+              <button type="button" disabled={deletingCommentId === c.id} onClick={() => deleteComment(c.id)} style={{ ...commentActionBtn, color: "var(--danger)" }}>
+                <Trash2 size={13} strokeWidth={1.8} /> {deletingCommentId === c.id ? "삭제 중" : "삭제"}
+              </button>
+            )}
+          </div>
+          {replyingToId === c.id && (
+            <form onSubmit={(e) => submitNestedReply(e, c.id)} style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--hairline)" }}>
+              <textarea value={nestedReplyBody} onChange={(e) => setNestedReplyBody(e.target.value)} rows={2}
+                placeholder={`${c.author?.name || "작성자"}님에게 답글`}
+                style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 6 }}>
+                <button type="button" onClick={() => { setReplyingToId(null); setNestedReplyBody(""); }} style={commentActionBtn}>취소</button>
+                <button type="submit" disabled={submittingNestedReply} style={{ ...commentActionBtn, background: "var(--accent)", color: "#fff", borderColor: "var(--accent)" }}>
+                  {submittingNestedReply ? "등록 중" : "답글 등록"}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+        {childrenOf(c.id).map((child) => renderComment(child, depth + 1))}
+      </div>
+    );
+  }
 
   return (
     <div style={pageStyle}>
@@ -377,81 +443,7 @@ export default function FeedbackDetailPage() {
             </div>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {topLevelComments.map((c) => (
-              <div key={c.id}>
-                <div style={{
-                padding: 12,
-                borderRadius: 12,
-                background: c.is_admin_reply ? "var(--accent-soft)" : "var(--surface)",
-                border: c.is_admin_reply ? "1px solid var(--accent-line)" : "1px solid var(--hairline)",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
-                  {c.is_admin_reply && <span style={{ padding: "2px 6px", borderRadius: 6, background: "var(--accent)", color: "#fff", fontSize: 10, fontWeight: 800 }}>관리자</span>}
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>{c.author?.name || "익명"}</span>
-                  <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>· {formatDate(c.created_at)}</span>
-                </div>
-                <div style={{ fontSize: 13, color: "var(--ink)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{c.body}</div>
-                {c.attachments.length > 0 && (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(80px, 1fr))", gap: 6, marginTop: 8 }}>
-                    {c.attachments.map((a) => {
-                      const url = proxyUrl(a.file_path);
-                      return (
-                        <button key={a.id} type="button" onClick={() => setViewerUrl(url)} style={attBtn}>
-                          <img src={url} alt={a.file_name} style={attImg} />
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 8 }}>
-                  {(post.is_mine || post.is_admin) && (
-                    <button type="button" onClick={() => {
-                      setReplyingToId(replyingToId === c.id ? null : c.id);
-                      setNestedReplyBody("");
-                    }} style={commentActionBtn}>
-                      <Reply size={13} strokeWidth={1.8} /> 답글
-                    </button>
-                  )}
-                  {c.can_delete && (
-                    <button type="button" disabled={deletingCommentId === c.id} onClick={() => deleteComment(c.id)} style={{ ...commentActionBtn, color: "var(--danger)" }}>
-                      <Trash2 size={13} strokeWidth={1.8} /> {deletingCommentId === c.id ? "삭제 중" : "삭제"}
-                    </button>
-                  )}
-                </div>
-                {replyingToId === c.id && (
-                  <form onSubmit={(e) => submitNestedReply(e, c.id)} style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--hairline)" }}>
-                    <textarea value={nestedReplyBody} onChange={(e) => setNestedReplyBody(e.target.value)} rows={2}
-                      placeholder={`${c.author?.name || "작성자"}님에게 답글`}
-                      style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 6 }}>
-                      <button type="button" onClick={() => { setReplyingToId(null); setNestedReplyBody(""); }} style={commentActionBtn}>취소</button>
-                      <button type="submit" disabled={submittingNestedReply} style={{ ...commentActionBtn, background: "var(--accent)", color: "#fff", borderColor: "var(--accent)" }}>
-                        {submittingNestedReply ? "등록 중" : "대댓글 등록"}
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </div>
-              {post.comments.filter((reply) => reply.parent_comment_id === c.id).map((child) => (
-                <div key={child.id} style={{ marginTop: 6, marginLeft: 20, padding: 12, borderRadius: 12, background: child.is_admin_reply ? "var(--accent-soft)" : "var(--card)", border: "1px solid var(--hairline)", borderLeft: "3px solid var(--accent-line)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
-                    <Reply size={12} strokeWidth={1.8} color="var(--ink-faint)" />
-                    {child.is_admin_reply && <span style={{ padding: "2px 6px", borderRadius: 6, background: "var(--accent)", color: "#fff", fontSize: 10, fontWeight: 800 }}>관리자</span>}
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)" }}>{child.author?.name || "익명"}</span>
-                    <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>· {formatDate(child.created_at)}</span>
-                  </div>
-                  <div style={{ fontSize: 13, color: "var(--ink)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{child.body}</div>
-                  {child.can_delete && (
-                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
-                      <button type="button" disabled={deletingCommentId === child.id} onClick={() => deleteComment(child.id)} style={{ ...commentActionBtn, color: "var(--danger)" }}>
-                        <Trash2 size={13} strokeWidth={1.8} /> {deletingCommentId === child.id ? "삭제 중" : "삭제"}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-              </div>
-            ))}
+            {topLevelComments.map((c) => renderComment(c, 0))}
           </div>
         </div>
 
