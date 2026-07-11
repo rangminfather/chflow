@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { Workbook } from "exceljs";
 import { r2 } from "@/lib/r2";
+import { loadWorkbook } from "@/lib/xlsx-load";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -195,10 +195,9 @@ function xlCellToStr(v: unknown): string {
 }
 
 async function readEntriesFromWorkbook(buffer: Buffer, sourceFile: string, fileOrder: number, year: number) {
-  const wb = new Workbook();
-  // @ts-expect-error TS5.9 esnext ArrayBuffer generics vs exceljs Buffer type
-  await wb.xlsx.load(buffer);
   const entries: PlanEntry[] = [];
+  const wb = await loadWorkbook(buffer);
+  if (!wb) return entries; // 깨진 파일 하나가 전체 가져오기를 막지 않도록 건너뜀
 
   for (const ws of wb.worksheets) {
     const sheetName = ws.name;
