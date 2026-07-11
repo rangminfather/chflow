@@ -58,6 +58,7 @@
 - `profile↔member` 매칭 방향: `members.app_user_id = profile.id` (profile.member_id 사용 안 함)
 - PL/pgSQL RETURNS TABLE에서 ORDER BY: 반드시 alias 한정 (`merged.col_name`)
 - 가족 관계 필터: `member_relations` + 목장 동일성 조건 (`is_child` 플래그 단독 사용 금지)
+- **교육부서 학년/나이 체계·진급 체인: `chflow-app/docs/EDU_GRADE_SYSTEM.md` 필독** — `edu_students.grade_year`는 부서마다 의미가 다름(영아·유아·유치·청소년=세는나이, 초등=학년). 학생 등록·진급·출생연도 로직은 `lib/eduAge.ts` + DB `edu_grade_unit()` 기준, 부서 개편 시 문서의 "함께 고칠 곳" 체크
 
 ## 가입 플로우
 - 성인: 이름 + 본인 핸드폰 필수
