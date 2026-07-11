@@ -7,6 +7,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
 import { Lock, GraduationCap, BookOpen, AlertTriangle } from "lucide-react";
+import { gradeText, gradeFieldLabel } from "@/lib/eduAge";
 
 interface PreviewRow {
   student_id: string;
@@ -44,6 +45,7 @@ export default function PromotePage() {
   const params = useParams();
   const deptId = params.id as string;
 
+  const [deptName, setDeptName] = useState("");
   const [authChecked, setAuthChecked] = useState(false);
   const [authorized, setAuthorized] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -73,6 +75,9 @@ export default function PromotePage() {
       if (!session) { router.replace("/login"); return; }
       setAuthChecked(true);
 
+      supabase.rpc("get_department_info", { p_dept_id: deptId }).then(({ data }) => {
+        if (data?.[0]?.name) setDeptName(data[0].name as string);
+      });
       const [prevR, teachR] = await Promise.all([
         supabase.rpc("promote_preview", { p_dept_id: deptId }),
         supabase.rpc("edu_list_teachers", { p_dept_id: deptId }),
@@ -319,7 +324,7 @@ export default function PromotePage() {
                         fontSize: 18, fontWeight: 800, color: "var(--ink)",
                         minWidth: 70, textAlign: "center",
                       }}>
-                        {cg}학년
+                        {gradeText(deptName, cg)}
                       </div>
                       <div style={{ fontSize: 24, color: accent, fontWeight: 800 }}>→</div>
                       <div style={{
@@ -328,7 +333,7 @@ export default function PromotePage() {
                         fontSize: 18, fontWeight: 800,
                         minWidth: 70, textAlign: "center",
                       }}>
-                        {ng}학년
+                        {gradeText(willGrad && dest ? dest : deptName, ng)}
                       </div>
                       <div style={{ flex: 1, minWidth: 80, textAlign: "right" }}>
                         <span style={{
@@ -379,7 +384,7 @@ export default function PromotePage() {
           <div style={card}>
             <div style={sectionLabel}>2. 반 편성</div>
             <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 14, lineHeight: 1.7 }}>
-              학년별 반 개수를 정하면 자동 균등 분배됩니다. 학생 카드의 <span style={{ color: "var(--accent)", fontWeight: 700 }}>반 번호</span>를 탭하면 그 반 박스로 이동합니다.
+              {gradeFieldLabel(deptName)}별 반 개수를 정하면 자동 균등 분배됩니다. 학생 카드의 <span style={{ color: "var(--accent)", fontWeight: 700 }}>반 번호</span>를 탭하면 그 반 박스로 이동합니다.
             </div>
             {Object.keys(byNextGrade).sort((a, b) => Number(a) - Number(b)).map(gKey => {
               const g = Number(gKey);
@@ -397,7 +402,7 @@ export default function PromotePage() {
                 <div key={g} style={{ marginBottom: 18, paddingBottom: 14, borderBottom: "1px dashed var(--hairline)" }}>
                   {/* 학년 헤더 */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><BookOpen size={16} strokeWidth={1.8} /> {g}학년 ({list.length}명)</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><BookOpen size={16} strokeWidth={1.8} /> {gradeText(deptName, g)} ({list.length}명)</div>
                     <span style={{ fontSize: 11, color: "var(--ink-soft)" }}>반 수:</span>
                     <input type="number" min={1} max={20} value={cnt}
                       onChange={(e) => changeClassCount(g, parseInt(e.target.value, 10) || 1)}
@@ -522,7 +527,7 @@ export default function PromotePage() {
             <div style={{ background: "var(--warning-soft)", borderRadius: 8, padding: 14, fontSize: 12, color: "var(--warning)", lineHeight: 1.7, marginBottom: 14 }}>
               <b style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><AlertTriangle size={14} strokeWidth={1.8} /> 확정 시 일어나는 일</b>
               <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
-                <li>모든 학생 학년 +1</li>
+                <li>모든 학생 {gradeFieldLabel(deptName)} +1</li>
                 <li>{year}년도 상태가 이력 테이블에 스냅샷 저장</li>
                 <li>{graduating.length}명 → {nextDeptName ? `${nextDeptName}으로 전출` : "졸업(비활성)"}</li>
                 {nextDeptName && <li>{nextDeptName} 부장에게 알림 전송</li>}

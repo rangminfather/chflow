@@ -10,7 +10,7 @@ import { LoadingView, EmptyState } from "@/components/StatusViews";
 import StudentPhotoEditor from "@/components/StudentPhotoEditor";
 import PendingStudentPhotoPicker from "@/components/PendingStudentPhotoPicker";
 import { saveStudentPendingPhoto } from "@/lib/studentPhotoUpload";
-import { isNurseryDept, NURSERY_AGE_OPTIONS, birthYearForGrade as birthYearForDeptGrade, gradeFieldLabel, gradeText, schoolFieldLabel, schoolFieldPlaceholder } from "@/lib/eduAge";
+import { isAgeBasedDept, ageOptionsFor, birthYearForGrade as birthYearForDeptGrade, gradeFieldLabel, gradeText, schoolFieldLabel, schoolFieldPlaceholder } from "@/lib/eduAge";
 import {
   AlertTriangle,
   Download,
@@ -594,7 +594,7 @@ export default function StudentsInfoPage() {
   }
 
   function downloadTemplate() {
-    const nursery = isNurseryDept(deptName);
+    const nursery = isAgeBasedDept(deptName);
     const headers = nursery
       ? ["이름", "구분", "번호", "나이", "반", "성별", "생년월일", "연락처", "주소", "어린이집", "정렬순서"]
       : TEMPLATE_HEADERS;
@@ -880,7 +880,7 @@ function ImportPanel({
   onDownloadTemplate: () => void;
   onImport: () => void;
 }) {
-  const nursery = isNurseryDept(deptName);
+  const nursery = isAgeBasedDept(deptName);
   return (
     <div className="border-b border-hairline bg-surface p-4">
       <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
@@ -1076,10 +1076,10 @@ function StudentDetailModal({
               <input type="number" value={draft.student_no ?? ""} onChange={(event) => onChange("student_no", numberOrNull(event.target.value))} className={inputClass} />
             </InfoField>
             <InfoField label={gradeFieldLabel(deptName)} editMode={editMode} value={draft.grade_year ? gradeText(deptName, draft.grade_year) : "미등록"}>
-              {isNurseryDept(deptName) ? (
+              {isAgeBasedDept(deptName) ? (
                 <select value={draft.grade_year ?? ""} onChange={(event) => onChange("grade_year", numberOrNull(event.target.value))} className={inputClass}>
                   <option value="">나이 선택</option>
-                  {NURSERY_AGE_OPTIONS.map((age) => <option key={age} value={age}>{age}세</option>)}
+                  {ageOptionsFor(deptName).map((age) => <option key={age} value={age}>{age}세</option>)}
                 </select>
               ) : (
                 <input type="number" value={draft.grade_year ?? ""} onChange={(event) => onChange("grade_year", numberOrNull(event.target.value))} className={inputClass} />
@@ -1233,8 +1233,8 @@ function NewStudentModal({
   onPhotoFile: (file: File, previewUrl: string) => void;
   onPhotoAvatar: (url: string) => void;
 }) {
-  const nursery = isNurseryDept(deptName);
-  const gradeOptions = nursery ? NURSERY_AGE_OPTIONS : gradeOptionsFromClasses(classes);
+  const nursery = isAgeBasedDept(deptName);
+  const gradeOptions = nursery ? ageOptionsFor(deptName) : gradeOptionsFromClasses(classes);
   const gradeUnit = gradeFieldLabel(deptName);
   const birth = splitBirthDate(draft.birth_date);
   const setBirthPart = (part: "year" | "month" | "day", value: string) => {
