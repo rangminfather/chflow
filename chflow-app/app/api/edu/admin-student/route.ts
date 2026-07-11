@@ -9,7 +9,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-type StudentType = "정" | "체험" | "소";
+type StudentType = "정" | "체험";
 
 type StudentPayload = {
   id?: string | null;
@@ -56,7 +56,7 @@ type SaveBody = {
   };
 };
 
-const STUDENT_TYPES: StudentType[] = ["정", "체험", "소"];
+const STUDENT_TYPES: StudentType[] = ["정", "체험"];
 
 function createAdminClient() {
   return createClient(SUPABASE_URL, SERVICE_KEY, {

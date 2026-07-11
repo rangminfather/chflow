@@ -9,7 +9,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-type StudentType = "정" | "체험" | "소";
+type StudentType = "정" | "체험";
 
 type MgmtStatus = "정상" | "장기결석";
 
@@ -46,7 +46,7 @@ interface SaveBody {
   family_updates?: FamilyUpdatePayload[];
 }
 
-const STUDENT_TYPES: StudentType[] = ["정", "체험", "소"];
+const STUDENT_TYPES: StudentType[] = ["정", "체험"];
 const MGMT_STATUSES: MgmtStatus[] = ["정상", "장기결석"];
 
 type AdminClient = ReturnType<typeof createAdminClient>;

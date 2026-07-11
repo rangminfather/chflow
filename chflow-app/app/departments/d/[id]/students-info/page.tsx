@@ -25,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 
-type StudentType = "정" | "체험" | "소";
+type StudentType = "정" | "체험";
 
 interface StudentRow {
   id: string;
@@ -116,10 +116,11 @@ type ImportRow = {
   order_no: number | null;
 };
 
-const STUDENT_TYPE_OPTIONS: StudentType[] = ["정", "체험", "소"];
+// '소'는 초기 종이 명단의 흔적으로 미사용 — 제거 (기존 값은 normalize 시 '정' 처리)
+const STUDENT_TYPE_OPTIONS: StudentType[] = ["정", "체험"];
 const UNASSIGNED = "반 미배정";
-const TEMPLATE_HEADERS = ["이름", "구분", "번호", "학년", "반", "성별", "생년월일", "연락처", "주소", "학교", "정렬순서"];
-const TEMPLATE_EXAMPLE = ["김하준", "정", "12", "3", "3-1", "남", "2017-04-18", "010-1234-5678", "서울시 ...", "언약초", "12"];
+const TEMPLATE_HEADERS = ["이름", "번호", "학년", "반", "성별", "생년월일", "연락처", "주소", "학교", "정렬순서"];
+const TEMPLATE_EXAMPLE = ["김하준", "12", "3", "3-1", "남", "2017-04-18", "010-1234-5678", "서울시 ...", "언약초", "12"];
 const PAGE_SIZE = 12;
 const FAMILY_RELATIONS = ["부", "모", "형", "누나", "오빠", "언니", "동생", "형제", "자매", "조부", "조모", "배우자", "기타"];
 
@@ -596,10 +597,10 @@ export default function StudentsInfoPage() {
   function downloadTemplate() {
     const nursery = isAgeBasedDept(deptName);
     const headers = nursery
-      ? ["이름", "구분", "번호", "나이", "반", "성별", "생년월일", "연락처", "주소", "어린이집", "정렬순서"]
+      ? ["이름", "번호", "나이", "반", "성별", "생년월일", "연락처", "주소", "어린이집", "정렬순서"]
       : TEMPLATE_HEADERS;
     const example = nursery
-      ? ["김하준", "정", "12", "4", "1목장", "남", "2023-04-18", "010-1234-5678", "서울시 ...", "언약어린이집", "12"]
+      ? ["김하준", "12", "4", "1목장", "남", "2023-04-18", "010-1234-5678", "서울시 ...", "언약어린이집", "12"]
       : TEMPLATE_EXAMPLE;
     const csv = [headers, example]
       .map((row: string[]) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
@@ -887,17 +888,17 @@ function ImportPanel({
         <div className="rounded-md border border-hairline bg-card p-3 text-[13px] font-semibold leading-6 text-ink-mid">
           <div><span className="font-extrabold text-ink">지원 파일</span> CSV(.csv), 엑셀(.xlsx)</div>
           <div><span className="font-extrabold text-ink">필수 컬럼</span> 이름</div>
-          <div><span className="font-extrabold text-ink">선택 컬럼</span> 구분, 번호, {nursery ? "나이(4/5)" : "학년"}, 반, 성별, 생년월일, 연락처, 주소, {schoolFieldLabel(deptName)}, 정렬순서</div>
+          <div><span className="font-extrabold text-ink">선택 컬럼</span> 번호, {nursery ? "나이" : "학년"}, 반, 성별, 생년월일, 연락처, 주소, {schoolFieldLabel(deptName)}, 정렬순서</div>
           <div className="mt-2 overflow-x-auto rounded border border-hairline bg-surface p-2 text-[12px]">
             {nursery ? (
               <>
-                이름,구분,번호,나이,반,성별,생년월일,연락처,주소,어린이집,정렬순서<br />
-                김하준,정,12,4,1목장,남,2023-04-18,010-1234-5678,서울시 ...,언약어린이집,12
+                이름,번호,나이,반,성별,생년월일,연락처,주소,어린이집,정렬순서<br />
+                김하준,12,4,1목장,남,2023-04-18,010-1234-5678,서울시 ...,언약어린이집,12
               </>
             ) : (
               <>
-                이름,구분,번호,학년,반,성별,생년월일,연락처,주소,학교,정렬순서<br />
-                김하준,정,12,3,3-1,남,2017-04-18,010-1234-5678,서울시 ...,언약초,12
+                이름,번호,학년,반,성별,생년월일,연락처,주소,학교,정렬순서<br />
+                김하준,12,3,3-1,남,2017-04-18,010-1234-5678,서울시 ...,언약초,12
               </>
             )}
           </div>
@@ -938,7 +939,6 @@ function ImportPanel({
               <thead className="bg-surface text-ink-faint">
                 <tr>
                   <th className="px-2 py-2">이름</th>
-                  <th className="px-2 py-2">구분</th>
                   <th className="px-2 py-2">{nursery ? "나이" : "학년"}</th>
                   <th className="px-2 py-2">반</th>
                   <th className="px-2 py-2">연락처</th>
@@ -948,7 +948,6 @@ function ImportPanel({
                 {importRows.slice(0, 20).map((row, index) => (
                   <tr key={`${row.name}-${index}`} className="border-t border-hairline">
                     <td className="px-2 py-2 font-bold text-ink">{row.name}</td>
-                    <td className="px-2 py-2 text-ink-mid">{row.student_type}</td>
                     <td className="px-2 py-2 text-ink-mid">{row.grade_year || ""}</td>
                     <td className="px-2 py-2 text-ink-mid">{row.class_no || ""}</td>
                     <td className="px-2 py-2 text-ink-mid">{row.phone || ""}</td>
@@ -1067,14 +1066,7 @@ function StudentDetailModal({
             <InfoField label="이름" editMode={editMode} value={draft.name || "미등록"}>
               <input value={draft.name} onChange={(event) => onChange("name", event.target.value)} className={inputClass} />
             </InfoField>
-            <InfoField label="구분" editMode={editMode} value={draft.student_type}>
-              <select value={draft.student_type} onChange={(event) => onChange("student_type", normalizeStudentType(event.target.value))} className={inputClass}>
-                {STUDENT_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
-              </select>
-            </InfoField>
-            <InfoField label="번호" editMode={editMode} value={draft.student_no ? String(draft.student_no) : "미등록"}>
-              <input type="number" value={draft.student_no ?? ""} onChange={(event) => onChange("student_no", numberOrNull(event.target.value))} className={inputClass} />
-            </InfoField>
+            {/* 구분(정/체험)·번호는 시스템 자동 관리 — 화면에 노출하지 않음 */}
             <InfoField label={gradeFieldLabel(deptName)} editMode={editMode} value={draft.grade_year ? gradeText(deptName, draft.grade_year) : "미등록"}>
               {isAgeBasedDept(deptName) ? (
                 <select value={draft.grade_year ?? ""} onChange={(event) => onChange("grade_year", numberOrNull(event.target.value))} className={inputClass}>
@@ -1236,12 +1228,26 @@ function NewStudentModal({
   const nursery = isAgeBasedDept(deptName);
   const gradeOptions = nursery ? ageOptionsFor(deptName) : gradeOptionsFromClasses(classes);
   const gradeUnit = gradeFieldLabel(deptName);
-  const birth = splitBirthDate(draft.birth_date);
+  // 입력칸은 로컬 문자열 상태로 유지 — birth_date(YYYY-MM-DD)로 왕복 파싱하면
+  // 기본값 채움 규칙(빈 월·일 = 01) 때문에 "1"(1월·1일·10~19일)이 입력 즉시 지워진다
+  const [birth, setBirth] = useState(() => splitBirthDate(draft.birth_date));
   const setBirthPart = (part: "year" | "month" | "day", value: string) => {
     const clean = value.replace(/\D/g, "").slice(0, part === "year" ? 4 : 2);
     const next = { ...birth, [part]: clean };
+    setBirth(next);
     onChange("birth_date", birthDateFromParts(next.year, next.month, next.day));
   };
+  // 학년(나이)·반 선택으로 부모가 birth_date의 연도를 바꾸면 로컬 상태에 동기화
+  useEffect(() => {
+    const match = draft.birth_date.match(/^(\d{4})-/);
+    const year = match ? match[1] : "";
+    if (year && year !== birth.year) {
+      const next = { ...birth, year };
+      setBirth(next);
+      onChange("birth_date", birthDateFromParts(year, next.month, next.day));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.birth_date]);
   const setGrade = (value: string) => {
     const grade = numberOrNull(value);
     onChange("grade_year", grade);
@@ -1276,11 +1282,8 @@ function NewStudentModal({
           <Field label="이름 *">
             <input value={draft.name} onChange={(event) => onChange("name", event.target.value)} className={inputClass} autoFocus />
           </Field>
-          <Field label="구분">
-            <select value={draft.student_type} onChange={(event) => onChange("student_type", normalizeStudentType(event.target.value))} className={inputClass}>
-              {STUDENT_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
-            </select>
-          </Field>
+          {/* 구분(정/체험)·번호는 시스템이 자동 관리 — 등록 폼에 노출하지 않음
+              (구분: 새친구 등반 파이프라인이 체험→정 전환, 번호: 자동 채번·명단 업로드 매칭 키) */}
           <Field label="성별">
             <div className="grid grid-cols-2 gap-2">
               {[
@@ -1324,9 +1327,6 @@ function NewStudentModal({
               <input value={birth.month} onChange={(event) => setBirthPart("month", event.target.value)} placeholder="월" inputMode="numeric" className={inputClass} />
               <input value={birth.day} onChange={(event) => setBirthPart("day", event.target.value)} placeholder="일" inputMode="numeric" className={inputClass} />
             </div>
-          </Field>
-          <Field label="번호">
-            <input type="number" value={draft.student_no ?? ""} onChange={(event) => onChange("student_no", numberOrNull(event.target.value))} className={inputClass} />
           </Field>
           <Field label={schoolFieldLabel(deptName)}>
             <input value={draft.school_name} onChange={(event) => onChange("school_name", event.target.value)} placeholder={schoolFieldPlaceholder(deptName)} className={inputClass} />
