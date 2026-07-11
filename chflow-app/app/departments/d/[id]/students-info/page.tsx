@@ -91,6 +91,7 @@ interface FamilyRow {
 }
 
 interface FamilyEntry {
+  relative_id?: string | null;
   name: string;
   relation: string;
   phone: string;
@@ -103,6 +104,7 @@ interface FamilyUpdateEntry extends FamilyEntry {
 }
 
 type ImportRow = {
+  row_no?: number;
   name: string;
   student_type: StudentType;
   student_no: number | null;
@@ -114,12 +116,46 @@ type ImportRow = {
   address: string | null;
   school_name: string | null;
   order_no: number | null;
+  member_id?: string | null;
+  parent_name?: string | null;
+  parent_phone?: string | null;
+  family?: FamilyEntry[];
+  match_status?: string;
 };
+
+interface FamilyMatchRelative extends FamilyEntry {
+  relative_id: string;
+  photo_url: string | null;
+  default_selected: boolean;
+}
+
+interface FamilyMatchCandidate {
+  member_id: string;
+  name: string;
+  phone: string | null;
+  birth_date: string | null;
+  gender: string | null;
+  photo_url: string | null;
+  address: string | null;
+  already_in_department: boolean;
+  score: number;
+  strength: "strong" | "medium" | "weak";
+  family: FamilyMatchRelative[];
+}
+
+type FamilyReviewMode = "new" | "detail";
+
+interface FamilyReviewState {
+  mode: FamilyReviewMode;
+  candidates: FamilyMatchCandidate[];
+  selectedMemberId: string | null;
+  selectedRelativeIds: string[];
+}
 
 const STUDENT_TYPE_OPTIONS: StudentType[] = ["정", "체험", "소"];
 const UNASSIGNED = "반 미배정";
-const TEMPLATE_HEADERS = ["이름", "구분", "번호", "학년", "반", "성별", "생년월일", "연락처", "주소", "학교", "정렬순서"];
-const TEMPLATE_EXAMPLE = ["김하준", "정", "12", "3", "3-1", "남", "2017-04-18", "010-1234-5678", "서울시 ...", "언약초", "12"];
+const TEMPLATE_HEADERS = ["이름", "구분", "번호", "학년", "반", "성별", "생년월일", "연락처", "주소", "학교", "정렬순서", "부모명", "부모전화"];
+const TEMPLATE_EXAMPLE = ["김하준", "정", "12", "3", "3-1", "남", "2017-04-18", "010-1234-5678", "서울시 ...", "언약초", "12", "김성훈", "010-1111-2222"];
 const PAGE_SIZE = 12;
 const FAMILY_RELATIONS = ["부", "모", "형", "누나", "오빠", "언니", "동생", "형제", "자매", "조부", "조모", "배우자", "기타"];
 
@@ -154,6 +190,10 @@ export default function StudentsInfoPage() {
   const [page, setPage] = useState(1);
   const [newStudentPhotoFile, setNewStudentPhotoFile] = useState<File | null>(null);
   const [newStudentPhotoPreview, setNewStudentPhotoPreview] = useState<string | null>(null);
+  const [newFamilyDraft, setNewFamilyDraft] = useState<FamilyEntry[]>([]);
+  const [familyReview, setFamilyReview] = useState<FamilyReviewState | null>(null);
+  const [familyReviewLoading, setFamilyReviewLoading] = useState(false);
+  const [skipFamilyCheck, setSkipFamilyCheck] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     (async () => {
@@ -304,7 +344,7 @@ export default function StudentsInfoPage() {
       else seen.set(key, { label: key, count: 1 });
     });
     return Array.from(seen.values());
-  }, [students]);
+  }, [students, deptName]);
 
   const filtered = useMemo(() => {
     const keyword = search.trim();
@@ -316,7 +356,7 @@ export default function StudentsInfoPage() {
       }
       return true;
     });
-  }, [students, classFilter, search]);
+  }, [students, classFilter, search, deptName]);
 
   useEffect(() => {
     setPage(1);
@@ -362,6 +402,7 @@ export default function StudentsInfoPage() {
     });
     setNewStudentPhotoFile(null);
     setNewStudentPhotoPreview(null);
+    setNewFamilyDraft([]);
   }
 
   function updateDraft<K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) {
@@ -439,6 +480,7 @@ export default function StudentsInfoPage() {
           birth_date: target.birth_date || null,
           gender: target.gender || null,
           address: target.address || null,
+          member_id: target.member_id,
         },
         member: target.member_id
           ? {
@@ -450,7 +492,7 @@ export default function StudentsInfoPage() {
             }
           : undefined,
         family: familyDraft
-          .map((entry) => ({ name: entry.name.trim(), relation: entry.relation, phone: entry.phone.trim() }))
+          .map((entry) => ({ relative_id: entry.relative_id ?? null, name: entry.name.trim(), relation: entry.relation, phone: entry.phone.trim() }))
           .filter((entry) => entry.name),
         family_updates: familyUpdates
           .map((entry) => ({
@@ -479,6 +521,10 @@ export default function StudentsInfoPage() {
 
   async function handleSave() {
     if (!draft) return;
+    if (!draft.member_id && detailFamilyDraft.length === 0 && !skipFamilyCheck[draft.id]) {
+      const opened = await openFamilyReview("detail", draft);
+      if (opened) return;
+    }
     const savedId = await persistStudent(draft, detailFamilyDraft, Object.values(familyEditDrafts));
     if (savedId) {
       await refreshSavedFamily(savedId);
@@ -503,7 +549,11 @@ export default function StudentsInfoPage() {
       showToast(`${gradeFieldLabel(deptName)}를 선택하세요`);
       return;
     }
-    const savedId = await persistStudent(newDraft);
+    if (!newDraft.member_id && newFamilyDraft.length === 0 && !skipFamilyCheck.__new__) {
+      const opened = await openFamilyReview("new", newDraft);
+      if (opened) return;
+    }
+    const savedId = await persistStudent(newDraft, newFamilyDraft);
     if (savedId) {
       if (newStudentPhotoFile || newDraft.photo_url) {
         try {
@@ -524,7 +574,110 @@ export default function StudentsInfoPage() {
       setNewDraft(null);
       setNewStudentPhotoFile(null);
       setNewStudentPhotoPreview(null);
+      setNewFamilyDraft([]);
+      setSkipFamilyCheck((current) => {
+        const next = { ...current };
+        delete next.__new__;
+        return next;
+      });
     }
+  }
+
+  async function openFamilyReview(mode: FamilyReviewMode, target: EditableStudent) {
+    if (!target.name.trim()) {
+      showToast("이름을 먼저 입력하세요");
+      return false;
+    }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      router.replace("/login");
+      return false;
+    }
+
+    setFamilyReviewLoading(true);
+    const response = await fetch("/api/edu/family-match", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        dept_id: deptId,
+        student: {
+          name: target.name,
+          birth_date: target.birth_date || null,
+          phone: target.phone || null,
+          gender: target.gender || null,
+        },
+      }),
+    });
+    const result = await response.json();
+    setFamilyReviewLoading(false);
+    const candidates = (result.results?.[0]?.candidates || []) as FamilyMatchCandidate[];
+    if (!response.ok || !result.ok) {
+      showToast(result.error || "요람 가족 후보를 찾지 못했습니다");
+      return false;
+    }
+    if (candidates.length === 0) {
+      showToast("매칭되는 요람 가족 후보가 없습니다");
+      return false;
+    }
+    const selected = candidates[0];
+    setFamilyReview({
+      mode,
+      candidates,
+      selectedMemberId: selected.member_id,
+      selectedRelativeIds: selected.family.filter((family) => family.default_selected).map((family) => family.relative_id),
+    });
+    return true;
+  }
+
+  function applyFamilyReview() {
+    if (!familyReview) return;
+    const candidate = familyReview.candidates.find((item) => item.member_id === familyReview.selectedMemberId);
+    if (!candidate) return;
+    const selectedFamily = candidate.family
+      .filter((family) => familyReview.selectedRelativeIds.includes(family.relative_id))
+      .map((family) => ({
+        relative_id: family.relative_id,
+        name: family.name,
+        relation: family.relation,
+        phone: family.phone || "",
+      }));
+
+    if (familyReview.mode === "new") {
+      setNewDraft((current) => current ? {
+        ...current,
+        member_id: candidate.member_id,
+        phone: current.phone || candidate.phone || "",
+        birth_date: current.birth_date || candidate.birth_date || "",
+        gender: current.gender || candidate.gender || "",
+        address: current.address || candidate.address || "",
+        photo_url: current.photo_url || candidate.photo_url,
+      } : current);
+      setNewFamilyDraft((current) => mergeFamilyEntries(current, selectedFamily));
+    } else {
+      setDraft((current) => current ? {
+        ...current,
+        member_id: candidate.member_id,
+        phone: current.phone || candidate.phone || "",
+        birth_date: current.birth_date || candidate.birth_date || "",
+        gender: current.gender || candidate.gender || "",
+        address: current.address || candidate.address || "",
+        photo_url: current.photo_url || candidate.photo_url,
+      } : current);
+      setDetailFamilyDraft((current) => mergeFamilyEntries(current, selectedFamily));
+      setEditMode(true);
+    }
+    setSkipFamilyCheck((current) => ({ ...current, [familyReview.mode === "new" ? "__new__" : draft?.id || ""]: true }));
+    setFamilyReview(null);
+  }
+
+  function skipCurrentFamilyReview() {
+    if (!familyReview) return;
+    const key = familyReview.mode === "new" ? "__new__" : draft?.id || "";
+    if (key) setSkipFamilyCheck((current) => ({ ...current, [key]: true }));
+    setFamilyReview(null);
   }
 
   function cancelEdit() {
@@ -532,6 +685,13 @@ export default function StudentsInfoPage() {
     else setDraft(null);
     setDetailFamilyDraft([]);
     setFamilyEditDrafts({});
+    if (selectedStudent) {
+      setSkipFamilyCheck((current) => {
+        const next = { ...current };
+        delete next[selectedStudent.id];
+        return next;
+      });
+    }
     setEditMode(false);
   }
 
@@ -546,7 +706,8 @@ export default function StudentsInfoPage() {
         ? parseCsv(await file.text())
         : await parseWorkbook(file);
       const parsed = normalizeImportRows(rows);
-      setImportRows(parsed.rows);
+      const reviewed = parsed.rows.length > 0 ? await reviewImportFamilyMatches(parsed.rows) : parsed.rows;
+      setImportRows(reviewed);
       setImportErrors(parsed.errors);
       showToast(`${parsed.rows.length}건을 미리보기로 불러왔습니다`);
     } catch (e) {
@@ -554,6 +715,53 @@ export default function StudentsInfoPage() {
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  }
+
+  async function reviewImportFamilyMatches(rows: ImportRow[]) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return rows;
+    const response = await fetch("/api/edu/family-match", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        dept_id: deptId,
+        students: rows.map((row, index) => ({
+          row: row.row_no || index + 2,
+          name: row.name,
+          birth_date: row.birth_date,
+          phone: row.phone,
+          gender: row.gender,
+          parent_name: row.parent_name,
+          parent_phone: row.parent_phone,
+        })),
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) return rows.map((row) => ({ ...row, match_status: "매칭 검토 실패" }));
+    const byRow = new Map<number, { candidates: FamilyMatchCandidate[] }>();
+    (result.results || []).forEach((item: { row: number; candidates: FamilyMatchCandidate[] }) => byRow.set(item.row, item));
+    return rows.map((row, index) => {
+      const match = byRow.get(row.row_no || index + 2);
+      const candidates = match?.candidates || [];
+      const strong = candidates.length === 1 && candidates[0].strength === "strong" ? candidates[0] : null;
+      if (!strong) {
+        return {
+          ...row,
+          match_status: candidates.length > 0 ? `후보 ${candidates.length}명 - 단건 검토 필요` : "후보 없음",
+        };
+      }
+      return {
+        ...row,
+        member_id: strong.member_id,
+        family: strong.family
+          .filter((family) => family.default_selected)
+          .map((family) => ({ relative_id: family.relative_id, name: family.name, relation: family.relation, phone: family.phone || "" })),
+        match_status: `강한 후보 자동 선택: ${strong.name}`,
+      };
+    });
   }
 
   async function importStudents() {
@@ -596,10 +804,10 @@ export default function StudentsInfoPage() {
   function downloadTemplate() {
     const nursery = isAgeBasedDept(deptName);
     const headers = nursery
-      ? ["이름", "구분", "번호", "나이", "반", "성별", "생년월일", "연락처", "주소", "어린이집", "정렬순서"]
+      ? ["이름", "구분", "번호", "나이", "반", "성별", "생년월일", "연락처", "주소", "어린이집", "정렬순서", "부모명", "부모전화"]
       : TEMPLATE_HEADERS;
     const example = nursery
-      ? ["김하준", "정", "12", "4", "1목장", "남", "2023-04-18", "010-1234-5678", "서울시 ...", "언약어린이집", "12"]
+      ? ["김하준", "정", "12", "4", "1목장", "남", "2023-04-18", "010-1234-5678", "서울시 ...", "언약어린이집", "12", "김성훈", "010-1111-2222"]
       : TEMPLATE_EXAMPLE;
     const csv = [headers, example]
       .map((row: string[]) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
@@ -800,11 +1008,14 @@ export default function StudentsInfoPage() {
           deptName={deptName}
           draft={newDraft}
           classes={classes}
+          familyDraft={newFamilyDraft}
           saving={saving}
           photoPreviewUrl={newStudentPhotoPreview}
           onClose={() => setNewDraft(null)}
           onSave={handleSaveNew}
           onChange={updateNewDraft}
+          onFamilyDraftChange={setNewFamilyDraft}
+          onFindFamily={() => openFamilyReview("new", newDraft)}
           onPhotoFile={(file, previewUrl) => {
             setNewStudentPhotoFile(file);
             setNewStudentPhotoPreview(previewUrl);
@@ -838,10 +1049,43 @@ export default function StudentsInfoPage() {
           onFamilyDraftChange={setDetailFamilyDraft}
           familyEditDrafts={familyEditDrafts}
           onFamilyEditDraftsChange={setFamilyEditDrafts}
+          onFindFamily={() => openFamilyReview("detail", draft)}
           onSaveFamily={handleSaveFamily}
           onSave={handleSave}
           onCancel={cancelEdit}
           onPhotoUpdate={updateStudentPhoto}
+        />
+      )}
+      {familyReview && (
+        <FamilyReviewModal
+          review={familyReview}
+          loading={familyReviewLoading}
+          onClose={() => setFamilyReview(null)}
+          onSkip={skipCurrentFamilyReview}
+          onApply={applyFamilyReview}
+          onSelectCandidate={(memberId) => {
+            const candidate = familyReview.candidates.find((item) => item.member_id === memberId);
+            setFamilyReview({
+              ...familyReview,
+              selectedMemberId: memberId,
+              selectedRelativeIds: candidate?.family.filter((family) => family.default_selected).map((family) => family.relative_id) || [],
+            });
+          }}
+          onToggleRelative={(relativeId) => {
+            setFamilyReview({
+              ...familyReview,
+              selectedRelativeIds: familyReview.selectedRelativeIds.includes(relativeId)
+                ? familyReview.selectedRelativeIds.filter((id) => id !== relativeId)
+                : [...familyReview.selectedRelativeIds, relativeId],
+            });
+          }}
+          onToggleAll={(checked) => {
+            const candidate = familyReview.candidates.find((item) => item.member_id === familyReview.selectedMemberId);
+            setFamilyReview({
+              ...familyReview,
+              selectedRelativeIds: checked ? (candidate?.family.map((family) => family.relative_id) || []) : [],
+            });
+          }}
         />
       )}
       {toast && <div style={toastStyle}>{toast}</div>}
@@ -887,17 +1131,17 @@ function ImportPanel({
         <div className="rounded-md border border-hairline bg-card p-3 text-[13px] font-semibold leading-6 text-ink-mid">
           <div><span className="font-extrabold text-ink">지원 파일</span> CSV(.csv), 엑셀(.xlsx)</div>
           <div><span className="font-extrabold text-ink">필수 컬럼</span> 이름</div>
-          <div><span className="font-extrabold text-ink">선택 컬럼</span> 구분, 번호, {nursery ? "나이(4/5)" : "학년"}, 반, 성별, 생년월일, 연락처, 주소, {schoolFieldLabel(deptName)}, 정렬순서</div>
+          <div><span className="font-extrabold text-ink">선택 컬럼</span> 구분, 번호, {nursery ? "나이(4/5)" : "학년"}, 반, 성별, 생년월일, 연락처, 주소, {schoolFieldLabel(deptName)}, 정렬순서, 부모명, 부모전화</div>
           <div className="mt-2 overflow-x-auto rounded border border-hairline bg-surface p-2 text-[12px]">
             {nursery ? (
               <>
-                이름,구분,번호,나이,반,성별,생년월일,연락처,주소,어린이집,정렬순서<br />
-                김하준,정,12,4,1목장,남,2023-04-18,010-1234-5678,서울시 ...,언약어린이집,12
+                이름,구분,번호,나이,반,성별,생년월일,연락처,주소,어린이집,정렬순서,부모명,부모전화<br />
+                김하준,정,12,4,1목장,남,2023-04-18,010-1234-5678,서울시 ...,언약어린이집,12,김성훈,010-1111-2222
               </>
             ) : (
               <>
-                이름,구분,번호,학년,반,성별,생년월일,연락처,주소,학교,정렬순서<br />
-                김하준,정,12,3,3-1,남,2017-04-18,010-1234-5678,서울시 ...,언약초,12
+                이름,구분,번호,학년,반,성별,생년월일,연락처,주소,학교,정렬순서,부모명,부모전화<br />
+                김하준,정,12,3,3-1,남,2017-04-18,010-1234-5678,서울시 ...,언약초,12,김성훈,010-1111-2222
               </>
             )}
           </div>
@@ -942,6 +1186,7 @@ function ImportPanel({
                   <th className="px-2 py-2">{nursery ? "나이" : "학년"}</th>
                   <th className="px-2 py-2">반</th>
                   <th className="px-2 py-2">연락처</th>
+                  <th className="px-2 py-2">요람 가족 매칭</th>
                 </tr>
               </thead>
               <tbody>
@@ -952,6 +1197,7 @@ function ImportPanel({
                     <td className="px-2 py-2 text-ink-mid">{row.grade_year || ""}</td>
                     <td className="px-2 py-2 text-ink-mid">{row.class_no || ""}</td>
                     <td className="px-2 py-2 text-ink-mid">{row.phone || ""}</td>
+                    <td className="px-2 py-2 text-ink-mid">{row.match_status || "검토 전"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -984,6 +1230,7 @@ function StudentDetailModal({
   onChange,
   onFamilyDraftChange,
   onFamilyEditDraftsChange,
+  onFindFamily,
   onSaveFamily,
   onSave,
   onCancel,
@@ -1003,6 +1250,7 @@ function StudentDetailModal({
   onChange: <K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) => void;
   onFamilyDraftChange: (next: FamilyEntry[]) => void;
   onFamilyEditDraftsChange: (next: Record<string, FamilyUpdateEntry>) => void;
+  onFindFamily: () => void;
   onSaveFamily: () => void;
   onSave: () => void;
   onCancel: () => void;
@@ -1136,6 +1384,13 @@ function StudentDetailModal({
                 >
                   <Plus size={14} strokeWidth={2.4} /> 가족관계 추가
                 </button>
+                <button
+                  type="button"
+                  onClick={onFindFamily}
+                  className="inline-flex min-h-10 items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-3 text-[13px] font-extrabold text-amber-900"
+                >
+                  요람 가족 찾기
+                </button>
               </div>
               {familyDraft.length > 0 && (
                 <div className="flex flex-col gap-2">
@@ -1214,22 +1469,28 @@ function NewStudentModal({
   deptName,
   draft,
   classes,
+  familyDraft,
   saving,
   photoPreviewUrl,
   onClose,
   onSave,
   onChange,
+  onFamilyDraftChange,
+  onFindFamily,
   onPhotoFile,
   onPhotoAvatar,
 }: {
   deptName: string;
   draft: EditableStudent;
   classes: DeptClass[];
+  familyDraft: FamilyEntry[];
   saving: boolean;
   photoPreviewUrl: string | null;
   onClose: () => void;
   onSave: () => void;
   onChange: <K extends keyof EditableStudent>(key: K, value: EditableStudent[K]) => void;
+  onFamilyDraftChange: (next: FamilyEntry[]) => void;
+  onFindFamily: () => void;
   onPhotoFile: (file: File, previewUrl: string) => void;
   onPhotoAvatar: (url: string) => void;
 }) {
@@ -1246,6 +1507,9 @@ function NewStudentModal({
     const grade = numberOrNull(value);
     onChange("grade_year", grade);
     if (grade) onChange("birth_date", birthDateWithYear(draft.birth_date, birthYearForDeptGrade(deptName, grade)));
+  };
+  const setFamily = (index: number, key: keyof FamilyEntry, value: string) => {
+    onFamilyDraftChange(familyDraft.map((entry, i) => (i === index ? { ...entry, [key]: value } : entry)));
   };
 
   return (
@@ -1337,6 +1601,42 @@ function NewStudentModal({
           <Field label="주소">
             <input value={draft.address} onChange={(event) => onChange("address", event.target.value)} className={inputClass} />
           </Field>
+          <div className="rounded-md border border-hairline bg-surface p-3 md:col-span-2">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[14px] font-extrabold text-ink">가족관계</div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={onFindFamily} className="inline-flex min-h-9 items-center rounded-md border border-amber-300 bg-amber-50 px-3 text-[13px] font-extrabold text-amber-900">
+                  요람 가족 찾기
+                </button>
+                <button type="button" onClick={() => onFamilyDraftChange([...familyDraft, { name: "", relation: "부", phone: "" }])} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-ink px-3 text-[13px] font-extrabold text-white">
+                  <Plus size={14} strokeWidth={2.4} /> 가족 추가
+                </button>
+              </div>
+            </div>
+            {familyDraft.length === 0 ? (
+              <div className="text-[13px] font-semibold text-ink-faint">가족을 직접 입력하거나 요람 가족 후보를 선택할 수 있습니다.</div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {familyDraft.map((entry, index) => (
+                  <div key={index} className="grid grid-cols-[76px_1fr_1fr_34px] items-center gap-1.5 max-sm:grid-cols-[72px_1fr_34px]">
+                    <select value={entry.relation} onChange={(event) => setFamily(index, "relation", event.target.value)} className={inputClass}>
+                      {FAMILY_RELATIONS.map((relation) => <option key={relation} value={relation}>{relation}</option>)}
+                    </select>
+                    <input value={entry.name} onChange={(event) => setFamily(index, "name", event.target.value)} placeholder="이름" className={inputClass} />
+                    <input value={entry.phone} onChange={(event) => setFamily(index, "phone", formatPhone(event.target.value))} placeholder="연락처" className={`${inputClass} max-sm:col-span-2`} />
+                    <button
+                      type="button"
+                      onClick={() => onFamilyDraftChange(familyDraft.filter((_, i) => i !== index))}
+                      aria-label="가족 삭제"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-hairline bg-card text-ink-faint"
+                    >
+                      <X size={14} strokeWidth={2.2} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="rounded-md border border-hairline bg-bg-soft px-3 py-2 text-[12.5px] leading-5 text-ink-soft md:col-span-2">
             반을 선택하면 해당 반 담임으로 자동 배정됩니다. 반을 비워두면 반 미배정 학생으로 등록됩니다.
           </div>
@@ -1352,6 +1652,134 @@ function NewStudentModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function FamilyReviewModal({
+  review,
+  loading,
+  onClose,
+  onSkip,
+  onApply,
+  onSelectCandidate,
+  onToggleRelative,
+  onToggleAll,
+}: {
+  review: FamilyReviewState;
+  loading: boolean;
+  onClose: () => void;
+  onSkip: () => void;
+  onApply: () => void;
+  onSelectCandidate: (memberId: string) => void;
+  onToggleRelative: (relativeId: string) => void;
+  onToggleAll: (checked: boolean) => void;
+}) {
+  const selected = review.candidates.find((candidate) => candidate.member_id === review.selectedMemberId) || review.candidates[0];
+  const allSelected = selected.family.length > 0 && selected.family.every((family) => review.selectedRelativeIds.includes(family.relative_id));
+
+  return (
+    <div style={modalBackdropStyle} role="presentation" onMouseDown={onClose}>
+      <div style={{ ...modalCardStyle, width: "min(860px, 100%)" }} role="dialog" aria-modal="true" aria-label="요람 가족 후보" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
+          <div>
+            <div className="text-[18px] font-extrabold text-ink">요람 가족 후보</div>
+            <div className="mt-1 text-[12px] font-semibold text-ink-faint">후보를 선택하고 등록할 가족만 체크하세요. 선택하지 않으면 수동 입력을 유지합니다.</div>
+          </div>
+          <button type="button" onClick={onClose} className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-hairline bg-card text-ink-soft">
+            <X size={17} strokeWidth={2.2} />
+          </button>
+        </div>
+
+        <div className="grid max-h-[72vh] gap-4 overflow-y-auto p-4 lg:grid-cols-[290px_1fr]">
+          <div className="rounded-lg border border-hairline bg-surface p-3">
+            <div className="mb-2 text-[14px] font-extrabold text-ink">학생 후보</div>
+            <button
+              type="button"
+              onClick={onSkip}
+              className="mb-2 flex w-full items-center justify-between rounded-md border border-hairline bg-card px-3 py-2 text-left text-[13px] font-extrabold text-ink"
+            >
+              해당없음 <span className="text-[12px] text-ink-faint">수동 입력</span>
+            </button>
+            {review.candidates.map((candidate) => (
+              <button
+                key={candidate.member_id}
+                type="button"
+                onClick={() => onSelectCandidate(candidate.member_id)}
+                className={[
+                  "mb-2 flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left",
+                  candidate.member_id === selected.member_id ? "border-amber-400 bg-amber-50" : "border-hairline bg-card",
+                ].join(" ")}
+              >
+                <Avatar src={candidate.photo_url} name={candidate.name} />
+                <span className="min-w-0">
+                  <span className="block truncate text-[14px] font-extrabold text-ink">{candidate.name}</span>
+                  <span className="block truncate text-[12px] font-semibold text-ink-faint">
+                    {candidate.birth_date || "생년 미등록"} · {candidate.phone ? formatPhone(candidate.phone) : "연락처 없음"}
+                  </span>
+                  <span className="mt-1 inline-flex rounded-full bg-surface px-2 py-0.5 text-[11px] font-bold text-ink-faint">
+                    {candidate.strength === "strong" ? "강한 후보" : candidate.strength === "medium" ? "추천 후보" : "확인 필요"}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="rounded-lg border border-hairline bg-surface p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-[15px] font-extrabold text-ink">{selected.name} 가족</div>
+                <div className="mt-1 text-[12px] font-semibold text-ink-faint">부모는 기본 체크됩니다. 조부모 등은 필요 시 선택하세요.</div>
+              </div>
+              <label className="inline-flex items-center gap-2 rounded-md border border-hairline bg-card px-3 py-2 text-[13px] font-extrabold text-ink">
+                <input type="checkbox" checked={allSelected} onChange={(event) => onToggleAll(event.target.checked)} />
+                전체 선택
+              </label>
+            </div>
+            {loading ? (
+              <div className="py-10 text-center text-[14px] font-bold text-ink-faint">조회 중...</div>
+            ) : selected.family.length === 0 ? (
+              <div className="rounded-md border border-hairline bg-card px-3 py-4 text-[14px] font-semibold text-ink-faint">연결된 가족관계가 없습니다.</div>
+            ) : (
+              <div className="grid gap-2 md:grid-cols-2">
+                {selected.family.map((family) => (
+                  <label key={family.relative_id} className="flex cursor-pointer items-center gap-3 rounded-md border border-hairline bg-card px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={review.selectedRelativeIds.includes(family.relative_id)}
+                      onChange={() => onToggleRelative(family.relative_id)}
+                    />
+                    <Avatar src={family.photo_url} name={family.name} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-[14px] font-extrabold text-ink">{family.relation} · {family.name}</span>
+                      <span className="block truncate text-[12px] font-semibold text-ink-faint">{family.phone ? formatPhone(family.phone) : "연락처 없음"}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap justify-end gap-2 border-t border-hairline p-4">
+          <button type="button" onClick={onSkip} className="inline-flex min-h-10 items-center justify-center rounded-md border border-hairline bg-card px-4 text-[14px] font-extrabold text-ink">
+            가족 없이 계속
+          </button>
+          <button type="button" onClick={onApply} className="inline-flex min-h-10 items-center justify-center rounded-md bg-ink px-4 text-[14px] font-extrabold text-white">
+            선택한 가족 입력하기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Avatar({ src, name }: { src?: string | null; name: string }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  if (src) return <img src={src} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />;
+  return (
+    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg-soft text-[13px] font-extrabold text-ink-faint">
+      {(name || "?").slice(0, 1)}
+    </span>
   );
 }
 
@@ -1528,6 +1956,18 @@ function nextStudentNo(students: EditableStudent[]) {
   return max + 1;
 }
 
+function mergeFamilyEntries(current: FamilyEntry[], additions: FamilyEntry[]) {
+  const seen = new Set(current.map((entry) => entry.relative_id || `${entry.relation}|${entry.name}|${entry.phone}`));
+  const next = [...current];
+  additions.forEach((entry) => {
+    const key = entry.relative_id || `${entry.relation}|${entry.name}|${entry.phone}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    next.push(entry);
+  });
+  return next;
+}
+
 function parseCsv(text: string) {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -1618,6 +2058,8 @@ function normalizeImportRows(rows: string[][]) {
     address: index(["address", "주소"]),
     school: index(["school", "schoolname", "학교", "어린이집", "유치원"]),
     order: index(["orderno", "order", "정렬순서"]),
+    parentName: index(["parentname", "부모명", "보호자명", "부모이름"]),
+    parentPhone: index(["parentphone", "부모전화", "보호자전화", "부모연락처", "보호자연락처"]),
   };
 
   const parsed: ImportRow[] = [];
@@ -1635,6 +2077,7 @@ function normalizeImportRows(rows: string[][]) {
     if (col.birth >= 0 && row[col.birth] && !birth) errors.push(`${line}행: 생년월일은 YYYY-MM-DD 형식으로 입력하세요`);
 
     parsed.push({
+      row_no: line,
       name,
       student_type: normalizeStudentType(col.type >= 0 ? row[col.type] : null),
       student_no: studentNo,
@@ -1646,6 +2089,8 @@ function normalizeImportRows(rows: string[][]) {
       address: col.address >= 0 ? cleanOrNull(row[col.address]) : null,
       school_name: col.school >= 0 ? cleanOrNull(row[col.school]) : null,
       order_no: orderNo,
+      parent_name: col.parentName >= 0 ? cleanOrNull(row[col.parentName]) : null,
+      parent_phone: col.parentPhone >= 0 ? cleanOrNull(row[col.parentPhone]) : null,
     });
   });
 
