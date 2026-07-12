@@ -863,6 +863,41 @@ input::placeholder {
   gap: 10px;
 }
 
+.global-notification-dock-toggle {
+  width: 44px;
+  height: 26px;
+  border: 1px solid rgba(43, 39, 34, 0.1);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent-strong);
+  box-shadow: 0 10px 24px rgba(43, 39, 34, 0.14);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+
+.global-notification-dock-toggle:hover,
+.global-notification-dock-toggle:focus-visible {
+  background: var(--accent-soft);
+}
+
+.global-notification-dock-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.global-notification-dock-toggle-collapsed {
+  position: fixed;
+  right: 18px;
+  bottom: calc(18px + var(--safe-bottom));
+  z-index: 95;
+  width: 34px;
+  height: 24px;
+  opacity: 0.88;
+}
+
 .global-notification-dock > div > button {
   width: 44px !important;
   height: 44px !important;
@@ -873,6 +908,10 @@ input::placeholder {
 
 @media (max-width: 768px) {
   .global-notification-dock {
+    right: 14px;
+    bottom: calc(14px + var(--safe-bottom));
+  }
+  .global-notification-dock-toggle-collapsed {
     right: 14px;
     bottom: calc(14px + var(--safe-bottom));
   }
