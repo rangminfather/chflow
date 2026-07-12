@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
-import { Lock, GraduationCap, BookOpen, AlertTriangle } from "lucide-react";
+import { Lock, GraduationCap, BookOpen, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { gradeText, gradeFieldLabel } from "@/lib/eduAge";
 
 interface PreviewRow {
@@ -30,6 +30,18 @@ interface Teacher {
 interface Assignment {
   class_no: string | null;
   teacher_id: string | null;
+}
+
+interface FinalizeAssignment {
+  student_id: string;
+  new_class_no: string | null;
+  new_teacher_id: string | null;
+  keep_source_department?: boolean;
+}
+
+interface FinalizeResult {
+  promoted_cnt?: number;
+  graduated_cnt?: number;
 }
 
 const STEPS = [
@@ -59,6 +71,7 @@ export default function PromotePage() {
   const [classCount, setClassCount] = useState<Record<number, number>>({});
   // student_id → { class_no, teacher_id }
   const [assignments, setAssignments] = useState<Record<string, Assignment>>({});
+  const [infantKeepIds, setInfantKeepIds] = useState<Set<string>>(new Set());
 
   const [finalizing, setFinalizing] = useState(false);
   const [toast, setToast] = useState("");
@@ -96,6 +109,7 @@ export default function PromotePage() {
       setAuthorized(true);
       const rows = (prevR.data as PreviewRow[]) || [];
       setPreview(rows);
+      setInfantKeepIds(new Set());
       setTeachers((((teachR.data as (Teacher & { is_active: boolean })[]) || []).filter((t) => t.is_active)));
 
       // 기본 반 개수: 학년별 학생 수 / 5명 (반올림 올림)
@@ -162,14 +176,31 @@ export default function PromotePage() {
     setAssignments(next);
   }
 
+  function toggleInfantKeep(studentId: string) {
+    setInfantKeepIds(prev => {
+      const next = new Set(prev);
+      if (next.has(studentId)) next.delete(studentId);
+      else next.add(studentId);
+      return next;
+    });
+  }
+
   async function handleFinalize() {
     if (!await confirm(`${year}년도 진급을 확정합니다.\n\n진급 후 학년/반/담임이 일괄 변경되며 이력이 저장됩니다.\n되돌리기는 어렵습니다. 계속할까요?`)) return;
     setFinalizing(true);
-    const payload = Object.entries(assignments).map(([sid, a]) => ({
+    const payload: FinalizeAssignment[] = Object.entries(assignments).map(([sid, a]) => ({
       student_id: sid,
       new_class_no: a.class_no,
       new_teacher_id: a.teacher_id,
     }));
+    infantKeepIds.forEach((sid) => {
+      payload.push({
+        student_id: sid,
+        new_class_no: null,
+        new_teacher_id: null,
+        keep_source_department: true,
+      });
+    });
     const { data, error } = await supabase.rpc("promote_finalize", {
       p_dept_id: deptId,
       p_year: year,
@@ -180,12 +211,17 @@ export default function PromotePage() {
       showToast("확정 실패: " + error.message);
       return;
     }
-    const r = (data as any)?.[0] || data;
+    const r = (Array.isArray(data) ? data[0] : data) as FinalizeResult | null;
     setDone({ promoted: r?.promoted_cnt || 0, graduated: r?.graduated_cnt || 0 });
   }
 
   const staying = useMemo(() => preview.filter(r => !r.will_graduate), [preview]);
   const graduating = useMemo(() => preview.filter(r => r.will_graduate), [preview]);
+  const isInfantDept = deptName.trim() === "영아부";
+  const infantKeepCandidates = useMemo(
+    () => isInfantDept ? graduating.filter(r => r.current_grade === 3) : [],
+    [graduating, isInfantDept]
+  );
   const nextDeptName = preview[0]?.next_dept_name;
 
   // 진급 후 학년별 그룹
@@ -284,6 +320,11 @@ export default function PromotePage() {
               <div style={{ marginTop: 6 }}>
                 재학 진급: <b>{staying.length}명</b> · {nextDeptName ? <>전출(→ {nextDeptName}): <b>{graduating.length}명</b></> : <>졸업: <b>{graduating.length}명</b></>}
               </div>
+              {isInfantDept && nextDeptName && (
+                <div style={{ marginTop: 6 }}>
+                  영아부는 유아부 승계가 기본이며, 아래에서 체크한 아이만 영아부 명단에도 함께 유지됩니다.
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
@@ -376,6 +417,60 @@ export default function PromotePage() {
                 );
               });
             })()}
+
+            {infantKeepCandidates.length > 0 && (
+              <div style={{ marginTop: 16, borderTop: "1px dashed var(--hairline)", paddingTop: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ink)", marginBottom: 6 }}>
+                  영아부에도 유지
+                </div>
+                <div style={{ fontSize: 11, color: "var(--ink-soft)", lineHeight: 1.7, marginBottom: 10 }}>
+                  체크하지 않은 아이는 유아부로 이동합니다. 체크한 아이는 영아부 명단을 4세로 유지하고 유아부에도 새로 등록합니다.
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {infantKeepCandidates.map(r => {
+                    const checked = infantKeepIds.has(r.student_id);
+                    return (
+                      <button
+                        key={r.student_id}
+                        type="button"
+                        onClick={() => toggleInfantKeep(r.student_id)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 10,
+                          width: "100%", textAlign: "left",
+                          background: checked ? "var(--accent-soft)" : "var(--surface)",
+                          border: `1.5px solid ${checked ? "var(--accent-line)" : "var(--hairline)"}`,
+                          borderRadius: 8,
+                          padding: "10px 12px",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        <span style={{
+                          width: 20, height: 20, borderRadius: 6,
+                          border: `2px solid ${checked ? "var(--accent)" : "var(--hairline-strong)"}`,
+                          background: checked ? "var(--accent)" : "var(--card)",
+                          display: "inline-flex", alignItems: "center", justifyContent: "center",
+                          flexShrink: 0,
+                        }}>
+                          {checked && <CheckCircle2 size={13} strokeWidth={2.5} color="#fff" />}
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: "block", fontSize: 13, fontWeight: 800, color: "var(--ink)" }}>{r.name}</span>
+                          <span style={{ display: "block", fontSize: 11, color: "var(--ink-soft)", marginTop: 2 }}>
+                            {gradeText(deptName, r.current_grade)} → {gradeText(nextDeptName, r.next_grade)}
+                          </span>
+                        </span>
+                        {checked && (
+                          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--accent-strong)", whiteSpace: "nowrap" }}>
+                            영아부 유지
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -530,6 +625,7 @@ export default function PromotePage() {
                 <li>모든 학생 {gradeFieldLabel(deptName)} +1</li>
                 <li>{year}년도 상태가 이력 테이블에 스냅샷 저장</li>
                 <li>{graduating.length}명 → {nextDeptName ? `${nextDeptName}으로 전출` : "졸업(비활성)"}</li>
+                {isInfantDept && infantKeepIds.size > 0 && <li>영아부 유지 체크 {infantKeepIds.size}명은 영아부 명단에도 남기고 유아부에 추가 등록</li>}
                 {nextDeptName && <li>{nextDeptName} 부장에게 알림 전송</li>}
                 <li>되돌리기 어려움 (수동 보정 가능)</li>
               </ul>
@@ -539,6 +635,7 @@ export default function PromotePage() {
               <div style={{ marginTop: 8, lineHeight: 1.8 }}>
                 재학 진급: <b>{staying.length}명</b><br />
                 {nextDeptName ? `전출 (→ ${nextDeptName})` : "졸업"}: <b>{graduating.length}명</b><br />
+                {isInfantDept && <>영아부에도 유지: <b>{infantKeepIds.size}명</b><br /></>}
                 반 수: <b>{allClasses.length}개</b><br />
                 담임 미정: <b>{allClasses.filter(c => !c.currentTeacherId).length}개 반</b>
               </div>
