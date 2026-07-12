@@ -188,6 +188,30 @@ export function getRoleImageByLabel(label: string | null | undefined): string {
   return "/roles/default.png";
 }
 
+// members.sub_role(요람 원본) + 성별 → 아바타 이미지.
+// 요람은 "서리집사"/"성도"/"청년"처럼 성별 없이 적어 getRoleImageByLabel 단독으로는
+// 성별 일러스트를 못 고른다. 성별 base(및 명예/은퇴 접두어가 붙은 base)에 성별을 결합해 해석한다.
+// 성별을 알 수 없으면 결합 없이 기존 로직으로 폴백(=default 가능).
+export function getRoleImageBySubRole(
+  subRole: string | null | undefined,
+  gender?: string | null,
+): string {
+  if (!subRole) return "/roles/default.png";
+  const g = gender === "M" || gender === "남" ? "남"
+    : gender === "F" || gender === "여" ? "여" : null;
+  if (g) {
+    const base = normalizeSubRoleLabel(subRole);
+    if (GENDERED_BASES.includes(base)) return getRoleImageByLabel(`${base} (${g})`);
+    // 명예집사/은퇴집사 등: 접두어 뒤 base 가 성별 base 면 성별 결합
+    const pm = base.match(/^(명예|은퇴|원로|협동)(.+)$/);
+    if (pm) {
+      const inner = normalizeSubRoleLabel(pm[2]);
+      if (GENDERED_BASES.includes(inner)) return getRoleImageByLabel(`${inner} (${g})`);
+    }
+  }
+  return getRoleImageByLabel(subRole);
+}
+
 // 부모 직분 라벨 찾기 (예: "담임목사" → "목사")
 export function getParentRoleLabel(subLabel: string | null | undefined): string | null {
   if (!subLabel) return null;
