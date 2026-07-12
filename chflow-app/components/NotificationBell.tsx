@@ -25,6 +25,35 @@ interface ToastNotification {
 
 type PanelTab = "all" | "message" | "notice";
 
+// 이미 토스트로 띄운 알림 ID를 사용자별로 localStorage 에 보관한다.
+// 벨 컴포넌트가 재마운트(화면 이동)·새로고침으로 초기화돼도 같은 알림이
+// 폴링/첫 로드에서 다시 토스트로 뜨는 것을 막는다.
+const TOAST_SEEN_KEY_PREFIX = "chflow:notifToastSeen:";
+const TOAST_SEEN_CAP = 300;
+
+function loadSeenToastIds(userId: string): string[] {
+  if (typeof window === "undefined" || !userId) return [];
+  try {
+    const raw = window.localStorage.getItem(TOAST_SEEN_KEY_PREFIX + userId);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistSeenToastIds(userId: string, ids: string[]) {
+  if (typeof window === "undefined" || !userId) return;
+  try {
+    // 최근 것만 유지 (Set 삽입 순서 = 발생 순서)
+    const capped = ids.slice(-TOAST_SEEN_CAP);
+    window.localStorage.setItem(TOAST_SEEN_KEY_PREFIX + userId, JSON.stringify(capped));
+  } catch {
+    // 용량 초과 등은 무시 (토스트 중복 방지는 best-effort)
+  }
+}
+
 export default function NotificationBell({
   userId,
   placement = "inline",
@@ -57,15 +86,22 @@ export default function NotificationBell({
     return notifications.filter((n) => getNotificationGroup(n.type) === activeTab);
   }, [activeTab, notifications]);
 
+  // 알림 ID를 '이미 표시함'으로 기록 (메모리 + localStorage 동시).
+  const markSeen = useCallback((id: string) => {
+    if (seenIdsRef.current.has(id)) return;
+    seenIdsRef.current.add(id);
+    persistSeenToastIds(userId, Array.from(seenIdsRef.current));
+  }, [userId]);
+
   const showToast = useCallback((toast: ToastNotification) => {
     if (seenIdsRef.current.has(toast.id)) return;
-    seenIdsRef.current.add(toast.id);
+    markSeen(toast.id);
     setToasts((prev) => [...prev, toast]);
     // 5초 후 자동 제거
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== toast.id));
     }, 5000);
-  }, []);
+  }, [markSeen]);
 
   const handleNewNotification = useCallback((n: Notification) => {
     if (seenIdsRef.current.has(n.id)) return;
@@ -104,24 +140,31 @@ export default function NotificationBell({
     setUnreadCount(count);
     setAppBadge(count);
 
-    // 첫 로드 시: 안 읽은 알림이 있으면 토스트로 표시 (최대 1개)
+    // 첫 로드 시: 안 읽은 알림이 있으면 최신 1건만 토스트로 안내한다.
+    // 나머지 미읽음은 배지 숫자로만 표시하고, 현재 미읽음 전체를 '표시함'으로
+    // 기록해 재마운트·폴링에서 같은 알림이 반복해서 뜨는 것을 막는다.
     if (!initLoadedRef.current) {
       initLoadedRef.current = true;
       const unread = list.filter((n) => !n.is_read);
-      if (unread.length > 0) {
-        const latest = unread[0];
-        if (!seenIdsRef.current.has(latest.id)) {
-          seenIdsRef.current.add(latest.id);
-          showToast({
-            id: latest.id,
-            title: latest.title,
-            body: latest.body || "",
-            type: latest.type,
-          });
-        }
+      const latest = unread[0];
+      if (latest && !seenIdsRef.current.has(latest.id)) {
+        showToast({
+          id: latest.id,
+          title: latest.title,
+          body: latest.body || "",
+          type: latest.type,
+        });
       }
+      unread.forEach((n) => markSeen(n.id));
     }
-  }, [showToast]);
+  }, [showToast, markSeen]);
+
+  // 표시 이력 복원 — refresh(첫 로드 토스트) 보다 먼저 실행돼야
+  // 재마운트 시 이전에 띄운 알림을 다시 토스트로 올리지 않는다.
+  useEffect(() => {
+    if (!userId) return;
+    loadSeenToastIds(userId).forEach((id) => seenIdsRef.current.add(id));
+  }, [userId]);
 
   // 초기 로드
   useEffect(() => {
