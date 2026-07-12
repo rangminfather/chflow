@@ -252,10 +252,11 @@
   background: #2C3A31;
 }
 
-/* 모바일에서 카메라 홀/노치 보호 — env()가 0이어도 min 44px 보장 (브라우저/PWA 공통) */
+/* 모바일에서 카메라 홀/노치 보호.
+   실제 safe-area 값이 있으면 따르고, env()가 0인 브라우저/PWA에서는 작은 여백만 둔다. */
 @media (max-width: 768px) {
   :root {
-    --body-safe-top: max(env(safe-area-inset-top, 0px), 44px);
+    --body-safe-top: max(env(safe-area-inset-top, 0px), 20px);
   }
 }
 
