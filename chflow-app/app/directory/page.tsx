@@ -7,6 +7,7 @@ import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { formatPhone, supabase } from "@/lib/supabase";
 import { photoThumb } from "@/lib/photo";
+import { getAllSubRoleOptions, getRoleImageByLabel } from "@/lib/roles";
 import { LoadingView } from "@/components/StatusViews";
 import { MessageCircle, PhoneCall } from "lucide-react";
 
@@ -696,15 +697,42 @@ function DirectoryProfileModal({
                   clearChecked={quickEditDraft.clearFamilyChurch}
                   onClearChange={(checked) => setQuickEditDraft((draft) => ({ ...draft, clearFamilyChurch: checked, family_church: checked ? "" : draft.family_church }))}
                 />
-                <QuickEditTextField
-                  label="직분"
-                  placeholder={member.sub_role || "직분"}
-                  value={quickEditDraft.sub_role}
-                  onChange={(value) => setQuickEditDraft((draft) => ({ ...draft, sub_role: value, clearSubRole: false }))}
-                  clearable
-                  clearChecked={quickEditDraft.clearSubRole}
-                  onClearChange={(checked) => setQuickEditDraft((draft) => ({ ...draft, clearSubRole: checked, sub_role: checked ? "" : draft.sub_role }))}
-                />
+                <label style={quickEditFieldStyle}>
+                  <span style={quickEditLabelStyle}>직분</span>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
+                    <div style={{
+                      width: 34, height: 42, borderRadius: 6, overflow: "hidden",
+                      flexShrink: 0, background: "var(--bg-soft)",
+                    }}>
+                      <img
+                        src={getRoleImageByLabel(quickEditDraft.clearSubRole ? "" : (quickEditDraft.sub_role || member.sub_role))}
+                        alt=""
+                        style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "top center" }}
+                      />
+                    </div>
+                    <select
+                      value={quickEditDraft.sub_role}
+                      disabled={quickEditDraft.clearSubRole}
+                      onChange={(event) => setQuickEditDraft((draft) => ({ ...draft, sub_role: event.target.value, clearSubRole: false }))}
+                      style={{ ...quickEditInputStyle, flex: 1 }}
+                    >
+                      <option value="">동일 (유지): {member.sub_role || "미지정"}</option>
+                      {getAllSubRoleOptions().map((opt) => (
+                        opt.isHeader
+                          ? <optgroup key={opt.label} label={`── ${opt.label}`} />
+                          : <option key={opt.label} value={opt.label}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <span style={quickEditClearStyle}>
+                    <input
+                      type="checkbox"
+                      checked={quickEditDraft.clearSubRole}
+                      onChange={(event) => setQuickEditDraft((draft) => ({ ...draft, clearSubRole: event.target.checked, sub_role: event.target.checked ? "" : draft.sub_role }))}
+                    />
+                    값 지우기
+                  </span>
+                </label>
                 <QuickEditTextField
                   label="배우자"
                   placeholder={member.spouse_name || "배우자 이름"}
