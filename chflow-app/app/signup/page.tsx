@@ -15,12 +15,7 @@ import { CheckCircle2, Users, User, AlertTriangle, Lightbulb, MousePointerClick,
 
 type Step = "entry" | "lookup" | "confirm" | "role" | "info" | "done";
 type SignupMethod = "manual" | "verified";
-type IdentityProvider = "naver" | "kakao";
 type RoleGroupId = "clergy" | "coworkers" | "permanent" | "members" | "nextgen";
-
-const IDENTITY_PROVIDERS: Array<{ id: IdentityProvider; label: string; tone: string }> = [
-  { id: "naver", label: "네이버", tone: "#03c75a" },
-];
 
 const displayGender = (value?: string | null) => {
   if (value === "M") return "남";
@@ -712,13 +707,6 @@ export default function SignupPage() {
     setStep("lookup");
   };
 
-  const startVerifiedSignup = async (provider: IdentityProvider) => {
-    setError("");
-    setShowSignupSupport(false);
-    setLoading(true);
-    window.location.href = `/api/signup/identity/start?provider=${provider}`;
-  };
-
   const submitSignupSupport = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -794,28 +782,7 @@ export default function SignupPage() {
             </div>
           </div>
 
-          <div className="signup-method-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18, marginBottom: 14 }}>
-            <section className="signup-entry-panel signup-verified-panel" style={entryPanelStyle}>
-              <strong className="signup-entry-panel-title" style={entryPanelTitleStyle}>인증회원가입</strong>
-              <span className="signup-entry-description" style={entryDescStyle}>본인인증 정보가 교회 DB와 일치하면 관리자 승인 없이 가입됩니다.</span>
-              <div className="verified-provider-wrap" style={{ display: "flex", justifyContent: "center", marginTop: 28 }}>
-                {IDENTITY_PROVIDERS.map((provider) => (
-                  <button
-                    key={provider.id}
-                    type="button"
-                    onClick={() => startVerifiedSignup(provider.id)}
-                    disabled={loading}
-                    aria-label={`${provider.label} 인증회원가입`}
-                    className="provider-tile"
-                    style={providerTileStyle}
-                  >
-                    <span className="naver-provider-icon" style={{ ...naverIconStyle, background: provider.tone }}>N</span>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: "var(--ink)" }}>{provider.label}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-
+          <div className="signup-method-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 18, marginBottom: 14 }}>
             <section className="signup-entry-panel" style={entryPanelStyle}>
               <strong className="signup-entry-panel-title" style={entryPanelTitleStyle}>일반회원가입</strong>
               <span className="signup-entry-description" style={entryDescStyle}>이름과 전화번호로 등록 여부를 확인한 후 가입을 진행합니다.</span>
@@ -896,24 +863,6 @@ export default function SignupPage() {
               .signup-entry-description {
                 font-size: 12px !important;
                 line-height: 1.55 !important;
-              }
-              .verified-provider-wrap {
-                margin-top: 14px !important;
-              }
-              .provider-tile {
-                width: 100% !important;
-                min-height: 68px !important;
-                padding: 10px 14px !important;
-                border-radius: 10px !important;
-                flex-direction: row !important;
-                justify-content: flex-start !important;
-                gap: 12px !important;
-              }
-              .naver-provider-icon {
-                width: 44px !important;
-                height: 44px !important;
-                border-radius: 9px !important;
-                font-size: 26px !important;
               }
               .manual-signup-entry-form {
                 margin-top: 14px !important;
@@ -2001,36 +1950,6 @@ const entryDescStyle: React.CSSProperties = {
   lineHeight: 1.5,
   color: "var(--ink-soft)",
   fontWeight: 600,
-};
-
-const providerTileStyle: React.CSSProperties = {
-  width: 142,
-  minHeight: 150,
-  padding: "20px 14px",
-  border: "1px solid rgba(43, 39, 34, 0.12)",
-  borderRadius: 12,
-  background: "var(--card)",
-  color: "var(--ink)",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 14,
-  fontFamily: "inherit",
-  cursor: "pointer",
-};
-
-const naverIconStyle: React.CSSProperties = {
-  width: 58,
-  height: 58,
-  borderRadius: 10,
-  color: "#fff",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: 34,
-  fontWeight: 950,
-  fontFamily: "Arial, sans-serif",
 };
 
 const textButtonStyle: React.CSSProperties = {
