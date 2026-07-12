@@ -7,7 +7,7 @@ import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { formatPhone, supabase } from "@/lib/supabase";
 import { photoThumb } from "@/lib/photo";
-import { getAllSubRoleOptions, getRoleImageByLabel } from "@/lib/roles";
+import { getAllSubRoleOptions, getRoleImageBySubRole } from "@/lib/roles";
 import { LoadingView } from "@/components/StatusViews";
 import { MessageCircle, PhoneCall } from "lucide-react";
 
@@ -705,7 +705,10 @@ function DirectoryProfileModal({
                       flexShrink: 0, background: "var(--bg-soft)",
                     }}>
                       <img
-                        src={getRoleImageByLabel(quickEditDraft.clearSubRole ? "" : (quickEditDraft.sub_role || member.sub_role))}
+                        src={getRoleImageBySubRole(
+                          quickEditDraft.clearSubRole ? "" : (quickEditDraft.sub_role || member.sub_role),
+                          quickEditDraft.gender || member.gender,
+                        )}
                         alt=""
                         style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "top center" }}
                       />
@@ -713,7 +716,17 @@ function DirectoryProfileModal({
                     <select
                       value={quickEditDraft.sub_role}
                       disabled={quickEditDraft.clearSubRole}
-                      onChange={(event) => setQuickEditDraft((draft) => ({ ...draft, sub_role: event.target.value, clearSubRole: false }))}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        // 성별 표기 직분을 고르면 성별도 함께 맞춰 아바타·데이터가 어긋나지 않게 한다.
+                        const genderFromRole = /\(남\)/.test(value) ? "M" : /\(여\)/.test(value) ? "F" : null;
+                        setQuickEditDraft((draft) => ({
+                          ...draft,
+                          sub_role: value,
+                          clearSubRole: false,
+                          gender: genderFromRole ?? draft.gender,
+                        }));
+                      }}
                       style={{ ...quickEditInputStyle, flex: 1 }}
                     >
                       <option value="">동일 (유지): {member.sub_role || "미지정"}</option>
