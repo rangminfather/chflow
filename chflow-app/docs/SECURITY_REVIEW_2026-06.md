@@ -12,7 +12,13 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 > - **H-5 (xlsx)**: exceljs 4.4.0으로 전면 교체 (MemberDataTools·rearrange·review-problems·bulletin-import 4파일)
 > - **L — 버킷 signed URL**: member-photos·feedback-attachments 버킷 private 전환 + `/api/storage/` 프록시 라우트. members.photo_url 513건 마이그레이션 완료. commit df3c688
 >
-> 남은 미해결: find-id/password 계정 존재여부 노출(L), postcss moderate(next 내부, 16.3 릴리즈 시 해소)
+> ✅ **2026-07-13 패키지 보안 후속 조치**:
+> - `next`/`eslint-config-next` 16.2.10, Tailwind PostCSS 4.3.2로 패치 업데이트
+> - Next 내부 `postcss`를 npm `overrides`로 8.5.18에 고정해 postcss moderate 해소
+> - `uuid` 11.1.1, `echarts` 6.1.0 override 적용으로 `exceljs`/`pptx-preview` 하위 advisory 해소
+> - `npm audit` 0 vulnerabilities, `npx tsc --noEmit`, `npm run build` 통과
+>
+> 남은 미해결: 없음 (`npm audit` 기준). 단, `uuid`/`echarts`는 상위 패키지의 공식 dependency 업데이트가 아니라 override이므로 Excel/PPTX 기능 회귀 확인은 배포 전후 계속 필요.
 
 ---
 
@@ -93,7 +99,8 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 - ~~**M-bucket**: 버킷 public~~ → ✅ **해소(2026-06-15)**. member-photos·feedback-attachments → `public=false`. `/api/storage/[bucket]/[...path]` 프록시 라우트 (인증 확인 → signed URL 302). members.photo_url 513건 → `/api/storage/...` 형태로 DB 마이그레이션 완료. commit df3c688.
 - ~~**L-enum**: find-id/password 계정 열거~~ → ✅ **해소(2026-06-15)**. 로그인 `check_username_available` 클라이언트 사전체크 제거. API 응답 통일(404→401, "아이디 또는 비밀번호가 일치하지 않습니다"). 비밀번호재설정 계정 미존재 시 `noEmail:true` 반환(200).
 - ~~**L-token**: `window.__chflowSupabase` 전역 노출~~ → ✅ **해소(2026-06-15)**. `lib/supabase.ts`에서 전역 할당 제거.
-- **남은 것**: postcss moderate(next 내부, Next.js 16.3 릴리즈 자동해소).
+- ~~**postcss moderate(next 내부)**~~ → ✅ **해소(2026-07-13)**. Next stable 최신 16.2.10은 여전히 postcss 8.4.31을 의존하지만, npm `overrides`로 `postcss@8.5.18`을 강제하고 빌드 검증 완료.
+- ~~**npm audit 잔여 advisory**~~ → ✅ **해소(2026-07-13)**. `@babel/core`, `js-yaml`는 `npm audit fix`로 패치. `uuid`/`echarts`는 `overrides`로 각각 11.1.1/6.1.0 고정. `npm audit` 0건.
 
 ---
 

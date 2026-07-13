@@ -21,6 +21,8 @@ interface Department {
   my_status: string | null;
 }
 
+type DepartmentCard = Department & { displayOnly?: boolean; statusLabel?: string };
+
 interface ChildRow {
   id: string;
   student_no: number | null;
@@ -258,6 +260,24 @@ export default function CategoryPage() {
     ...searchResults.filter(c => selectedChildren.has(c.id) && !autoMatchedIds.has(c.id)),
   ];
 
+  const displayDepts: DepartmentCard[] = category === "교육사역국"
+    ? [
+        {
+          id: "display-only-eunice-school",
+          category,
+          name: "유니게학교",
+          description: "1~2세 · 미운영",
+          icon: null,
+          order_no: 0,
+          member_count: 0,
+          my_status: null,
+          displayOnly: true,
+          statusLabel: "미운영",
+        },
+        ...depts,
+      ]
+    : depts;
+
   const statusBadge = (status: string | null) => {
     if (status === "approved") return { label: "✓ 가입됨",  bg: "var(--success-soft)", color: "var(--success)" };
     if (status === "pending")  return { label: "승인 대기", bg: "var(--warning-soft)", color: "var(--warning)" };
@@ -323,9 +343,9 @@ export default function CategoryPage() {
           <LoadingView padding={40} />
         ) : (
           <div className="dept-card-list">
-            {depts.map((d) => {
+            {displayDepts.map((d) => {
               const badge = statusBadge(d.my_status);
-              const disabled = d.my_status === "approved" || d.my_status === "pending";
+              const disabled = d.displayOnly || d.my_status === "approved" || d.my_status === "pending";
               const theme = getDeptTheme(d.name);
               const slots = keyMembers[d.id] ?? null;
               return (
@@ -333,17 +353,19 @@ export default function CategoryPage() {
                   key={d.id}
                   className="dept-card-item"
                   onClick={() => {
+                    if (d.displayOnly) return;
                     if (d.my_status === "approved") { router.push(`/departments/d/${d.id}`); return; }
                     if (!disabled) openModal(d);
                   }}
                   style={{
                     background: T.bgCard,
-                    border: `1.5px solid ${d.my_status === "approved" ? "#4ade80" : d.my_status === "pending" ? "#E0C893" : T.border}`,
+                    border: `1.5px solid ${d.displayOnly ? "var(--hairline-strong)" : d.my_status === "approved" ? "#4ade80" : d.my_status === "pending" ? "#E0C893" : T.border}`,
                     borderRadius: 18,
                     cursor: disabled && d.my_status !== "approved" ? "default" : "pointer",
                     overflow: "hidden",
                     boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
                     display: "flex", flexDirection: "column",
+                    opacity: d.displayOnly ? 0.72 : 1,
                   }}
                 >
                   {/* 컬러 상단 배너 */}
@@ -353,8 +375,8 @@ export default function CategoryPage() {
                     display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
                     position: "relative",
                   }}>
-                    {badge && (
-                      <div style={{ position: "absolute", top: 10, right: 10, padding: "3px 9px", background: "rgba(255,255,255,0.9)", color: badge.color, borderRadius: 6, fontSize: 10, fontWeight: 800, backdropFilter: "blur(4px)" }}>{badge.label}</div>
+                    {(badge || d.statusLabel) && (
+                      <div style={{ position: "absolute", top: 10, right: 10, padding: "3px 9px", background: "rgba(255,255,255,0.9)", color: badge?.color ?? "var(--ink-soft)", borderRadius: 6, fontSize: 10, fontWeight: 800, backdropFilter: "blur(4px)" }}>{badge?.label ?? d.statusLabel}</div>
                     )}
                     <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
                       <DeptIcon name={d.name} category={d.category} size={26} color={theme.iconColor} />
@@ -381,9 +403,15 @@ export default function CategoryPage() {
                       })}
                     </div>
                     {/* 활동 인원 */}
-                    <div style={{ fontSize: 12, color: theme.iconColor, fontWeight: 700, display: "flex", alignItems: "center", gap: 5, marginTop: "auto" }}>
-                      <Users size={13} strokeWidth={1.8} /> {d.member_count}명 활동 중
-                    </div>
+                    {d.displayOnly ? (
+                      <div style={{ fontSize: 12, color: "var(--ink-soft)", fontWeight: 700, marginTop: "auto" }}>
+                        현재 영아부에서 통합 운영
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 12, color: theme.iconColor, fontWeight: 700, display: "flex", alignItems: "center", gap: 5, marginTop: "auto" }}>
+                        <Users size={13} strokeWidth={1.8} /> {d.member_count}명 활동 중
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -638,6 +666,7 @@ export default function CategoryPage() {
 
 // 부서명 기반 컬러 테마
 function getDeptTheme(name: string) {
+  if (/유니게/.test(name)) return { gradient: "linear-gradient(135deg, #F1F5F9, #CBD5E1)", iconColor: "#64748B", titleColor: "#334155" };
   if (/영아/.test(name))  return { gradient: "linear-gradient(135deg, #FFE0E9, #FFBAD0)", iconColor: "#D63A6A", titleColor: "#8B1A3C" };
   if (/유치/.test(name))  return { gradient: "linear-gradient(135deg, #FFF3C4, #FFE082)", iconColor: "#D97706", titleColor: "#7C4F00" };
   if (/초등.*2|초등2/.test(name)) return { gradient: "linear-gradient(135deg, #C8F5E0, #86EFAC)", iconColor: "#16A34A", titleColor: "#145229" };

@@ -68,7 +68,7 @@
 - **전체 현황·런북: `chflow-app/docs/SECURITY_REVIEW_2026-06.md`** (보안 검토 결과·조치 상태·적용 절차·진단 SQL·로드맵)
 - ✅ **2026-06-15 기준 주요 항목 모두 해소**: CR-1~3·H-1~5·H-1b·H-3·M-err·M-bucket·CSP enforce·pastor A안·M-rate
 - 미해소(L): find-id/password 계정 열거, `window.__chflowSupabase` 진단코드
-- postcss moderate → Next.js 16.3 stable 릴리즈 후 해소 예정
+- postcss moderate → Next 16.2.10 + npm overrides(postcss 8.5.18)로 해소. 패키지 보안 점검은 `chflow-app/docs/SECURITY_REVIEW_2026-06.md` 기준.
 
 ## 사용자 원칙
 - 사용자가 직접 등록한 데이터를 "시스템 자동"이라 표현 금지

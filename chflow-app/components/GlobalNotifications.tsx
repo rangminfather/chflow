@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { MessagesSquare } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, MessagesSquare } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import FontScaleControl from "@/components/FontScaleControl";
 import { supabase } from "@/lib/supabase";
@@ -22,6 +22,7 @@ export default function GlobalNotifications() {
   const pathname = usePathname();
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
   const hidden = useMemo(
     () =>
       HIDDEN_PATH_PREFIXES.some((prefix) => pathname?.startsWith(prefix)) ||
@@ -72,8 +73,31 @@ export default function GlobalNotifications() {
 
   if (hidden || !userId) return null;
 
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        className="global-notification-dock-toggle global-notification-dock-toggle-collapsed"
+        onClick={() => setCollapsed(false)}
+        aria-label="도움 메뉴 열기"
+        title="도움 메뉴 열기"
+      >
+        <ChevronsLeft size={16} strokeWidth={2.2} />
+      </button>
+    );
+  }
+
   return (
     <div className="global-notification-dock" aria-live="polite">
+      <button
+        type="button"
+        className="global-notification-dock-toggle"
+        onClick={() => setCollapsed(true)}
+        aria-label="도움 메뉴 접기"
+        title="도움 메뉴 접기"
+      >
+        <ChevronsRight size={16} strokeWidth={2.2} />
+      </button>
       <FontScaleControl />
       <button
         type="button"
