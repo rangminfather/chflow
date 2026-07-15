@@ -145,7 +145,8 @@ export default function DepartmentsPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{cat.category}</div>
                     <div style={{ fontSize: 11, color: color.point, marginTop: 2, fontWeight: 600 }}>
-                      {cat.dept_count}개 부서
+                      {/* 교육사역국은 상세 화면에서 유니게학교(미운영) 카드를 하나 더 표시하므로 카운트도 +1 */}
+                      {cat.category === "교육사역국" ? cat.dept_count + 1 : cat.dept_count}개 부서
                     </div>
                   </div>
                   <div style={{ fontSize: 16, color: T.border }}>›</div>
