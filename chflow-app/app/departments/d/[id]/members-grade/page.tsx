@@ -7,7 +7,7 @@ import { photoThumb } from "@/lib/photo";
 import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
-import { Lock, Medal } from "lucide-react";
+import { Lock, Medal, UserMinus } from "lucide-react";
 
 interface DeptMember {
   teacher_id: string | null;
@@ -139,6 +139,27 @@ export default function MembersGradePage() {
       showToast(`${member.name} 등급 변경됨`);
       await load();
     }
+  }
+
+  async function handleRemove(member: DeptMember) {
+    const ok = await confirm(
+      `${member.name} 님을 이 부서에서 제외하시겠습니까?\n출석·담임 이력은 보존되며, 다시 임명하면 복구됩니다.`,
+      { okText: "제외", cancelText: "취소" },
+    );
+    if (!ok) return;
+    setSavingId(memberKey(member));
+    const { error } = await supabase.rpc("dept_remove_member", {
+      p_dept_id: deptId,
+      p_user_id: member.user_id,
+      p_teacher_id: member.teacher_id,
+    });
+    setSavingId(null);
+    if (error) {
+      showToast("제외 실패: " + error.message);
+      return;
+    }
+    showToast(`${member.name} 님 제외됨`);
+    await load();
   }
 
   // 임명 모달 — 검색 (debounce 250ms)
@@ -299,20 +320,30 @@ export default function MembersGradePage() {
                           {!m.has_dm && <span style={noDmBadgeStyle}>미승인</span>}
                         </div>
                       </div>
-                      <select
-                        value={m.grade}
-                        onChange={(e) => handleGradeChange(m, parseInt(e.target.value, 10))}
-                        disabled={savingId === key}
-                        style={{
-                          padding: "6px 10px", fontSize: 12, fontFamily: "inherit",
-                          border: "1.5px solid var(--accent-line)", borderRadius: 8, background: "var(--card)",
-                          cursor: savingId === key ? "not-allowed" : "pointer", minWidth: 180,
-                        }}
-                      >
-                        {GRADE_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                        <select
+                          value={m.grade}
+                          onChange={(e) => handleGradeChange(m, parseInt(e.target.value, 10))}
+                          disabled={savingId === key}
+                          style={{
+                            padding: "6px 10px", fontSize: 12, fontFamily: "inherit",
+                            border: "1.5px solid var(--accent-line)", borderRadius: 8, background: "var(--card)",
+                            cursor: savingId === key ? "not-allowed" : "pointer", minWidth: 180,
+                          }}
+                        >
+                          {GRADE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => handleRemove(m)}
+                          disabled={savingId === key}
+                          title="이 부서에서 제외"
+                          style={removeBtnStyle}
+                        >
+                          <UserMinus size={16} strokeWidth={2} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -346,8 +377,18 @@ export default function MembersGradePage() {
                           <span style={noAppBadgeStyle}>앱 미가입</span>
                         </div>
                       </div>
-                      <div style={{ fontSize: 11, color: "var(--ink-faint)", minWidth: 120, textAlign: "right" }}>
-                        앱 가입 후 조정 가능
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, color: "var(--ink-faint)", textAlign: "right" }}>
+                          앱 가입 후 조정 가능
+                        </span>
+                        <button
+                          onClick={() => handleRemove(m)}
+                          disabled={savingId === key}
+                          title="명단에서 제외"
+                          style={removeBtnStyle}
+                        >
+                          <UserMinus size={16} strokeWidth={2} />
+                        </button>
                       </div>
                     </div>
                   );
@@ -555,4 +596,10 @@ const noAppBadgeStyle: React.CSSProperties = {
 const noDmBadgeStyle: React.CSSProperties = {
   fontSize: 10, fontWeight: 700, color: "var(--ink-soft)",
   background: "var(--bg-soft)", borderRadius: 6, padding: "1px 6px",
+};
+const removeBtnStyle: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center",
+  width: 34, height: 34, flexShrink: 0,
+  background: "var(--card)", border: "1.5px solid var(--hairline-strong)",
+  borderRadius: 8, color: "var(--danger)", cursor: "pointer", fontFamily: "inherit",
 };
