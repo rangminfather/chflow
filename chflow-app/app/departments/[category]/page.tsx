@@ -8,7 +8,7 @@ import DeptIcon from "@/components/DeptIcon";
 import HeaderLogo from "@/components/HeaderLogo";
 import { T, PageShell, PageContent } from "@/components/Layout";
 import { LoadingView } from "@/components/StatusViews";
-import { User, Users, ChevronLeft, Search, CheckCircle2, Sparkles } from "lucide-react";
+import { Users, ChevronLeft, Search, CheckCircle2, Sparkles } from "lucide-react";
 
 interface Department {
   id: string;
@@ -293,30 +293,24 @@ export default function CategoryPage() {
     <PageShell>
       <style>{`
         .dept-card-list {
-          display: flex;
-          overflow-x: auto;
-          scroll-snap-type: x mandatory;
-          -webkit-overflow-scrolling: touch;
-          gap: 14px;
-          padding: 16px 16px 20px;
-          scrollbar-width: none;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
         }
-        .dept-card-list::-webkit-scrollbar { display: none; }
         .dept-card-item {
-          flex-shrink: 0;
-          width: 78vw;
-          max-width: 300px;
-          scroll-snap-align: start;
+          transition: transform 0.15s, box-shadow 0.15s;
+        }
+        @media (hover: hover) {
+          .dept-card-item.is-tappable:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 26px rgba(0,0,0,0.12);
+          }
         }
         @media (min-width: 640px) {
           .dept-card-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            overflow-x: visible;
-            scroll-snap-type: none;
-            padding: 0;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px;
           }
-          .dept-card-item { width: auto; max-width: none; }
         }
       `}</style>
 
@@ -346,12 +340,17 @@ export default function CategoryPage() {
             {displayDepts.map((d) => {
               const badge = statusBadge(d.my_status);
               const disabled = d.displayOnly || d.my_status === "approved" || d.my_status === "pending";
+              const tappable = !disabled || d.my_status === "approved";
               const theme = getDeptTheme(d.name);
               const slots = keyMembers[d.id] ?? null;
+              const age = shortAge(d.description);
+              const faces = slots
+                ? ROLE_SLOTS.map(({ key }) => slots[key]).filter((p): p is SlotPhoto => !!p)
+                : [];
               return (
                 <div
                   key={d.id}
-                  className="dept-card-item"
+                  className={`dept-card-item${tappable ? " is-tappable" : ""}`}
                   onClick={() => {
                     if (d.displayOnly) return;
                     if (d.my_status === "approved") { router.push(`/departments/d/${d.id}`); return; }
@@ -361,7 +360,7 @@ export default function CategoryPage() {
                     background: T.bgCard,
                     border: `1.5px solid ${d.displayOnly ? "var(--hairline-strong)" : d.my_status === "approved" ? "#4ade80" : d.my_status === "pending" ? "#E0C893" : T.border}`,
                     borderRadius: 18,
-                    cursor: disabled && d.my_status !== "approved" ? "default" : "pointer",
+                    cursor: tappable ? "pointer" : "default",
                     overflow: "hidden",
                     boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
                     display: "flex", flexDirection: "column",
@@ -371,46 +370,81 @@ export default function CategoryPage() {
                   {/* 컬러 상단 배너 */}
                   <div style={{
                     background: theme.gradient,
-                    padding: "22px 16px 16px",
-                    display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                    padding: "16px 12px 14px",
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 7,
                     position: "relative",
                   }}>
                     {(badge || d.statusLabel) && (
-                      <div style={{ position: "absolute", top: 10, right: 10, padding: "3px 9px", background: "rgba(255,255,255,0.9)", color: badge?.color ?? "var(--ink-soft)", borderRadius: 6, fontSize: 10, fontWeight: 800, backdropFilter: "blur(4px)" }}>{badge?.label ?? d.statusLabel}</div>
+                      <div style={{ position: "absolute", top: 9, right: 9, padding: "3px 8px", background: "color-mix(in srgb, var(--paper) 88%, transparent)", color: badge?.color ?? "var(--ink-soft)", borderRadius: 6, fontSize: 9.5, fontWeight: 800, backdropFilter: "blur(4px)" }}>{badge?.label ?? d.statusLabel}</div>
                     )}
-                    <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(255,255,255,0.85)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
-                      <DeptIcon name={d.name} category={d.category} size={26} color={theme.iconColor} />
+                    <div style={{ width: 48, height: 48, borderRadius: 14, background: "color-mix(in srgb, var(--paper) 85%, transparent)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.1)" }}>
+                      <DeptIcon name={d.name} category={d.category} size={24} color={theme.iconColor} />
                     </div>
-                    <div style={{ fontSize: 17, fontWeight: 900, color: theme.titleColor, textAlign: "center", letterSpacing: -0.3 }}>{d.name}</div>
+                    <div style={{ fontSize: 15, fontWeight: 900, color: theme.titleColor, textAlign: "center", letterSpacing: -0.3, lineHeight: 1.2 }}>{d.name}</div>
+                    {age && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 20,
+                        background: "color-mix(in srgb, var(--paper) 78%, transparent)",
+                        color: theme.titleColor, whiteSpace: "nowrap",
+                      }}>{age}</span>
+                    )}
                   </div>
 
                   {/* 하단 정보 */}
-                  <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
-                    {d.description && (
-                      <div style={{ fontSize: 11, color: T.textMuted, lineHeight: 1.5 }}>{d.description}</div>
-                    )}
-                    {/* 주요 인원 사진 */}
-                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      {ROLE_SLOTS.map(({ key }) => {
-                        const person = slots?.[key] ?? null;
-                        return person?.photoUrl ? (
-                          <img key={key} src={photoThumb(person.photoUrl, 64) ?? undefined} alt={person.name || ""} title={`${key}: ${person.name || ""}`} style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", objectPosition: "top center", border: `2px solid ${T.border}` }} />
-                        ) : (
-                          <div key={key} style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--bg-soft)", display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${T.border}` }}>
-                            <User size={14} strokeWidth={1.8} style={{ color: "var(--ink-faint)" }} />
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {/* 활동 인원 */}
+                  <div style={{ padding: "12px 12px 13px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
                     {d.displayOnly ? (
-                      <div style={{ fontSize: 12, color: "var(--ink-soft)", fontWeight: 700, marginTop: "auto" }}>
+                      <div style={{ fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 700, lineHeight: 1.5, marginTop: "auto" }}>
                         현재 영아부에서 통합 운영
                       </div>
                     ) : (
-                      <div style={{ fontSize: 12, color: theme.iconColor, fontWeight: 700, display: "flex", alignItems: "center", gap: 5, marginTop: "auto" }}>
-                        <Users size={13} strokeWidth={1.8} /> {d.member_count}명 활동 중
-                      </div>
+                      <>
+                        {/* 임원 아바타 + 활동 인원 */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: "auto" }}>
+                          {faces.length > 0 ? (
+                            <div style={{ display: "flex", alignItems: "center" }}>
+                              {faces.slice(0, 4).map((p, i) => (
+                                p.photoUrl ? (
+                                  <img
+                                    key={i}
+                                    src={photoThumb(p.photoUrl, 64) ?? undefined}
+                                    alt={p.name || ""}
+                                    title={p.name || ""}
+                                    style={{ width: 26, height: 26, borderRadius: "50%", objectFit: "cover", objectPosition: "top center", border: `2px solid ${T.bgCard}`, marginLeft: i ? -8 : 0 }}
+                                  />
+                                ) : (
+                                  <div key={i} title={p.name || ""} style={{
+                                    width: 26, height: 26, borderRadius: "50%", marginLeft: i ? -8 : 0,
+                                    background: "color-mix(in srgb, " + theme.iconColor + " 16%, var(--card))",
+                                    color: theme.iconColor, border: `2px solid ${T.bgCard}`,
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    fontSize: 11, fontWeight: 800,
+                                  }}>{p.name?.trim()?.slice(-2) || "?"}</div>
+                                )
+                              ))}
+                            </div>
+                          ) : <span />}
+                          <span style={{ fontSize: 11.5, color: theme.iconColor, fontWeight: 800, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                            <Users size={13} strokeWidth={2} /> {d.member_count}명
+                          </span>
+                        </div>
+                        {/* 가입 안내 */}
+                        <div style={{
+                          fontSize: 11, fontWeight: 800, textAlign: "center",
+                          padding: "7px 0", borderRadius: 9,
+                          background: d.my_status === "approved"
+                            ? "var(--success-soft)"
+                            : d.my_status === "pending"
+                            ? "var(--warning-soft)"
+                            : "color-mix(in srgb, " + theme.iconColor + " 12%, var(--card))",
+                          color: d.my_status === "approved"
+                            ? "var(--success)"
+                            : d.my_status === "pending"
+                            ? "var(--warning)"
+                            : theme.iconColor,
+                        }}>
+                          {d.my_status === "approved" ? "입장하기 ›" : d.my_status === "pending" ? "승인 대기 중" : "가입 신청 ›"}
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
@@ -662,6 +696,13 @@ export default function CategoryPage() {
       )}
     </PageShell>
   );
+}
+
+// 설명 문구에서 짧은 나이 라벨만 추출 ("3세~4세 (…통합 운영)" → "3세~4세")
+function shortAge(desc: string | null): string | null {
+  if (!desc) return null;
+  const head = desc.split(/[(·]/)[0].trim();
+  return head && head.length <= 12 ? head : null;
 }
 
 // 부서명 기반 컬러 테마
