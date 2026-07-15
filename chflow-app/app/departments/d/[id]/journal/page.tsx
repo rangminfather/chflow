@@ -567,8 +567,10 @@ export default function JournalPage() {
                       <input
                         type="number"
                         min={0}
-                        value={(form as Record<string, unknown>)[key] as number}
+                        inputMode="numeric"
+                        value={((form as Record<string, unknown>)[key] as number) || ""}
                         onChange={(e) => setN(key, e.target.value)}
+                        placeholder="0"
                         style={{ ...inputStyle, textAlign: "center" }}
                       />
                     </div>
@@ -581,8 +583,10 @@ export default function JournalPage() {
                 <input
                   type="number"
                   min={0}
-                  value={form.offering}
+                  inputMode="numeric"
+                  value={form.offering || ""}
                   onChange={(e) => setN("offering", e.target.value)}
+                  placeholder="0"
                   style={inputStyle}
                 />
               </FormRow>
