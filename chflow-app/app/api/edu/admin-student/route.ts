@@ -26,9 +26,11 @@ type StudentPayload = {
   birth_date?: string | null;
   gender?: string | null;
   address?: string | null;
+  family?: FamilyPayload[];
 };
 
 type FamilyPayload = {
+  relative_id?: string | null;
   name?: string | null;
   relation?: string | null;
   phone?: string | null;
@@ -183,7 +185,24 @@ async function saveOne(
   await ensureClass(admin, deptId, classNo, gradeYear);
   const teacherId = await teacherForClass(admin, deptId, classNo);
 
-  const row = {
+  const row: {
+    department_id: string;
+    student_no: number | null;
+    name: string;
+    student_type: StudentType;
+    grade: string | null;
+    grade_year: number | null;
+    class_no: string | null;
+    order_no: number | null;
+    school_name: string | null;
+    gender: string | null;
+    birth_date: string | null;
+    phone: string | null;
+    address: string | null;
+    teacher_id: string | null;
+    is_active: boolean;
+    member_id?: string | null;
+  } = {
     department_id: deptId,
     student_no: studentNo,
     name,
@@ -214,14 +233,14 @@ async function saveOne(
 
     const { error } = await admin
       .from("edu_students")
-      .update(row)
+      .update(cleanText(payload.member_id) ? { ...row, member_id: cleanText(payload.member_id) } : row)
       .eq("id", id)
       .eq("department_id", deptId);
     if (error) throw error;
   } else {
     const { data, error } = await admin
       .from("edu_students")
-      .insert(row)
+      .insert(cleanText(payload.member_id) ? { ...row, member_id: cleanText(payload.member_id) } : row)
       .select("id")
       .single();
     if (error) throw error;
@@ -297,6 +316,9 @@ async function ensureStudentMember(
 }
 
 async function findOrCreateFamilyMember(admin: AdminClient, family: FamilyPayload) {
+  const relativeId = cleanText(family.relative_id);
+  if (relativeId) return relativeId;
+
   const name = cleanText(family.name);
   if (!name) return null;
   const phone = cleanText(family.phone);
@@ -483,8 +505,9 @@ export async function POST(req: NextRequest) {
   for (let i = 0; i < inputs.length; i++) {
     try {
       const saved = await saveOne(admin, body.dept_id, inputs[i], Array.isArray(body.students) ? undefined : body.member);
-      if (!Array.isArray(body.students) && body.family?.length && saved.id) {
-        await saveFamily(admin, body.dept_id, saved.id, inputs[i], body.family);
+      const familyRows = Array.isArray(body.students) ? inputs[i].family : body.family;
+      if (familyRows?.length && saved.id) {
+        await saveFamily(admin, body.dept_id, saved.id, inputs[i], familyRows);
       }
       if (!Array.isArray(body.students) && body.family_updates?.length && saved.id) {
         await updateFamily(admin, body.dept_id, saved.id, inputs[i], body.family_updates);
