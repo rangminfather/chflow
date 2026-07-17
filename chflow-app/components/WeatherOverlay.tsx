@@ -86,24 +86,66 @@ export default function WeatherOverlay() {
           90%  { opacity: 0.7; }
           100% { transform: translateY(105vh) translateX(0); opacity: 0; }
         }
-        @keyframes weather-lightning {
-          0%, 88%, 100% { opacity: 0; }
-          89% { opacity: 0.5; }
-          90% { opacity: 0.08; }
-          92% { opacity: 0.55; }
-          94% { opacity: 0; }
+        /* 번개 섬광 — 두 겹을 서로 다른 주기로 돌려 불규칙한 뇌우 리듬 */
+        @keyframes storm-flash {
+          0%, 91%, 100% { opacity: 0; }
+          92%   { opacity: 0.6; }
+          93.5% { opacity: 0.12; }
+          95%   { opacity: 0.68; }
+          97%   { opacity: 0; }
+        }
+        /* 실제 낙뢰 줄기 — 섬광과 동기 */
+        @keyframes storm-bolt {
+          0%, 91%, 100% { opacity: 0; }
+          92%   { opacity: 1; }
+          93.5% { opacity: 0.15; }
+          95%   { opacity: 0.95; }
+          97%   { opacity: 0; }
         }
       `}</style>
       <div
         aria-hidden="true"
         style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 50, overflow: "hidden" }}
       >
-        {isThunder && !reduced && (
-          <div style={{
-            position: "absolute", inset: 0,
-            background: "radial-gradient(ellipse at 50% 0%, #f0f6ff, #cfe0ff)",
-            animation: "weather-lightning 7s ease-out infinite",
-          }} />
+        {isThunder && (
+          <>
+            {/* 폭풍 먹구름 틴트 — 위쪽을 어둑하게 깔아 번개가 도드라지게 (모션 무관, 항상) */}
+            <div style={{
+              position: "absolute", inset: 0,
+              background: "linear-gradient(to bottom, rgba(16,20,36,0.34), rgba(16,20,36,0.05) 45%, transparent 70%)",
+            }} />
+            {!reduced && (
+              <>
+                {/* 은은한 배경 섬광(주기 5.5s) + 강한 스트라이크 섬광(주기 8.7s) → 합쳐져 불규칙 */}
+                <div style={{
+                  position: "absolute", inset: 0,
+                  background: "radial-gradient(ellipse at 62% 0%, #eef4ff, #c7d8ff)",
+                  animation: "storm-flash 5.5s ease-out infinite",
+                }} />
+                <div style={{
+                  position: "absolute", inset: 0,
+                  background: "radial-gradient(ellipse at 30% 5%, #ffffff, transparent 68%)",
+                  animation: "storm-flash 8.7s ease-out infinite 2s",
+                }} />
+                {/* 낙뢰 줄기(스트라이크 섬광과 동기) */}
+                <svg
+                  viewBox="0 0 100 300" preserveAspectRatio="none"
+                  style={{
+                    position: "absolute", top: 0, left: "56%",
+                    width: 70, height: "60%",
+                    filter: "drop-shadow(0 0 7px #dbe9ff) drop-shadow(0 0 16px #9cc0ff)",
+                    animation: "storm-bolt 8.7s ease-out infinite 2s",
+                  }}
+                >
+                  <polyline
+                    points="56,0 40,88 64,88 30,190 52,190 22,300"
+                    fill="none" stroke="#f2f7ff" strokeWidth="3.4"
+                    strokeLinejoin="round" strokeLinecap="round"
+                  />
+                </svg>
+              </>
+            )}
+          </>
         )}
         {particles.map((p) =>
           isSnow ? (
