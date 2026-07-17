@@ -107,6 +107,9 @@ yarn-error.log*
 
 .vercel
 
+# Local desktop build/output sandbox.
+chflow-desktop/
+
 # Local cleanup archive; keep generated/import artifacts off git.
 MS_AX/archive/
 MS_AX/chflow-project/db-backups/
