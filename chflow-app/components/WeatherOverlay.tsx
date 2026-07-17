@@ -4,10 +4,13 @@ import { useEffect, useState, useMemo } from "react";
 import type { WeatherCondition } from "@/app/api/weather/route";
 
 const CONFIG = {
-  rain:   { count: 15, minDur: 2.2, maxDur: 1.2, angle: 8,  minW: 1.5, maxW: 0,   minH: 14, maxH: 14 },
-  shower: { count: 38, minDur: 0.85, maxDur: 0.45, angle: 12, minW: 1.5, maxW: 0.8, minH: 16, maxH: 18 },
-  snow:   { count: 30, minDur: 4,   maxDur: 5,   angle: 0,  minW: 4,   maxW: 6,   minH: 4,  maxH: 6  },
-};
+  rain:         { count: 16, minDur: 1.2, durSpan: 1.0, minW: 1.5, wSpan: 0,   minH: 14, hSpan: 6 },
+  shower:       { count: 40, minDur: 0.55, durSpan: 0.4, minW: 1.5, wSpan: 0.8, minH: 16, hSpan: 8 },
+  thunderstorm: { count: 46, minDur: 0.5, durSpan: 0.35, minW: 1.8, wSpan: 0.9, minH: 18, hSpan: 8 },
+  snow:         { count: 30, minDur: 4,   durSpan: 5,   minW: 4,   wSpan: 6,   minH: 4,  hSpan: 6 },
+} as const;
+
+const RAIN_TYPES: WeatherCondition[] = ["rain", "shower", "thunderstorm"];
 
 function seeded(seed: number) {
   let s = seed;
@@ -19,26 +22,44 @@ function seeded(seed: number) {
 
 export default function WeatherOverlay() {
   const [condition, setCondition] = useState<WeatherCondition | null>(null);
+  const [reduced, setReduced] = useState(false);
 
+  // 날씨 조회 — 마운트 시 + 10분 주기 + 앱 복귀(포커스) 시
   useEffect(() => {
-    fetch("/api/weather")
-      .then((r) => r.json())
-      .then((d) => setCondition(d.condition ?? "clear"))
-      .catch(() => {});
+    let alive = true;
+    const load = () =>
+      fetch("/api/weather")
+        .then((r) => r.json())
+        .then((d) => { if (alive) setCondition(d.condition ?? "clear"); })
+        .catch(() => {});
+    load();
+    const iv = setInterval(load, 10 * 60 * 1000);
+    const onVis = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { alive = false; clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
+  }, []);
+
+  // 접근성: 모션 최소화 설정이면 번개 플래시 생략
+  useEffect(() => {
+    const m = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setReduced(m.matches);
+    apply();
+    m.addEventListener("change", apply);
+    return () => m.removeEventListener("change", apply);
   }, []);
 
   const particles = useMemo(() => {
     if (!condition || condition === "clear") return [];
-    const cfg = CONFIG[condition];
+    const cfg = CONFIG[condition as keyof typeof CONFIG];
     if (!cfg) return [];
     const rand = seeded(42);
     return Array.from({ length: cfg.count }, (_, i) => ({
       id: i,
       left:    rand() * 100,
       delay:   -(rand() * 5),
-      dur:     cfg.minDur + rand() * cfg.maxDur,
-      width:   cfg.minW + rand() * cfg.maxW,
-      height:  cfg.minH + rand() * cfg.maxH,
+      dur:     cfg.minDur + rand() * cfg.durSpan,
+      width:   cfg.minW + rand() * cfg.wSpan,
+      height:  cfg.minH + rand() * cfg.hSpan,
       opacity: condition === "snow" ? 0.5 + rand() * 0.4 : 0.2 + rand() * 0.35,
     }));
   }, [condition]);
@@ -46,7 +67,8 @@ export default function WeatherOverlay() {
   if (!condition || condition === "clear" || particles.length === 0) return null;
 
   const isSnow = condition === "snow";
-  const angle  = condition === "shower" ? 12 : 8;
+  const isThunder = condition === "thunderstorm";
+  const angle = condition === "rain" ? 8 : 12; // 소나기·뇌우는 좀 더 사선
 
   return (
     <>
@@ -64,14 +86,25 @@ export default function WeatherOverlay() {
           90%  { opacity: 0.7; }
           100% { transform: translateY(105vh) translateX(0); opacity: 0; }
         }
+        @keyframes weather-lightning {
+          0%, 88%, 100% { opacity: 0; }
+          89% { opacity: 0.5; }
+          90% { opacity: 0.08; }
+          92% { opacity: 0.55; }
+          94% { opacity: 0; }
+        }
       `}</style>
       <div
         aria-hidden="true"
-        style={{
-          position: "fixed", inset: 0, pointerEvents: "none",
-          zIndex: 50, overflow: "hidden",
-        }}
+        style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 50, overflow: "hidden" }}
       >
+        {isThunder && !reduced && (
+          <div style={{
+            position: "absolute", inset: 0,
+            background: "radial-gradient(ellipse at 50% 0%, #f0f6ff, #cfe0ff)",
+            animation: "weather-lightning 7s ease-out infinite",
+          }} />
+        )}
         {particles.map((p) =>
           isSnow ? (
             <div key={p.id} style={{
