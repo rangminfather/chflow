@@ -22,7 +22,6 @@
     "android": {
       "googleServicesFile": "./google-services.json",
       "package": "com.smartmyungsung.app",
-      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#fff9f2"
