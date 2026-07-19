@@ -16,6 +16,32 @@ interface JournalSummary {
   offering: number;
 }
 
+interface ClassRow {
+  class_no: string;
+  enrolled: number;   // 재적
+  attend: number;     // 출석 (출+인)
+  absent: number;     // 결석
+  lead: number;       // 인도 (전도)
+  exemplary: number;  // 모범 (수동 입력)
+  memory: number;     // 요절 (암송)
+  lesson: number;     // 과제 (공과)
+  bible: number;      // 성경 (성경읽기)
+  quiz: number;       // 퀴즈 (수동 입력)
+}
+
+// 반별표 편집 컬럼 정의 (반명 제외한 숫자 컬럼)
+const CLASS_COLS: { key: keyof Omit<ClassRow, "class_no">; label: string }[] = [
+  { key: "enrolled",  label: "재적" },
+  { key: "attend",    label: "출석" },
+  { key: "absent",    label: "결석" },
+  { key: "lead",      label: "인도" },
+  { key: "exemplary", label: "모범" },
+  { key: "memory",    label: "요절" },
+  { key: "lesson",    label: "과제" },
+  { key: "bible",     label: "성경" },
+  { key: "quiz",      label: "퀴즈" },
+];
+
 interface JournalDetail {
   id: string;
   department_id: string;
@@ -39,6 +65,7 @@ interface JournalDetail {
   offering: number;
   volunteers: string;
   prayer_requests: string;
+  class_stats: ClassRow[];
 }
 
 const EMPTY_FORM: Omit<JournalDetail, "id" | "department_id" | "journal_date"> = {
@@ -61,6 +88,7 @@ const EMPTY_FORM: Omit<JournalDetail, "id" | "department_id" | "journal_date"> =
   offering: 0,
   volunteers: "",
   prayer_requests: "",
+  class_stats: [],
 };
 
 // 부서명 -> /api/journal-prefill 의 dept_key 매핑
@@ -89,6 +117,7 @@ export default function JournalPage() {
   const prefillCancelRef = useState<{ cancelled: boolean }>({ cancelled: false })[0];
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
+  const [rollupLoading, setRollupLoading] = useState(false);
 
   const MAX_PREFILL_ATTEMPTS = 5;
   const RETRY_DELAYS_MS = [0, 5000, 8000, 10000, 12000]; // 1차~5차 시도 직전 대기
@@ -137,6 +166,7 @@ export default function JournalPage() {
         offering: j.offering || 0,
         volunteers: j.volunteers || "",
         prayer_requests: j.prayer_requests || "",
+        class_stats: normalizeClassRows(j.class_stats),
       });
       setIsNew(false);
     }
@@ -290,6 +320,52 @@ export default function JournalPage() {
     setPrefillStatus("failed");
   };
 
+  // 반별 자동집계 불러오기 (기존 출결/달란트에서 합산)
+  const loadClassRollup = async () => {
+    setRollupLoading(true);
+    try {
+      const { data, error } = await supabase.rpc("edu_journal_class_rollup", {
+        p_dept_id: deptId,
+        p_date: form.date,
+      });
+      if (error) throw error;
+      const rows = normalizeClassRows(data);
+      if (rows.length === 0) {
+        showToast("집계할 반/출결 데이터가 없습니다");
+      } else {
+        setForm((f) => ({ ...f, class_stats: rows }));
+        showToast(`반별 ${rows.length}개 자동집계 완료 - 확인 후 저장하세요`);
+      }
+    } catch (e: unknown) {
+      showToast("자동집계 실패: " + (e as Error).message);
+    } finally {
+      setRollupLoading(false);
+    }
+  };
+
+  const updateClassCell = (idx: number, key: keyof ClassRow, val: string) => {
+    setForm((f) => {
+      const next = f.class_stats.map((r) => ({ ...r }));
+      if (key === "class_no") next[idx].class_no = val;
+      else next[idx][key] = Number(val) || 0;
+      return { ...f, class_stats: next };
+    });
+  };
+
+  const addClassRow = () => {
+    setForm((f) => ({
+      ...f,
+      class_stats: [
+        ...f.class_stats,
+        { class_no: "", enrolled: 0, attend: 0, absent: 0, lead: 0, exemplary: 0, memory: 0, lesson: 0, bible: 0, quiz: 0 },
+      ],
+    }));
+  };
+
+  const removeClassRow = (idx: number) => {
+    setForm((f) => ({ ...f, class_stats: f.class_stats.filter((_, i) => i !== idx) }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -315,6 +391,7 @@ export default function JournalPage() {
         p_offering:     form.offering,
         p_volunteers:   form.volunteers,
         p_prayer:       form.prayer_requests,
+        p_class_stats:  form.class_stats,
       });
       if (error) throw error;
       showToast("저장되었습니다");
@@ -550,6 +627,83 @@ export default function JournalPage() {
                 />
               </FormRow>
 
+              {/* 11.5) 반별 출결표 */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)" }}>반별 출결</div>
+                  <button
+                    onClick={loadClassRollup}
+                    disabled={rollupLoading}
+                    style={{ ...prefillBtnStyle, display: "inline-flex", alignItems: "center", gap: 6 }}
+                  >
+                    {rollupLoading ? "집계 중..." : <><FileText size={14} strokeWidth={1.8} /> 자동집계 불러오기</>}
+                  </button>
+                </div>
+
+                {form.class_stats.length === 0 ? (
+                  <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: "12px 0", lineHeight: 1.5 }}>
+                    출결·달란트에서 반별로 자동집계하려면 <b>자동집계 불러오기</b>를 누르세요.
+                    불러온 뒤 값 수정·저장이 가능합니다.
+                  </div>
+                ) : (
+                  <div style={{ overflowX: "auto", maxWidth: "100%" }}>
+                    <table style={{ borderCollapse: "collapse", fontSize: 12, minWidth: 640 }}>
+                      <thead>
+                        <tr>
+                          <th style={classThStyle}>반명</th>
+                          {CLASS_COLS.map((c) => (
+                            <th key={c.key} style={classThStyle}>{c.label}</th>
+                          ))}
+                          <th style={classThStyle}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {form.class_stats.map((row, idx) => (
+                          <tr key={idx}>
+                            <td style={classTdStyle}>
+                              <input
+                                type="text"
+                                value={row.class_no}
+                                onChange={(e) => updateClassCell(idx, "class_no", e.target.value)}
+                                style={{ ...classCellInput, width: 60, textAlign: "center" }}
+                              />
+                            </td>
+                            {CLASS_COLS.map((c) => (
+                              <td key={c.key} style={classTdStyle}>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  inputMode="numeric"
+                                  value={row[c.key] || ""}
+                                  onChange={(e) => updateClassCell(idx, c.key, e.target.value)}
+                                  placeholder="0"
+                                  style={classCellInput}
+                                />
+                              </td>
+                            ))}
+                            <td style={classTdStyle}>
+                              <button onClick={() => removeClassRow(idx)} style={classRowDelBtn} title="반 삭제">×</button>
+                            </td>
+                          </tr>
+                        ))}
+                        {/* 합계 */}
+                        <tr>
+                          <td style={{ ...classTdStyle, fontWeight: 700, color: "var(--ink-soft)", textAlign: "center" }}>합계</td>
+                          {CLASS_COLS.map((c) => (
+                            <td key={c.key} style={{ ...classTdStyle, fontWeight: 700, textAlign: "center", color: "var(--ink)" }}>
+                              {form.class_stats.reduce((s, r) => s + (r[c.key] || 0), 0)}
+                            </td>
+                          ))}
+                          <td style={classTdStyle}></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <button onClick={addClassRow} style={{ ...addRowBtnStyle, marginTop: 8 }}>+ 반 추가</button>
+              </div>
+
               {/* 12) 통계 */}
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 8 }}>통계</div>
@@ -711,6 +865,27 @@ function FormRow({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
+// RPC/저장본의 class_stats(jsonb | 배열)를 안전하게 ClassRow[] 로 정규화
+function normalizeClassRows(raw: unknown): ClassRow[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((r) => {
+    const o = (r || {}) as Record<string, unknown>;
+    const num = (v: unknown) => Number(v) || 0;
+    return {
+      class_no: String(o.class_no ?? ""),
+      enrolled: num(o.enrolled),
+      attend: num(o.attend),
+      absent: num(o.absent),
+      lead: num(o.lead),
+      exemplary: num(o.exemplary),
+      memory: num(o.memory),
+      lesson: num(o.lesson),
+      bible: num(o.bible),
+      quiz: num(o.quiz),
+    };
+  });
+}
+
 function todayDate() {
   // toISOString은 UTC라 KST 자정~오전9시에 하루 전 날짜가 됨 — 로컬 날짜로 포맷
   const d = new Date();
@@ -755,6 +930,59 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "inherit",
   outline: "none",
   boxSizing: "border-box",
+};
+
+const classThStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: "var(--ink-soft)",
+  padding: "6px 6px",
+  borderBottom: "1.5px solid var(--hairline)",
+  whiteSpace: "nowrap",
+  textAlign: "center",
+};
+
+const classTdStyle: React.CSSProperties = {
+  padding: "4px 4px",
+  borderBottom: "1px solid var(--hairline)",
+  textAlign: "center",
+};
+
+const classCellInput: React.CSSProperties = {
+  width: 52,
+  padding: "6px 6px",
+  border: "1.5px solid var(--hairline)",
+  borderRadius: 6,
+  fontSize: 12,
+  fontFamily: "inherit",
+  outline: "none",
+  textAlign: "center",
+  boxSizing: "border-box",
+};
+
+const classRowDelBtn: React.CSSProperties = {
+  background: "var(--danger-soft)",
+  color: "var(--danger)",
+  border: "none",
+  borderRadius: 6,
+  width: 24,
+  height: 24,
+  fontSize: 15,
+  fontWeight: 700,
+  cursor: "pointer",
+  lineHeight: 1,
+};
+
+const addRowBtnStyle: React.CSSProperties = {
+  padding: "7px 14px",
+  background: "var(--bg-soft)",
+  color: "var(--ink-mid)",
+  border: "1.5px dashed var(--hairline)",
+  borderRadius: 8,
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontFamily: "inherit",
 };
 
 const sectionLabel: React.CSSProperties = {
