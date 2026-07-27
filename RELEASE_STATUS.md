@@ -8,7 +8,7 @@
 
 - 웹: Vercel 운영 배포 완료
   - 운영 URL: `https://chflow-app.vercel.app`
-  - 배포 ID: `dpl_DHJWkZjyHgBFNhKEqoBhoNUEijeT`
+  - 배포 ID: `dpl_2p1eWBGxciFjcuZb16o9uVwFtoj9`
   - Android 강제 업데이트 하한: `MIN_ANDROID_BUILD=5`
   - 전환용 최신 버전 설정: `LATEST_ANDROID_BUILD=18`
   - v16 이하 사용자의 v18 전환 안내를 위한 일회성 갱신 완료
