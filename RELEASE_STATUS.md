@@ -17,9 +17,13 @@
   - 빌드 상태: `FINISHED`
   - Google Play 비공개 테스트 제출: 성공
 - Android 정식 릴리스:
-  - 다음 versionCode: `16`
+  - versionCode: `16`
+  - EAS build ID: `07b993de-98cc-4ad5-86e9-13a16d031b51`
+  - EAS submission ID: `78106d37-87b3-4a94-b01a-075da1991e2c`
+  - 빌드 상태: `FINISHED`
   - 프로덕션 제출 설정: `releaseStatus: draft`
-  - 상태: 아직 빌드/제출하지 않음
+  - Google Play 프로덕션 트랙 제출: 성공
+  - 공개 상태: 초안이며 사용자에게 아직 공개되지 않음
 
 ## 완료되어 커밋된 변경
 
@@ -39,6 +43,5 @@
 
 ## 다음 릴리스 절차
 
-1. 커밋된 현재 소스에서 Android versionCode 16 프로덕션 빌드
-2. Google Play 프로덕션 트랙에 `draft`로 자동 제출
-3. Play Console에서 사용자가 최종 검토 후 수동 출시
+1. Play Console에서 versionCode 16 프로덕션 초안과 필수 정책 항목 확인
+2. 사용자가 최종 검토 후 수동 출시
