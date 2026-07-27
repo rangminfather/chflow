@@ -6,7 +6,12 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "release:preview": "node scripts/prepare-release.mjs",
+    "release:patch": "node scripts/prepare-release.mjs patch --apply",
+    "release:minor": "node scripts/prepare-release.mjs minor --apply",
+    "release:major": "node scripts/prepare-release.mjs major --apply",
+    "release:android": "npx eas-cli@latest build --platform android --profile production --auto-submit --non-interactive"
   },
   "dependencies": {
     "expo": "~54.0.33",
