@@ -9,7 +9,7 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "expo": "~54.0.33",
+    "expo": "~54.0.36",
     "expo-application": "~7.0.8",
     "expo-constants": "~18.0.13",
     "expo-notifications": "~0.32.17",
