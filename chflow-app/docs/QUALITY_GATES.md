@@ -59,6 +59,17 @@ change code → push branch → Actions checks → Vercel Preview → manual cha
 
 If Actions fails, fix the failure before proceeding. If the Preview review finds a behavior issue, fix it on the branch and repeat the same flow. Production deployment remains separate from Preview approval.
 
+### Branch protection rollout
+
+After the `Web quality` workflow has a stable passing history, apply this protection to `main`:
+
+1. Require pull requests before merging, so production changes receive a Preview review.
+2. Require the `Lint, tests, types, and production build` check.
+3. Keep administrator bypass enabled initially for an urgent production fix.
+4. Do not require approvals, merge queue, signed commits, or strict up-to-date checks initially; reconsider after one to two weeks of stable use.
+
+This setting is managed in GitHub repository **Settings → Branches / Rules** and requires repository administrator permission. Do not enable it until the workflow is passing consistently, because it intentionally prevents a failed change from reaching `main`.
+
 ### Later stage — isolated Supabase test project
 
 Add a test Supabase project only for repeatable browser tests that need Auth, RPC, Storage, or RLS. It must have separate credentials, test-only accounts/data, and migrations applied before tests. Never point automated tests at production data.
