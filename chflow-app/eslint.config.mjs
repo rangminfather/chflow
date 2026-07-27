@@ -16,6 +16,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "public/pdf.worker.min.mjs",
     "saved-variants/**",
+    // Local investigation files and build-time tools have their own runtime
+    // constraints; lint the application source in the release gate.
+    "_scratch/**",
+    "scripts/**",
   ]),
   {
     rules: {

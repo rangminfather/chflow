@@ -9,7 +9,6 @@ import {
   ArrowDown,
   Check,
   Copy,
-  Download,
   FileText,
   Forward,
   LogOut,
@@ -35,8 +34,15 @@ import {
   X,
 } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
+import ForwardConversationModal from "@/components/messenger/ForwardConversationModal";
+import ImagePreviewModal from "@/components/messenger/ImagePreviewModal";
 import { EmptyState, LoadingView } from "@/components/StatusViews";
 import { storageProxyUrl } from "@/lib/storage-url";
+import {
+  findFirstUnreadMessageId,
+  formatMessengerAttachmentMeta,
+  sanitizeMessengerFileName,
+} from "@/lib/messenger-utils";
 import { supabase } from "@/lib/supabase";
 import {
   createGroupConversation,
@@ -177,22 +183,6 @@ export default function MessengerPage() {
     }
   }, [activeId]);
 
-  const findFirstUnreadMessageId = useCallback((rows: MessengerMessage[], unreadCount: number) => {
-    if (unreadCount <= 0) return null;
-    let remaining = unreadCount;
-    let fallback: string | null = null;
-
-    for (let i = rows.length - 1; i >= 0; i -= 1) {
-      const row = rows[i];
-      if (row.is_mine || row.deleted_at) continue;
-      fallback = row.id;
-      remaining -= 1;
-      if (remaining <= 0) return row.id;
-    }
-
-    return fallback;
-  }, []);
-
   const loadConversationBody = useCallback(async (conversationId: string, unreadCount = 0) => {
     setLoadingMessages(true);
     setError("");
@@ -222,7 +212,7 @@ export default function MessengerPage() {
     } finally {
       setLoadingMessages(false);
     }
-  }, [findFirstUnreadMessageId]);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -454,7 +444,7 @@ export default function MessengerPage() {
         if (file.size > MAX_FILE_BYTES) {
           throw new Error(`${file.name} 파일이 25MB를 초과합니다.`);
         }
-        const safeName = sanitizeFileName(file.name);
+        const safeName = sanitizeMessengerFileName(file.name);
         const path = `${session.user.id}/${activeId}/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`;
         const form = new FormData();
         form.append("file", new File([file], file.name, { type: file.type || "application/octet-stream" }));
@@ -920,7 +910,7 @@ export default function MessengerPage() {
         />
       )}
       {forwarding && (
-        <ForwardModal
+        <ForwardConversationModal
           conversations={conversations.filter((c) => c.conversation_id !== forwarding.conversation_id)}
           onClose={() => setForwarding(null)}
           onForward={forwardMessage}
@@ -1404,55 +1394,6 @@ function AttachmentList({
           </a>
         );
       })}
-    </div>
-  );
-}
-
-function ImagePreviewModal({
-  preview,
-  onClose,
-}: {
-  preview: NonNullable<ImagePreviewState>;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  return (
-    <div onClick={onClose} style={imagePreviewOverlayStyle}>
-      <div onClick={(event) => event.stopPropagation()} style={imagePreviewShellStyle}>
-        <div style={imagePreviewHeaderStyle}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={previewFileNameStyle}>{preview.attachment.file_name}</div>
-            {formatAttachmentMeta(preview.attachment) && (
-              <div style={previewMetaStyle}>{formatAttachmentMeta(preview.attachment)}</div>
-            )}
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <a href={preview.url} download={preview.attachment.file_name} target="_blank" rel="noreferrer" style={previewActionStyle} title="다운로드">
-              <Download size={17} strokeWidth={2} />
-            </a>
-            <button type="button" onClick={onClose} style={previewActionStyle} title="닫기">
-              <X size={18} strokeWidth={2} />
-            </button>
-          </div>
-        </div>
-        <div style={imagePreviewImageFrameStyle}>
-          <Image
-            src={preview.url}
-            alt={preview.attachment.file_name}
-            fill
-            sizes="100vw"
-            unoptimized
-            style={imagePreviewStyle}
-          />
-        </div>
-      </div>
     </div>
   );
 }
@@ -1984,60 +1925,10 @@ function ReadStatusModal({
   );
 }
 
-function ForwardModal({
-  conversations,
-  onClose,
-  onForward,
-}: {
-  conversations: MessengerConversation[];
-  onClose: () => void;
-  onForward: (conversationId: string) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const filtered = conversations.filter((c) => (
-    !query.trim()
-    || c.display_title.toLowerCase().includes(query.trim().toLowerCase())
-  ));
-
-  return (
-    <div onClick={onClose} style={modalOverlayStyle}>
-      <div onClick={(e) => e.stopPropagation()} style={modalStyle}>
-        <div style={modalHeaderStyle}>
-          <div style={sectionTitleStyle}><Forward size={18} strokeWidth={2} /> 메시지 전달</div>
-          <button type="button" onClick={onClose} style={smallIconButtonStyle}><X size={17} /></button>
-        </div>
-        <div style={searchBoxStyle}>
-          <Search size={16} strokeWidth={1.8} color="var(--ink-faint)" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="전달할 대화 검색" style={searchInputStyle} />
-        </div>
-        <div style={userListStyle}>
-          {filtered.length === 0 ? (
-            <EmptyState message="전달할 대화가 없습니다." padding={34} />
-          ) : filtered.map((c) => (
-            <button key={c.conversation_id} type="button" onClick={() => onForward(c.conversation_id)} style={userRowStyle}>
-              <Avatar title={c.display_title} src={c.display_avatar_url} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={userNameStyle}>{c.display_title}</div>
-                <div style={userMetaStyle}>{c.last_message_body || `${c.participant_count}명`}</div>
-              </div>
-              <Forward size={16} strokeWidth={2} color="var(--accent)" />
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function Avatar({ title, src }: { title: string; src?: string | null }) {
   const initial = (title || "M").trim().slice(0, 1).toUpperCase();
   if (src) return <Image src={src} alt="" width={42} height={42} unoptimized style={avatarStyle} />;
   return <div style={avatarFallbackStyle}>{initial}</div>;
-}
-
-function sanitizeFileName(name: string): string {
-  const clean = name.normalize("NFKC").replace(/[^\w.\-가-힣]/g, "_").slice(0, 90);
-  return clean || "attachment";
 }
 
 function formatShortTime(iso: string): string {
@@ -2054,20 +1945,8 @@ function formatMessageTime(iso: string): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function formatBytes(bytes?: number | null): string {
-  if (!bytes) return "";
-  if (bytes < 1024) return `${bytes}B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
-}
-
 function formatAttachmentMeta(attachment: MessengerAttachment): string {
-  const parts = [
-    attachment.mime_type?.split("/").pop()?.toUpperCase(),
-    attachment.width && attachment.height ? `${attachment.width}x${attachment.height}` : "",
-    formatBytes(attachment.size_bytes),
-  ].filter(Boolean);
-  return parts.join(" · ");
+  return formatMessengerAttachmentMeta(attachment);
 }
 
 function roleLabel(role: string | null): string {
@@ -2242,14 +2121,6 @@ const imageAttachmentStyle: React.CSSProperties = { display: "block", maxWidth: 
 const fileAttachmentStyle: React.CSSProperties = { minWidth: 0, width: "min(320px, 68vw)", maxWidth: "100%", boxSizing: "border-box", minHeight: 42, borderRadius: 8, padding: "8px 10px", display: "flex", alignItems: "center", gap: 8, textDecoration: "none", fontSize: 12, fontWeight: 800 };
 const fileNameStyle: React.CSSProperties = { minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const fileMetaStyle: React.CSSProperties = { flexShrink: 0, maxWidth: "42%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.78 };
-const imagePreviewOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 260, background: "rgba(15, 13, 11, 0.82)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14 };
-const imagePreviewShellStyle: React.CSSProperties = { width: "min(1180px, 100%)", maxHeight: "calc(100dvh - 28px)", display: "flex", flexDirection: "column", gap: 10 };
-const imagePreviewHeaderStyle: React.CSSProperties = { minHeight: 48, borderRadius: 8, background: "rgba(255,255,255,0.08)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "7px 8px 7px 12px", fontSize: 13 };
-const previewFileNameStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 900 };
-const previewMetaStyle: React.CSSProperties = { marginTop: 2, fontSize: 11, color: "rgba(255,255,255,0.72)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-const previewActionStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: 8, border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.08)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" };
-const imagePreviewImageFrameStyle: React.CSSProperties = { position: "relative", width: "100%", height: "calc(100dvh - 86px)", minHeight: 240, borderRadius: 8, overflow: "hidden", alignSelf: "center", boxShadow: "0 22px 70px rgba(0,0,0,0.28)" };
-const imagePreviewStyle: React.CSSProperties = { objectFit: "contain" };
 const oneLineStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const composerStyle: React.CSSProperties = { padding: "12px 12px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: "1px solid var(--hairline)", background: "color-mix(in srgb, var(--card) 92%, transparent)", backdropFilter: "blur(10px)", display: "grid", gap: 8, flexShrink: 0 };
 const composerContextStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, border: "1px solid var(--hairline)", background: "var(--accent-soft)", borderRadius: 8, padding: "7px 8px" };

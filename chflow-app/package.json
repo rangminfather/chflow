@@ -7,6 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "lint:baseline": "node scripts/check-lint-baseline.mjs",
+    "test:unit": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run lint:baseline && npm run test:unit && npm run typecheck",
     "manual": "node scripts/generate-manual.js",
     "manual:install": "npx playwright install chromium",
     "prepare": "husky"
@@ -45,7 +49,8 @@
     "husky": "^9.1.7",
     "playwright": "^1.60.0",
     "tailwindcss": "^4.3.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   },
   "overrides": {
     "uuid": "11.1.1",
