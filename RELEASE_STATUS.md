@@ -8,9 +8,10 @@
 
 - 웹: Vercel 운영 배포 완료
   - 운영 URL: `https://chflow-app.vercel.app`
-  - 배포 ID: `dpl_E736xX8p5CUyQdCptptNkoCkqxhb`
+  - 배포 ID: `dpl_DHJWkZjyHgBFNhKEqoBhoNUEijeT`
   - Android 강제 업데이트 하한: `MIN_ANDROID_BUILD=5`
-  - 전환용 최신 버전 설정: `LATEST_ANDROID_BUILD=16`
+  - 전환용 최신 버전 설정: `LATEST_ANDROID_BUILD=18`
+  - v16 이하 사용자의 v18 전환 안내를 위한 일회성 갱신 완료
 - DB: Supabase 원격 마이그레이션 적용 확인
   - `20260718100000_absence_alert_summary_and_recognition.sql`
 - Android 테스트 빌드:
