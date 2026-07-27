@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeBulletinAttachmentAsPdf } from "@/lib/bulletin/attachment-to-pdf";
 import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
 
 export const runtime = "nodejs";
@@ -30,10 +31,6 @@ function validSignature(no: number, expiresAt: number, sig: string) {
   const expectedBuf = Buffer.from(expected, "hex");
   const actualBuf = Buffer.from(sig, "hex");
   return expectedBuf.length === actualBuf.length && timingSafeEqual(expectedBuf, actualBuf);
-}
-
-function isPdf(buf: Uint8Array) {
-  return buf.byteLength > 1000 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46;
 }
 
 async function fetchBuffer(url: string, headers?: HeadersInit) {
@@ -77,20 +74,32 @@ async function downloadPdf(no: number) {
     const workerRaw = await umsViaCf(`/bbs/${rawPath}`, {
       referer: `${UMS_BBS_BASE}/zboard.php?id=samusil&no=${no}`,
     });
-    if (workerRaw.status >= 200 && workerRaw.status < 300 && isPdf(workerRaw.body)) return workerRaw.body;
+    if (workerRaw.status >= 200 && workerRaw.status < 300) {
+      const normalized = await normalizeBulletinAttachmentAsPdf(workerRaw.body);
+      if (normalized) return normalized;
+    }
 
     const raw = await fetchBuffer(`${PROXY_BASE}?action=raw_pdf&board=samusil&path=${encodeURIComponent(rawPath)}`);
-    if (raw.ok && isPdf(raw.buf)) return raw.buf;
+    if (raw.ok) {
+      const normalized = await normalizeBulletinAttachmentAsPdf(raw.buf);
+      if (normalized) return normalized;
+    }
 
     const directRaw = await fetchBuffer(`${UMS_BBS_BASE}/${rawPath}`, {
       ...BROWSER_HEADERS,
       Referer: `${UMS_BBS_BASE}/zboard.php?id=samusil&no=${no}`,
     });
-    if (directRaw.ok && isPdf(directRaw.buf)) return directRaw.buf;
+    if (directRaw.ok) {
+      const normalized = await normalizeBulletinAttachmentAsPdf(directRaw.buf);
+      if (normalized) return normalized;
+    }
   }
 
   const downloaded = await fetchBuffer(`${PROXY_BASE}?action=pdf&board=samusil&no=${no}`);
-  if (downloaded.ok && isPdf(downloaded.buf)) return downloaded.buf;
+  if (downloaded.ok) {
+    const normalized = await normalizeBulletinAttachmentAsPdf(downloaded.buf);
+    if (normalized) return normalized;
+  }
 
   const directDownloaded = await fetchBuffer(
     `${UMS_BBS_BASE}/skin/PSM_Revolution_DragDrop_board_domi_t_reply_comment/m_download.php?id=samusil&no=${no}&filenum=0&snum=0&hit=0`,
@@ -99,7 +108,10 @@ async function downloadPdf(no: number) {
       Referer: `${UMS_BBS_BASE}/zboard.php?id=samusil&no=${no}`,
     },
   );
-  if (directDownloaded.ok && isPdf(directDownloaded.buf)) return directDownloaded.buf;
+  if (directDownloaded.ok) {
+    const normalized = await normalizeBulletinAttachmentAsPdf(directDownloaded.buf);
+    if (normalized) return normalized;
+  }
 
   throw new Error(`PDF 다운로드 실패: ${downloaded.status}/${directDownloaded.status}`);
 }
