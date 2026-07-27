@@ -5,6 +5,12 @@
 - `chflow-expo/` — 안드로이드 셸 (Expo WebView) → eas build
 - `MS_AX/` — DB 작업방 (Python ETL + SQL) → 배포 안 함
 
+## 배포 상태와 작업 분류
+- 릴리스 상태, 배포 여부 또는 dirty working tree를 평가하기 전에 반드시 루트의 `RELEASE_STATUS.md`를 읽는다.
+- 파일 경로나 `git status`만 보고 다른 에이전트의 WIP·미완성·무관한 변경이라고 단정하지 않는다.
+- 실제 diff, 배포 기록, 마이그레이션 조회 결과를 확인하여 `완료/배포됐지만 미커밋`, `완료 및 커밋`, `확인된 WIP`, `의도 불명`을 구분한다.
+- 운영 배포, DB 마이그레이션, EAS 빌드 또는 스토어 제출 상태가 바뀌면 `RELEASE_STATUS.md`를 함께 갱신한다.
+
 ## 커밋 / 배포
 - `chflow-app` 수정 후 반드시 **commit → push** 까지 완료 (로컬만 수정은 반영 안 됨)
 - `git push origin main` → 25초 내 Vercel 자동배포
