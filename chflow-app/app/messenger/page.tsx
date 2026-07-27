@@ -34,13 +34,19 @@ import {
   X,
 } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
+import Avatar from "@/components/messenger/MessengerAvatar";
 import ForwardConversationModal from "@/components/messenger/ForwardConversationModal";
 import ImagePreviewModal from "@/components/messenger/ImagePreviewModal";
+import ReadStatusModalContent from "@/components/messenger/ReadStatusModalContent";
 import { EmptyState, LoadingView } from "@/components/StatusViews";
 import { storageProxyUrl } from "@/lib/storage-url";
 import {
   findFirstUnreadMessageId,
   formatMessengerAttachmentMeta,
+  formatMessengerMessageTime,
+  messengerErrorMessage,
+  getMessengerReadStatus,
+  messengerRoleLabel,
   sanitizeMessengerFileName,
 } from "@/lib/messenger-utils";
 import { supabase } from "@/lib/supabase";
@@ -177,7 +183,7 @@ export default function MessengerPage() {
         setActiveId(rows[0].conversation_id);
       }
     } catch (e) {
-      setError(getErrorMessage(e));
+      setError(messengerErrorMessage(e));
     } finally {
       setLoadingList(false);
     }
@@ -1857,78 +1863,8 @@ function ReadStatusModal({
   participants: MessengerParticipant[];
   onClose: () => void;
 }) {
-  const readUserIds = new Set(message.read_by.map((r) => r.user_id));
-  const sender = participants.find((p) => p.user_id === message.sender_id);
-  const readableParticipants = participants.filter((p) => p.user_id !== message.sender_id);
-  const readRows = message.read_by
-    .map((receipt) => {
-      const participant = participants.find((p) => p.user_id === receipt.user_id);
-      return {
-        user_id: receipt.user_id,
-        name: receipt.name || participant?.name || "이름 없음",
-        avatar_url: participant?.avatar_url || null,
-        sub_role: participant?.sub_role || null,
-        read_at: receipt.read_at,
-      };
-    })
-    .sort((a, b) => String(a.read_at || "").localeCompare(String(b.read_at || "")));
-  const unreadRows = readableParticipants.filter((p) => !readUserIds.has(p.user_id));
-
-  return (
-    <div onClick={onClose} style={modalOverlayStyle}>
-      <div onClick={(e) => e.stopPropagation()} style={modalStyle}>
-        <div style={modalHeaderStyle}>
-          <div style={sectionTitleStyle}><Check size={18} strokeWidth={2} /> 읽음 현황</div>
-          <button type="button" onClick={onClose} style={smallIconButtonStyle}><X size={17} /></button>
-        </div>
-
-        <div style={{ ...replyPreviewStyle, maxWidth: "none", background: "var(--bg-soft)", color: "var(--ink-soft)", marginBottom: 14 }}>
-          <div style={{ fontWeight: 900 }}>{sender?.name || message.sender_name || "보낸 사람"}</div>
-          <div style={oneLineStyle}>{message.body || "첨부 메시지"}</div>
-        </div>
-
-        <div style={sidebarLabelStyle}>읽은 사람 {readRows.length}명</div>
-        <div style={{ ...userListStyle, maxHeight: 220, marginBottom: 14 }}>
-          {readRows.length === 0 ? (
-            <EmptyState message="아직 읽은 사람이 없습니다." padding={24} />
-          ) : (
-            readRows.map((row) => (
-              <div key={row.user_id} style={{ ...userRowStyle, cursor: "default" }}>
-                <Avatar title={row.name || "U"} src={row.avatar_url} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={userNameStyle}>{row.name}</div>
-                  <div style={userMetaStyle}>{row.read_at ? formatMessageTime(row.read_at) : row.sub_role || "읽음"}</div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div style={sidebarLabelStyle}>안 읽은 사람 {unreadRows.length}명</div>
-        <div style={{ ...userListStyle, maxHeight: 220 }}>
-          {unreadRows.length === 0 ? (
-            <EmptyState message="모두 읽었습니다." padding={24} />
-          ) : (
-            unreadRows.map((row) => (
-              <div key={row.user_id} style={{ ...userRowStyle, cursor: "default" }}>
-                <Avatar title={row.name || "U"} src={row.avatar_url} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={userNameStyle}>{row.name || "이름 없음"}</div>
-                  <div style={userMetaStyle}>{row.sub_role || "미읽음"}</div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Avatar({ title, src }: { title: string; src?: string | null }) {
-  const initial = (title || "M").trim().slice(0, 1).toUpperCase();
-  if (src) return <Image src={src} alt="" width={42} height={42} unoptimized style={avatarStyle} />;
-  return <div style={avatarFallbackStyle}>{initial}</div>;
+  const { sender, readRows, unreadRows } = getMessengerReadStatus(message.sender_id, message.read_by, participants);
+  return <ReadStatusModalContent message={message} status={{ sender, readRows, unreadRows }} onClose={onClose} styles={{ modalOverlay: modalOverlayStyle, modal: modalStyle, modalHeader: modalHeaderStyle, sectionTitle: sectionTitleStyle, smallIconButton: smallIconButtonStyle, replyPreview: replyPreviewStyle, oneLine: oneLineStyle, sidebarLabel: sidebarLabelStyle, userList: userListStyle, userRow: userRowStyle, userName: userNameStyle, userMeta: userMetaStyle }} />;
 }
 
 function formatShortTime(iso: string): string {
@@ -1941,8 +1877,7 @@ function formatShortTime(iso: string): string {
 }
 
 function formatMessageTime(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return formatMessengerMessageTime(iso);
 }
 
 function formatAttachmentMeta(attachment: MessengerAttachment): string {
@@ -1950,19 +1885,11 @@ function formatAttachmentMeta(attachment: MessengerAttachment): string {
 }
 
 function roleLabel(role: string | null): string {
-  if (role === "admin") return "관리자";
-  if (role === "office") return "사무";
-  if (role === "pastor") return "교역자";
-  if (role === "leader") return "리더";
-  return "성도";
+  return messengerRoleLabel(role);
 }
 
 function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "object" && error && "message" in error) {
-    return String((error as { message: unknown }).message);
-  }
-  return "처리 중 오류가 발생했습니다.";
+  return messengerErrorMessage(error);
 }
 
 const responsiveCss = `
@@ -2104,8 +2031,6 @@ const conversationTitleStyle: React.CSSProperties = { flex: 1, minWidth: 0, font
 const conversationTimeStyle: React.CSSProperties = { fontSize: 11, color: "var(--ink-faint)", flexShrink: 0 };
 const conversationPreviewStyle: React.CSSProperties = { flex: 1, minWidth: 0, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const unreadBadgeStyle: React.CSSProperties = { minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--danger)", color: "#fff", fontSize: 10, fontWeight: 900, flexShrink: 0 };
-const avatarStyle: React.CSSProperties = { width: 42, height: 42, borderRadius: "50%", objectFit: "cover", background: "var(--bg-soft)", flexShrink: 0, boxShadow: "inset 0 0 0 1px rgba(43,39,34,0.06)" };
-const avatarFallbackStyle: React.CSSProperties = { ...avatarStyle, display: "grid", placeItems: "center", background: "var(--accent-soft)", color: "var(--accent)", fontSize: 15, fontWeight: 900 };
 const senderNameStyle: React.CSSProperties = { fontSize: 12, fontWeight: 800, color: "var(--ink-soft)", paddingLeft: 2 };
 const bubbleStyle: React.CSSProperties = { padding: "9px 12px", fontSize: 14, lineHeight: 1.55, boxShadow: "0 6px 18px rgba(26,22,18,0.06)", overflowWrap: "anywhere" };
 const replyPreviewStyle: React.CSSProperties = { borderLeft: "3px solid currentColor", borderRadius: 7, padding: "6px 8px", marginBottom: 7, maxWidth: 300 };

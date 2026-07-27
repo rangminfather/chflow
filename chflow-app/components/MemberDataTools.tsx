@@ -17,8 +17,6 @@ const SHEET_INFO: { key: SheetKey; label: string; desc: string; required?: boole
   { key: "Directory",  label: "목장 구조",      desc: "평원/초원/목장/가족(주소)",                       defaultOn: false },
 ];
 
-const KEY_FILL = "8B4513"; // PK 컬럼은 갈색
-
 type RowValue = string | number | boolean | Date | null | undefined;
 type DataRow = Record<string, RowValue>;
 type DiffChange = Record<string, [RowValue, RowValue]>;
@@ -78,7 +76,7 @@ export function ExportMembersModal({ onClose }: { onClose: () => void }) {
       const readme = [
         ["chflow 회원정보 백업"],
         ["생성일시", new Date().toLocaleString("ko-KR")],
-        ["포함시트", Object.entries(sel).filter(([_, v]) => v).map(([k]) => k).join(", ")],
+        ["포함시트", Object.entries(sel).filter(([, v]) => v).map(([k]) => k).join(", ")],
         [],
         ["주의사항"],
         ["1. id 컬럼 (갈색 헤더) — 절대 수정/삭제하지 마세요. 업로드 시 매칭 키입니다."],
