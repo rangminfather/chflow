@@ -1629,6 +1629,9 @@ export default function SignupPage() {
                 </span>
               </label>
             )}
+            <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 10, lineHeight: 1.5 }}>
+              동의를 거부할 권리가 있으나, 거부 시 회원가입 및 서비스 이용이 제한됩니다.
+            </div>
           </div>
 
           {error && <div style={{ ...errorStyle, display: "inline-flex", alignItems: "center", gap: 6, width: "100%" }}><AlertTriangle size={14} strokeWidth={1.8} /> {error}</div>}
