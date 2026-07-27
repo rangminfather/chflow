@@ -26,6 +26,14 @@
   - 프로덕션 제출 설정: `releaseStatus: draft`
   - Google Play 프로덕션 트랙 제출: 성공
   - 공개 상태: 정식 출시됨
+- Android 자동 업데이트 감지 전환 릴리스:
+  - versionCode: `18` (`17`은 재시도 과정에서 번호만 선점되어 미사용)
+  - 커밋: `9502640`
+  - EAS build ID: `5849b464-7b2f-4411-a2e5-20e55f576b56`
+  - EAS submission ID: `149d36b8-b578-4d41-a3fe-594af6f07f94`
+  - 빌드 상태: `FINISHED`
+  - Google Play 프로덕션 트랙 초안 제출: `FINISHED`
+  - 공개 상태: 초안, Play Console 최종 검토·수동 출시 필요
 
 ## 완료되어 커밋된 변경
 
