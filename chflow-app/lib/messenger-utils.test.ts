@@ -6,6 +6,7 @@ import {
   formatMessengerMessageTime,
   messengerErrorMessage,
   getMessengerReadStatus,
+  getMessengerGroupTitle,
   messengerRoleLabel,
   sanitizeMessengerFileName,
   toggleMessengerUser,
@@ -60,5 +61,10 @@ describe("messenger file helpers", () => {
     expect(toggleMessengerUser([first], second, true)).toEqual([second]);
     expect(toggleMessengerUser([first], second)).toEqual([first, second]);
     expect(toggleMessengerUser([first, second], first)).toEqual([second]);
+  });
+
+  it("uses a typed group title or derives one from selected members", () => {
+    expect(getMessengerGroupTitle([{ name: "가" }, { name: "나" }], "  ")).toBe("가, 나");
+    expect(getMessengerGroupTitle([{ name: "가" }], " 소그룹 ")).toBe("소그룹");
   });
 });

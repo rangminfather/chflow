@@ -7,7 +7,7 @@ import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { formatPhone, supabase } from "@/lib/supabase";
 import { photoThumb } from "@/lib/photo";
-import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryChildText, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, type QuickEditChange, type QuickEditDraft } from "@/lib/directory-utils";
+import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryChildText, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, getDirectoryFilterOptions, hasDirectorySearchCriteria, type QuickEditChange, type QuickEditDraft } from "@/lib/directory-utils";
 import { getAllSubRoleOptions, getRoleImageBySubRole } from "@/lib/roles";
 import { LoadingView } from "@/components/StatusViews";
 import { MessageCircle, PhoneCall } from "lucide-react";
@@ -154,35 +154,8 @@ export default function DirectoryPage() {
     })();
   }, [router]);
 
-  const plainOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const rows: { name: string; order: number }[] = [];
-    for (const row of dirTree) {
-      if (row.plain_name && !seen.has(row.plain_name)) {
-        seen.add(row.plain_name);
-        rows.push({ name: row.plain_name, order: row.plain_order ?? 99 });
-      }
-    }
-    return rows.sort((a, b) => a.order - b.order);
-  }, [dirTree]);
-
-  const grasslandOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const row of dirTree) {
-      if ((!plain || row.plain_name === plain) && row.grassland_name) set.add(row.grassland_name);
-    }
-    return Array.from(set).sort();
-  }, [dirTree, plain]);
-
-  const pastureOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const row of dirTree) {
-      if ((!plain || row.plain_name === plain)
-        && (!grassland || row.grassland_name === grassland)
-        && row.pasture_name) set.add(row.pasture_name);
-    }
-    return Array.from(set).sort();
-  }, [dirTree, plain, grassland]);
+  const filterOptions = useMemo(() => getDirectoryFilterOptions(dirTree, plain, grassland), [dirTree, plain, grassland]);
+  const { plains: plainOptions, grasslands: grasslandOptions, pastures: pastureOptions } = filterOptions;
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isAdmin = !!user && ["admin", "office", "pastor"].includes(user.role);
@@ -194,7 +167,7 @@ export default function DirectoryPage() {
     nextGrassland = grassland,
     nextPasture = pasture,
   ) {
-    return !!(nextQuery.trim() || nextPlain || nextGrassland || nextPasture);
+    return hasDirectorySearchCriteria(nextQuery, nextPlain, nextGrassland, nextPasture);
   }
 
   async function searchMembers(

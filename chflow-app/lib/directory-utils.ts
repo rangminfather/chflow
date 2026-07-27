@@ -75,6 +75,33 @@ export function directoryChildText(value: boolean | null | undefined) {
   return value ? "자녀" : "성인";
 }
 
+export type DirectoryTreeRow = {
+  plain_name: string | null;
+  plain_order: number | null;
+  grassland_name: string | null;
+  pasture_name: string | null;
+};
+
+export function hasDirectorySearchCriteria(query: string, plain: string, grassland: string, pasture: string) {
+  return !!(query.trim() || plain || grassland || pasture);
+}
+
+export function getDirectoryFilterOptions(rows: DirectoryTreeRow[], plain: string, grassland: string) {
+  const plains = new Map<string, number>();
+  const grasslands = new Set<string>();
+  const pastures = new Set<string>();
+  for (const row of rows) {
+    if (row.plain_name && !plains.has(row.plain_name)) plains.set(row.plain_name, row.plain_order ?? 99);
+    if ((!plain || row.plain_name === plain) && row.grassland_name) grasslands.add(row.grassland_name);
+    if ((!plain || row.plain_name === plain) && (!grassland || row.grassland_name === grassland) && row.pasture_name) pastures.add(row.pasture_name);
+  }
+  return {
+    plains: Array.from(plains, ([name, order]) => ({ name, order })).sort((left, right) => left.order - right.order),
+    grasslands: Array.from(grasslands).sort(),
+    pastures: Array.from(pastures).sort(),
+  };
+}
+
 function addTextChange(
   changes: QuickEditChange[], member: DirectoryQuickEditMember, key: QuickEditChange["key"],
   label: string, input: string, clear: boolean,
