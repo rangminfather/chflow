@@ -577,7 +577,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 12,
     right: 12,
-    bottom: 16,
+    // 컨테이너가 Safe Area 상단 여백을 이미 적용하므로, 펀치홀·상태바 아래에 표시된다.
+    top: 12,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#2B4539',
