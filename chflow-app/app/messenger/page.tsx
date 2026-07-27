@@ -18,13 +18,11 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Pin,
-  Paperclip,
   Pencil,
   Plus,
   Reply,
   ShieldAlert,
   Search,
-  Send,
   SmilePlus,
   Star,
   Trash2,
@@ -35,6 +33,7 @@ import {
 } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import Avatar from "@/components/messenger/MessengerAvatar";
+import MessengerComposer from "@/components/messenger/MessengerComposer";
 import ForwardConversationModal from "@/components/messenger/ForwardConversationModal";
 import ImagePreviewModal from "@/components/messenger/ImagePreviewModal";
 import ReadStatusModalContent from "@/components/messenger/ReadStatusModalContent";
@@ -48,6 +47,7 @@ import {
   getMessengerReadStatus,
   messengerRoleLabel,
   sanitizeMessengerFileName,
+  toggleMessengerUser,
 } from "@/lib/messenger-utils";
 import { supabase } from "@/lib/supabase";
 import {
@@ -856,7 +856,7 @@ export default function MessengerPage() {
                 </button>
               )}
 
-              <Composer
+              <MessengerComposer
                 draft={draft}
                 setDraft={setDraft}
                 sending={sending}
@@ -870,6 +870,7 @@ export default function MessengerPage() {
                 onTyping={emitTyping}
                 onPickFiles={() => fileInputRef.current?.click()}
                 onPasteFiles={(files) => uploadFiles(files)}
+                maxAttachments={MAX_ATTACHMENTS}
               />
               <input
                 ref={fileInputRef}
@@ -1404,127 +1405,6 @@ function AttachmentList({
   );
 }
 
-function Composer({
-  draft,
-  setDraft,
-  sending,
-  uploading,
-  attachments,
-  setAttachments,
-  replyTarget,
-  editing,
-  onCancelContext,
-  onSend,
-  onTyping,
-  onPickFiles,
-  onPasteFiles,
-}: {
-  draft: string;
-  setDraft: (value: string) => void;
-  sending: boolean;
-  uploading: boolean;
-  attachments: PendingAttachment[];
-  setAttachments: React.Dispatch<React.SetStateAction<PendingAttachment[]>>;
-  replyTarget: MessengerMessage | null;
-  editing: MessengerMessage | null;
-  onCancelContext: () => void;
-  onSend: () => void;
-  onTyping: () => void;
-  onPickFiles: () => void;
-  onPasteFiles: (files: File[]) => void;
-}) {
-  return (
-    <form
-      className="messenger-composer"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSend();
-      }}
-      style={composerStyle}
-    >
-      {(replyTarget || editing) && (
-        <div style={composerContextStyle}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 11, fontWeight: 900, color: "var(--accent)" }}>
-              {editing ? "메시지 수정" : `${replyTarget?.sender_name || "메시지"}에게 답장`}
-            </div>
-            <div style={{ ...oneLineStyle, fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
-              {editing?.body || replyTarget?.body || "첨부 메시지"}
-            </div>
-          </div>
-          <button type="button" onClick={onCancelContext} style={smallIconButtonStyle}><X size={14} /></button>
-        </div>
-      )}
-
-      {attachments.length > 0 && !editing && (
-        <div style={pendingAttachmentWrapStyle}>
-          {attachments.map((a) => (
-            <div key={a.file_path} style={pendingAttachmentStyle}>
-              {a.local_url ? (
-                <Image src={a.local_url} alt="" width={24} height={24} unoptimized style={pendingThumbStyle} />
-              ) : (
-                <FileText size={17} />
-              )}
-              <span style={oneLineStyle}>{a.file_name}</span>
-              <button
-                type="button"
-                onClick={() => setAttachments((prev) => prev.filter((x) => x.file_path !== a.file_path))}
-                style={chipRemoveStyle}
-              >
-                <X size={12} strokeWidth={2} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 8, minWidth: 0 }}>
-        <button
-          type="button"
-          onClick={onPickFiles}
-          disabled={uploading || sending || !!editing || attachments.length >= MAX_ATTACHMENTS}
-          title="첨부"
-          style={composerIconButtonStyle}
-        >
-          {uploading ? "..." : <Paperclip size={18} strokeWidth={2} />}
-        </button>
-        <textarea
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            onTyping();
-          }}
-          onPaste={(e) => {
-            const files = Array.from(e.clipboardData.files || []);
-            if (files.length > 0) {
-              onPasteFiles(files);
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              onSend();
-            }
-          }}
-          maxLength={4000}
-          placeholder={editing ? "수정할 내용을 입력하세요" : "메시지를 입력하세요"}
-          style={textareaStyle}
-        />
-        <button
-          type="submit"
-          disabled={sending || uploading || (!draft.trim() && attachments.length === 0)}
-          style={{
-            ...sendButtonStyle,
-            opacity: sending || uploading || (!draft.trim() && attachments.length === 0) ? 0.45 : 1,
-          }}
-        >
-          <Send size={18} strokeWidth={2} />
-        </button>
-      </div>
-    </form>
-  );
-}
-
 function NewConversationModal({
   onClose,
   onCreated,
@@ -1562,15 +1442,7 @@ function NewConversationModal({
   }, [onError, query]);
 
   const toggleUser = (user: MessengerUser) => {
-    if (mode === "direct") {
-      setSelected([user]);
-      return;
-    }
-    setSelected((prev) => (
-      prev.some((u) => u.user_id === user.user_id)
-        ? prev.filter((u) => u.user_id !== user.user_id)
-        : [...prev, user]
-    ));
+    setSelected((prev) => toggleMessengerUser(prev, user, mode === "direct"));
   };
 
   const create = async () => {
@@ -1711,11 +1583,7 @@ function GroupManagementModal({
   }, [onError, query]);
 
   const toggleUser = (user: MessengerUser) => {
-    setSelected((prev) => (
-      prev.some((u) => u.user_id === user.user_id)
-        ? prev.filter((u) => u.user_id !== user.user_id)
-        : [...prev, user]
-    ));
+    setSelected((prev) => toggleMessengerUser(prev, user));
   };
 
   const saveTitle = async () => {
@@ -2047,14 +1915,6 @@ const fileAttachmentStyle: React.CSSProperties = { minWidth: 0, width: "min(320p
 const fileNameStyle: React.CSSProperties = { minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const fileMetaStyle: React.CSSProperties = { flexShrink: 0, maxWidth: "42%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.78 };
 const oneLineStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-const composerStyle: React.CSSProperties = { padding: "12px 12px calc(12px + env(safe-area-inset-bottom, 0px))", borderTop: "1px solid var(--hairline)", background: "color-mix(in srgb, var(--card) 92%, transparent)", backdropFilter: "blur(10px)", display: "grid", gap: 8, flexShrink: 0 };
-const composerContextStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, border: "1px solid var(--hairline)", background: "var(--accent-soft)", borderRadius: 8, padding: "7px 8px" };
-const pendingAttachmentWrapStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6 };
-const pendingAttachmentStyle: React.CSSProperties = { minWidth: 0, maxWidth: "min(220px, 100%)", height: 34, borderRadius: 8, background: "var(--bg-soft)", border: "1px solid var(--hairline)", display: "inline-flex", alignItems: "center", gap: 6, padding: "0 7px", fontSize: 12, fontWeight: 800, color: "var(--ink-mid)" };
-const pendingThumbStyle: React.CSSProperties = { width: 24, height: 24, borderRadius: 5, objectFit: "cover" };
-const composerIconButtonStyle: React.CSSProperties = { width: 44, height: 42, border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--surface)", color: "var(--ink-mid)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 };
-const textareaStyle: React.CSSProperties = { flex: 1, minWidth: 0, minHeight: 42, maxHeight: 130, resize: "none", border: "1px solid var(--hairline)", borderRadius: 10, padding: "10px 12px", fontSize: 14, lineHeight: 1.45, color: "var(--ink)", outline: "none", fontFamily: "inherit", background: "var(--surface)" };
-const sendButtonStyle: React.CSSProperties = { width: 44, height: 42, border: "none", borderRadius: 8, background: "var(--accent)", color: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 };
 const chipRemoveStyle: React.CSSProperties = { width: 18, height: 18, border: "none", background: "transparent", color: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 };
 const modalOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 200, background: "rgba(43,39,34,0.48)", display: "flex", alignItems: "center", justifyContent: "center", padding: "calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px))" };
 const modalStyle: React.CSSProperties = { width: "min(560px, calc(100vw - 24px))", maxHeight: "calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))", overflowY: "auto", boxSizing: "border-box", background: "var(--card)", borderRadius: 10, border: "1px solid var(--hairline)", boxShadow: "0 24px 70px rgba(26,22,18,0.22)", padding: 16 };

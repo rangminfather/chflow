@@ -11,39 +11,22 @@ import {
   formatPhone,
 } from "@/lib/supabase";
 import ModalBackdrop from "@/components/ModalBackdrop";
+import { maskSignupAddress, maskSignupBirthDate, maskSignupName, maskSignupPhone, normalizeSignupGender, normalizeSignupSearchText, signupDisplayGender, signupErrorMessage } from "@/lib/signup-utils";
 import { CheckCircle2, Users, User, AlertTriangle, Lightbulb, MousePointerClick, Eye, EyeOff, Send } from "lucide-react";
 
 type Step = "entry" | "lookup" | "confirm" | "role" | "info" | "done";
 type SignupMethod = "manual" | "verified";
 type RoleGroupId = "clergy" | "coworkers" | "permanent" | "members" | "nextgen";
 
-const displayGender = (value?: string | null) => {
-  if (value === "M") return "남";
-  if (value === "F") return "여";
-  return value || "";
-};
-
-const normalizeGenderValue = (value?: string | null) => {
-  if (value === "남") return "M";
-  if (value === "여") return "F";
-  return value || "";
-};
-
-const getErrorMessage = (error: unknown) => {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "알 수 없는 오류";
-};
-
 const cssUrl = (url: string) => `url(${JSON.stringify(url)})`;
-
-const normalizeSearchText = (value: string) => (
-  value
-    .toLowerCase()
-    .replace(/\s+/g, "")
-    .replace(/[·/.,_-]/g, "")
-    .replace(/목장/g, "")
-);
+const displayGender = signupDisplayGender;
+const normalizeGenderValue = normalizeSignupGender;
+const getErrorMessage = signupErrorMessage;
+const normalizeSearchText = normalizeSignupSearchText;
+const maskName = maskSignupName;
+const maskBirthDate = maskSignupBirthDate;
+const maskPhone = maskSignupPhone;
+const maskAddress = maskSignupAddress;
 
 interface DaumPostcodeData {
   roadAddress?: string;
@@ -1843,39 +1826,6 @@ function SubRoleModal({ role, onSelect, onClose }: { role: Role; onSelect: (labe
       </div>
     </ModalBackdrop>
   );
-}
-
-function maskName(name: string): string {
-  const trimmed = (name || "").trim();
-  if (!trimmed) return "";
-  if (trimmed.length <= 1) return `${trimmed}*`;
-  if (trimmed.length === 2) return `${trimmed[0]}*`;
-  return `${trimmed[0]}*${trimmed.slice(-1)}`;
-}
-
-function maskBirthDate(value?: string | null): string {
-  if (!value) return "";
-  const digits = value.replace(/[^0-9]/g, "");
-  if (digits.length >= 8) return `${digits.slice(0, 2)}**-**-${digits.slice(6, 8)}`;
-  if (digits.length >= 4) return `${digits.slice(0, 2)}**-**`;
-  return "**";
-}
-
-function maskPhone(phone: string): string {
-  if (!phone) return "";
-  // 010-1234-5678 → 010-****-5678
-  const m = phone.match(/^(\d{2,3})-?(\d{3,4})-?(\d{4})$/);
-  if (m) return `${m[1]}-****-${m[3]}`;
-  return phone;
-}
-
-function maskAddress(addr: string): string {
-  if (!addr) return "";
-  // 울산광역시 동구 방어진순환로 995 (서부동, 서부아파트) 119동 1402호
-  // → 울산광역시 동구 ***
-  const parts = addr.split(/\s+/);
-  if (parts.length <= 2) return addr;
-  return parts.slice(0, 2).join(" ") + " ***";
 }
 
 // ============ Styles ============

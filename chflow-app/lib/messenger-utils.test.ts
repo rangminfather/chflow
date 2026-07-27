@@ -8,6 +8,7 @@ import {
   getMessengerReadStatus,
   messengerRoleLabel,
   sanitizeMessengerFileName,
+  toggleMessengerUser,
 } from "./messenger-utils";
 
 describe("findFirstUnreadMessageId", () => {
@@ -51,5 +52,13 @@ describe("messenger file helpers", () => {
     const result = getMessengerReadStatus("sender", [{ user_id: "read", name: null, read_at: "2026-07-27T10:00:00Z" }], participants);
     expect(result.readRows.map((row) => row.user_id)).toEqual(["read"]);
     expect(result.unreadRows.map((row) => row.user_id)).toEqual(["unread"]);
+  });
+
+  it("keeps one direct-message target and toggles group targets", () => {
+    const first = { user_id: "first" };
+    const second = { user_id: "second" };
+    expect(toggleMessengerUser([first], second, true)).toEqual([second]);
+    expect(toggleMessengerUser([first], second)).toEqual([first, second]);
+    expect(toggleMessengerUser([first, second], first)).toEqual([second]);
   });
 });

@@ -107,3 +107,10 @@ export function getMessengerReadStatus(
     unreadRows: participants.filter((participant) => participant.user_id !== senderId && !readUserIds.has(participant.user_id)),
   };
 }
+
+export function toggleMessengerUser<T extends { user_id: string }>(selected: T[], user: T, singleSelect = false): T[] {
+  if (singleSelect) return [user];
+  return selected.some((item) => item.user_id === user.user_id)
+    ? selected.filter((item) => item.user_id !== user.user_id)
+    : [...selected, user];
+}
