@@ -66,11 +66,81 @@ function SafariGlyph({ size = 22 }: { size?: number }) {
   );
 }
 
+/**
+ * 그림 1 — 아이폰 사파리 화면 맨 아래 버튼 줄에서 '공유' 버튼 위치.
+ * 실제 스크린샷이 아니라 위치를 알려주기 위한 그림입니다.
+ * (iOS 버전에 따라 모양은 조금 달라도 버튼 순서·가운데 위치는 같습니다)
+ */
+function ToolbarFigure() {
+  return (
+    <svg viewBox="0 0 170 86" className="a4-fig-svg" role="img" aria-label="사파리 화면 맨 아래 버튼 줄의 가운데가 공유 버튼입니다">
+      {/* 안내 말풍선 */}
+      <rect x="52" y="1" width="66" height="17" rx="8.5" className="fig-accent-fill" />
+      <text x="85" y="13.2" textAnchor="middle" className="fig-badge-text">여기!</text>
+      <path d="M85 18 v7" className="fig-accent-stroke" />
+      <path d="M81.6 22.5 85 26 88.4 22.5" className="fig-accent-stroke" fill="none" />
+
+      {/* 화면 아래쪽 버튼 줄 */}
+      <rect x="2" y="31" width="166" height="36" rx="11" className="fig-bar" />
+
+      {/* ‹ 뒤로 */}
+      <path d="M22 44 l-6 5 6 5" className="fig-icon" fill="none" />
+      {/* › 앞으로 */}
+      <path d="M48 44 l6 5 -6 5" className="fig-icon" fill="none" />
+
+      {/* 공유 (가운데) — 강조 */}
+      <circle cx="85" cy="49" r="14.5" className="fig-accent-ring" />
+      <g transform="translate(85 49)">
+        <path d="M-4.6 -3.4 H-6.6 a2.6 2.6 0 0 0 -2.6 2.6 V7 a2.6 2.6 0 0 0 2.6 2.6 H6.6 A2.6 2.6 0 0 0 9.2 7 V-0.8 a2.6 2.6 0 0 0 -2.6 -2.6 H4.6" className="fig-accent-stroke" fill="none" />
+        <path d="M0 4.6 V-9.4" className="fig-accent-stroke" fill="none" />
+        <path d="M-3.6 -5.8 0 -9.4 3.6 -5.8" className="fig-accent-stroke" fill="none" />
+      </g>
+
+      {/* 책(북마크) */}
+      <path d="M116 42 h11 v14 h-11 z M116 42 v14" className="fig-icon" fill="none" />
+      {/* 탭 */}
+      <path d="M141 43 h10 v10 h-10 z M144 46 h10 v10 h-10 z" className="fig-icon" fill="none" />
+
+      <text x="85" y="80" textAnchor="middle" className="fig-caption-text">화면 맨 아래 버튼 줄</text>
+    </svg>
+  );
+}
+
+/**
+ * 그림 2 — '공유' 목록에서 '홈 화면에 추가' 항목.
+ * 목록 아래쪽에 있어 위로 밀어 올려야 보인다는 점을 표현합니다.
+ */
+function ShareSheetFigure() {
+  return (
+    <svg viewBox="0 0 170 86" className="a4-fig-svg" role="img" aria-label="공유 목록을 위로 밀어 올리면 홈 화면에 추가 항목이 나옵니다">
+      {/* 목록 패널 */}
+      <rect x="2" y="2" width="166" height="66" rx="9" className="fig-bar" />
+      {/* 위로 밀기 손잡이 */}
+      <path d="M76 8 h18" className="fig-icon" fill="none" />
+
+      {/* 가려진(위쪽) 항목들 */}
+      <rect x="12" y="16" width="104" height="6" rx="3" className="fig-dim" />
+      <rect x="12" y="27" width="88" height="6" rx="3" className="fig-dim" />
+
+      {/* 강조 항목: 홈 화면에 추가 */}
+      <rect x="8" y="38" width="154" height="22" rx="6" className="fig-accent-ring" />
+      <g transform="translate(21 49)">
+        <rect x="-7" y="-7" width="14" height="14" rx="4" className="fig-accent-stroke" fill="none" />
+        <path d="M0 -3.6 V3.6 M-3.6 0 H3.6" className="fig-accent-stroke" fill="none" />
+      </g>
+      <text x="36" y="52.6" className="fig-row-text">홈 화면에 추가</text>
+
+      <text x="85" y="80" textAnchor="middle" className="fig-caption-text">위로 밀어 올리면 나옵니다</text>
+    </svg>
+  );
+}
+
 type Step = {
   n: number;
   title: React.ReactNode;
   glyph?: React.ReactNode;
   lines: React.ReactNode[];
+  figure?: React.ReactNode;
 };
 
 const STEPS: Step[] = [
@@ -102,6 +172,7 @@ const STEPS: Step[] = [
       <><b>아이패드·맥</b> — 화면 <b>위쪽</b> 주소창 옆에 있습니다.</>,
       <>버튼 줄이 안 보이면 화면을 살짝 아래로 끌어내리면 다시 나타납니다.</>,
     ],
+    figure: <ToolbarFigure />,
   },
   {
     n: 4,
@@ -111,6 +182,7 @@ const STEPS: Step[] = [
       <><b>사각형 안에 +</b> 가 있는 항목입니다.</>,
       <>목록 아래쪽에 있으므로, 목록을 <b>한두 번 위로 밀어 올려야</b> 보입니다.</>,
     ],
+    figure: <ShareSheetFigure />,
   },
   {
     n: 5,
@@ -181,6 +253,7 @@ export default function IphoneInstallGuidePage() {
                   ))}
                 </ul>
               </div>
+              {step.figure && <div className="a4-step-fig">{step.figure}</div>}
             </li>
           ))}
         </ol>
@@ -294,6 +367,39 @@ export default function IphoneInstallGuidePage() {
         }
         .a4-step-lines b, .a4-notes b { color: var(--ink); font-weight: 700; }
 
+        /* ── 버튼 위치 안내 그림 (스크린샷 아님) ── */
+        .a4-step-fig { flex-shrink: 0; width: 168px; align-self: center; }
+        .a4-fig-svg { width: 100%; height: auto; display: block; }
+        .fig-bar {
+          fill: var(--bg-soft);
+          stroke: var(--hairline-strong); stroke-width: 1;
+        }
+        .fig-icon { stroke: var(--ink-faint); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+        .fig-dim  { fill: var(--hairline-strong); }
+        .fig-accent-ring   { fill: none; stroke: var(--accent); stroke-width: 1.8; }
+        .fig-accent-fill   { fill: var(--accent); }
+        .fig-accent-stroke { stroke: var(--accent); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+        .fig-badge-text {
+          fill: var(--accent-soft); font-size: 9.5px; font-weight: 700;
+          font-family: 'Noto Sans KR', sans-serif;
+        }
+        .fig-row-text {
+          fill: var(--ink); font-size: 10.5px; font-weight: 700;
+          font-family: 'Noto Sans KR', sans-serif;
+        }
+        .fig-caption-text {
+          fill: var(--ink-soft); font-size: 8.5px; font-weight: 500;
+          font-family: 'Noto Sans KR', sans-serif;
+        }
+
+        /* 좁은 화면에서는 그림만 다음 줄로 내림 (번호+본문은 같은 줄 유지).
+           본문에 실제 기준폭을 줘야 그림이 첫 줄에 못 들어가고 줄바꿈된다. */
+        @media (max-width: 560px) {
+          .a4-step { flex-wrap: wrap; }
+          .a4-step-body { flex: 1 1 200px; }
+          .a4-step-fig { flex: 0 0 100%; max-width: 230px; margin: 9px 0 0 39px; }
+        }
+
         .a4-notes {
           margin-top: 18px;
           background: var(--bg-soft);
@@ -358,6 +464,7 @@ export default function IphoneInstallGuidePage() {
           .a4-step-title { font-size: 12pt; gap: 3mm; margin-bottom: 1.5mm; }
           .a4-step-glyph { width: 8mm; height: 8mm; border-width: 0.5pt; border-radius: 2mm; }
           .a4-step-lines li { font-size: 10pt; line-height: 1.65; margin-bottom: 0; }
+          .a4-step-fig { width: 44mm; margin: 0; }
 
           .a4-notes {
             margin-top: 4mm; padding: 3.2mm 5mm; border-radius: 2mm;
