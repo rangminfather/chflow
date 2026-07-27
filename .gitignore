@@ -110,6 +110,10 @@ yarn-error.log*
 # Local desktop build/output sandbox.
 chflow-desktop/
 
+# Local Android release archives and separate standalone repository.
+/depoly(android)/
+/pastor-intro-site/
+
 # Local cleanup archive; keep generated/import artifacts off git.
 MS_AX/archive/
 MS_AX/chflow-project/db-backups/
