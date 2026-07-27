@@ -7,6 +7,7 @@ import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { formatPhone, supabase } from "@/lib/supabase";
 import { photoThumb } from "@/lib/photo";
+import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryChildText, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, type QuickEditChange, type QuickEditDraft } from "@/lib/directory-utils";
 import { getAllSubRoleOptions, getRoleImageBySubRole } from "@/lib/roles";
 import { LoadingView } from "@/components/StatusViews";
 import { MessageCircle, PhoneCall } from "lucide-react";
@@ -79,62 +80,10 @@ type ProfileData = {
   descendants: RelatedMember[];
 };
 
-type QuickEditDraft = {
-  name: string;
-  phone: string;
-  clearPhone: boolean;
-  home_phone: string;
-  clearHomePhone: boolean;
-  family_church: string;
-  clearFamilyChurch: boolean;
-  sub_role: string;
-  clearSubRole: boolean;
-  spouse_name: string;
-  clearSpouseName: boolean;
-  gender: "" | "M" | "F";
-  is_child: "" | "true" | "false";
-};
-
-type QuickEditChange = {
-  key: keyof Pick<ProfileMember, "name" | "phone" | "home_phone" | "family_church" | "sub_role" | "spouse_name" | "gender" | "is_child">;
-  label: string;
-  before: string;
-  after: string;
-  nextValue: string | boolean;
-};
-
 const PAGE_SIZE = 30;
 
-const emptyQuickEditDraft: QuickEditDraft = {
-  name: "",
-  phone: "",
-  clearPhone: false,
-  home_phone: "",
-  clearHomePhone: false,
-  family_church: "",
-  clearFamilyChurch: false,
-  sub_role: "",
-  clearSubRole: false,
-  spouse_name: "",
-  clearSpouseName: false,
-  gender: "",
-  is_child: "",
-};
-
-function displayText(value: string | null | boolean | undefined, fallback = "없음") {
-  if (typeof value === "boolean") return value ? "예" : "아니오";
-  const text = String(value ?? "").trim();
-  return text || fallback;
-}
-
-function appAccountLabel(member: ProfileMember) {
-  if (!member.has_app_account) return "앱 미가입";
-  if (member.app_status === "active") return "앱 가입";
-  if (member.app_status === "pending") return "가입 대기";
-  if (member.app_status === "inactive") return "비활성";
-  if (member.app_status === "rejected") return "가입 거절";
-  return "앱 계정 있음";
-}
+const displayText = directoryDisplayText;
+const appAccountLabel = directoryAccountLabel;
 
 function appAccountTone(member: ProfileMember) {
   if (member.app_status === "active") return { bg: "var(--success-soft)", color: "var(--success)" };
@@ -142,77 +91,10 @@ function appAccountTone(member: ProfileMember) {
   return { bg: "var(--hairline)", color: "var(--ink-soft)" };
 }
 
-function appAccountDetail(member: ProfileMember) {
-  const label = appAccountLabel(member);
-  return member.app_username ? `${label} · ${member.app_username}` : label;
-}
+const appAccountDetail = directoryAccountDetail;
 
-function genderText(value: string | null | undefined) {
-  if (value === "M") return "남";
-  if (value === "F") return "여";
-  return "미정";
-}
-
-function childText(value: boolean | null | undefined) {
-  return value ? "자녀" : "성인";
-}
-
-function addTextChange(
-  changes: QuickEditChange[],
-  member: ProfileMember,
-  key: QuickEditChange["key"],
-  label: string,
-  input: string,
-  clear: boolean,
-) {
-  const beforeValue = String(member[key] ?? "");
-  const nextValue = clear ? "" : input.trim();
-  if (!clear && !nextValue) return;
-  if (nextValue === beforeValue) return;
-  changes.push({
-    key,
-    label,
-    before: displayText(beforeValue),
-    after: displayText(nextValue),
-    nextValue,
-  });
-}
-
-function buildQuickEditChanges(member: ProfileMember, draft: QuickEditDraft) {
-  const changes: QuickEditChange[] = [];
-
-  addTextChange(changes, member, "name", "이름", draft.name, false);
-  addTextChange(changes, member, "phone", "휴대폰", draft.phone, draft.clearPhone);
-  addTextChange(changes, member, "home_phone", "집전화", draft.home_phone, draft.clearHomePhone);
-  addTextChange(changes, member, "family_church", "가정교회", draft.family_church, draft.clearFamilyChurch);
-  addTextChange(changes, member, "sub_role", "직분", draft.sub_role, draft.clearSubRole);
-  addTextChange(changes, member, "spouse_name", "배우자", draft.spouse_name, draft.clearSpouseName);
-
-  if (draft.gender && draft.gender !== (member.gender || "")) {
-    changes.push({
-      key: "gender",
-      label: "성별",
-      before: genderText(member.gender),
-      after: genderText(draft.gender),
-      nextValue: draft.gender,
-    });
-  }
-
-  if (draft.is_child) {
-    const nextValue = draft.is_child === "true";
-    if (nextValue !== !!member.is_child) {
-      changes.push({
-        key: "is_child",
-        label: "자녀 여부",
-        before: childText(member.is_child),
-        after: childText(nextValue),
-        nextValue,
-      });
-    }
-  }
-
-  return changes;
-}
+const genderText = directoryGenderText;
+const childText = directoryChildText;
 
 export default function DirectoryPage() {
   const router = useRouter();
