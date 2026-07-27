@@ -67,20 +67,40 @@ export default function PrivacyPage() {
             수사 기관의 적법한 요청이 있는 경우에 한하여 제공할 수 있습니다.
           </p>
 
-          <h3 style={h3Style}>6. 개인정보의 안전성 확보 조치</h3>
+          <h3 style={h3Style}>6. 개인정보 처리위탁 및 국외 이전</h3>
+          <p style={pStyle}>
+            서비스는 원활한 운영을 위해 아래와 같이 개인정보 처리를 위탁하고 있으며,
+            일부 정보는 국외 서버에 저장·처리됩니다.
+          </p>
+          <p style={{ ...pStyle, fontWeight: 700, color: "var(--ink)" }}>국내 위탁</p>
+          <ul style={ulStyle}>
+            <li>본인확인(본인인증 방식 가입 시): 네이버, 카카오 — 이름, 휴대폰 번호</li>
+          </ul>
+          <p style={{ ...pStyle, fontWeight: 700, color: "var(--ink)" }}>국외 이전</p>
+          <ul style={ulStyle}>
+            <li><strong>Supabase</strong>: 회원정보 전체 / 데이터 저장·인증·파일 보관 / 이전 국가: 일본(도쿄)</li>
+            <li><strong>Vercel</strong>: 서비스 처리 중 경유하는 정보 / 서비스 호스팅 / 이전 국가: 미국</li>
+            <li><strong>Cloudflare(R2)</strong>: 첨부파일·사진 / 파일 저장 / 이전 국가: 미국</li>
+            <li><strong>Google(Firebase)·Expo</strong>: 기기 푸시 알림 토큰 / 알림 발송 / 이전 국가: 미국</li>
+          </ul>
+          <p style={{ ...pStyle, fontSize: 12, color: "var(--ink-soft)" }}>
+            ※ 이전 방법: 서비스 이용 과정에서 정보통신망을 통해 전송 · 보유·이용 기간: 회원 탈퇴 또는 위탁계약 종료 시까지
+          </p>
+
+          <h3 style={h3Style}>7. 개인정보의 안전성 확보 조치</h3>
           <ul style={ulStyle}>
             <li>비밀번호 단방향 암호화 저장</li>
             <li>전송 구간 HTTPS 암호화</li>
             <li>관리자 권한 분리 및 접근 통제</li>
           </ul>
 
-          <h3 style={h3Style}>7. 이용자 권리</h3>
+          <h3 style={h3Style}>8. 이용자 권리</h3>
           <p style={pStyle}>
             회원은 언제든지 본인의 개인정보를 조회·수정·삭제할 수 있으며, 가입 동의를 철회(회원 탈퇴)할 수 있습니다.
             요청은 앱 내 설정 메뉴 또는 관리자에게 문의하여 처리할 수 있습니다.
           </p>
 
-          <h3 style={h3Style}>8. 개인정보 보호책임자</h3>
+          <h3 style={h3Style}>9. 개인정보 보호책임자</h3>
           <ul style={ulStyle}>
             <li>소속: 명성교회</li>
             <li>문의: 교회 사무실 또는 앱 관리자</li>
