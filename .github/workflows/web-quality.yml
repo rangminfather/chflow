@@ -20,6 +20,11 @@ jobs:
   verify-web:
     name: Lint, tests, types, and production build
     runs-on: ubuntu-latest
+    env:
+      # Build-time placeholders only. CI must never access production Supabase.
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-key
     defaults:
       run:
         working-directory: chflow-app
