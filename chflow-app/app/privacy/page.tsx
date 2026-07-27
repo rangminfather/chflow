@@ -103,7 +103,8 @@ export default function PrivacyPage() {
           <h3 style={h3Style}>9. 개인정보 보호책임자</h3>
           <ul style={ulStyle}>
             <li>소속: 명성교회</li>
-            <li>문의: 교회 사무실 또는 앱 관리자</li>
+            <li>연락처: 052-251-7991 (교회 사무실)</li>
+            <li>문의: 위 연락처 또는 앱 내 관리자 문의</li>
           </ul>
 
           <p style={{ ...pStyle, marginTop: 24, fontSize: 11, color: "var(--ink-faint)" }}>
