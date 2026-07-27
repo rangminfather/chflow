@@ -306,10 +306,22 @@ function AppWebView() {
   }, [loadUrlInWebView]);
 
   const handleWebViewMessage = (event: WebViewMessageEvent) => {
-    let message: { type?: string; accessToken?: string; text?: string };
+    let message: { type?: string; accessToken?: string; text?: string; count?: unknown };
     try {
       message = JSON.parse(event.nativeEvent.data);
     } catch {
+      return;
+    }
+
+    // Keep the native launcher badge aligned with the web notification state.
+    if (message.type === 'CHFLOW_SET_BADGE') {
+      const rawCount = typeof message.count === 'number'
+        ? message.count
+        : Number(message.count);
+      if (Number.isFinite(rawCount) && rawCount >= 0) {
+        const badgeCount = Math.min(Math.floor(rawCount), 9999);
+        Notifications.setBadgeCountAsync(badgeCount).catch(() => {});
+      }
       return;
     }
 
