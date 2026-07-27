@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import SpInAppUpdates, { IAUUpdateKind } from 'sp-react-native-in-app-updates';
 import { WebView, WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
 
 const TARGET_URL = 'https://chflow-app.vercel.app';
@@ -96,6 +97,8 @@ function AppWebView() {
   const pendingNotificationUrlRef = useRef<string | null>(null);
   const webViewReadyRef = useRef(false);
   const exitedRef = useRef(false);
+  const playUpdatesRef = useRef<SpInAppUpdates | null>(null);
+  const playUpdateCheckInFlightRef = useRef(false);
   // 종료 후 재실행 시 마지막 화면이 잠깐 보이는 것을 가리는 덮개
   const [exitReloading, setExitReloading] = useState(false);
   const safeAreaPadding = useSafeAreaPadding();
@@ -120,7 +123,11 @@ function AppWebView() {
         if (build < config.min_android_build) {
           // 치명적: 차단형 강제 업데이트
           setNeedsUpdate(true);
-        } else if (config.latest_android_build && build < config.latest_android_build) {
+        } else if (
+          Platform.OS !== 'android'
+          && config.latest_android_build
+          && build < config.latest_android_build
+        ) {
           // 일반 신규 버전: 닫기 가능한 권장 업데이트 안내
           setUpdateAvailable(true);
         }
@@ -130,6 +137,52 @@ function AppWebView() {
     };
     check();
   }, []);
+
+  // Android 일반 업데이트는 서버의 수동 versionCode가 아니라 Google Play에
+  // 실제 공개된 버전을 기준으로 감지한다. 초안·심사 중인 빌드는 안내하지 않는다.
+  const checkForPlayUpdate = useCallback(async () => {
+    if (Platform.OS !== 'android' || playUpdateCheckInFlightRef.current) return;
+    const build = Application.nativeBuildVersion ?? '';
+    if (!build) return;
+
+    playUpdateCheckInFlightRef.current = true;
+    try {
+      const updater = playUpdatesRef.current ?? new SpInAppUpdates(false);
+      playUpdatesRef.current = updater;
+      const result = await updater.checkNeedsUpdate({ curVersion: build });
+      setUpdateAvailable(result.shouldUpdate);
+      if (!result.shouldUpdate) setUpdateDismissed(false);
+    } catch {
+      // Play Store 외 설치본이나 일시적인 Play 오류에서는 앱 사용을 허용한다.
+    } finally {
+      playUpdateCheckInFlightRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    checkForPlayUpdate();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') checkForPlayUpdate();
+    });
+    return () => sub.remove();
+  }, [checkForPlayUpdate]);
+
+  const startAvailableUpdate = useCallback(async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const updater = playUpdatesRef.current ?? new SpInAppUpdates(false);
+        playUpdatesRef.current = updater;
+        await updater.startUpdate({ updateType: IAUUpdateKind.IMMEDIATE });
+        return;
+      } catch {
+        // Play 내장 업데이트를 시작할 수 없으면 스토어 상세 화면으로 대체한다.
+      }
+    }
+
+    Linking.openURL(storeUrl).catch(() =>
+      Linking.openURL('https://play.google.com/store/apps/details?id=com.smartmyungsung.app')
+    );
+  }, [storeUrl]);
 
   // 종료 확인 모달 (웹이 '루트에서 뒤로가기' 신호를 보낼 때 호출)
   const promptExit = useCallback(() => {
@@ -419,11 +472,7 @@ function AppWebView() {
             </View>
             <TouchableOpacity
               style={styles.updateBannerBtn}
-              onPress={() => {
-                Linking.openURL(storeUrl).catch(() =>
-                  Linking.openURL('https://play.google.com/store/apps/details?id=com.smartmyungsung.app')
-                );
-              }}
+              onPress={startAvailableUpdate}
             >
               <Text style={styles.updateBannerBtnText}>업데이트</Text>
             </TouchableOpacity>

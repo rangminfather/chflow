@@ -8,7 +8,9 @@
 
 - 웹: Vercel 운영 배포 완료
   - 운영 URL: `https://chflow-app.vercel.app`
-  - 배포 ID: `dpl_4jTzSd8vRTkHK5j6kP8crnGJCiw8`
+  - 배포 ID: `dpl_E736xX8p5CUyQdCptptNkoCkqxhb`
+  - Android 강제 업데이트 하한: `MIN_ANDROID_BUILD=5`
+  - 전환용 최신 버전 설정: `LATEST_ANDROID_BUILD=16`
 - DB: Supabase 원격 마이그레이션 적용 확인
   - `20260718100000_absence_alert_summary_and_recognition.sql`
 - Android 테스트 빌드:
@@ -23,7 +25,7 @@
   - 빌드 상태: `FINISHED`
   - 프로덕션 제출 설정: `releaseStatus: draft`
   - Google Play 프로덕션 트랙 제출: 성공
-  - 공개 상태: 초안이며 사용자에게 아직 공개되지 않음
+  - 공개 상태: 정식 출시됨
 
 ## 완료되어 커밋된 변경
 
@@ -43,5 +45,11 @@
 
 ## 다음 릴리스 절차
 
-1. Play Console에서 versionCode 16 프로덕션 초안과 필수 정책 항목 확인
-2. 사용자가 최종 검토 후 수동 출시
+1. `chflow-expo`에서 `npm run release:android`
+   - EAS가 versionCode를 자동 증가
+   - Android App Bundle 빌드
+   - Google Play 프로덕션 트랙 초안으로 자동 제출
+2. Play Console에서 초안을 최종 검토하고 수동 출시
+3. Android 일반 업데이트는 앱이 Google Play의 실제 공개 버전을 직접 감지
+   - 매 릴리스마다 Vercel `LATEST_ANDROID_BUILD`를 변경할 필요 없음
+   - `MIN_ANDROID_BUILD`는 긴급 강제 업데이트가 필요할 때만 변경
