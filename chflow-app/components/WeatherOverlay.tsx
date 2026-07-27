@@ -10,8 +10,6 @@ const CONFIG = {
   snow:         { count: 30, minDur: 4,   durSpan: 5,   minW: 4,   wSpan: 6,   minH: 4,  hSpan: 6 },
 } as const;
 
-const RAIN_TYPES: WeatherCondition[] = ["rain", "shower", "thunderstorm"];
-
 function seeded(seed: number) {
   let s = seed;
   return () => {

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, type CSSProperties } from "react";
-import Image from "next/image";
 import { Forward, Search, X } from "lucide-react";
+import Avatar from "@/components/messenger/MessengerAvatar";
 import { EmptyState } from "@/components/StatusViews";
 import type { MessengerConversation } from "@/lib/messenger";
 
@@ -49,12 +49,6 @@ export default function ForwardConversationModal({ conversations, onClose, onFor
   );
 }
 
-function Avatar({ title, src }: { title: string; src?: string | null }) {
-  const initial = (title || "M").trim().slice(0, 1).toUpperCase();
-  if (src) return <Image src={src} alt="" width={42} height={42} unoptimized style={avatarStyle} />;
-  return <div style={avatarFallbackStyle}>{initial}</div>;
-}
-
 const modalOverlayStyle: CSSProperties = { position: "fixed", inset: 0, zIndex: 200, background: "rgba(43,39,34,0.48)", display: "flex", alignItems: "center", justifyContent: "center", padding: "calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px))" };
 const modalStyle: CSSProperties = { width: "min(560px, calc(100vw - 24px))", maxHeight: "calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))", overflowY: "auto", boxSizing: "border-box", background: "var(--card)", borderRadius: 10, border: "1px solid var(--hairline)", boxShadow: "0 24px 70px rgba(26,22,18,0.22)", padding: 16 };
 const modalHeaderStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 14 };
@@ -66,5 +60,3 @@ const userListStyle: CSSProperties = { maxHeight: 340, overflowY: "auto", border
 const userRowStyle: CSSProperties = { width: "100%", minHeight: 62, border: "none", borderBottom: "1px solid var(--hairline)", background: "transparent", display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", cursor: "pointer", textAlign: "left", fontFamily: "inherit" };
 const userNameStyle: CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14, fontWeight: 900, color: "var(--ink)" };
 const userMetaStyle: CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, fontWeight: 600, color: "var(--ink-faint)", marginTop: 2 };
-const avatarStyle: CSSProperties = { width: 42, height: 42, borderRadius: "50%", objectFit: "cover", background: "var(--bg-soft)", flexShrink: 0, boxShadow: "inset 0 0 0 1px rgba(43,39,34,0.06)" };
-const avatarFallbackStyle: CSSProperties = { ...avatarStyle, display: "grid", placeItems: "center", background: "var(--accent-soft)", color: "var(--accent)", fontSize: 15, fontWeight: 900 };
