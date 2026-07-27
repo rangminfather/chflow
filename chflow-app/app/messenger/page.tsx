@@ -7,7 +7,6 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import {
   ArrowLeft,
   ArrowDown,
-  Check,
   Copy,
   FileText,
   Forward,
@@ -34,6 +33,7 @@ import {
 import HeaderLogo from "@/components/HeaderLogo";
 import Avatar from "@/components/messenger/MessengerAvatar";
 import MessengerComposer from "@/components/messenger/MessengerComposer";
+import GroupManagementModal from "@/components/messenger/GroupManagementModal";
 import NewConversationModal from "@/components/messenger/NewConversationModal";
 import ForwardConversationModal from "@/components/messenger/ForwardConversationModal";
 import ImagePreviewModal from "@/components/messenger/ImagePreviewModal";
@@ -46,9 +46,7 @@ import {
   formatMessengerMessageTime,
   messengerErrorMessage,
   getMessengerReadStatus,
-  messengerRoleLabel,
   sanitizeMessengerFileName,
-  toggleMessengerUser,
 } from "@/lib/messenger-utils";
 import { supabase } from "@/lib/supabase";
 import {
@@ -66,7 +64,6 @@ import {
   renameGroupConversation,
   reportMessengerMessage,
   searchMessengerMessages,
-  searchMessengerUsers,
   sendMessengerMessage,
   setMessengerConversationState,
   toggleMessengerReaction,
@@ -75,7 +72,6 @@ import {
   type MessengerMessage,
   type MessengerParticipant,
   type MessengerSearchResult,
-  type MessengerUser,
 } from "@/lib/messenger";
 
 type PendingAttachment = MessengerAttachment & { local_url?: string };
@@ -1403,197 +1399,6 @@ function AttachmentList({
   );
 }
 
-function GroupManagementModal({
-  conversation,
-  participants,
-  myUserId,
-  onClose,
-  onRename,
-  onAddMembers,
-  onRemoveMember,
-  onError,
-}: {
-  conversation: MessengerConversation;
-  participants: MessengerParticipant[];
-  myUserId: string | null;
-  onClose: () => void;
-  onRename: (title: string) => Promise<void>;
-  onAddMembers: (userIds: string[]) => Promise<void>;
-  onRemoveMember: (userId: string) => Promise<void>;
-  onError: (message: string) => void;
-}) {
-  const { confirm } = useConfirm();
-  const [title, setTitle] = useState(conversation.title || conversation.display_title);
-  const [query, setQuery] = useState("");
-  const [users, setUsers] = useState<MessengerUser[]>([]);
-  const [selected, setSelected] = useState<MessengerUser[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [savingTitle, setSavingTitle] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [removingId, setRemovingId] = useState<string | null>(null);
-
-  const participantIds = useMemo(() => new Set(participants.map((p) => p.user_id)), [participants]);
-  const filteredUsers = users.filter((u) => !participantIds.has(u.user_id));
-
-  useEffect(() => {
-    let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      setLoading(true);
-      try {
-        const rows = await searchMessengerUsers(query, 30);
-        if (!cancelled) setUsers(rows);
-      } catch (e) {
-        if (!cancelled) onError(getErrorMessage(e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }, 180);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [onError, query]);
-
-  const toggleUser = (user: MessengerUser) => {
-    setSelected((prev) => toggleMessengerUser(prev, user));
-  };
-
-  const saveTitle = async () => {
-    const nextTitle = title.trim();
-    if (!nextTitle || savingTitle) return;
-    setSavingTitle(true);
-    try {
-      await onRename(nextTitle);
-    } catch {
-      // Parent already surfaces the error.
-    } finally {
-      setSavingTitle(false);
-    }
-  };
-
-  const addSelected = async () => {
-    if (selected.length === 0 || adding) return;
-    setAdding(true);
-    try {
-      await onAddMembers(selected.map((u) => u.user_id));
-      setSelected([]);
-      setQuery("");
-    } catch {
-      // Parent already surfaces the error.
-    } finally {
-      setAdding(false);
-    }
-  };
-
-  const removeMember = async (participant: MessengerParticipant) => {
-    if (participant.user_id === myUserId || removingId) return;
-    if (!await confirm(`${participant.name || "이 멤버"}님을 대화방에서 내보낼까요?`)) return;
-    setRemovingId(participant.user_id);
-    try {
-      await onRemoveMember(participant.user_id);
-    } catch {
-      // Parent already surfaces the error.
-    } finally {
-      setRemovingId(null);
-    }
-  };
-
-  return (
-    <div onClick={onClose} style={modalOverlayStyle}>
-      <div onClick={(e) => e.stopPropagation()} style={modalStyle}>
-        <div style={modalHeaderStyle}>
-          <div style={sectionTitleStyle}><Users size={18} strokeWidth={2} /> 그룹 관리</div>
-          <button type="button" onClick={onClose} style={smallIconButtonStyle}><X size={17} /></button>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, marginBottom: 14 }}>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="그룹 이름" maxLength={80} style={{ ...inputStyle, marginBottom: 0 }} />
-          <button type="button" onClick={saveTitle} disabled={!title.trim() || savingTitle} style={{
-            ...primaryButtonStyle,
-            opacity: !title.trim() || savingTitle ? 0.45 : 1,
-          }}>
-            저장
-          </button>
-        </div>
-
-        <div style={sidebarLabelStyle}>참여자 {participants.length}명</div>
-        <div style={{ ...userListStyle, maxHeight: 260, marginBottom: 14 }}>
-          {participants.map((p) => (
-            <div key={p.user_id} style={{ ...userRowStyle, cursor: "default" }}>
-              <Avatar title={p.name || "U"} src={p.avatar_url} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={userNameStyle}>{p.name || "이름 없음"} {p.user_id === myUserId ? "(나)" : ""}</div>
-                <div style={userMetaStyle}>{p.role === "owner" ? "방장" : p.sub_role || "참여자"}</div>
-              </div>
-              {p.user_id !== myUserId && (
-                <button
-                  type="button"
-                  onClick={() => removeMember(p)}
-                  disabled={removingId === p.user_id}
-                  style={{ ...secondaryButtonStyle, height: 32, padding: "0 10px", color: "var(--danger)" }}
-                >
-                  내보내기
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div style={sidebarLabelStyle}>참여자 추가</div>
-        <div style={searchBoxStyle}>
-          <Search size={16} strokeWidth={1.8} color="var(--ink-faint)" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="이름 또는 직분 검색" style={searchInputStyle} />
-        </div>
-
-        {selected.length > 0 && (
-          <div style={selectedWrapStyle}>
-            {selected.map((u) => (
-              <span key={u.user_id} style={selectedChipStyle}>
-                <span style={oneLineStyle}>{u.name || "이름 없음"}</span>
-                <button type="button" onClick={() => setSelected((prev) => prev.filter((x) => x.user_id !== u.user_id))} style={chipRemoveStyle}>
-                  <X size={12} strokeWidth={2} />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-
-        <div style={userListStyle}>
-          {loading ? (
-            <LoadingView padding={28} />
-          ) : filteredUsers.length === 0 ? (
-            <EmptyState message="추가할 사용자가 없습니다." padding={34} />
-          ) : (
-            filteredUsers.map((u) => {
-              const picked = selected.some((s) => s.user_id === u.user_id);
-              return (
-                <button key={u.user_id} type="button" onClick={() => toggleUser(u)} style={userRowStyle}>
-                  <Avatar title={u.name || "U"} src={u.avatar_url} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={userNameStyle}>{u.name || "이름 없음"}</div>
-                    <div style={userMetaStyle}>{u.sub_role || roleLabel(u.role)}</div>
-                  </div>
-                  {picked && <Check size={17} strokeWidth={2.4} color="var(--accent)" />}
-                </button>
-              );
-            })
-          )}
-        </div>
-
-        <div style={modalFooterStyle}>
-          <button type="button" onClick={onClose} style={secondaryButtonStyle}>닫기</button>
-          <button type="button" onClick={addSelected} disabled={selected.length === 0 || adding} style={{
-            ...primaryButtonStyle,
-            opacity: selected.length === 0 || adding ? 0.45 : 1,
-          }}>
-            추가
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ReadStatusModal({
   message,
   participants,
@@ -1622,10 +1427,6 @@ function formatMessageTime(iso: string): string {
 
 function formatAttachmentMeta(attachment: MessengerAttachment): string {
   return formatMessengerAttachmentMeta(attachment);
-}
-
-function roleLabel(role: string | null): string {
-  return messengerRoleLabel(role);
 }
 
 function getErrorMessage(error: unknown): string {
@@ -1787,19 +1588,11 @@ const fileAttachmentStyle: React.CSSProperties = { minWidth: 0, width: "min(320p
 const fileNameStyle: React.CSSProperties = { minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const fileMetaStyle: React.CSSProperties = { flexShrink: 0, maxWidth: "42%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.78 };
 const oneLineStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-const chipRemoveStyle: React.CSSProperties = { width: 18, height: 18, border: "none", background: "transparent", color: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 };
 const modalOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 200, background: "rgba(43,39,34,0.48)", display: "flex", alignItems: "center", justifyContent: "center", padding: "calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px))" };
 const modalStyle: React.CSSProperties = { width: "min(560px, calc(100vw - 24px))", maxHeight: "calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))", overflowY: "auto", boxSizing: "border-box", background: "var(--card)", borderRadius: 10, border: "1px solid var(--hairline)", boxShadow: "0 24px 70px rgba(26,22,18,0.22)", padding: 16 };
 const modalHeaderStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 14 };
-const inputStyle: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 40, borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--surface)", color: "var(--ink)", fontSize: 14, fontWeight: 700, padding: "0 12px", marginBottom: 10, outline: "none", fontFamily: "inherit" };
-const searchBoxStyle: React.CSSProperties = { height: 42, borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--surface)", display: "flex", alignItems: "center", gap: 8, padding: "0 12px", marginBottom: 10 };
-const searchInputStyle: React.CSSProperties = { flex: 1, border: "none", outline: "none", background: "transparent", color: "var(--ink)", fontSize: 14, fontFamily: "inherit" };
-const selectedWrapStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6, minWidth: 0, marginBottom: 10 };
-const selectedChipStyle: React.CSSProperties = { minWidth: 0, maxWidth: "100%", height: 26, padding: "0 6px 0 9px", borderRadius: 999, background: "var(--accent-soft)", color: "var(--accent)", display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 900 };
 const userListStyle: React.CSSProperties = { maxHeight: 340, overflowY: "auto", border: "1px solid var(--hairline)", borderRadius: 8 };
 const userRowStyle: React.CSSProperties = { width: "100%", minHeight: 62, border: "none", borderBottom: "1px solid var(--hairline)", background: "transparent", display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", cursor: "pointer", textAlign: "left", fontFamily: "inherit" };
 const userNameStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14, fontWeight: 900, color: "var(--ink)" };
 const userMetaStyle: React.CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, fontWeight: 600, color: "var(--ink-faint)", marginTop: 2 };
-const modalFooterStyle: React.CSSProperties = { display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 8, marginTop: 14 };
 const primaryButtonStyle: React.CSSProperties = { height: 38, padding: "0 16px", borderRadius: 8, border: "none", background: "var(--accent)", color: "#fff", fontSize: 13, fontWeight: 900, cursor: "pointer", fontFamily: "inherit" };
-const secondaryButtonStyle: React.CSSProperties = { ...primaryButtonStyle, border: "1px solid var(--hairline)", background: "var(--surface)", color: "var(--ink-mid)" };
