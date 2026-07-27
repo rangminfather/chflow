@@ -1,0 +1,37 @@
+name: Web quality
+
+on:
+  pull_request:
+    paths:
+      - "chflow-app/**"
+      - ".github/workflows/web-quality.yml"
+  push:
+    branches:
+      - main
+      - codex/android-play-update
+    paths:
+      - "chflow-app/**"
+      - ".github/workflows/web-quality.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-web:
+    name: Lint, tests, types, and production build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: chflow-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: chflow-app/package-lock.json
+      - run: npm ci
+      - run: npm run lint:baseline
+      - run: npm run test:unit
+      - run: npm run typecheck
+      - run: npm run build
