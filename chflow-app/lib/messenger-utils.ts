@@ -57,7 +57,12 @@ export function formatMessengerAttachmentMeta(attachment: MessengerAttachmentMet
 
 export function formatMessengerMessageTime(iso: string): string {
   const date = new Date(iso);
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
 }
 
 export function messengerRoleLabel(role: string | null): string {
