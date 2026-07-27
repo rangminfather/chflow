@@ -31,3 +31,34 @@ Local investigation files under `_scratch/` and build-time scripts under `script
 - Add browser tests before changing login, signup, authorization, attendance, notifications, or payment-like irreversible operations.
 - Tests must not call production Supabase, storage, Expo, or third-party systems.
 - The minimum checks for a release candidate are `npm run check` followed by `npm run build`.
+
+## Gradual delivery automation
+
+The project intentionally starts with checks that do not require an additional paid server or database. A separate Supabase project is added only when database-backed browser tests are needed often enough to justify its maintenance.
+
+### Stage 1 — GitHub Actions checks
+
+For every pull request and protected-branch push, GitHub Actions runs:
+
+1. `npm run lint:baseline`
+2. `npm run test:unit`
+3. `npm run typecheck`
+4. `npm run build`
+
+A failed check blocks merge/deployment review. The checks do not access production Supabase, Storage, Expo, or Play Console.
+
+### Stage 2 — Vercel Preview review
+
+Each branch receives a Vercel Preview URL. Before production deployment, use that URL to manually verify the changed screen on desktop and mobile widths. Preview deployments use the existing web deployment mechanism; no separate WAS is introduced.
+
+### Daily workflow after stages 1–2
+
+```text
+change code → push branch → Actions checks → Vercel Preview → manual changed-flow check → merge/push main → production build and deployment
+```
+
+If Actions fails, fix the failure before proceeding. If the Preview review finds a behavior issue, fix it on the branch and repeat the same flow. Production deployment remains separate from Preview approval.
+
+### Later stage — isolated Supabase test project
+
+Add a test Supabase project only for repeatable browser tests that need Auth, RPC, Storage, or RLS. It must have separate credentials, test-only accounts/data, and migrations applied before tests. Never point automated tests at production data.
