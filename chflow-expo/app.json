@@ -41,7 +41,18 @@
       "expo-notifications",
       [
         "./plugins/with-adi-registration.js",
-        { "snippet": "CFKKBMXYLJU2MAAAAAAAAAAAAA" }
+        {
+          "snippet": "CFKKBMXYLJU2MAAAAAAAAAAAAA"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
       ]
     ],
     "extra": {
