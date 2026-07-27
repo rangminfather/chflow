@@ -500,7 +500,7 @@ export default function ManualPage() {
             <div className="print-cover-church">명성교회</div>
             <div className="print-cover-title">스마트명성<br />사용 매뉴얼</div>
             <div className="print-cover-sub">접속부터 사역·부서 사용까지, 따라 하기 안내서</div>
-            <div className="print-cover-url">접속 주소 &nbsp;|&nbsp; chflow-app.vercel.app</div>
+            <div className="print-cover-url">접속 주소 &nbsp;|&nbsp; smartms.kr</div>
             {generatedDate && <div className="print-cover-date">{generatedDate} 기준</div>}
           </div>
         </div>

@@ -13,7 +13,8 @@ const HIDDEN_PATH_PREFIXES = [
   "/find-id",
   "/find-password",
   "/reset-password",
-  "/install",
+  // 인쇄용 배포물 — 도크가 화면·인쇄물에 끼지 않도록 숨김
+  "/manual/iphone",
   "/messenger",
   "/admin/messenger-reports",
 ];

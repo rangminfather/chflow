@@ -3,7 +3,7 @@
  * Playwright 기반 매뉴얼 스크린샷 자동 생성기
  *
  * 실행: node scripts/generate-manual.js
- * 필요: MANUAL_BASE_URL 환경변수 (기본: https://chflow-app.vercel.app)
+ * 필요: MANUAL_BASE_URL 환경변수 (기본: manual-steps.json 의 baseUrl = https://smartms.kr)
  */
 
 const { chromium } = require('playwright');
@@ -143,7 +143,7 @@ async function captureSignupChapter(page, chapter, manifest) {
   await page.goto(BASE_URL + '/login', { waitUntil: 'networkidle' });
   await page.waitForTimeout(1000);
   await takeShot('signup-01', '로그인 화면 진입',
-    '앱(chflow-app.vercel.app)에 접속하면 로그인 화면이 나타납니다. 처음 사용하시는 분은 하단 \'회원가입\' 버튼을 누릅니다.',
+    '앱(smartms.kr)에 접속하면 로그인 화면이 나타납니다. 처음 사용하시는 분은 하단 \'회원가입\' 버튼을 누릅니다.',
     '.login-link-primary');
 
   // signup-02: 가입 조회 폼 (이름·전화번호 입력 화면 — 입력 전)
