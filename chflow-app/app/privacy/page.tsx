@@ -33,7 +33,12 @@ export default function PrivacyPage() {
             <li><strong>필수 항목</strong>: 이름, 휴대폰 번호, 아이디, 비밀번호, 직분(세부직분 포함)</li>
             <li><strong>매칭 시 자동 연결</strong>: 가정교회(평원·초원·목장), 주소, 가족 관계 정보</li>
             <li><strong>만 14세 미만 회원</strong>: 본인 정보 외에 보호자(부모) 이름, 보호자 휴대폰 번호</li>
+            <li><strong>알림 서비스 이용 시</strong>: 기기 푸시 알림 토큰, 기기 운영체제(OS) 정보</li>
           </ul>
+          <p style={{ ...pStyle, fontSize: 12, color: "var(--ink-soft)" }}>
+            ※ 회원은 위 개인정보 수집·이용에 대한 동의를 거부할 권리가 있습니다.
+            다만 필수 항목에 대한 동의를 거부하시는 경우 회원가입 및 서비스 이용이 제한됩니다.
+          </p>
 
           <h3 style={h3Style}>2. 개인정보의 수집 및 이용 목적</h3>
           <ul style={ulStyle}>
@@ -82,7 +87,7 @@ export default function PrivacyPage() {
           </ul>
 
           <p style={{ ...pStyle, marginTop: 24, fontSize: 11, color: "var(--ink-faint)" }}>
-            본 방침은 2026년 4월 27일부터 적용됩니다.
+            본 방침은 2026년 7월 27일부터 적용됩니다.
           </p>
         </div>
 
