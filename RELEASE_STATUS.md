@@ -34,7 +34,11 @@
   - EAS submission ID: `149d36b8-b578-4d41-a3fe-594af6f07f94`
   - 빌드 상태: `FINISHED`
   - Google Play 프로덕션 트랙 초안 제출: `FINISHED`
-  - 공개 상태: 초안, Play Console 최종 검토·수동 출시 필요
+  - 공개 상태: Play Console에서 정식 게시 완료
+- Google Play 스토어 이미지:
+  - 기능 그래픽: `chflow-expo/assets/play-store-feature-graphic-v2.png`
+  - 휴대전화·7인치·10인치 스크린샷: `chflow-expo/assets/play-store/`
+  - GitHub 보존 완료 후 Play Console에서 재사용 가능
 
 ## 완료되어 커밋된 변경
 
