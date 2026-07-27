@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/components/ConfirmDialog";
-import { Printer, Download, Search, AlertTriangle, X, ChevronUp, Pencil, Save, Plus, Trash2, Upload, XCircle } from "lucide-react";
+import { Printer, Download, Search, AlertTriangle, X, ChevronUp, ChevronRight, Pencil, Save, Plus, Trash2, Upload, XCircle, Smartphone } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 interface ManifestItem {
@@ -333,6 +333,19 @@ export default function ManualPage() {
           {/* 스텝 목록 */}
           <main style={mainStyle}>
             {saveError && <div style={errorCard}>{saveError}</div>}
+
+            {/* 아이폰 전용 안내 (별도 인쇄용 한 장) */}
+            <button type="button" onClick={() => router.push("/manual/iphone")} style={iphoneEntryCard}>
+              <span style={iphoneEntryIcon}>
+                <Smartphone size={20} strokeWidth={1.8} />
+              </span>
+              <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                <span style={iphoneEntryTitle}>아이폰·아이패드 사용자 안내</span>
+                <span style={iphoneEntrySub}>홈 화면에 앱처럼 추가하는 방법 · A4 한 장 인쇄</span>
+              </span>
+              <ChevronRight size={18} strokeWidth={2} style={{ flexShrink: 0, color: "var(--accent)" }} />
+            </button>
+
             {currentChapter?.intro && (
               <div style={introCard}>
                 <div style={introHead}>
@@ -795,6 +808,44 @@ const introCard: React.CSSProperties = {
   borderRadius: 14,
   padding: "14px 16px",
 };
+/* 아이폰 전용 안내 진입 카드 */
+const iphoneEntryCard: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  width: "100%",
+  background: "var(--card)",
+  border: "1px solid var(--accent-line)",
+  borderRadius: 14,
+  padding: "13px 14px",
+  cursor: "pointer",
+  textAlign: "left",
+  fontFamily: "inherit",
+};
+const iphoneEntryIcon: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 38,
+  height: 38,
+  borderRadius: 11,
+  flexShrink: 0,
+  background: "var(--accent-soft)",
+  color: "var(--accent-strong)",
+};
+const iphoneEntryTitle: React.CSSProperties = {
+  display: "block",
+  fontSize: 14,
+  fontWeight: 700,
+  color: "var(--ink)",
+};
+const iphoneEntrySub: React.CSSProperties = {
+  display: "block",
+  fontSize: 12,
+  color: "var(--ink-soft)",
+  marginTop: 2,
+};
+
 const introLabel: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
