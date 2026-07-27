@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { maskSignupAddress, maskSignupBirthDate, maskSignupName, maskSignupPhone, normalizeSignupGender, normalizeSignupSearchText, signupDisplayGender, signupErrorMessage } from "./signup-utils";
+import { maskSignupAddress, maskSignupBirthDate, maskSignupName, maskSignupPhone, normalizeSignupGender, normalizeSignupSearchText, signupDisplayGender, signupErrorMessage, validateSignupLookup } from "./signup-utils";
 
 describe("signup helpers", () => {
   it("normalizes gender values in both display directions", () => {
@@ -24,5 +24,12 @@ describe("signup helpers", () => {
     expect(maskSignupBirthDate("19")).toBe("**");
     expect(maskSignupPhone("전화 없음")).toBe("전화 없음");
     expect(maskSignupAddress("울산 동구")).toBe("울산 동구");
+  });
+
+  it("requires the correct adult or child lookup information", () => {
+    expect(validateSignupLookup({ name: "", phone: "010", noPhone: false, parentName: "", parentPhone: "" })).toBe("이름을 입력하세요");
+    expect(validateSignupLookup({ name: "아이", phone: "", noPhone: false, parentName: "", parentPhone: "" })).toBe("휴대폰 번호를 입력하세요");
+    expect(validateSignupLookup({ name: "아이", phone: "", noPhone: true, parentName: "", parentPhone: "010" })).toBe("부모님 이름을 입력하세요");
+    expect(validateSignupLookup({ name: "아이", phone: "", noPhone: true, parentName: "부모", parentPhone: "010" })).toBeNull();
   });
 });

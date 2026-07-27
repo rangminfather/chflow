@@ -47,3 +47,19 @@ export function maskSignupAddress(address: string): string {
   const parts = address.split(/\s+/);
   return parts.length <= 2 ? address : `${parts.slice(0, 2).join(" ")} ***`;
 }
+
+export type SignupLookupInput = {
+  name: string;
+  phone: string;
+  noPhone: boolean;
+  parentName: string;
+  parentPhone: string;
+};
+
+export function validateSignupLookup(input: SignupLookupInput): string | null {
+  if (!input.name.trim()) return "이름을 입력하세요";
+  if (!input.noPhone && !input.phone.trim()) return "휴대폰 번호를 입력하세요";
+  if (input.noPhone && !input.parentName.trim()) return "부모님 이름을 입력하세요";
+  if (input.noPhone && !input.parentPhone.trim()) return "부모님 휴대폰 번호를 입력하세요";
+  return null;
+}

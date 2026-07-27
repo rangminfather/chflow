@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryDisplayText, directoryGenderText, emptyQuickEditDraft } from "./directory-utils";
+import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, getDirectoryFilterOptions, hasDirectorySearchCriteria } from "./directory-utils";
 
 describe("directory display helpers", () => {
   it("formats account state without exposing missing values", () => {
@@ -25,5 +25,16 @@ describe("directory display helpers", () => {
   it("does not create a change for blank or unchanged optional fields", () => {
     const member = { name: "김성헌", phone: null, home_phone: null, family_church: null, sub_role: null, spouse_name: null, gender: null, is_child: null };
     expect(buildQuickEditChanges(member, emptyQuickEditDraft)).toEqual([]);
+  });
+
+  it("derives dependent directory filter options", () => {
+    const rows = [
+      { plain_name: "2평원", plain_order: 2, grassland_name: "나초원", pasture_name: "A목장" },
+      { plain_name: "1평원", plain_order: 1, grassland_name: "가초원", pasture_name: "B목장" },
+      { plain_name: "1평원", plain_order: 1, grassland_name: "가초원", pasture_name: "C목장" },
+    ];
+    expect(getDirectoryFilterOptions(rows, "1평원", "가초원")).toEqual({ plains: [{ name: "1평원", order: 1 }, { name: "2평원", order: 2 }], grasslands: ["가초원"], pastures: ["B목장", "C목장"] });
+    expect(hasDirectorySearchCriteria(" ", "", "", "")).toBe(false);
+    expect(hasDirectorySearchCriteria("김", "", "", "")).toBe(true);
   });
 });

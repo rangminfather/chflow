@@ -11,7 +11,7 @@ import {
   formatPhone,
 } from "@/lib/supabase";
 import ModalBackdrop from "@/components/ModalBackdrop";
-import { maskSignupAddress, maskSignupBirthDate, maskSignupName, maskSignupPhone, normalizeSignupGender, normalizeSignupSearchText, signupDisplayGender, signupErrorMessage } from "@/lib/signup-utils";
+import { maskSignupAddress, maskSignupBirthDate, maskSignupName, maskSignupPhone, normalizeSignupGender, normalizeSignupSearchText, signupDisplayGender, signupErrorMessage, validateSignupLookup } from "@/lib/signup-utils";
 import { CheckCircle2, Users, User, AlertTriangle, Lightbulb, MousePointerClick, Eye, EyeOff, Send } from "lucide-react";
 
 type Step = "entry" | "lookup" | "confirm" | "role" | "info" | "done";
@@ -427,10 +427,8 @@ export default function SignupPage() {
     e.preventDefault();
     setError("");
     setShowSignupSupport(false);
-    if (!lookupName.trim()) return setError("이름을 입력하세요");
-    if (!noPhone && !lookupPhone.trim()) return setError("휴대폰 번호를 입력하세요");
-    if (noPhone && !parentName.trim()) return setError("부모님 이름을 입력하세요");
-    if (noPhone && !parentPhone.trim()) return setError("부모님 휴대폰 번호를 입력하세요");
+    const lookupError = validateSignupLookup({ name: lookupName, phone: lookupPhone, noPhone, parentName, parentPhone });
+    if (lookupError) return setError(lookupError);
 
     setLoading(true);
     try {

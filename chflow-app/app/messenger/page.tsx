@@ -34,6 +34,7 @@ import {
 import HeaderLogo from "@/components/HeaderLogo";
 import Avatar from "@/components/messenger/MessengerAvatar";
 import MessengerComposer from "@/components/messenger/MessengerComposer";
+import NewConversationModal from "@/components/messenger/NewConversationModal";
 import ForwardConversationModal from "@/components/messenger/ForwardConversationModal";
 import ImagePreviewModal from "@/components/messenger/ImagePreviewModal";
 import ReadStatusModalContent from "@/components/messenger/ReadStatusModalContent";
@@ -51,7 +52,6 @@ import {
 } from "@/lib/messenger-utils";
 import { supabase } from "@/lib/supabase";
 import {
-  createGroupConversation,
   addGroupParticipants,
   blockMessengerUser,
   deleteMessengerMessage,
@@ -69,7 +69,6 @@ import {
   searchMessengerUsers,
   sendMessengerMessage,
   setMessengerConversationState,
-  startDirectMessage,
   toggleMessengerReaction,
   type MessengerAttachment,
   type MessengerConversation,
@@ -79,7 +78,6 @@ import {
   type MessengerUser,
 } from "@/lib/messenger";
 
-type NewMode = "direct" | "group";
 type PendingAttachment = MessengerAttachment & { local_url?: string };
 type ImagePreviewState = { attachment: MessengerAttachment; url: string } | null;
 
@@ -1405,132 +1403,6 @@ function AttachmentList({
   );
 }
 
-function NewConversationModal({
-  onClose,
-  onCreated,
-  onError,
-}: {
-  onClose: () => void;
-  onCreated: (conversationId: string) => void;
-  onError: (message: string) => void;
-}) {
-  const [mode, setMode] = useState<NewMode>("direct");
-  const [query, setQuery] = useState("");
-  const [title, setTitle] = useState("");
-  const [users, setUsers] = useState<MessengerUser[]>([]);
-  const [selected, setSelected] = useState<MessengerUser[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      setLoading(true);
-      try {
-        const rows = await searchMessengerUsers(query, 30);
-        if (!cancelled) setUsers(rows);
-      } catch (e) {
-        if (!cancelled) onError(getErrorMessage(e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }, 180);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [onError, query]);
-
-  const toggleUser = (user: MessengerUser) => {
-    setSelected((prev) => toggleMessengerUser(prev, user, mode === "direct"));
-  };
-
-  const create = async () => {
-    if (selected.length === 0 || creating) return;
-    setCreating(true);
-    try {
-      const id = mode === "direct"
-        ? await startDirectMessage(selected[0].user_id)
-        : await createGroupConversation(title || selected.map((u) => u.name).filter(Boolean).join(", "), selected.map((u) => u.user_id));
-      onCreated(id);
-    } catch (e) {
-      onError(getErrorMessage(e));
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  return (
-    <div onClick={onClose} style={modalOverlayStyle}>
-      <div onClick={(e) => e.stopPropagation()} style={modalStyle}>
-        <div style={modalHeaderStyle}>
-          <div style={sectionTitleStyle}><Plus size={18} strokeWidth={2} /> 새 대화</div>
-          <button type="button" onClick={onClose} style={smallIconButtonStyle}><X size={17} /></button>
-        </div>
-
-        <div style={modalTabsStyle}>
-          <button type="button" onClick={() => { setMode("direct"); setSelected(selected.slice(0, 1)); }} style={mode === "direct" ? tabActiveStyle : tabStyle}>1:1</button>
-          <button type="button" onClick={() => setMode("group")} style={mode === "group" ? tabActiveStyle : tabStyle}>그룹</button>
-        </div>
-
-        {mode === "group" && (
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="그룹 이름" maxLength={80} style={inputStyle} />
-        )}
-
-        <div style={searchBoxStyle}>
-          <Search size={16} strokeWidth={1.8} color="var(--ink-faint)" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="이름 또는 직분 검색" style={searchInputStyle} />
-        </div>
-
-        {selected.length > 0 && (
-          <div style={selectedWrapStyle}>
-            {selected.map((u) => (
-              <span key={u.user_id} style={selectedChipStyle}>
-                <span style={oneLineStyle}>{u.name || "이름 없음"}</span>
-                <button type="button" onClick={() => setSelected((prev) => prev.filter((x) => x.user_id !== u.user_id))} style={chipRemoveStyle}>
-                  <X size={12} strokeWidth={2} />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-
-        <div style={userListStyle}>
-          {loading ? (
-            <LoadingView padding={28} />
-          ) : users.length === 0 ? (
-            <EmptyState message="검색 결과가 없습니다." padding={34} />
-          ) : (
-            users.map((u) => {
-              const picked = selected.some((s) => s.user_id === u.user_id);
-              return (
-                <button key={u.user_id} type="button" onClick={() => toggleUser(u)} style={userRowStyle}>
-                  <Avatar title={u.name || "U"} src={u.avatar_url} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={userNameStyle}>{u.name || "이름 없음"}</div>
-                    <div style={userMetaStyle}>{u.sub_role || roleLabel(u.role)}</div>
-                  </div>
-                  {picked && <Check size={17} strokeWidth={2.4} color="var(--accent)" />}
-                </button>
-              );
-            })
-          )}
-        </div>
-
-        <div style={modalFooterStyle}>
-          <button type="button" onClick={onClose} style={secondaryButtonStyle}>취소</button>
-          <button type="button" onClick={create} disabled={selected.length === 0 || creating} style={{
-            ...primaryButtonStyle,
-            opacity: selected.length === 0 || creating ? 0.45 : 1,
-          }}>
-            시작
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function GroupManagementModal({
   conversation,
   participants,
@@ -1919,9 +1791,6 @@ const chipRemoveStyle: React.CSSProperties = { width: 18, height: 18, border: "n
 const modalOverlayStyle: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 200, background: "rgba(43,39,34,0.48)", display: "flex", alignItems: "center", justifyContent: "center", padding: "calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px))" };
 const modalStyle: React.CSSProperties = { width: "min(560px, calc(100vw - 24px))", maxHeight: "calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))", overflowY: "auto", boxSizing: "border-box", background: "var(--card)", borderRadius: 10, border: "1px solid var(--hairline)", boxShadow: "0 24px 70px rgba(26,22,18,0.22)", padding: 16 };
 const modalHeaderStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 14 };
-const modalTabsStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 };
-const tabStyle: React.CSSProperties = { height: 38, borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--surface)", color: "var(--ink-soft)", fontSize: 13, fontWeight: 900, cursor: "pointer", fontFamily: "inherit" };
-const tabActiveStyle: React.CSSProperties = { ...tabStyle, borderColor: "rgba(62,90,74,0.35)", background: "var(--accent-soft)", color: "var(--accent)" };
 const inputStyle: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 40, borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--surface)", color: "var(--ink)", fontSize: 14, fontWeight: 700, padding: "0 12px", marginBottom: 10, outline: "none", fontFamily: "inherit" };
 const searchBoxStyle: React.CSSProperties = { height: 42, borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--surface)", display: "flex", alignItems: "center", gap: 8, padding: "0 12px", marginBottom: 10 };
 const searchInputStyle: React.CSSProperties = { flex: 1, border: "none", outline: "none", background: "transparent", color: "var(--ink)", fontSize: 14, fontFamily: "inherit" };

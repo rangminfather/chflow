@@ -114,3 +114,7 @@ export function toggleMessengerUser<T extends { user_id: string }>(selected: T[]
     ? selected.filter((item) => item.user_id !== user.user_id)
     : [...selected, user];
 }
+
+export function getMessengerGroupTitle(users: Array<{ name?: string | null }>, explicitTitle: string) {
+  return explicitTitle.trim() || users.map((user) => user.name).filter(Boolean).join(", ");
+}
