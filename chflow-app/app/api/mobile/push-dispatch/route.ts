@@ -91,14 +91,24 @@ async function getUnreadCounts(
 }
 
 export async function GET(req: NextRequest) {
-  return dispatchPush(req);
+  return dispatchPush(req, null);
 }
 
 export async function POST(req: NextRequest) {
-  return dispatchPush(req);
+  let deliveryId: string | null = null;
+  try {
+    const body = await req.json() as { delivery_id?: unknown };
+    if (typeof body.delivery_id === "string" && body.delivery_id.trim()) {
+      deliveryId = body.delivery_id.trim();
+    }
+  } catch {
+    // Manual dispatch requests may intentionally omit a JSON body.
+  }
+
+  return dispatchPush(req, deliveryId);
 }
 
-async function dispatchPush(req: NextRequest) {
+async function dispatchPush(req: NextRequest, requestedDeliveryId: string | null) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
@@ -108,7 +118,7 @@ async function dispatchPush(req: NextRequest) {
   const now = new Date().toISOString();
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
-  const { data: rows, error: selectError } = await admin
+  let deliveryQuery = admin
     .from("notification_push_deliveries")
     .select(`
       id,
@@ -126,8 +136,14 @@ async function dispatchPush(req: NextRequest) {
     `)
     .in("status", ["queued", "failed"])
     .lt("attempts", 3)
-    .order("created_at", { ascending: true })
-    .limit(limit)
+    .order("created_at", { ascending: true });
+
+  if (requestedDeliveryId) {
+    deliveryQuery = deliveryQuery.eq("id", requestedDeliveryId);
+  }
+
+  const { data: rows, error: selectError } = await deliveryQuery
+    .limit(requestedDeliveryId ? 1 : limit)
     .returns<DeliveryRow[]>();
 
   if (selectError) {
@@ -138,17 +154,38 @@ async function dispatchPush(req: NextRequest) {
     return NextResponse.json({ ok: true, picked: 0, sent: 0, failed: 0 });
   }
 
-  const ids = rows.map((row) => row.id);
-  await admin
+  // A notification INSERT creates one database webhook per delivery row. Those
+  // webhooks can reach this route concurrently, so claim every row with a
+  // conditional update before sending. Only the request that changes queued or
+  // failed -> sending owns the delivery.
+  const { data: claimedRows, error: claimError } = await admin
     .from("notification_push_deliveries")
     .update({ status: "sending", updated_at: now })
-    .in("id", ids);
+    .in("id", rows.map((row) => row.id))
+    .in("status", ["queued", "failed"])
+    .select("id, attempts")
+    .returns<Array<{ id: string; attempts: number }>>();
+
+  if (claimError) {
+    return NextResponse.json({ ok: false, error: claimError.message }, { status: 500 });
+  }
+
+  const claimedAttempts = new Map(
+    (claimedRows || []).map((row) => [row.id, row.attempts] as const)
+  );
+  const claimed = rows
+    .filter((row) => claimedAttempts.has(row.id))
+    .map((row) => ({ ...row, attempts: claimedAttempts.get(row.id)! }));
+
+  if (claimed.length === 0) {
+    return NextResponse.json({ ok: true, picked: rows.length, claimed: 0, sent: 0, failed: 0 });
+  }
 
   let sent = 0;
   let failed = 0;
-  const unreadCounts = await getUnreadCounts(admin, rows.map((row) => row.user_id));
+  const unreadCounts = await getUnreadCounts(admin, claimed.map((row) => row.user_id));
 
-  for (const batch of chunk(rows, MAX_BATCH)) {
+  for (const batch of chunk(claimed, MAX_BATCH)) {
     const messages = batch.map((row) => buildExpoMessage(row, unreadCounts.get(row.user_id) || 0));
     let tickets: ExpoTicket[];
 
@@ -211,6 +248,7 @@ async function dispatchPush(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     picked: rows.length,
+    claimed: claimed.length,
     sent,
     failed,
   });

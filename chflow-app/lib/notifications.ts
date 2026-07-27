@@ -71,21 +71,51 @@ type BadgeNavigator = Navigator & {
   clearAppBadge?: () => Promise<void>;
 };
 
+type NativeWebViewBridge = {
+  postMessage: (message: string) => void;
+};
+
+function normalizeBadgeCount(count: number): number {
+  if (!Number.isFinite(count)) return 0;
+  return Math.min(Math.max(Math.floor(count), 0), 9999);
+}
+
+function syncNativeAppBadge(count: number): void {
+  if (typeof window === "undefined") return;
+
+  const nativeWebView = (window as Window & {
+    ReactNativeWebView?: NativeWebViewBridge;
+  }).ReactNativeWebView;
+  if (!nativeWebView) return;
+
+  try {
+    nativeWebView.postMessage(JSON.stringify({
+      type: "CHFLOW_SET_BADGE",
+      count,
+    }));
+  } catch {
+    // Native bridge is optional.
+  }
+}
+
 export function setAppBadge(count: number): void {
+  const normalizedCount = normalizeBadgeCount(count);
+  syncNativeAppBadge(normalizedCount);
   if (typeof navigator === "undefined") return;
+
   const nav = navigator as BadgeNavigator;
   try {
-    if (count > 0) {
-      nav.setAppBadge?.(count);
+    if (normalizedCount > 0) {
+      nav.setAppBadge?.(normalizedCount)?.catch(() => {});
       // Service Worker에도 알림 (Service Worker가 더 안정적)
       if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({
           type: "SET_BADGE",
-          count: count,
+          count: normalizedCount,
         });
       }
     } else {
-      nav.clearAppBadge?.();
+      nav.clearAppBadge?.()?.catch(() => {});
       if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({
           type: "CLEAR_BADGE",
@@ -98,10 +128,12 @@ export function setAppBadge(count: number): void {
 }
 
 export function clearAppBadge(): void {
+  syncNativeAppBadge(0);
   if (typeof navigator === "undefined") return;
+
   const nav = navigator as BadgeNavigator;
   try {
-    nav.clearAppBadge?.();
+    nav.clearAppBadge?.()?.catch(() => {});
     if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage({
         type: "CLEAR_BADGE",
