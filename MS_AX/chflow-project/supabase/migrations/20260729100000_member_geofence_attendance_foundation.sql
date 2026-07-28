@@ -212,3 +212,71 @@ GRANT EXECUTE ON FUNCTION public.current_member_id() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.can_manage_church_attendance() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.submit_attendance_candidate(uuid, date, text, timestamptz, timestamptz, integer, numeric, numeric, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.confirm_attendance_candidate(uuid) TO authenticated;
+
+-- 리더 화면용 조회 계약. 원자료의 좌표는 반환하지 않는다.
+CREATE OR REPLACE FUNCTION public.list_church_attendance_overview(
+  p_start_date date,
+  p_end_date date
+)
+RETURNS TABLE (
+  member_id uuid,
+  member_name text,
+  attend_date date,
+  source text,
+  recorded_at timestamptz
+)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.can_manage_church_attendance() THEN
+    RAISE EXCEPTION '출석 조회 권한이 없습니다';
+  END IF;
+  IF p_end_date < p_start_date OR p_end_date - p_start_date > 366 THEN
+    RAISE EXCEPTION '조회 기간은 1년 이내여야 합니다';
+  END IF;
+  RETURN QUERY
+  SELECT a.member_id, m.name, a.attend_date, a.source, a.recorded_at
+    FROM public.church_attendance a
+    JOIN public.members m ON m.id = a.member_id
+   WHERE a.attend_date BETWEEN p_start_date AND p_end_date
+   ORDER BY a.attend_date DESC, m.name;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.list_church_absence_candidates(
+  p_as_of_date date DEFAULT current_date,
+  p_weeks smallint DEFAULT 2
+)
+RETURNS TABLE (
+  member_id uuid,
+  member_name text,
+  last_attend_date date,
+  absent_weeks integer
+)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.can_manage_church_attendance() THEN
+    RAISE EXCEPTION '장기 미출석 조회 권한이 없습니다';
+  END IF;
+  IF p_weeks < 2 OR p_weeks > 12 THEN
+    RAISE EXCEPTION '미출석 기준은 2~12주 사이여야 합니다';
+  END IF;
+  RETURN QUERY
+  SELECT m.id,
+         m.name,
+         MAX(a.attend_date) AS last_attend_date,
+         FLOOR((p_as_of_date - MAX(a.attend_date)) / 7.0)::integer AS absent_weeks
+    FROM public.members m
+    LEFT JOIN public.church_attendance a ON a.member_id = m.id
+   WHERE m.status = 'active'
+     AND COALESCE(m.is_child, false) = false
+   GROUP BY m.id, m.name
+  HAVING MAX(a.attend_date) IS NOT NULL
+     AND p_as_of_date - MAX(a.attend_date) >= p_weeks * 7
+   ORDER BY last_attend_date NULLS FIRST, m.name;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.list_church_attendance_overview(date, date) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.list_church_absence_candidates(date, smallint) TO authenticated;
