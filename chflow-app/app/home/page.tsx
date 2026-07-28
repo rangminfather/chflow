@@ -71,7 +71,7 @@ type CommonMenu = {
 };
 
 const COMMON_MENUS: CommonMenu[] = [
-  { id: "live",      label: "예배",         icon: Radio,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/live" },
+  { id: "live",      label: "실시간 예배",   icon: Radio,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/live" },
   { id: "bulletin",  label: "주보 보기",     icon: BookOpen,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/bulletin" },
   { id: "directory", label: "성도 요람",     icon: Users,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/directory" },
   { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/feedback" },
@@ -83,7 +83,7 @@ const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "messenger-reports", label: "메신저 신고", icon: MessagesSquare, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/messenger-reports" },
   { id: "messenger-diagnostics", label: "메신저 진단", icon: SearchCheck, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/messenger-diagnostics" },
   { id: "usage-status", label: "이용 현황", icon: BarChart3, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/usage-status" },
-  { id: "live-status", label: "생방송 점검", icon: Radio, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/live-status" },
+  { id: "live-status", label: "실시간예배 점검", icon: Radio, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/live-status" },
   { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "facility", label: "시설 신청",   icon: Landmark,      color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },

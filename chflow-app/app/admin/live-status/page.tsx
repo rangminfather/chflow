@@ -1,6 +1,6 @@
 "use client";
 
-// 예배 생방송 감지·알림 점검 (관리자)
+// 실시간 예배 감지·알림 점검 (관리자)
 //
 // 푸시가 안 왔을 때 어디가 막혔는지 한 화면에서 보게 하는 것이 목적이다.
 // 확인 순서: ① 폴러가 도는지(마지막 확인 시각) ② 조회 오류 여부 ③ 감지·발송 이력
@@ -157,7 +157,7 @@ export default function AdminLiveStatusPage() {
           <span style={{ marginLeft: 4 }}>홈</span>
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>예배 생방송 점검</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>실시간 예배 점검</div>
           <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 1 }}>감지·알림이 정상인지 확인</div>
         </div>
         <button onClick={() => load(true)} disabled={refreshing} style={btnStyle} aria-label="새로고침">
@@ -268,12 +268,13 @@ export default function AdminLiveStatusPage() {
           )}
         </Card>
 
-        {/* ── 예배 시간표 ── */}
+        {/* ── 실시간 예배 시간표 ── */}
         <Card>
           <SectionTitle>알림 문구 기준 시간표</SectionTitle>
           <p style={{ fontSize: 12, color: "var(--ink-mid)", lineHeight: 1.75, margin: "0 0 8px" }}>
             방송이 시작된 시각으로 회차를 판별해 &ldquo;주일 3부 예배가 시작되었습니다&rdquo; 처럼 보냅니다.
-            아래 시간대에 없는 방송은 회차 없이 &ldquo;예배 생방송이 시작되었습니다&rdquo; 로 나갑니다.
+            아래 시간대에 없는 방송은 회차 없이 &ldquo;실시간 예배가 시작되었습니다&rdquo; 로 나갑니다.
+            교회 전체 예배 시간표가 아니라 <b>실시간 중계를 하는 예배만</b> 담겨 있습니다.
           </p>
           {WORSHIP_SCHEDULE_TEXT.map((g) => (
             <Row key={g.when} label={g.when} value={g.items.join("  ·  ")} />
