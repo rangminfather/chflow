@@ -43,6 +43,7 @@
 ## 완료되어 커밋된 변경
 
 - `c12fae0` — 알림 중복 방지, 장기 미출석 알림 정리, 웹↔네이티브 배지 동기화
+  - 2026-07-28 확인 당시 Codex 브랜치에는 커밋됐지만 `main`에는 미반영이었음. 원격 DB 마이그레이션은 적용된 반쪽 상태였으며, 코드는 `main`에 `76d8129`로 반영함.
 - `8ee1fe3` — 유아부 출결 통합화면을 목장 기준으로 정렬
 - `97a82c5` — 주보 이미지 첨부를 PDF로 정상화
 - `d7b8cff` — EAS 내부/프로덕션 제출 프로필 및 Expo 패치 버전 정리
@@ -66,3 +67,64 @@
 3. Android 일반 업데이트는 앱이 Google Play의 실제 공개 버전을 직접 감지
    - 매 릴리스마다 Vercel `LATEST_ANDROID_BUILD`를 변경할 필요 없음
    - `MIN_ANDROID_BUILD`는 긴급 강제 업데이트가 필요할 때만 변경
+
+## 2026-07-27 production deployment record
+
+- Production commit: `0d0dedf` (`refactor(quality): add checks and split messenger overlays`)
+- Web build: completed successfully with Next.js 16.2.10 after compile, TypeScript, static generation, and route finalization.
+- Production URL check: `https://chflow-app.vercel.app` returned HTTP 200 at 2026-07-27 20:34 Asia/Seoul.
+- Scope: lint/test/typecheck quality gate; messenger overlay separation; no database migration or Android build.
+## 2026-07-27 production deployment record
+
+- Production commit: `a502fe6` (`refactor(messenger): extract read status presentation`)
+- Web build: completed successfully with compile, TypeScript, static generation, and route finalization.
+- Production URL check: `https://chflow-app.vercel.app` returned HTTP 200 at 2026-07-27 21:55 Asia/Seoul.
+- Scope: messenger read-status presentation and shared avatar separation; no database migration or Android build.
+
+## 2026-07-27 production deployment record
+
+- Production commit: `f684966` (`refactor(quality): split composer and test signup directory logic`)
+- Web build: completed successfully with compile, TypeScript, static generation, and route finalization.
+- Production URL check: `https://chflow-app.vercel.app` returned HTTP 200 at 2026-07-27 22:37 Asia/Seoul.
+- Scope: messenger composer separation; signup and directory domain-logic extraction with unit tests; no database migration or Android build.
+
+## 2026-07-27 production deployment record
+
+- Production commit: `e232350` (`fix(messenger): remove stale modal style`)
+- Web build: completed successfully with compile, TypeScript, static generation, and route finalization.
+- Production URL check: `https://chflow-app.vercel.app` returned HTTP 200 at 2026-07-27 23:09 Asia/Seoul.
+- Scope: messenger group-management modal separation; no database migration or Android build.
+
+## 2026-07-27 production deployment record
+
+- Production commit: `9ff6e15` (`ci(web): verify quality gates before deployment`)
+- Web build: completed successfully with compile, TypeScript, static generation, and route finalization before deployment.
+- Production URL check: `https://chflow-app.vercel.app` returned HTTP 200 at 2026-07-27 23:56 Asia/Seoul.
+- Scope: GitHub Actions web quality gate, documented Preview workflow, and Android R8/release resource optimization configuration; no database migration.
+
+## 2026-07-28 Android R8 release build
+
+- Source commit: `4329653` (`build(android): enable R8 release optimization`)
+- EAS build ID: `3b985c91-c20e-4140-9b25-84d03d95f157`
+- Android versionCode: `21`
+- Build status: `FINISHED`
+- Scope: R8 code shrinking and unused-resource shrinking enabled for release builds.
+- Google Play production draft submission: Google Play API reported that versionCode `21` had already been submitted when a manual resubmission was attempted on 2026-07-28. Play Console processing or draft visibility may lag; verify the versionCode in Play Console before publishing.
+
+## 2026-07-28 Android v1.0.1 update-prompt release
+
+- Source commit: `b6fe4f2` (`release(android): prepare v1.0.1`)
+- EAS build ID: `5e33534f-e392-48ec-9b60-50c1665b7e19`
+- Android versionCode: `22`
+- Build status: `FINISHED`
+- Scope: optional-update prompt moved to the top safe area below the status bar/punch-hole; force-update blocking behavior unchanged.
+- Submission: production profile uses automatic Play draft submission after a successful AAB build; Play Console publication remains manual.
+
+## 2026-07-28 Android v1.0.2 notification reliability release
+
+- Source commits: `76d8129` (`fix(notifications): deduplicate delivery and sync app badge`), `2f8b150` (`release(android): prepare v1.0.2`)
+- EAS build ID: `52c68400-f273-4d04-b5d9-a67ef155f22b`
+- Android versionCode: `23`
+- Build status: `IN_PROGRESS`
+- Scope: conditional claim before push delivery prevents duplicate sends; web notification state synchronizes the native launcher badge; absence-alert migration source is now aligned with the already-applied remote migration.
+- Submission: production profile requests automatic Play draft submission after a successful AAB build; Play Console publication remains manual.
