@@ -11,7 +11,8 @@
     "release:patch": "node scripts/prepare-release.mjs patch --apply",
     "release:minor": "node scripts/prepare-release.mjs minor --apply",
     "release:major": "node scripts/prepare-release.mjs major --apply",
-    "release:android": "npx eas-cli@latest build --platform android --profile production --auto-submit --non-interactive"
+    "release:android": "npx eas-cli@latest build --platform android --profile production --non-interactive",
+    "release:android:submit": "node scripts/verify-production-submit.mjs && npx eas-cli@latest submit --platform android --profile production --latest --non-interactive"
   },
   "dependencies": {
     "expo": "~54.0.33",
