@@ -8,6 +8,7 @@
 //   동시 요청이 몰려도 조건부 update 로 한 요청만 선점해 YouTube 를 호출한다.
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { detectWorshipSession, worshipStartedTitle } from "@/lib/worshipSchedule";
 
 export const DEFAULT_CHANNEL_ID = "UCGqoK8XTWHLkyU8Nt-as1og"; // 울산명성교회
 /** 이 시간보다 오래된 확인 결과는 갱신 대상 */
@@ -41,6 +42,44 @@ type VideosResponse = {
     liveStreamingDetails?: { actualStartTime?: string; actualEndTime?: string };
   }>;
 };
+
+/** 이벤트 로그 보관 기간 */
+const EVENT_RETENTION_DAYS = 30;
+
+type LiveEvent = {
+  event: "live_started" | "live_ended" | "notified" | "notify_skipped" | "error";
+  videoId?: string | null;
+  sessionKey?: string | null;
+  title?: string | null;
+  detail?: string | null;
+  recipients?: number | null;
+};
+
+/** 관리자 확인용 이벤트 기록. 로그 실패가 본 동작을 막지 않도록 조용히 넘긴다. */
+export async function logLiveEvent(admin: SupabaseClient, e: LiveEvent): Promise<void> {
+  try {
+    await admin.from("youtube_live_events").insert({
+      event: e.event,
+      video_id: e.videoId ?? null,
+      session_key: e.sessionKey ?? null,
+      title: e.title ?? null,
+      detail: e.detail ?? null,
+      recipients: e.recipients ?? null,
+    });
+  } catch {
+    // 로그는 부가 기능이다
+  }
+}
+
+/** 오래된 이벤트 정리 — 폴러가 가끔만 수행한다(매분 DELETE 를 날릴 이유가 없다) */
+export async function pruneLiveEvents(admin: SupabaseClient): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    await admin.from("youtube_live_events").delete().lt("created_at", cutoff);
+  } catch {
+    // 정리 실패는 무해하다
+  }
+}
 
 export function serviceClient(): SupabaseClient {
   return createClient(
@@ -108,11 +147,14 @@ export async function refreshIfStale(admin: SupabaseClient, force = false): Prom
     .update({ checked_at: nowIso })
     .eq("id", "main");
   if (!force) claim = claim.lt("checked_at", cutoff);
-  const { data: claimed, error: claimError } = await claim.select("channel_id");
+  // 이전 상태를 함께 받아 "방송 시작/종료" 전환만 로그로 남긴다
+  const { data: claimed, error: claimError } = await claim.select("channel_id, is_live, video_id");
 
   if (claimError || !claimed || claimed.length === 0) return false;
 
   const channelId = claimed[0].channel_id || DEFAULT_CHANNEL_ID;
+  const prev = claimed[0] as { is_live?: boolean; video_id?: string | null };
+
   try {
     const live = await findLiveVideo(channelId, apiKey);
     await admin
@@ -127,16 +169,28 @@ export async function refreshIfStale(admin: SupabaseClient, force = false): Prom
         updated_at: nowIso,
       })
       .eq("id", "main");
+
+    // 상태가 바뀐 순간만 기록한다 (매분 로그를 쌓지 않기 위해)
+    if (live && (!prev.is_live || prev.video_id !== live.videoId)) {
+      const session = detectWorshipSession(live.startedAt ? new Date(live.startedAt) : new Date());
+      await logLiveEvent(admin, {
+        event: "live_started",
+        videoId: live.videoId,
+        sessionKey: session?.key ?? null,
+        title: live.title,
+      });
+    } else if (!live && prev.is_live) {
+      await logLiveEvent(admin, { event: "live_ended", videoId: prev.video_id ?? null });
+    }
     return true;
   } catch (err) {
+    const message = err instanceof Error ? err.message : "YouTube 조회 실패";
     // 조회 실패 시 is_live 는 건드리지 않는다. 방송 중인데 꺼지면 안 된다.
     await admin
       .from("youtube_live_status")
-      .update({
-        last_error: err instanceof Error ? err.message : "YouTube 조회 실패",
-        updated_at: nowIso,
-      })
+      .update({ last_error: message, updated_at: nowIso })
       .eq("id", "main");
+    await logLiveEvent(admin, { event: "error", detail: message });
     return false;
   }
 }
@@ -169,15 +223,25 @@ export async function notifyIfNewlyLive(
   if (!row?.is_live || !row.video_id) return { sent: false, reason: "방송 중 아님" };
   if (row.notified_video_id === row.video_id) return { sent: false, reason: "이미 발송한 방송" };
 
+  const startedAt = row.started_at ? new Date(row.started_at) : new Date();
+  const session = detectWorshipSession(startedAt);
+
   if (row.started_at) {
-    const startedMs = new Date(row.started_at).getTime();
+    const startedMs = startedAt.getTime();
     if (!Number.isNaN(startedMs) && Date.now() - startedMs > NOTIFY_WITHIN_MS) {
       // 오래 전에 시작한 방송이면 알림 없이 발송 기록만 남겨 이후 재검사를 막는다
       await admin
         .from("youtube_live_status")
         .update({ notified_video_id: row.video_id, notified_at: new Date().toISOString() })
         .eq("id", "main");
-      return { sent: false, reason: "시작 후 30분 초과 — 알림 생략" };
+      const reason = "시작 후 30분 초과 — 알림 생략";
+      await logLiveEvent(admin, {
+        event: "notify_skipped",
+        videoId: row.video_id,
+        sessionKey: session?.key ?? null,
+        detail: reason,
+      });
+      return { sent: false, reason };
     }
   }
 
@@ -208,7 +272,8 @@ export async function notifyIfNewlyLive(
   const recipients = users || [];
   if (recipients.length === 0) return { sent: false, reason: "대상자 없음" };
 
-  const title = "예배 생방송이 시작되었습니다";
+  // 회차를 알면 "주일 3부 예배가 시작되었습니다", 모르면 일반 문구
+  const title = worshipStartedTitle(startedAt);
   const body = row.title ? String(row.title) : "지금 예배 생방송을 시청하실 수 있습니다.";
 
   const { error } = await admin.from("notifications").insert(
@@ -218,7 +283,7 @@ export async function notifyIfNewlyLive(
       title,
       body,
       link_url: "/live",
-      metadata: { video_id: row.video_id },
+      metadata: { video_id: row.video_id, session: session?.key ?? null },
     }))
   );
 
@@ -228,9 +293,17 @@ export async function notifyIfNewlyLive(
       .from("youtube_live_status")
       .update({ notified_video_id: null, notified_at: null })
       .eq("id", "main");
+    await logLiveEvent(admin, { event: "error", videoId: row.video_id, detail: `알림 저장 실패: ${error.message}` });
     return { sent: false, reason: `알림 저장 실패: ${error.message}` };
   }
 
+  await logLiveEvent(admin, {
+    event: "notified",
+    videoId: row.video_id,
+    sessionKey: session?.key ?? null,
+    title,
+    recipients: recipients.length,
+  });
   return { sent: true, videoId: row.video_id, recipients: recipients.length };
 }
 

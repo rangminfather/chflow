@@ -71,7 +71,7 @@ type CommonMenu = {
 };
 
 const COMMON_MENUS: CommonMenu[] = [
-  { id: "live",      label: "예배 생방송",   icon: Radio,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/live" },
+  { id: "live",      label: "예배",         icon: Radio,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/live" },
   { id: "bulletin",  label: "주보 보기",     icon: BookOpen,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/bulletin" },
   { id: "directory", label: "성도 요람",     icon: Users,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/directory" },
   { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/feedback" },
@@ -83,6 +83,7 @@ const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "messenger-reports", label: "메신저 신고", icon: MessagesSquare, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/messenger-reports" },
   { id: "messenger-diagnostics", label: "메신저 진단", icon: SearchCheck, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/messenger-diagnostics" },
   { id: "usage-status", label: "이용 현황", icon: BarChart3, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/usage-status" },
+  { id: "live-status", label: "생방송 점검", icon: Radio, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/live-status" },
   { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "facility", label: "시설 신청",   icon: Landmark,      color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
@@ -749,7 +750,8 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
 // =============================================================
 function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: RouterType }) {
   // 생방송 여부는 서버가 스로틀링하는 /api/live/status 에서 받는다 (YouTube 직접 호출 아님)
-  const [liveOn, setLiveOn] = useState(false);
+  // null = 아직 모름 → 표시등을 아예 띄우지 않는다 (모르는 상태를 OFF AIR 로 단정하지 않기)
+  const [liveOn, setLiveOn] = useState<boolean | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -783,7 +785,7 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
       />
       <SafeGrid cols={2} gap={10} className="home-menu-grid">
         {COMMON_MENUS.map((m) => (
-          <MenuCard key={m.id} menu={m} router={router} live={m.id === "live" && liveOn} />
+          <MenuCard key={m.id} menu={m} router={router} live={m.id === "live" ? liveOn : undefined} />
         ))}
       </SafeGrid>
 
@@ -809,7 +811,7 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
   );
 }
 
-function MenuCard({ menu, router, compact, live }: { menu: CommonMenu; router: RouterType; compact?: boolean; live?: boolean }) {
+function MenuCard({ menu, router, compact, live }: { menu: CommonMenu; router: RouterType; compact?: boolean; live?: boolean | null }) {
   const handleClick = () => {
     if (menu.href) router.push(menu.href);
     else alert(`${menu.label}은(는) 곧 추가됩니다.`);
@@ -849,15 +851,23 @@ function MenuCard({ menu, router, compact, live }: { menu: CommonMenu; router: R
             color: T.text,
             lineHeight: 1.25,
           }}>{menu.label}</div>
-          {live && (
+          {/* 방송 중이면 녹색 ON AIR, 아니면 빨간 OFF AIR — 켜져 있는지 한눈에 */}
+          {typeof live === "boolean" && (
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 4,
               marginTop: 4, padding: "2px 7px", borderRadius: 999,
-              background: "var(--danger)", color: "var(--paper)",
+              background: live
+                ? "color-mix(in srgb, var(--success) 16%, transparent)"
+                : "color-mix(in srgb, var(--danger) 14%, transparent)",
+              color: live ? "var(--success)" : "var(--danger)",
               fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
             }}>
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--paper)" }} />
-              LIVE
+              <span style={{
+                width: 6, height: 6, borderRadius: "50%",
+                background: live ? "var(--success)" : "var(--danger)",
+                boxShadow: live ? "0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent)" : "none",
+              }} />
+              {live ? "ON AIR" : "OFF AIR"}
             </span>
           )}
         </SafeGrow>

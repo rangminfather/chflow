@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
     is_live: !!status?.is_live && !!status?.video_id,
     video_id: status?.video_id ?? null,
     title: status?.title ?? null,
+    started_at: status?.started_at ?? null,
     channel_id: status?.channel_id ?? null,
     checked_at: status?.checked_at ?? null,
     stale,

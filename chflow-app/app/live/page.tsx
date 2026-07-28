@@ -13,12 +13,14 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ExternalLink, RefreshCw, Radio } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
+import { worshipNowLabel, WORSHIP_SCHEDULE_TEXT } from "@/lib/worshipSchedule";
 
 type LiveStatus = {
   channel_id: string | null;
   is_live: boolean;
   video_id: string | null;
   title: string | null;
+  started_at: string | null;
   checked_at: string | null;
   /** 상태 갱신이 오래 멈춘 상태 — '방송 없음'이라 단정하지 않는다 */
   stale: boolean;
@@ -153,6 +155,10 @@ export default function LivePage() {
               />
               LIVE
             </div>
+            {/* 지금이 어느 예배인지 (시간표 기준) */}
+            <div style={{ marginLeft: 8, display: "inline-block", fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>
+              {worshipNowLabel(status?.started_at ? new Date(status.started_at) : new Date())}
+            </div>
 
             <div
               style={{
@@ -213,6 +219,21 @@ export default function LivePage() {
                 ? "아래 버튼으로 유튜브 채널에서 직접 확인해 주세요. 방송 중이라면 채널에 표시됩니다."
                 : "예배가 시작되면 이 화면에서 바로 보실 수 있습니다. 지난 예배는 유튜브 채널에서 다시 보실 수 있습니다."}
             </p>
+
+            {/* 예배 시간 안내 */}
+            <div style={{
+              marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--hairline)",
+              display: "flex", flexDirection: "column", gap: 6, textAlign: "left",
+              maxWidth: 300, marginLeft: "auto", marginRight: "auto",
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 2 }}>예배 시간</div>
+              {WORSHIP_SCHEDULE_TEXT.map((g) => (
+                <div key={g.when} style={{ display: "flex", gap: 8, fontSize: 12.5, color: "var(--ink-mid)", lineHeight: 1.7 }}>
+                  <span style={{ width: 44, flexShrink: 0, fontWeight: 700, color: "var(--ink)" }}>{g.when}</span>
+                  <span style={{ flex: 1 }}>{g.items.join(" · ")}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
