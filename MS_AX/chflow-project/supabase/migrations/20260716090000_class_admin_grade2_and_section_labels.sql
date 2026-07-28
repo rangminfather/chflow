@@ -1,0 +1,217 @@
+-- 諛?愿由?沅뚰븳???꾩썝吏?grade 0~2)源뚯? ?뺤옣?섍퀬,
+-- ?됱젙愿由??뱀뀡 ?쒕ぉ??遺?쒕퀎濡?而ㅼ뒪?곕쭏?댁쫰?쒕떎.
+
+create or replace function public.assert_dept_class_admin(p_dept_id uuid)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare v_grade smallint;
+begin
+  if auth.uid() is null then raise exception '濡쒓렇?몄씠 ?꾩슂?⑸땲??; end if;
+  select grade into v_grade from public.department_members
+  where department_id = p_dept_id and user_id = auth.uid();
+  if v_grade is null or v_grade > 2 then
+    raise exception '諛?愿由?沅뚰븳???놁뒿?덈떎 (?꾩썝吏꾨쭔 媛??';
+  end if;
+end;
+$$;
+
+create or replace function public.bulk_assign_class_teacher(
+  p_dept_id uuid, p_class_no text, p_new_teacher_id uuid, p_reason text default null
+)
+returns integer
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_caller uuid := auth.uid();
+  v_caller_name text;
+  v_caller_grade smallint;
+  v_old_teacher_id uuid;
+  v_old_teacher_name text;
+  v_new_teacher_name text;
+  v_count integer;
+begin
+  select grade into v_caller_grade
+  from public.department_members
+  where department_id = p_dept_id and user_id = v_caller;
+
+  if v_caller_grade is null or v_caller_grade > 2 then
+    raise exception '沅뚰븳 ?놁쓬 (?꾩썝吏꾨쭔 媛??';
+  end if;
+
+  select name into v_caller_name from public.profiles where id = v_caller;
+  select name into v_new_teacher_name
+  from public.edu_teachers
+  where id = p_new_teacher_id and department_id = p_dept_id;
+
+  if v_new_teacher_name is null then
+    raise exception '?댁엫 ?뺣낫 ?놁쓬 ?먮뒗 遺??遺덉씪移?;
+  end if;
+
+  select teacher_id into v_old_teacher_id
+  from public.edu_classes
+  where department_id = p_dept_id and class_no = p_class_no;
+
+  if v_old_teacher_id is null then
+    select teacher_id into v_old_teacher_id
+    from public.edu_students
+    where department_id = p_dept_id and class_no = p_class_no and teacher_id is not null
+    limit 1;
+  end if;
+
+  if v_old_teacher_id is not null then
+    select name into v_old_teacher_name from public.edu_teachers where id = v_old_teacher_id;
+  end if;
+
+  update public.edu_classes
+  set teacher_id = p_new_teacher_id
+  where department_id = p_dept_id and class_no = p_class_no;
+
+  update public.edu_students
+  set teacher_id = p_new_teacher_id
+  where department_id = p_dept_id and class_no = p_class_no;
+  get diagnostics v_count = row_count;
+
+  insert into public.teacher_assignment_log (
+    department_id, action_type, class_no, old_teacher_id, old_teacher_name,
+    new_teacher_id, new_teacher_name, reason, changed_by, changed_by_name
+  ) values (
+    p_dept_id, 'bulk_assign', p_class_no, v_old_teacher_id, v_old_teacher_name,
+    p_new_teacher_id, v_new_teacher_name, p_reason, v_caller, v_caller_name
+  );
+
+  return v_count;
+end;
+$$;
+grant execute on function public.bulk_assign_class_teacher(uuid, text, uuid, text) to authenticated;
+
+create or replace function public.merge_placeholder_teacher(
+  p_placeholder_id uuid,
+  p_target_user_id uuid,
+  p_reason text default null
+) returns boolean
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_caller uuid := auth.uid();
+  v_caller_name text;
+  v_caller_grade smallint;
+  v_dept_id uuid;
+  v_placeholder_name text;
+  v_target_member_id uuid;
+  v_target_name text;
+begin
+  select department_id, name into v_dept_id, v_placeholder_name
+  from public.edu_teachers
+  where id = p_placeholder_id;
+
+  if v_dept_id is null then
+    raise exception 'placeholder ?놁쓬';
+  end if;
+
+  select grade into v_caller_grade
+  from public.department_members
+  where department_id = v_dept_id and user_id = v_caller;
+
+  if v_caller_grade is null or v_caller_grade > 2 then
+    raise exception '沅뚰븳 ?놁쓬 (?꾩썝吏꾨쭔 媛??';
+  end if;
+
+  select name into v_caller_name from public.profiles where id = v_caller;
+  select member_id, name into v_target_member_id, v_target_name
+  from public.profiles
+  where id = p_target_user_id;
+
+  if v_target_name is null then
+    raise exception '????ъ슜???놁쓬';
+  end if;
+
+  update public.edu_teachers
+  set user_id = p_target_user_id,
+      member_id = v_target_member_id,
+      name = v_target_name
+  where id = p_placeholder_id;
+
+  insert into public.teacher_assignment_log (
+    department_id, action_type, placeholder_id, real_member_id,
+    new_teacher_id, new_teacher_name, reason, changed_by, changed_by_name
+  ) values (
+    v_dept_id, 'merge_placeholder', p_placeholder_id, v_target_member_id,
+    p_placeholder_id, v_target_name, p_reason, v_caller, v_caller_name
+  );
+
+  return true;
+end;
+$$;
+grant execute on function public.merge_placeholder_teacher(uuid, uuid, text) to authenticated;
+
+alter table public.dept_admin_section_order
+  add column if not exists section_labels jsonb not null default '{}'::jsonb;
+
+create or replace function public.get_dept_admin_section_labels(p_department_id uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = public
+as $$
+declare
+  v_grade smallint;
+  v_labels jsonb;
+begin
+  v_grade := public.get_user_grade(p_department_id);
+  if v_grade > 4 then raise exception '?묎렐 沅뚰븳???놁뒿?덈떎'; end if;
+
+  select section_labels into v_labels
+  from public.dept_admin_section_order
+  where department_id = p_department_id;
+
+  return coalesce(v_labels, '{}'::jsonb);
+end;
+$$;
+grant execute on function public.get_dept_admin_section_labels(uuid) to authenticated;
+
+create or replace function public.set_dept_admin_section_label(
+  p_department_id uuid,
+  p_section_id text,
+  p_label text
+) returns jsonb
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_grade smallint;
+  v_label text := nullif(trim(coalesce(p_label, '')), '');
+  v_labels jsonb;
+begin
+  if auth.uid() is null then raise exception '濡쒓렇?몄씠 ?꾩슂?⑸땲??; end if;
+  v_grade := public.get_user_grade(p_department_id);
+  if v_grade > 2 then raise exception '硫붾돱 ?ㅼ젙 沅뚰븳???놁뒿?덈떎 (?꾩썝吏꾨쭔 媛??'; end if;
+
+  if p_section_id not in ('docs','attendance','talent','ops') then
+    raise exception '?녿뒗 ?뱀뀡?낅땲??;
+  end if;
+  if v_label is null then
+    raise exception '?뱀뀡紐낆쓣 ?낅젰?섏꽭??;
+  end if;
+
+  insert into public.dept_admin_section_order (
+    department_id, section_order, section_labels, updated_by, updated_at
+  ) values (
+    p_department_id,
+    array['docs','attendance','talent','ops'],
+    jsonb_build_object(p_section_id, v_label),
+    auth.uid(),
+    now()
+  )
+  on conflict (department_id) do update
+    set section_labels = coalesce(public.dept_admin_section_order.section_labels, '{}'::jsonb)
+        || jsonb_build_object(p_section_id, v_label),
+        updated_by = excluded.updated_by,
+        updated_at = now();
+
+  select section_labels into v_labels
+  from public.dept_admin_section_order
+  where department_id = p_department_id;
+
+  return coalesce(v_labels, '{}'::jsonb);
+end;
+$$;
+grant execute on function public.set_dept_admin_section_label(uuid, text, text) to authenticated;
+

@@ -133,6 +133,7 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 DECLARE
   v_member_id uuid := public.current_member_id();
+  v_geofence public.attendance_geofences;
   v_required_dwell integer;
   v_candidate public.attendance_location_candidates;
 BEGIN
@@ -172,15 +173,18 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 DECLARE
   v_candidate public.attendance_location_candidates;
-  v_geofence public.attendance_geofences;
+  v_required_dwell integer;
   v_attendance public.church_attendance;
 BEGIN
-  SELECT c, g.dwell_seconds
-    INTO v_candidate, v_required_dwell
+  SELECT c.*
+    INTO v_candidate
     FROM public.attendance_location_candidates c
     JOIN public.attendance_geofences g ON g.id = c.geofence_id
    WHERE c.id = p_candidate_id AND c.status IN ('candidate', 'confirmed');
   IF NOT FOUND THEN RAISE EXCEPTION '출석 후보를 찾을 수 없습니다'; END IF;
+  SELECT g.dwell_seconds INTO v_required_dwell
+    FROM public.attendance_geofences g
+   WHERE g.id = v_candidate.geofence_id;
   IF v_candidate.member_id <> public.current_member_id()
      AND NOT public.can_manage_church_attendance() THEN
     RAISE EXCEPTION '출석 후보를 확정할 권한이 없습니다';
