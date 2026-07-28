@@ -2,9 +2,9 @@
 
 // 예배 생방송 — YouTube Live 공식 iframe 임베드.
 //
-// 상태는 youtube_live_status 테이블(cron 갱신)에서 읽는다. 사용자가 이 화면을
-// 열 때마다 YouTube API 를 호출하지 않는 이유는 일일 쿼터 때문이다.
-// (갱신은 /api/cron/youtube-live 가 담당)
+// 상태는 /api/live/status 에서 받는다. 그 라우트가 캐시(youtube_live_status)를 읽고,
+// 3분 이상 오래됐을 때만 YouTube 를 한 번 조회해 갱신한다(동시요청 선점).
+// 화면이 직접 YouTube 를 부르지 않는 이유는 일일 쿼터 때문이다.
 //
 // 모바일 브라우저는 소리 있는 자동재생을 막으므로 재생은 사용자 탭으로 시작된다.
 
@@ -15,16 +15,16 @@ import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
 
 type LiveStatus = {
-  channel_id: string;
+  channel_id: string | null;
   is_live: boolean;
   video_id: string | null;
   title: string | null;
-  started_at: string | null;
   checked_at: string | null;
+  /** 상태 갱신이 오래 멈춘 상태 — '방송 없음'이라 단정하지 않는다 */
+  stale: boolean;
 };
 
-// cron 은 5분 간격으로 갱신한다. 이보다 한참 오래됐으면 상태를 신뢰하지 않는다.
-const STALE_AFTER_MS = 20 * 60 * 1000;
+const DEFAULT_CHANNEL_ID = "UCGqoK8XTWHLkyU8Nt-as1og"; // 울산명성교회
 
 function channelUrl(channelId: string) {
   return `https://www.youtube.com/channel/${channelId}`;
@@ -45,12 +45,19 @@ export default function LivePage() {
 
   async function load(isRefresh = false) {
     if (isRefresh) setRefreshing(true);
-    const { data } = await supabase
-      .from("youtube_live_status")
-      .select("channel_id, is_live, video_id, title, started_at, checked_at")
-      .eq("id", "main")
-      .maybeSingle();
-    setStatus((data as LiveStatus) ?? null);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (token) {
+        const res = await fetch("/api/live/status", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (res.ok) setStatus((await res.json()) as LiveStatus);
+      }
+    } catch {
+      // 네트워크 실패 시 이전 상태를 유지한다
+    }
     setLoading(false);
     setRefreshing(false);
   }
@@ -72,12 +79,11 @@ export default function LivePage() {
   if (loading) return <LoadingView />;
 
   const isLive = !!status?.is_live && !!status?.video_id;
-  const chUrl = channelUrl(status?.channel_id || "");
+  const chUrl = channelUrl(status?.channel_id || DEFAULT_CHANNEL_ID);
 
-  // 상태 갱신이 멈춘 경우(키 미설정·cron 실패 등)에는 '방송 없음'이라고 단정하지 않는다.
+  // 상태 갱신이 멈춘 경우(키 미설정·조회 실패 등)에는 '방송 없음'이라고 단정하지 않는다.
   // 실제로 방송 중인데 없다고 표시하면 안내가 거짓이 된다.
-  const checkedMs = status?.checked_at ? new Date(status.checked_at).getTime() : NaN;
-  const stale = !status || Number.isNaN(checkedMs) || Date.now() - checkedMs > STALE_AFTER_MS;
+  const stale = !status || status.stale;
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "'Noto Sans KR', sans-serif" }}>

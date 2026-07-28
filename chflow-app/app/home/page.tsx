@@ -748,21 +748,29 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
 // 3) 공통 메뉴
 // =============================================================
 function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: RouterType }) {
-  // 생방송 여부는 cron 이 갱신한 캐시 테이블만 읽는다 (YouTube API 직접 호출 아님)
+  // 생방송 여부는 서버가 스로틀링하는 /api/live/status 에서 받는다 (YouTube 직접 호출 아님)
   const [liveOn, setLiveOn] = useState(false);
 
   useEffect(() => {
     let alive = true;
     const read = async () => {
-      const { data } = await supabase
-        .from("youtube_live_status")
-        .select("is_live")
-        .eq("id", "main")
-        .maybeSingle();
-      if (alive) setLiveOn(!!data?.is_live);
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        const token = sess.session?.access_token;
+        if (!token) return;
+        const res = await fetch("/api/live/status", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (alive) setLiveOn(!!json.is_live);
+      } catch {
+        // 실패 시 배지를 켜지 않는다
+      }
     };
     read();
-    const timer = setInterval(read, 60_000);
+    const timer = setInterval(read, 120_000);
     return () => { alive = false; clearInterval(timer); };
   }, []);
 
