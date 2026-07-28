@@ -1,4 +1,4 @@
-// 예배 시간표 → 라이브가 어느 예배인지 판별.
+// 실시간 예배 시간표 → 라이브가 어느 예배인지 판별.
 //
 // 실제 일정 (KST):
 //   주일 2부 09:00 / 3부 11:00 / 4부 13:30
@@ -42,7 +42,7 @@ const WINDOWS: Window[] = [
 
 /**
  * 방송 시작 시각으로 예배 회차를 판별한다.
- * 시간표에 없는 시각이면 null — 이때는 회차 없이 "예배 생방송" 같은 일반 문구를 쓴다.
+ * 시간표에 없는 시각이면 null — 이때는 회차 없이 "실시간 예배" 같은 일반 문구를 쓴다.
  */
 export function detectWorshipSession(at: Date = new Date()): WorshipSession | null {
   const { day, minutes } = toKst(at);
@@ -53,15 +53,18 @@ export function detectWorshipSession(at: Date = new Date()): WorshipSession | nu
 /** 알림 제목 — 회차를 알면 "주일 3부 예배가 시작되었습니다" */
 export function worshipStartedTitle(at: Date = new Date()): string {
   const s = detectWorshipSession(at);
-  return s ? `${s.label}가 시작되었습니다` : "예배 생방송이 시작되었습니다";
+  return s ? `${s.label}가 시작되었습니다` : "실시간 예배가 시작되었습니다";
 }
 
-/** 화면 상단 표시용 — 회차를 모르면 "예배 생방송" */
+/** 화면 상단 표시용 — 회차를 모르면 "실시간 예배" */
 export function worshipNowLabel(at: Date = new Date()): string {
-  return detectWorshipSession(at)?.label ?? "예배 생방송";
+  return detectWorshipSession(at)?.label ?? "실시간 예배";
 }
 
-/** 안내용 시간표 (화면에 그대로 나열) */
+/**
+ * 화면 안내용 — **실시간 중계를 제공하는 예배만** 담는다.
+ * 교회 전체 예배 시간표가 아니다(1부 예배·수요 오전예배 등은 중계하지 않으므로 넣지 않는다).
+ */
 export const WORSHIP_SCHEDULE_TEXT = [
   { when: "주일", items: ["2부 오전 9:00", "3부 오전 11:00", "4부 오후 1:30"] },
   { when: "수요일", items: ["저녁예배 오후 7:30"] },

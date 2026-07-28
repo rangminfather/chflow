@@ -1,6 +1,6 @@
 "use client";
 
-// 예배 생방송 — YouTube Live 공식 iframe 임베드.
+// 실시간 예배 — YouTube Live 공식 iframe 임베드.
 //
 // 상태는 /api/live/status 에서 받는다. 그 라우트가 캐시(youtube_live_status)를 읽고,
 // 3분 이상 오래됐을 때만 YouTube 를 한 번 조회해 갱신한다(동시요청 선점).
@@ -113,7 +113,7 @@ export default function LivePage() {
           <span>홈</span>
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>예배 생방송</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>실시간 예배</div>
           <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 1 }}>
             울산명성교회 유튜브
             {status?.checked_at && ` · ${formatChecked(status.checked_at)} 확인`}
@@ -173,7 +173,7 @@ export default function LivePage() {
             >
               <iframe
                 src={`https://www.youtube.com/embed/${status!.video_id}?rel=0&playsinline=1`}
-                title={status?.title || "예배 생방송"}
+                title={status?.title || "실시간 예배"}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                 allowFullScreen
                 referrerPolicy="strict-origin-when-cross-origin"
@@ -217,16 +217,20 @@ export default function LivePage() {
             <p style={{ fontSize: 13, color: "var(--ink-mid)", lineHeight: 1.8, margin: "0 auto", maxWidth: 320 }}>
               {stale
                 ? "아래 버튼으로 유튜브 채널에서 직접 확인해 주세요. 방송 중이라면 채널에 표시됩니다."
-                : "예배가 시작되면 이 화면에서 바로 보실 수 있습니다. 지난 예배는 유튜브 채널에서 다시 보실 수 있습니다."}
+                : "예배가 시작되면 이 화면에서 바로 보실 수 있습니다."}
             </p>
 
-            {/* 예배 시간 안내 */}
+            {/* 실시간 예배 안내 — 중계하는 예배만 나열한다 */}
             <div style={{
               marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--hairline)",
               display: "flex", flexDirection: "column", gap: 6, textAlign: "left",
               maxWidth: 300, marginLeft: "auto", marginRight: "auto",
             }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 2 }}>예배 시간</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-mid)" }}>실시간 예배 안내</div>
+              {/* 교회 전체 예배 시간표가 아니라 '중계하는 예배'만 나열한다는 점을 명확히 */}
+              <div style={{ fontSize: 11.5, color: "var(--ink-soft)", lineHeight: 1.6, marginBottom: 4 }}>
+                아래 예배만 실시간으로 중계됩니다.
+              </div>
               {WORSHIP_SCHEDULE_TEXT.map((g) => (
                 <div key={g.when} style={{ display: "flex", gap: 8, fontSize: 12.5, color: "var(--ink-mid)", lineHeight: 1.7 }}>
                   <span style={{ width: 44, flexShrink: 0, fontWeight: 700, color: "var(--ink)" }}>{g.when}</span>
