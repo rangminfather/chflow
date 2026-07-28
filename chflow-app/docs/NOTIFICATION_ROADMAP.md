@@ -263,3 +263,41 @@ Verification requirements:
 - Android push, badge, native permissions, launcher assets, and notification tap routing require `chflow-expo` EAS APK verification.
 - Do not use archived TWA builds under `archive/mobile-legacy` as the current Android path.
 - Existing unrelated dirty files may appear in `git status`; commit only notification-related files unless explicitly requested.
+
+## 예배 생방송 시작 알림 (2026-07-29)
+
+유튜브 라이브가 시작되면 가입된 전 성도에게 "예배 생방송이 시작되었습니다" 알림을 보낸다.
+
+### 왜 외부 스케줄러인가
+Vercel Hobby 플랜은 Cron 이 **하루 1회**로 제한된다(`*/5 * * * *` 는 배포 자체가 거부됨:
+`deploy_failed — Hobby accounts are limited to daily cron jobs`). 방송 시작을 분 단위로
+감지해야 하므로 Cloudflare Workers Cron(1분, 무료)이 chflow 를 호출하는 구조를 쓴다.
+
+```
+Cloudflare Worker (매 1분)
+  → GET https://smartms.kr/api/live/poll   Authorization: Bearer LIVE_POLL_SECRET
+      → YouTube 조회(uploads playlist 1유닛 + videos.list 1유닛 = 2유닛/회)
+      → 새 라이브면 status=active 전원에게 notifications 삽입
+      → 기존 트리거 → notification_push_deliveries → 웹훅 → Expo 푸시
+```
+
+### 필요한 설정
+| 위치 | 이름 | 비고 |
+|---|---|---|
+| Vercel (Production) | `YOUTUBE_API_KEY` | YouTube Data API v3 키. 없으면 폴러가 skip |
+| Vercel (Production) | `LIVE_POLL_SECRET` | 폴러 인증. 미설정 시 `/api/live/poll` 은 503 |
+| Cloudflare Worker | `LIVE_POLL_SECRET` | Vercel 값과 동일해야 함 |
+| Cloudflare Worker | Cron Trigger | `* * * * *` |
+
+워커 스크립트: `chflow-app/public/cloudflare-worker-live-poll.js` (배포 절차 주석 포함)
+
+### 중복·오발송 방지
+- `youtube_live_status.notified_video_id` 조건부 갱신으로 **한 방송당 1회만** 발송
+- 방송 시작 후 30분 초과 시 알림 생략 (폴러 중단 후 재개될 때 늦은 알림 방지)
+- 알림 저장 실패 시 선점 기록을 되돌려 다음 폴링에서 재시도
+- `?dry=1` — 실제 발송 없이 대상자 수만 확인 (예배 전 사전 점검)
+
+### 제약
+- 아이폰은 네이티브 앱이 나오기 전까지 잠금화면 푸시를 받지 못한다(앱 내 종 아이콘만).
+  iOS 앱에서 `expo-notifications` 토큰이 `user_push_tokens` 에 등록되면 자동으로 함께 받는다.
+- 환경변수를 추가·변경한 뒤에는 **재배포해야** 런타임에 반영된다.
