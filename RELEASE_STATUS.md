@@ -128,3 +128,21 @@
 - Build status: `FINISHED`
 - Scope: conditional claim before push delivery prevents duplicate sends; web notification state synchronizes the native launcher badge; absence-alert migration source is now aligned with the already-applied remote migration.
 - Submission: Play Console production promotion confirmed by the user on 2026-07-28. VersionCode `23` is now the production release.
+
+## 2026-07-29 location-based attendance foundation
+
+- Main merge commit: `1e3ac2e` (`feat(attendance): add location-based attendance flow`)
+- Follow-up migration fix/history commit: `ec2e95a`
+- Scope: member geofence candidates, server-side dwell confirmation, leader overview, geofence settings, Android/iOS permission and background event wiring.
+- Supabase migration: `20260729100000_member_geofence_attendance_foundation.sql` applied successfully to project `klsrjvvdwtofialqknng`.
+- Supabase lint: existing unrelated errors remain in `admin_review_safe_auto_cleanup` and `admin_review_safe_auto_cleanup_v2`; no attendance migration error was reported.
+- Web build: successful with placeholder build-time Supabase variables; Vercel production deployment follows the `main` push.
+
+## 2026-07-29 v1.1.0 mobile build
+
+- Release commit: `e120115` (`release(android-ios): prepare v1.1.0 automatic attendance`)
+- Release name: `v1.1.0 — 기능 및 사용성 개선`
+- Android EAS build ID: `f150c06e-374a-4da9-b899-3e9c5f5aacda`
+- Android versionCode: `24`
+- Android build status: `IN_QUEUE`
+- iOS build: not submitted; EAS reported that the Apple distribution certificate is not set up for non-interactive builds. Interactive Apple credential setup is required before retrying.
