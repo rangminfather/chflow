@@ -95,6 +95,11 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 - **H-3**: anon 조회 함수(`search_member_candidates`, `find_member_for_signup` 등) anon GRANT 회수 → 서버 경유 + rate-limit. (가입 매칭 플로우 재설계)
 - ~~**H-5**: xlsx → exceljs 교체~~ → ✅ **해소(2026-06-15)**. **exceljs 4.4.0 전면 교체** — MemberDataTools·rearrange·review-problems·bulletin-import 4파일. PK 컬럼 스타일 코멘트→갈색 폰트, xlsx 패키지 제거.
 - ~~**CSP**~~ → ✅ **enforce 전환 완료(2026-06-14)**. `next.config.ts`에서 `Content-Security-Policy-Report-Only` → `Content-Security-Policy`로 전환. Playwright로 공개·인증 화면 전체 CSP 위반 0건 확인. commit 2928dbb.
+  - **CSP 허용 출처 변경 이력**
+    - 2026-07-28 — 예배 생방송(`/live`) 도입으로 다음을 추가. YouTube **공식 iframe 임베드**만 사용하며 스트림을 직접 추출하지 않는다(약관 준수). 스크립트 출처는 늘리지 않았다(IFrame Player API 미사용).
+      - `frame-src`: `https://www.youtube.com`, `https://www.youtube-nocookie.com`
+      - `img-src`: `https://i.ytimg.com` (방송 썸네일)
+      - 검증: Playwright로 `/live` 라이브·비라이브 및 `/home` 재확인, CSP 위반 0건. iframe 내부 플레이어 요소 로드 확인.
 - ~~**M-err**: 에러원문 노출~~ → ✅ **해소(2026-06-15)**. API 라우트 12개 파일, 29곳 `error.message` → 한국어 일반 메시지. ums-bulletin/post-v2 스택트레이스 필드 제거.
 - ~~**M-bucket**: 버킷 public~~ → ✅ **해소(2026-06-15)**. member-photos·feedback-attachments → `public=false`. `/api/storage/[bucket]/[...path]` 프록시 라우트 (인증 확인 → signed URL 302). members.photo_url 513건 → `/api/storage/...` 형태로 DB 마이그레이션 완료. commit df3c688.
 - ~~**L-enum**: find-id/password 계정 열거~~ → ✅ **해소(2026-06-15)**. 로그인 `check_username_available` 클라이언트 사전체크 제거. API 응답 통일(404→401, "아이디 또는 비밀번호가 일치하지 않습니다"). 비밀번호재설정 계정 미존재 시 `noEmail:true` 반환(200).

@@ -12,7 +12,7 @@ import {
   BookOpen, BookText, Users, User, Lightbulb, Vote, Megaphone, CalendarDays,
   Landmark, Bus, CalendarClock, Menu, LogOut, X, Folder, Home,
   Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid, MessagesSquare, SearchCheck,
-  Sparkles, HeartHandshake, Sun, Moon, BarChart3,
+  Sparkles, HeartHandshake, Sun, Moon, BarChart3, Radio,
 } from "lucide-react";
 import { useTheme } from "@/lib/useTheme";
 import { LoadingView } from "@/components/StatusViews";
@@ -71,6 +71,7 @@ type CommonMenu = {
 };
 
 const COMMON_MENUS: CommonMenu[] = [
+  { id: "live",      label: "예배 생방송",   icon: Radio,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/live" },
   { id: "bulletin",  label: "주보 보기",     icon: BookOpen,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/bulletin" },
   { id: "directory", label: "성도 요람",     icon: Users,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/directory" },
   { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/feedback" },
@@ -747,6 +748,24 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
 // 3) 공통 메뉴
 // =============================================================
 function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: RouterType }) {
+  // 생방송 여부는 cron 이 갱신한 캐시 테이블만 읽는다 (YouTube API 직접 호출 아님)
+  const [liveOn, setLiveOn] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    const read = async () => {
+      const { data } = await supabase
+        .from("youtube_live_status")
+        .select("is_live")
+        .eq("id", "main")
+        .maybeSingle();
+      if (alive) setLiveOn(!!data?.is_live);
+    };
+    read();
+    const timer = setInterval(read, 60_000);
+    return () => { alive = false; clearInterval(timer); };
+  }, []);
+
   return (
     <Section bg="var(--surface)" style={{ border: "1px solid var(--hairline)" }}>
       <SectionHeader
@@ -755,7 +774,9 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
         title="공통 메뉴"
       />
       <SafeGrid cols={2} gap={10} className="home-menu-grid">
-        {COMMON_MENUS.map((m) => <MenuCard key={m.id} menu={m} router={router} />)}
+        {COMMON_MENUS.map((m) => (
+          <MenuCard key={m.id} menu={m} router={router} live={m.id === "live" && liveOn} />
+        ))}
       </SafeGrid>
 
       {isAdmin && (
@@ -780,7 +801,7 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
   );
 }
 
-function MenuCard({ menu, router, compact }: { menu: CommonMenu; router: RouterType; compact?: boolean }) {
+function MenuCard({ menu, router, compact, live }: { menu: CommonMenu; router: RouterType; compact?: boolean; live?: boolean }) {
   const handleClick = () => {
     if (menu.href) router.push(menu.href);
     else alert(`${menu.label}은(는) 곧 추가됩니다.`);
@@ -820,6 +841,17 @@ function MenuCard({ menu, router, compact }: { menu: CommonMenu; router: RouterT
             color: T.text,
             lineHeight: 1.25,
           }}>{menu.label}</div>
+          {live && (
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              marginTop: 4, padding: "2px 7px", borderRadius: 999,
+              background: "var(--danger)", color: "var(--paper)",
+              fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--paper)" }} />
+              LIVE
+            </span>
+          )}
         </SafeGrow>
       </SafeRow>
     </SafeCard>
