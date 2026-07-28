@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import Link from "next/link";
 import { CalendarDays, MapPin, RefreshCw, UserRound, UsersRound } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -64,7 +65,7 @@ export default function AttendanceOverviewPage() {
     <main style={{ maxWidth: 1080, margin: "0 auto", padding: "32px 20px 64px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", marginBottom: 24 }}>
         <div>
-          <p style={{ margin: 0, color: "var(--ink-soft)", fontSize: 13 }}>목회 참고용</p>
+          <p style={{ margin: 0, color: "var(--ink-soft)", fontSize: 13 }}>목회 참고용 · <Link href="/attendance/settings" style={{ color: "var(--accent)" }}>자동출석 설정</Link></p>
           <h1 style={{ margin: "6px 0 8px", fontSize: 30, letterSpacing: "-0.04em" }}>교회 출석 현황</h1>
           <p style={{ margin: 0, color: "var(--ink-mid)", fontSize: 14 }}>위치 기반 자동출석은 참고 신호이며, 필요하면 수동으로 확인해 주세요.</p>
         </div>
