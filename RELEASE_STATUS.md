@@ -125,6 +125,6 @@
 - Source commits: `76d8129` (`fix(notifications): deduplicate delivery and sync app badge`), `2f8b150` (`release(android): prepare v1.0.2`)
 - EAS build ID: `52c68400-f273-4d04-b5d9-a67ef155f22b`
 - Android versionCode: `23`
-- Build status: `IN_PROGRESS`
+- Build status: `FINISHED`
 - Scope: conditional claim before push delivery prevents duplicate sends; web notification state synchronizes the native launcher badge; absence-alert migration source is now aligned with the already-applied remote migration.
-- Submission: production profile requests automatic Play draft submission after a successful AAB build; Play Console publication remains manual.
+- Submission: Play Console production promotion confirmed by the user on 2026-07-28. VersionCode `23` is now the production release.
