@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import * as Application from 'expo-application';
+import { maybeConfirmAttendance, stopAttendanceGeofence, syncAttendanceGeofence } from './attendanceGeofence';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -182,6 +183,9 @@ function AppWebView() {
   // 덮개(exitReloading)로 마지막 화면을 가려서 "옛 화면 → 민들레" 깜빡임 방지
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && pendingAccessTokenRef.current) {
+        maybeConfirmAttendance(pendingAccessTokenRef.current).catch(() => {});
+      }
       if (state === 'active' && exitedRef.current) {
         exitedRef.current = false;
         setExitReloading(true);
@@ -348,6 +352,7 @@ function AppWebView() {
 
     if (message.type === 'CHFLOW_SIGN_OUT') {
       unregisterPushToken().catch(() => {});
+      stopAttendanceGeofence().catch(() => {});
       pendingAccessTokenRef.current = null;
       registeredKeyRef.current = null;
       Notifications.setBadgeCountAsync(0).catch(() => {});
@@ -356,6 +361,7 @@ function AppWebView() {
 
     if (message.type !== 'CHFLOW_AUTH_TOKEN' || !message.accessToken) return;
     pendingAccessTokenRef.current = message.accessToken;
+    syncAttendanceGeofence(message.accessToken).catch(() => {});
     if (expoPushToken) {
       registerPushToken(message.accessToken, expoPushToken).catch(() => {});
     }
