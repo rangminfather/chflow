@@ -155,5 +155,6 @@
 - Scope: shows an explicit in-app background-location disclosure before requesting native location permissions.
 - Android EAS build ID: `ffe34617-f514-4326-a6ff-6af18ef0a6d4`
 - Android versionCode: `25`
-- Build status: `IN_PROGRESS`
+- Build status: `FINISHED`
+- Artifact: `https://expo.dev/artifacts/eas/9FpXBrpk2voMTihdANfbzONhMyiP4nIlWBKWnTjkVtg.aab`
 - Submission: intentionally not started; install this build and record the Play policy demonstration video first.
