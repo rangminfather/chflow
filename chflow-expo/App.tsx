@@ -93,6 +93,7 @@ function AppWebView() {
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const [storeUrl, setStoreUrl] = useState('market://details?id=com.smartmyungsung.app');
   const pendingAccessTokenRef = useRef<string | null>(null);
+  const attendanceDisclosureShownRef = useRef(false);
   const registeredKeyRef = useRef<string | null>(null);
   const pendingNotificationUrlRef = useRef<string | null>(null);
   const webViewReadyRef = useRef(false);
@@ -354,6 +355,7 @@ function AppWebView() {
       unregisterPushToken().catch(() => {});
       stopAttendanceGeofence().catch(() => {});
       pendingAccessTokenRef.current = null;
+      attendanceDisclosureShownRef.current = false;
       registeredKeyRef.current = null;
       Notifications.setBadgeCountAsync(0).catch(() => {});
       return;
@@ -361,7 +363,17 @@ function AppWebView() {
 
     if (message.type !== 'CHFLOW_AUTH_TOKEN' || !message.accessToken) return;
     pendingAccessTokenRef.current = message.accessToken;
-    syncAttendanceGeofence(message.accessToken).catch(() => {});
+    if (!attendanceDisclosureShownRef.current) {
+      attendanceDisclosureShownRef.current = true;
+      Alert.alert(
+        '자동출석 위치 안내',
+        '이 앱은 앱이 사용되지 않거나 종료된 상태에서도 교회 주변 위치를 확인하여 자동출석 후보를 기록할 수 있습니다. 위치는 교회 반경 체류 확인에만 사용하며 원시 GPS 좌표는 저장하지 않습니다.',
+        [
+          { text: '나중에', style: 'cancel' },
+          { text: '위치 권한 진행', onPress: () => { syncAttendanceGeofence(message.accessToken!).catch(() => {}); } },
+        ],
+      );
+    }
     if (expoPushToken) {
       registerPushToken(message.accessToken, expoPushToken).catch(() => {});
     }
