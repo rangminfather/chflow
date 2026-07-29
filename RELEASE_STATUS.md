@@ -144,5 +144,7 @@
 - Release name: `v1.1.0 — 기능 및 사용성 개선`
 - Android EAS build ID: `f150c06e-374a-4da9-b899-3e9c5f5aacda`
 - Android versionCode: `24`
-- Android build status: `IN_QUEUE`
+- Android build status: `FINISHED` (artifact: `https://expo.dev/artifacts/eas/Kg7R3NGComhogBV2le5wWW_mHPbLl1kyXfZkvzrXwak.aab`)
+- Android submission ID: `03d4969b-fbe6-49d1-a906-f3982dcb77a0`
+- Android submission status: scheduled to Google Play production track with `releaseStatus: draft`; Play Console processing/visibility pending.
 - iOS build: not submitted; EAS reported that the Apple distribution certificate is not set up for non-interactive builds. Interactive Apple credential setup is required before retrying.
