@@ -16,7 +16,9 @@ const cspPolicy = [
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://t1.daumcdn.net https://*.daumcdn.net",
   "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
   "font-src 'self' data: https://cdn.jsdelivr.net",
-  "img-src 'self' data: blob: https://*.supabase.co https://*.daumcdn.net https://*.r2.cloudflarestorage.com https://i.ytimg.com",
+  "img-src 'self' data: blob: https://*.supabase.co https://*.daumcdn.net https://*.r2.cloudflarestorage.com https://i.ytimg.com https://chflow-vod.rangminfather.workers.dev",
+  // 지난 말씀 영상: UMS VOD(http) 를 Cloudflare Worker 가 https 로 중계한다 (2026-07-29 추가)
+  "media-src 'self' blob: https://chflow-vod.rangminfather.workers.dev",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://*.r2.cloudflarestorage.com",
   "frame-src 'self' https://*.daumcdn.net https://postcode.map.kakao.com https://www.youtube.com https://www.youtube-nocookie.com",
   "worker-src 'self' blob:",
