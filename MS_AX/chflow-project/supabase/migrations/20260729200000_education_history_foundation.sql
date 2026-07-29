@@ -494,6 +494,13 @@ declare
   v_target_id text;
   v_import_row uuid;
 begin
+  if tg_table_name = 'education_import_rows' then
+    if tg_op = 'INSERT' then return new; end if;
+    if tg_op = 'UPDATE' and new.reviewed_at is null and old.reviewed_at is null then
+      return new;
+    end if;
+  end if;
+
   v_action := case
     when tg_op = 'INSERT' then lower(tg_table_name) || '.created'
     when tg_op = 'DELETE' then lower(tg_table_name) || '.deleted'
