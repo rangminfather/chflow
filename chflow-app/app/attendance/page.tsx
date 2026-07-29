@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CalendarDays, MapPin, RefreshCw, UserRound, UsersRound } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import HeaderLogo from "@/components/HeaderLogo";
 
 type AttendanceRow = {
   member_id: string;
@@ -31,6 +33,7 @@ const daysAgo = (days: number) => {
 };
 
 export default function AttendanceOverviewPage() {
+  const router = useRouter();
   const [start, setStart] = useState(daysAgo(30));
   const [end, setEnd] = useState(today());
   const [overview, setOverview] = useState<Overview>({ attendance: [], absences: [] });
@@ -62,6 +65,23 @@ export default function AttendanceOverviewPage() {
   useEffect(() => { void load(); }, [load]);
 
   return (
+    <>
+      {/* 하위 화면 공통 헤더 — 홈 로고는 왼쪽, 상위 메뉴(홈) 이동은 오른쪽 (globals.css 규칙) */}
+      <div className="app-subpage-header" style={subpageHeaderStyle}>
+        <HeaderLogo />
+        <button
+          className="app-header-back"
+          onClick={() => router.push("/home")}
+          style={headerBackStyle}
+          aria-label="홈으로"
+        >
+          ← 홈
+        </button>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>
+          <UsersRound size={18} strokeWidth={1.8} /> 교회 출석 현황
+        </div>
+      </div>
+
     <main style={{ maxWidth: 1080, margin: "0 auto", padding: "32px 20px 64px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", marginBottom: 24 }}>
         <div>
@@ -107,6 +127,7 @@ export default function AttendanceOverviewPage() {
       </section>
       <style>{`.attendance-spin{animation:attendance-spin .8s linear infinite}@keyframes attendance-spin{to{transform:rotate(360deg)}}`}</style>
     </main>
+    </>
   );
 }
 
@@ -126,3 +147,23 @@ const autoBadge: CSSProperties = { display: "inline-block", borderRadius: 999, p
 const manualBadge: CSSProperties = { ...autoBadge, background: "color-mix(in srgb, var(--ink-soft) 13%, transparent)", color: "var(--ink-mid)" };
 const absenceRow: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: "1px solid var(--hairline)" };
 const absenceBadge: CSSProperties = { whiteSpace: "nowrap", borderRadius: 999, padding: "5px 9px", background: "color-mix(in srgb, var(--danger) 12%, transparent)", color: "var(--danger)", fontSize: 12, fontWeight: 700 };
+
+/* 하위 화면 공통 헤더 스타일 — /admin/usage-status 등과 동일 규칙 */
+const subpageHeaderStyle: CSSProperties = {
+  background: "var(--card)",
+  borderBottom: "1px solid var(--hairline)",
+  padding: "12px 20px",
+};
+
+const headerBackStyle: CSSProperties = {
+  padding: "7px 12px",
+  borderRadius: 10,
+  border: "1px solid var(--hairline-strong)",
+  background: "var(--bg-soft)",
+  color: "var(--ink-mid)",
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  whiteSpace: "nowrap",
+};
