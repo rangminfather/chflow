@@ -56,7 +56,6 @@ export default function EducationHistoryPage() {
   const [lmtcData, setLmtcData] = useState<JsonRecord>({});
   const [stats, setStats] = useState<JsonRecord>({});
   const [batches, setBatches] = useState<JsonRecord[]>([]);
-  const [reviewRows, setReviewRows] = useState<JsonRecord[]>([]);
   const [courses, setCourses] = useState<JsonRecord[]>([]);
   const [courseAliases, setCourseAliases] = useState<JsonRecord[]>([]);
   const [coursePolicies, setCoursePolicies] = useState<JsonRecord[]>([]);
@@ -99,15 +98,13 @@ export default function EducationHistoryPage() {
     setLmtcData((lmtcResult.data ?? {}) as JsonRecord);
     setStats((statsResult.data ?? {}) as JsonRecord);
     if (isManager) {
-      const [batchResult, rowResult, courseMasterResult, aliasResult, policyResult] = await Promise.all([
+      const [batchResult, courseMasterResult, aliasResult, policyResult] = await Promise.all([
         supabase.from("education_import_batches").select("*").order("uploaded_at", { ascending: false }).limit(100),
-        supabase.from("education_import_rows").select("*").order("created_at", { ascending: false }).limit(200),
         supabase.from("education_courses").select("*").is("deleted_at", null).order("sort_order"),
         supabase.from("education_course_aliases").select("*").eq("active", true).order("created_at", { ascending: false }),
         supabase.from("education_course_policies").select("*").eq("active", true).order("created_at", { ascending: false }),
       ]);
       setBatches((batchResult.data ?? []) as JsonRecord[]);
-      setReviewRows((rowResult.data ?? []) as JsonRecord[]);
       setCourses((courseMasterResult.data ?? []) as JsonRecord[]);
       setCourseAliases((aliasResult.data ?? []) as JsonRecord[]);
       setCoursePolicies((policyResult.data ?? []) as JsonRecord[]);
@@ -152,7 +149,7 @@ export default function EducationHistoryPage() {
         {tab === "LMTC" && <LmtcTab data={lmtcData} canManage={canManage} />}
         {tab === "통계" && <StatsTab data={stats} />}
         {tab === "자료 가져오기" && (canImport ? <ImportTab batches={batches} reload={reload} /> : <Denied />)}
-        {tab === "매칭·검수" && (canManage ? <ReviewTab rows={reviewRows} courses={courses} reload={reload} /> : <Denied />)}
+        {tab === "매칭·검수" && (canManage ? <ReviewTab courses={courses} batches={batches} reloadDashboard={reload} /> : <Denied />)}
         {tab === "과정 관리" && (canCourseManage ? <CourseManageTab courses={courses} aliases={courseAliases} policies={coursePolicies} reload={reload} /> : <Denied />)}
       </div>
     </main>
@@ -262,38 +259,154 @@ function ImportTab({ batches, reload }: { batches: JsonRecord[]; reload: () => P
     <Panel><Table headers={["파일명","유형","업로드일","추출 행","유효","상태"]} rows={batches.map((row) => [text(row.source_filename), text(row.source_type), text(row.uploaded_at), number(row.total_rows), number(row.valid_rows), text(row.import_status)])} /></Panel></div>;
 }
 
-function ReviewTab({ rows, courses, reload }: { rows: JsonRecord[]; courses: JsonRecord[]; reload: () => Promise<void> }) {
-  const [search, setSearch] = useState("");
+const REVIEW_FILTERS = [
+  ["all", "전체"], ["recommended", "추천 매칭"], ["ambiguous", "동명이인"],
+  ["unmatched", "미등록"], ["unclassified", "과정 미분류"], ["date_error", "날짜 확인"],
+  ["duplicate", "중복 의심"], ["applied", "신청자"], ["approved", "승인 완료"], ["excluded", "제외"],
+] as const;
+
+function ReviewTab({ courses, batches, reloadDashboard }: {
+  courses: JsonRecord[]; batches: JsonRecord[]; reloadDashboard: () => Promise<void>;
+}) {
+  const [rows, setRows] = useState<JsonRecord[]>([]);
+  const [total, setTotal] = useState(0);
+  const [counts, setCounts] = useState<JsonRecord>({});
+  const [filter, setFilter] = useState("all");
+  const [batchId, setBatchId] = useState("");
+  const [queryInput, setQueryInput] = useState("");
+  const [reviewQuery, setReviewQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [loadingRows, setLoadingRows] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
+  const [memberSearch, setMemberSearch] = useState("");
   const [memberCandidates, setMemberCandidates] = useState<JsonRecord[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<Record<string, string>>({});
   const [selectedCourses, setSelectedCourses] = useState<Record<string, string>>({});
+  const limit = 50;
+
+  const loadRows = useCallback(async () => {
+    setLoadingRows(true);
+    const { data } = await supabase.auth.getSession();
+    const params = new URLSearchParams({ filter, page: String(page), limit: String(limit) });
+    if (batchId) params.set("batchId", batchId);
+    if (reviewQuery) params.set("query", reviewQuery);
+    const response = await fetch(`/api/education-history/review?${params}`, {
+      headers: { Authorization: `Bearer ${data.session?.access_token ?? ""}` },
+      cache: "no-store",
+    });
+    const result = await response.json() as JsonRecord;
+    if (!response.ok) alert(text(result.error));
+    else {
+      setRows(array(result.items));
+      setTotal(number(result.total));
+      setCounts((result.counts ?? {}) as JsonRecord);
+      setSelected(new Set());
+    }
+    setLoadingRows(false);
+  }, [batchId, filter, page, reviewQuery]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadRows(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadRows]);
+
   async function searchMembers() {
-    const { data, error } = await supabase.rpc("education_search_member_candidates", { p_query: search, p_limit: 30 });
-    if (error) alert(error.message);
-    else setMemberCandidates((data ?? []) as JsonRecord[]);
+    const { data, error } = await supabase.rpc("education_search_member_candidates", { p_query: memberSearch, p_limit: 30 });
+    if (error) alert(error.message); else setMemberCandidates(array(data));
   }
-  async function action(row: JsonRecord, value: string) {
+
+  async function mutate(body: JsonRecord): Promise<boolean> {
     const { data } = await supabase.auth.getSession();
     const response = await fetch("/api/education-history/review", {
-      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` },
-      body: JSON.stringify({
-        rowId: row.id,
-        memberId: selectedMembers[text(row.id)] || row.suggested_member_id,
-        courseId: selectedCourses[text(row.id)] || row.suggested_course_id,
-        action: value,
-        saveAlias: Boolean(selectedMembers[text(row.id)]),
-      }),
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` },
+      body: JSON.stringify(body),
     });
-    if (response.ok) await reload(); else alert(text((await response.json() as JsonRecord).error));
+    const result = await response.json() as JsonRecord;
+    if (!response.ok) { alert(text(result.error)); return false; }
+    if (result.failed) alert(`${text(result.succeeded)}건 성공, ${text(result.failed)}건 실패`);
+    return true;
   }
-  return <div className="space-y-4"><Panel><h2 className="mb-3 font-black">성도 후보 검색</h2><div className="flex gap-2"><input className="rounded-lg border p-2" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="이름" /><button className="rounded-lg bg-[var(--accent)] px-4 text-white" onClick={searchMembers}>검색</button></div>
-    {memberCandidates.length > 0 && <Table headers={["이름","현재 직분","출생연도","전화 뒤4자리","기존 이력"]} rows={memberCandidates.map((member) => [text(member.member_name), text(member.current_role), text(member.birth_year), text(member.phone_last4), number(member.existing_history_count)])} />}</Panel>
-  <Panel><h2 className="mb-3 font-black">매칭·검수 대기</h2><Table headers={["원본 이름","정규화 이름","원본 과정","상태","성도 연결","과정 연결","작업"]} rows={rows.map((row) => [
-    text(row.person_name_raw), text(row.person_name_normalized), text(row.course_name_raw), text(row.match_status),
-    <select key={`m-${text(row.id)}`} className="max-w-40 rounded border p-1" value={selectedMembers[text(row.id)] ?? text(row.suggested_member_id)} onChange={(event) => setSelectedMembers((current) => ({ ...current, [text(row.id)]: event.target.value }))}><option value="">미연결</option>{memberCandidates.map((member) => <option key={text(member.member_id)} value={text(member.member_id)}>{text(member.member_name)} · {text(member.current_role)}</option>)}</select>,
-    <select key={`c-${text(row.id)}`} className="max-w-40 rounded border p-1" value={selectedCourses[text(row.id)] ?? text(row.suggested_course_id)} onChange={(event) => setSelectedCourses((current) => ({ ...current, [text(row.id)]: event.target.value }))}><option value="">미분류</option>{courses.map((course) => <option key={text(course.id)} value={text(course.id)}>{text(course.name)}</option>)}</select>,
-    <div key={text(row.id)} className="flex gap-1"><button className="rounded bg-emerald-600 px-2 py-1 text-xs text-white" onClick={() => action(row, "approve")}>승인</button><button className="rounded bg-slate-200 px-2 py-1 text-xs" onClick={() => action(row, "exclude")}>제외</button></div>,
-  ])} /></Panel></div>;
+
+  async function action(row: JsonRecord, value: string) {
+    const ok = await mutate({
+      rowId: row.id,
+      memberId: selectedMembers[text(row.id)] || row.suggested_member_id,
+      courseId: selectedCourses[text(row.id)] || row.suggested_course_id,
+      action: value,
+      reviewNote: reviewNote || null,
+      saveAlias: Boolean(selectedMembers[text(row.id)]),
+    });
+    if (ok) { await loadRows(); await reloadDashboard(); }
+  }
+
+  async function bulkAction(value: "approve" | "exclude" | "unapprove") {
+    if (!selected.size || !window.confirm(`선택한 ${selected.size}건을 처리할까요?`)) return;
+    const ok = await mutate({ rowIds: [...selected], action: value, reviewNote: reviewNote || null });
+    if (ok) { await loadRows(); await reloadDashboard(); }
+  }
+
+  function toggle(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  const pageCount = Math.max(Math.ceil(total / limit), 1);
+  return <div className="space-y-4">
+    <Panel>
+      <div className="flex flex-wrap gap-2">
+        {REVIEW_FILTERS.map(([value, label]) => <button key={value} onClick={() => { setFilter(value); setPage(1); }} className={`rounded-full px-3 py-1.5 text-xs font-bold ${filter === value ? "bg-[var(--accent)] text-white" : "bg-[var(--accent-soft)]"}`}>{label} {number(counts[value])}</button>)}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <select className="rounded-lg border p-2 text-sm" value={batchId} onChange={(event) => { setBatchId(event.target.value); setPage(1); }}><option value="">전체 배치</option>{batches.map((batch) => <option key={text(batch.id)} value={text(batch.id)}>{text(batch.source_type)} · {text(batch.source_filename)}</option>)}</select>
+        <input className="rounded-lg border p-2 text-sm" value={queryInput} onChange={(event) => setQueryInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { setReviewQuery(queryInput); setPage(1); } }} placeholder="이름 또는 과정 검색" />
+        <button className="rounded-lg bg-[var(--accent)] px-4 text-sm text-white" onClick={() => { setReviewQuery(queryInput); setPage(1); }}>검색</button>
+      </div>
+    </Panel>
+    <Panel>
+      <div className="flex flex-wrap items-center gap-2">
+        <input className="rounded-lg border p-2 text-sm" value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} placeholder="수동 연결 성도 검색" />
+        <button className="rounded-lg bg-slate-700 px-4 py-2 text-sm text-white" onClick={searchMembers}>후보 검색</button>
+        <input className="min-w-56 flex-1 rounded-lg border p-2 text-sm" value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="검수·승인 사유" />
+      </div>
+      {memberCandidates.length > 0 && <div className="mt-3 text-xs opacity-70">검색 후보: {memberCandidates.map((member) => `${text(member.member_name)}(${text(member.current_role)})`).join(", ")}</div>}
+    </Panel>
+    <Panel>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-black">검수 자료 {total.toLocaleString()}건 · {page}/{pageCount}쪽</h2>
+        <div className="flex gap-1"><button className="rounded bg-emerald-600 px-3 py-1.5 text-xs text-white" onClick={() => bulkAction("approve")}>선택 승인</button><button className="rounded bg-slate-600 px-3 py-1.5 text-xs text-white" onClick={() => bulkAction("exclude")}>선택 제외</button><button className="rounded bg-amber-600 px-3 py-1.5 text-xs text-white" onClick={() => bulkAction("unapprove")}>승인 취소</button></div>
+      </div>
+      {loadingRows ? <div className="p-8 text-center">불러오는 중…</div> : <div className="space-y-2">
+        {rows.map((row) => {
+          const id = text(row.id);
+          const candidates = [...array(row.candidates), ...memberCandidates].filter((candidate, index, list) => list.findIndex((item) => text(item.member_id) === text(candidate.member_id)) === index);
+          const approved = Boolean(row.created_history_id);
+          return <div key={id} className="rounded-xl border border-[var(--hairline)] p-3">
+            <div className="grid items-center gap-2 md:grid-cols-[28px_1fr_1fr_160px_160px_190px]">
+              <input type="checkbox" checked={selected.has(id)} onChange={() => toggle(id)} />
+              <button className="text-left" onClick={() => setExpanded(expanded === id ? null : id)}><strong>{text(row.person_name_raw) || "(이름 없음)"}</strong><div className="text-xs opacity-60">{text(row.person_name_normalized)} · T{text(row.source_table_no)}/R{text(row.source_row_no)}</div></button>
+              <div><strong>{text(row.course_name_raw) || "(과정 없음)"}</strong><div className="text-xs opacity-60">{text(row.suggested_course_name)} · {statusLabel(row.attendance_status)}</div></div>
+              <select className="rounded border p-1 text-xs" value={selectedMembers[id] ?? text(row.suggested_member_id)} onChange={(event) => setSelectedMembers((current) => ({ ...current, [id]: event.target.value }))}><option value="">성도 미연결</option>{candidates.map((member) => <option key={text(member.member_id)} value={text(member.member_id)}>{text(member.member_name)} · {text(member.current_role)}</option>)}</select>
+              <select className="rounded border p-1 text-xs" value={selectedCourses[id] ?? text(row.suggested_course_id)} onChange={(event) => setSelectedCourses((current) => ({ ...current, [id]: event.target.value }))}><option value="">과정 미분류</option>{courses.map((course) => <option key={text(course.id)} value={text(course.id)}>{text(course.name)}</option>)}</select>
+              <div className="flex gap-1">{approved ? <button className="rounded bg-amber-600 px-2 py-1 text-xs text-white" onClick={() => action(row, "unapprove")}>승인 취소</button> : <button className="rounded bg-emerald-600 px-2 py-1 text-xs text-white" onClick={() => action(row, "approve")}>승인</button>}<button className="rounded bg-slate-200 px-2 py-1 text-xs" onClick={() => action(row, "exclude")}>제외</button><button className="rounded border px-2 py-1 text-xs" onClick={() => action(row, "unlink")}>연결 해제</button></div>
+            </div>
+            {expanded === id && <div className="mt-3 grid gap-3 rounded-lg bg-[var(--accent-soft)] p-3 text-xs md:grid-cols-3">
+              <div><strong>원본</strong><pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap">{JSON.stringify(row.raw_data, null, 2)}</pre></div>
+              <div><strong>정규화/상태</strong><p className="mt-1">날짜: {text(row.date_raw)} → {text(row.completed_on || row.started_on)}</p><p>매칭: {text(row.match_status)} / 과정: {text(row.normalization_status)}</p><p>중복: {text(row.duplicate_status)}</p><p>메모: {text(row.review_note)}</p></div>
+              <div><strong>성도 후보</strong>{array(row.candidates).map((candidate) => <p key={text(candidate.member_id)} className="mt-1">{text(candidate.member_name)} · {text(candidate.current_role)} · {text(candidate.birth_year)} · ****{text(candidate.phone_last4)} · 기존 {text(candidate.existing_history_count)}건</p>)}</div>
+            </div>}
+          </div>;
+        })}
+        {!rows.length && <div className="p-8 text-center opacity-60">해당 자료가 없습니다.</div>}
+      </div>}
+      <div className="mt-4 flex justify-center gap-2"><button disabled={page <= 1} className="rounded border px-4 py-2 disabled:opacity-30" onClick={() => setPage((value) => Math.max(value - 1, 1))}>이전</button><button disabled={page >= pageCount} className="rounded border px-4 py-2 disabled:opacity-30" onClick={() => setPage((value) => Math.min(value + 1, pageCount))}>다음</button></div>
+    </Panel>
+  </div>;
 }
 
 function CourseManageTab({ courses, aliases, policies, reload }: { courses: JsonRecord[]; aliases: JsonRecord[]; policies: JsonRecord[]; reload: () => Promise<void> }) {

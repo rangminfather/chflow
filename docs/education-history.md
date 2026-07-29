@@ -58,6 +58,7 @@ on conflict do nothing;
 6. `20260729205000_education_import_uuid_aggregate_fix.sql`
 7. `20260729206000_education_import_bulk_runtime.sql`
 8. `20260729207000_education_audit_trigger_guard.sql`
+9. `20260730200000_education_review_page.sql`
 
 운영 전 staging에서 `supabase db lint`, RLS 권한 테스트, 두 dry-run을 다시 수행한다. 이후 migration을 적용하고 웹 앱을 배포한다. 원본 HWPX와 `private/import` 출력은 배포 artifact나 공개 Storage에 포함하지 않는다.
 
@@ -129,6 +130,8 @@ npm run education:import -- --file="<원본.hwpx>" --type=general --env-file=".e
 - 날짜 parsed/partial/blank: 3,442/40/54건
 - 중복 의심: 2건
 - 정식 `member_education_history`: 0건
+- 검수 화면은 50건 단위 서버 페이지네이션과 상태·배치·검색 필터를 사용한다.
+- 한 번의 선택 작업은 최대 50건이며 행별 성공·실패 결과를 반환한다.
 
 비로그인은 공개 통계 RPC가 `42501`로 차단됐다. 일반 성도 세션은
 `education_history.read`만 받았고 공개 통계 조회는 성공했으며, 원본 import
