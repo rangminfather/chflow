@@ -314,6 +314,7 @@ export default function SermonArchive() {
           <div ref={stageRef} style={{ position: "relative", background: "var(--ink)", borderRadius: 10 }}>
             <video
               key={playing.video_url}
+              ref={videoRef}
               src={playing.video_url}
               poster={playing.thumb_url ?? undefined}
               controls
@@ -322,7 +323,6 @@ export default function SermonArchive() {
               preload="metadata"
               onCanPlay={() => {
                 setPlayState("ready");
-                void goFullscreenLandscape(stageRef.current, videoRef.current);
               }}
               onError={() => setPlayState("error")}
               style={{ width: "100%", maxHeight: "70vh", background: "var(--ink)", borderRadius: 10 }}
