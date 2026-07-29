@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import * as Application from 'expo-application';
 import * as SecureStore from 'expo-secure-store';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { maybeConfirmAttendance, stopAttendanceGeofence, syncAttendanceGeofence } from './attendanceGeofence';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -333,6 +334,16 @@ function AppWebView() {
         const badgeCount = Math.min(Math.floor(rawCount), 9999);
         Notifications.setBadgeCountAsync(badgeCount).catch(() => {});
       }
+      return;
+    }
+
+    if (message.type === 'CHFLOW_LOCK_LANDSCAPE') {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+      return;
+    }
+
+    if (message.type === 'CHFLOW_UNLOCK_ORIENTATION') {
+      ScreenOrientation.unlockAsync().catch(() => {});
       return;
     }
 

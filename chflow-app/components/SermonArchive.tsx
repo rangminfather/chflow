@@ -55,6 +55,12 @@ function fmtSize(bytes: number | null) {
 type FsVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
 type LockableOrientation = ScreenOrientation & { lock?: (o: string) => Promise<void> };
 
+function postNativeMessage(type: string) {
+  if (typeof window !== "undefined" && window.ReactNativeWebView) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({ type }));
+  }
+}
+
 async function goFullscreenLandscape(box: HTMLElement | null, video: HTMLVideoElement | null) {
   const v = video as FsVideo | null;
   if (v?.webkitEnterFullscreen && !document.fullscreenEnabled) {
@@ -285,7 +291,10 @@ export default function SermonArchive() {
         >
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 8 }}>
             <button
-              onClick={() => void goFullscreenLandscape(stageRef.current, videoRef.current)}
+              onClick={() => {
+                postNativeMessage("CHFLOW_LOCK_LANDSCAPE");
+                void goFullscreenLandscape(stageRef.current, videoRef.current);
+              }}
               aria-label="전체화면"
               style={{
                 display: "inline-flex", alignItems: "center", gap: 5,
@@ -299,7 +308,10 @@ export default function SermonArchive() {
               전체화면
             </button>
             <button
-              onClick={() => setPlaying(null)}
+              onClick={() => {
+                postNativeMessage("CHFLOW_UNLOCK_ORIENTATION");
+                setPlaying(null);
+              }}
               aria-label="닫기"
               style={{
                 width: 38, height: 38, borderRadius: 12, border: "none",
