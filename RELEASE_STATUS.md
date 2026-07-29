@@ -157,4 +157,6 @@
 - Android versionCode: `25`
 - Build status: `FINISHED`
 - Artifact: `https://expo.dev/artifacts/eas/9FpXBrpk2voMTihdANfbzONhMyiP4nIlWBKWnTjkVtg.aab`
-- Submission: intentionally not started; install this build and record the Play policy demonstration video first.
+- Internal-test submission ID: `575326cd-9453-4ccf-b98f-9f60d037a877`
+- Internal-test track submission: scheduled with `releaseStatus: completed`; Play processing and tester availability pending.
+- Production submission: not started; record the Play policy demonstration video before requesting production review.
