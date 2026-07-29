@@ -160,3 +160,12 @@
 - Internal-test submission ID: `575326cd-9453-4ccf-b98f-9f60d037a877`
 - Internal-test track submission: scheduled with `releaseStatus: completed`; Play processing and tester availability pending.
 - Production submission: not started; record the Play policy demonstration video before requesting production review.
+
+## 2026-07-29 iOS v1.1.1 builds
+
+- EAS build ID: `fb9c1c94-0309-4eb8-ae96-cd5dbc04ef84` (build number `5`)
+- EAS build ID: `bcc72211-65a8-4516-ba4f-877da6b09c25` (build number `6`, latest)
+- Build status: `FINISHED`
+- Latest artifact: `https://expo.dev/artifacts/eas/mV1NJtxSt9NDbRKZp3mXhKEqsl-S85lim-UEOZeByQU.ipa`
+- Apple distribution certificate, provisioning profile, and push key configured successfully.
+- TestFlight submission: not started.
