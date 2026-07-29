@@ -138,7 +138,10 @@ export function parseSermons(board: string, html: string): SermonRow[] {
       bible: pick(chunk, /bible\s*:\s*'((?:[^'\\]|\\.)*)'/)?.replace(/<[^>]+>/g, "").trim() || null,
       preached_on: dateFrom(videoPath, description),
       video_path: videoPath,
-      thumb_path: pick(chunk, /image\s*:\s*_adress\s*\+\s*"([^"?]+)/) ?? null,
+      // image 값은 `_adress + "/vod/2026/..."` 형태다. video_path 와 형식을 맞추기 위해
+      // 앞의 /vod 를 떼고 저장한다 (프록시가 /thumb + 경로 로 조립하기 때문).
+      thumb_path:
+        pick(chunk, /image\s*:\s*_adress\s*\+\s*"([^"?]+)/)?.replace(/^\/vod(?=\/)/, "") ?? null,
       byte_size: null,
     });
   }
