@@ -200,6 +200,16 @@
 - iOS TestFlight submission: scheduled; Apple processing pending.
 - Public production submission: not started.
 
+## 2026-07-29 v1.1.6 native landscape fullscreen
+
+- Source commit: `d584a92` (`release(android-ios): add native landscape video fullscreen`)
+- Scope: adds Expo native screen-orientation locking through the WebView fullscreen bridge; the web player requests landscape on mobile and restores orientation on close.
+- Android EAS build ID: `ae2e0de6-01b9-4044-b727-fcf3bd4d5974`, versionCode `35`, status `FINISHED`.
+- Android internal-test submission ID: `5776269f-2406-480e-ae75-97feb31babac`; processing pending.
+- iOS EAS build ID: `eeb7085d-bbc5-451c-afe1-89249c2de5e4`, build number `16`, status `FINISHED`.
+- iOS TestFlight submission ID: `b2f26be2-d4da-45f5-9269-0902edcf608d`; processing pending.
+- Public production submission: intentionally not started.
+
 ## 2026-07-29 v1.1.5 attendance disclosure persistence patch
 
 - Source commit: `46e9fd0` (`fix(mobile): persist attendance disclosure acceptance`)
