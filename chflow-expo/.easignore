@@ -1,0 +1,19 @@
+#!include:.gitignore
+
+# EAS build input should contain source files only.
+node_modules/
+.expo/
+.git/
+dist/
+web-build/
+android/
+ios/
+*.log
+*.aab
+*.apk
+*.ipa
+*.zip
+coverage/
+.cache/
+tmp/
+temp/
