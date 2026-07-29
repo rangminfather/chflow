@@ -12,7 +12,9 @@ import { detectWorshipSession, worshipStartedTitle } from "@/lib/worshipSchedule
 
 export const DEFAULT_CHANNEL_ID = "UCGqoK8XTWHLkyU8Nt-as1og"; // 울산명성교회
 /** 이 시간보다 오래된 확인 결과는 갱신 대상 */
-export const REFRESH_AFTER_MS = 3 * 60 * 1000;
+// search.list fallback costs 100 quota units. Five-minute polling remains under
+// the default daily quota during the longest Sunday broadcast window.
+export const REFRESH_AFTER_MS = 5 * 60 * 1000;
 /** 이 시간보다 오래되면 상태를 신뢰하지 않고 '확인 불가'로 안내 */
 export const STALE_AFTER_MS = 20 * 60 * 1000;
 
@@ -108,40 +110,31 @@ type FoundLiveVideo = {
   startedAt: string | null;
 };
 
-async function findLiveVideoFallback(channelId: string): Promise<FoundLiveVideo | null> {
-  const feed = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`, {
-    cache: "no-store",
-    headers: { "user-agent": "Mozilla/5.0 (compatible; SmartMyungsungLiveMonitor/1.0)" },
-  });
-  if (!feed.ok) throw new Error(`YouTube RSS ${feed.status}`);
-  const xml = await feed.text();
-  const ids = [...xml.matchAll(/<yt:videoId>([^<]+)<\/yt:videoId>/g)]
-    .map((m) => m[1])
-    .slice(0, RECENT_COUNT);
+type SearchResponse = {
+  items?: Array<{
+    id?: { videoId?: string };
+    snippet?: { title?: string; thumbnails?: Record<string, { url?: string } | undefined> };
+  }>;
+};
 
-  for (const videoId of ids) {
-    const page = await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`, {
-      cache: "no-store",
-      headers: { "user-agent": "Mozilla/5.0 (compatible; SmartMyungsungLiveMonitor/1.0)" },
-    });
-    if (!page.ok) continue;
-    const html = await page.text();
-    if (!/"isLiveNow":true/.test(html)) continue;
-    const title = html.match(/<meta name="title" content="([^"]*)"/)?.[1]
-      ?.replace(/&quot;/g, '"')
-      .replace(/&amp;/g, "&") ?? null;
-    return {
-      videoId,
-      title,
-      thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-      startedAt: null,
-    };
-  }
-  return null;
+async function findLiveVideoSearch(channelId: string, apiKey: string): Promise<FoundLiveVideo | null> {
+  const search = await fetchJson<SearchResponse>(
+    `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&eventType=live&maxResults=1` +
+      `&channelId=${encodeURIComponent(channelId)}&key=${apiKey}`
+  );
+  const item = search.items?.[0];
+  const videoId = item?.id?.videoId;
+  if (!videoId) return null;
+  const thumbs = item?.snippet?.thumbnails || {};
+  return {
+    videoId,
+    title: item?.snippet?.title ?? null,
+    thumbnailUrl: thumbs.maxres?.url || thumbs.standard?.url || thumbs.high?.url || thumbs.medium?.url || null,
+    startedAt: null,
+  };
 }
 
-export async function findLiveVideo(channelId: string, apiKey?: string): Promise<FoundLiveVideo | null> {
-  if (!apiKey) return findLiveVideoFallback(channelId);
+export async function findLiveVideo(channelId: string, apiKey: string): Promise<FoundLiveVideo | null> {
   try {
   const playlist = await fetchJson<PlaylistItemsResponse>(
     `https://www.googleapis.com/youtube/v3/playlistItems` +
@@ -151,7 +144,7 @@ export async function findLiveVideo(channelId: string, apiKey?: string): Promise
   const ids = (playlist.items || [])
     .map((i) => i.contentDetails?.videoId)
     .filter((id): id is string => !!id);
-  if (ids.length === 0) return findLiveVideoFallback(channelId);
+  if (ids.length === 0) return findLiveVideoSearch(channelId, apiKey);
 
   const videos = await fetchJson<VideosResponse>(
     `https://www.googleapis.com/youtube/v3/videos` +
@@ -160,7 +153,7 @@ export async function findLiveVideo(channelId: string, apiKey?: string): Promise
   const live = (videos.items || []).find(
     (v) => v.snippet?.liveBroadcastContent === "live" && !v.liveStreamingDetails?.actualEndTime
   );
-  if (!live?.id) return findLiveVideoFallback(channelId);
+  if (!live?.id) return findLiveVideoSearch(channelId, apiKey);
 
   const t = live.snippet?.thumbnails || {};
   return {
@@ -169,8 +162,13 @@ export async function findLiveVideo(channelId: string, apiKey?: string): Promise
     thumbnailUrl: t.maxres?.url || t.standard?.url || t.high?.url || t.medium?.url || null,
     startedAt: live.liveStreamingDetails?.actualStartTime ?? null,
   };
-  } catch {
-    return findLiveVideoFallback(channelId);
+  } catch (error) {
+    // 예약 라이브는 업로드 목록에 아직 나타나지 않는 경우가 있어, 검색 API로 한 번 더 확인한다.
+    try {
+      return await findLiveVideoSearch(channelId, apiKey);
+    } catch {
+      throw error;
+    }
   }
 }
 
@@ -180,6 +178,7 @@ export async function findLiveVideo(channelId: string, apiKey?: string): Promise
  */
 export async function refreshIfStale(admin: SupabaseClient, force = false): Promise<boolean> {
   const apiKey = process.env.YOUTUBE_API_KEY;
+  if (!apiKey) return false;
 
   const nowIso = new Date().toISOString();
   const cutoff = new Date(Date.now() - REFRESH_AFTER_MS).toISOString();

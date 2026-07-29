@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   const dryRun = req.nextUrl.searchParams.get("dry") === "1";
 
   // 폴러는 스로틀을 우회한다(매분 최신 상태가 필요).
-  const refreshed = await refreshIfStale(admin, true);
+  const refreshed = await refreshIfStale(admin);
   const notify = await notifyIfNewlyLive(admin, { dryRun });
   const status = await readStatus(admin);
 
