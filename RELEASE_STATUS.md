@@ -194,7 +194,11 @@
 - iOS build number: `13`
 - iOS build status: `FINISHED`
 - iOS artifact: `https://expo.dev/artifacts/eas/6QcFPWd6WDj6NrRfkGnAOPWGZjHmUypV4tHpywZCKIM.ipa`
-- Store submission: not started.
+- Android internal-test submission ID: `67a999f2-f166-4046-a066-b5499097c448`
+- Android internal-test submission: scheduled with `releaseStatus: completed`; Play processing pending.
+- iOS TestFlight submission ID: `518fec4a-c148-4fd6-bc1c-7bd132ed59c1`
+- iOS TestFlight submission: scheduled; Apple processing pending.
+- Public production submission: not started.
 
 ## 2026-07-29 Android v1.1.2 internal-test submission
 
