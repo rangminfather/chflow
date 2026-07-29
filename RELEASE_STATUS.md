@@ -210,6 +210,12 @@
 - iOS TestFlight submission ID: `b2f26be2-d4da-45f5-9269-0902edcf608d`; processing pending.
 - Public production submission: intentionally not started.
 
+### Android 1.1.6 submission failure
+
+- Submission status: `FAILED`
+- Failure: Google Play API rejected the internal-track upload because the background-location permission declaration needs to be updated.
+- Required action: complete/update Play Console's background-location permission declaration, then resubmit the existing versionCode `35` AAB. No rebuild is required for this policy correction.
+
 ## 2026-07-29 v1.1.5 attendance disclosure persistence patch
 
 - Source commit: `46e9fd0` (`fix(mobile): persist attendance disclosure acceptance`)
