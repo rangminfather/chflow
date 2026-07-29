@@ -24,6 +24,15 @@ export async function POST(request: NextRequest) {
         verified_at: new Date().toISOString(),
       }).select().single();
       if (error) throw new Error(error.message);
+      const { error: relinkError } = await client
+        .from("education_import_rows")
+        .update({
+          suggested_course_id: String(body.courseId),
+          normalization_status: "manually_confirmed",
+        })
+        .eq("course_name_raw", raw)
+        .eq("normalization_status", "unclassified");
+      if (relinkError) throw new Error(relinkError.message);
       return Response.json(data);
     }
     if (resource === "policy") {
