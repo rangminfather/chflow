@@ -1,0 +1,2 @@
+source_type,person_name,course_name,cohort_label,class_variant,audience,instructor,started_on,ended_on,completed_on,attendance_status,organization,historical_role,note
+standard_csv,홍길동,생명의삶,제1기,A,adult,김강사,2026-03-01,2026-05-31,2026-05-31,completed,,집사,예시 행은 삭제 후 사용
