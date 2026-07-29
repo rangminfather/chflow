@@ -148,3 +148,12 @@
 - Android submission ID: `03d4969b-fbe6-49d1-a906-f3982dcb77a0`
 - Android submission status: scheduled to Google Play production track with `releaseStatus: draft`; Play Console processing/visibility pending.
 - iOS build: not submitted; EAS reported that the Apple distribution certificate is not set up for non-interactive builds. Interactive Apple credential setup is required before retrying.
+
+## 2026-07-29 v1.1.1 disclosure patch
+
+- Source commit: `c7bce4d` (`fix(android): disclose background location before permission`)
+- Scope: shows an explicit in-app background-location disclosure before requesting native location permissions.
+- Android EAS build ID: `ffe34617-f514-4326-a6ff-6af18ef0a6d4`
+- Android versionCode: `25`
+- Build status: `IN_PROGRESS`
+- Submission: intentionally not started; install this build and record the Play policy demonstration video first.
