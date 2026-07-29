@@ -178,7 +178,9 @@
 - Build number: `12`
 - Build status: `FINISHED`
 - Artifact: `https://expo.dev/artifacts/eas/E2VJWY2Wrdm_dGk3o4B10dlUVcG9807dDTVaRSHw08Q.ipa`
-- TestFlight submission: not started.
+- App Store Connect App ID: `6795782758`
+- TestFlight submission ID: `bd4eb8a7-9bb4-4d6b-8951-a38c88e45da4`
+- TestFlight submission: uploaded successfully; Apple processing pending.
 
 ## 2026-07-29 Android v1.1.2 internal-test submission
 
