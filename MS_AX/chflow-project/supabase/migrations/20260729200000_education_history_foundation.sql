@@ -508,7 +508,7 @@ begin
   ), '')::uuid;
 
   insert into public.education_history_audit_logs(
-    action, target_type, target_id, before_data, after_data, actor_id, import_row_id
+    action, target_type, target_id, before_data, after_data, actor_id, import_row_id, reason
   )
   values (
     v_action,
@@ -517,7 +517,17 @@ begin
     case when tg_op = 'INSERT' then null else to_jsonb(old) end,
     case when tg_op = 'DELETE' then null else to_jsonb(new) end,
     auth.uid(),
-    v_import_row
+    v_import_row,
+    coalesce(
+      nullif(current_setting('app.education_audit_reason', true), ''),
+      case when tg_table_name = 'education_course_policies'
+        then coalesce(to_jsonb(new)->>'note', to_jsonb(old)->>'note') end,
+      case when tg_table_name = 'education_import_rows'
+        then coalesce(
+          to_jsonb(new)->>'review_note', to_jsonb(new)->>'exclusion_reason',
+          to_jsonb(old)->>'review_note', to_jsonb(old)->>'exclusion_reason'
+        ) end
+    )
   );
   if tg_op = 'DELETE' then
     return old;
