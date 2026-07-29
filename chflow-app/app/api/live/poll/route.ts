@@ -40,8 +40,9 @@ export async function GET(req: NextRequest) {
   // ?dry=1 — 감지까지만 하고 알림은 보내지 않는다 (예배 전 사전 점검용)
   const dryRun = req.nextUrl.searchParams.get("dry") === "1";
 
-  // 폴러는 스로틀을 우회한다(매분 최신 상태가 필요).
-  const refreshed = await refreshIfStale(admin);
+  // 외부 폴러는 매분 실행된다. UMS 실시간 링크와 현재 영상 ID를 매번 확인해
+  // 미등록 방송도 1분 안에 감지하고, 실제 종료 전에는 OFF로 덮지 않는다.
+  const refreshed = await refreshIfStale(admin, true);
   const notify = await notifyIfNewlyLive(admin, { dryRun });
   const status = await readStatus(admin);
 

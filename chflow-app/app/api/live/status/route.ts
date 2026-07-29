@@ -1,13 +1,13 @@
 // 예배 생방송 상태 조회 (로그인 사용자용).
 //
 // Vercel Hobby 는 cron 을 하루 1회로 제한하므로 주기 폴링을 못 쓴다.
-// 대신 이 라우트가 호출될 때 캐시가 3분 이상 오래됐으면 서버에서 한 번만 갱신한다.
+// 대신 외부 폴러가 매분 갱신하고, 이 라우트는 캐시가 1분 이상 오래됐을 때만 보완 갱신한다.
 // 동시 요청은 조건부 update 로 한 건만 선점하므로 YouTube 호출이 늘어나지 않는다.
-// 최악의 경우 3분당 1회 = 480회/일 × 2유닛 = 960유닛/일 (기본 쿼터 10,000).
+// 상태 조회 자체는 알림을 발송하지 않는다. 전체 알림은 인증된 외부 폴러만 담당한다.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { notifyIfNewlyLive, readStatus, refreshIfStale, serviceClient, STALE_AFTER_MS } from "@/lib/server/youtube-live";
+import { readStatus, refreshIfStale, serviceClient, STALE_AFTER_MS } from "@/lib/server/youtube-live";
 
 export const runtime = "nodejs";
 
@@ -30,9 +30,6 @@ export async function GET(req: NextRequest) {
 
   const admin = serviceClient();
   await refreshIfStale(admin);
-  // 외부 폴러가 지연·중단되어도, 로그인 사용자가 예배 화면을 열면 새 방송을
-  // 한 번만 알린다. notifyIfNewlyLive의 조건부 갱신이 중복 발송을 막는다.
-  await notifyIfNewlyLive(admin);
   const status = await readStatus(admin);
 
   const checkedMs = status?.checked_at ? new Date(status.checked_at).getTime() : NaN;
