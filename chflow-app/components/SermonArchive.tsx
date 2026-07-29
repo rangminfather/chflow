@@ -120,15 +120,18 @@ export default function SermonArchive() {
           {items.map((s) => {
             const size = fmtSize(s.byte_size);
             const canPlay = proxyReady && !!s.video_url;
-            return (
-              <div
-                key={`${s.board}-${s.post_no}`}
-                style={{
-                  background: "var(--card)", border: "1px solid var(--hairline)",
-                  borderRadius: 12, padding: "12px 13px",
-                  display: "flex", alignItems: "center", gap: 11,
-                }}
-              >
+
+            // 카드 전체가 눌리게 한다. 재생 가능하면 button, 아니면 홈페이지 링크.
+            const cardStyle: React.CSSProperties = {
+              width: "100%", textAlign: "left", fontFamily: "inherit",
+              background: "var(--card)", border: "1px solid var(--hairline)",
+              borderRadius: 12, padding: "12px 13px",
+              display: "flex", alignItems: "center", gap: 11,
+              cursor: "pointer", textDecoration: "none", color: "inherit",
+            };
+
+            const inner = (
+              <>
                 {/* 썸네일 — UMS 썸네일도 http 라서 같은 워커로 중계한다 */}
                 <div
                   style={{
@@ -170,34 +173,42 @@ export default function SermonArchive() {
                   )}
                 </div>
 
-                {canPlay ? (
-                  <button
-                    onClick={() => { setPlayState("loading"); setPlaying(s); }}
-                    aria-label={`${s.title} 재생`}
-                    style={{
-                      flexShrink: 0, width: 40, height: 40, borderRadius: 12,
-                      border: "none", background: "var(--accent-soft)", color: "var(--accent-strong)",
-                      display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-                    }}
-                  >
-                    <Play size={17} strokeWidth={2.2} />
-                  </button>
-                ) : (
-                  <a
-                    href={UMS_VIEW(s.board, s.post_no)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`${s.title} 홈페이지에서 보기`}
-                    style={{
-                      flexShrink: 0, width: 40, height: 40, borderRadius: 12,
-                      background: "var(--bg-soft)", color: "var(--ink-mid)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}
-                  >
-                    <ExternalLink size={16} strokeWidth={1.9} />
-                  </a>
-                )}
-              </div>
+                {/* 장식용 표시 — 카드 자체가 버튼이라 별도 버튼을 두지 않는다 */}
+                <span
+                  aria-hidden="true"
+                  style={{
+                    flexShrink: 0, width: 40, height: 40, borderRadius: 12,
+                    background: canPlay ? "var(--accent-soft)" : "var(--bg-soft)",
+                    color: canPlay ? "var(--accent-strong)" : "var(--ink-mid)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  {canPlay ? <Play size={17} strokeWidth={2.2} /> : <ExternalLink size={16} strokeWidth={1.9} />}
+                </span>
+              </>
+            );
+
+            return canPlay ? (
+              <button
+                key={`${s.board}-${s.post_no}`}
+                type="button"
+                onClick={() => { setPlayState("loading"); setPlaying(s); }}
+                aria-label={`${s.title} 재생`}
+                style={cardStyle}
+              >
+                {inner}
+              </button>
+            ) : (
+              <a
+                key={`${s.board}-${s.post_no}`}
+                href={UMS_VIEW(s.board, s.post_no)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${s.title} 홈페이지에서 보기`}
+                style={cardStyle}
+              >
+                {inner}
+              </a>
             );
           })}
         </div>
