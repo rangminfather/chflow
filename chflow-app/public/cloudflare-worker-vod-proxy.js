@@ -18,8 +18,11 @@
 //  - 응답 본문을 그대로 반환한다(버퍼링·가공 없음). 그래서 281MB 를 중계해도
 //    Worker CPU 시간(무료 10ms)에 걸리지 않는다. 바이트가 JS 를 거치지 않는다.
 //  - Range 헤더를 그대로 넘긴다 → 구간 이동·이어보기가 동작한다(206 응답).
-//  - 캐시하지 않는다. 무료 플랜에서 대용량 미디어를 캐시하는 것은 피하고,
-//    UMS 쪽 부담도 성도가 UMS 에서 직접 보는 것과 같은 수준으로 유지한다.
+//  - **캐시를 켠다.** UMS VOD 서버가 파일 뒷부분을 초당 30KB 수준으로 내주는 경우가 있어
+//    (측정: 끝 1MB 에 30~72초) 캐시 없이는 재생이 시작되지 않는다. 이 mp4 들은 영상 목차
+//    (moov)가 파일 끝에 있어서 플레이어가 재생 전에 뒷부분을 반드시 읽는다.
+//    한 번 받아둔 구간은 이후 즉시 나온다. Cloudflare 캐시 최대 파일 크기(512MB)를
+//    넘는 영상은 캐시되지 않으므로 그 파일은 여전히 느릴 수 있다.
 //  - 열린 프록시가 되지 않도록 경로 접두사와 확장자를 검사한다.
 
 const VOD_ORIGIN = "http://pens02.psmvod.kr/encoding/umsorkr/vod";
@@ -63,8 +66,8 @@ const worker = {
         method: request.method,
         headers,
         redirect: "follow",
-        // 캐시하지 않는다 (무료 플랜에서 대용량 미디어 캐시는 피한다)
-        cf: { cacheTtl: 0, cacheEverything: false },
+        // 원본이 느리므로 엣지에 캐시해 둔다 (7일). 같은 구간 재요청은 즉시 응답된다.
+        cf: { cacheTtl: 604800, cacheEverything: true },
       });
     } catch (err) {
       return deny(502, "영상 서버에 연결할 수 없습니다: " + String(err));
@@ -87,7 +90,12 @@ const worker = {
     }
     // 앱에서만 쓰지만, 브라우저가 range 요청을 자유롭게 하도록 허용해 둔다
     out.set("Access-Control-Allow-Origin", "*");
-    out.set("Cache-Control", "no-store");
+    // 설교 영상은 한 번 올라오면 바뀌지 않는다. 브라우저에도 캐시를 허용해
+    // 같은 영상을 다시 볼 때 원본을 또 때리지 않게 한다.
+    out.set("Cache-Control", "public, max-age=604800, immutable");
+    // 캐시 적중 여부를 확인할 수 있게 남긴다 (점검용)
+    const cacheStatus = res.headers.get("cf-cache-status");
+    if (cacheStatus) out.set("X-Vod-Cache", cacheStatus);
 
     return new Response(res.body, { status: res.status, headers: out });
   },

@@ -242,6 +242,8 @@ export default function LivePage() {
           </div>
         )}
 
+        {/* 오프에어에는 유튜브 버튼을 두지 않는다 (지난 말씀은 아래 목록에서 본다) */}
+        {(isLive || stale) && (
         <a
           href={isLive ? `https://www.youtube.com/watch?v=${status!.video_id}` : `${chUrl}/streams`}
           target="_blank"
@@ -255,8 +257,9 @@ export default function LivePage() {
           }}
         >
           <ExternalLink size={15} strokeWidth={1.9} />
-          {isLive ? "유튜브 앱에서 보기" : stale ? "유튜브 채널에서 확인하기" : "유튜브 채널에서 지난 예배 보기"}
+          {isLive ? "유튜브 앱에서 보기" : "유튜브 채널에서 확인하기"}
         </a>
+        )}
 
         {/* 지난 말씀 듣기 — UMS 설교 게시판 목록 */}
         <SermonArchive />
