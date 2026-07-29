@@ -49,6 +49,8 @@ export default function SermonArchive() {
   const [loading, setLoading] = useState(true);
   const [proxyReady, setProxyReady] = useState(false);
   const [playing, setPlaying] = useState<Sermon | null>(null);
+  // 첫 재생 준비가 오래 걸리는 파일이 있어 상태를 표시한다
+  const [playState, setPlayState] = useState<"loading" | "ready" | "error">("loading");
 
   const load = useCallback(async (target: string) => {
     setLoading(true);
@@ -127,6 +129,29 @@ export default function SermonArchive() {
                   display: "flex", alignItems: "center", gap: 11,
                 }}
               >
+                {/* 썸네일 — UMS 썸네일도 http 라서 같은 워커로 중계한다 */}
+                <div
+                  style={{
+                    position: "relative", flexShrink: 0,
+                    width: 108, aspectRatio: "16 / 9", borderRadius: 9,
+                    overflow: "hidden", background: "var(--bg-soft)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  {s.thumb_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={s.thumb_url}
+                      alt=""
+                      loading="lazy"
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      onError={(ev) => { ev.currentTarget.style.display = "none"; }}
+                    />
+                  ) : (
+                    <Play size={18} strokeWidth={1.9} color="var(--ink-faint)" />
+                  )}
+                </div>
+
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 11.5, color: "var(--ink-soft)", marginBottom: 3 }}>
                     {fmtDate(s.preached_on)}
@@ -140,14 +165,14 @@ export default function SermonArchive() {
                   )}
                   {size && (
                     <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 4 }}>
-                      영상 {size} · 와이파이 사용을 권합니다
+                      {size} · 와이파이 권장
                     </div>
                   )}
                 </div>
 
                 {canPlay ? (
                   <button
-                    onClick={() => setPlaying(s)}
+                    onClick={() => { setPlayState("loading"); setPlaying(s); }}
                     aria-label={`${s.title} 재생`}
                     style={{
                       flexShrink: 0, width: 40, height: 40, borderRadius: 12,
@@ -209,15 +234,60 @@ export default function SermonArchive() {
               <X size={19} strokeWidth={2.2} />
             </button>
           </div>
-          <video
-            src={playing.video_url}
-            poster={playing.thumb_url ?? undefined}
-            controls
-            autoPlay
-            playsInline
-            preload="metadata"
-            style={{ width: "100%", maxHeight: "70vh", background: "var(--ink)", borderRadius: 10 }}
-          />
+          <div style={{ position: "relative" }}>
+            <video
+              key={playing.video_url}
+              src={playing.video_url}
+              poster={playing.thumb_url ?? undefined}
+              controls
+              autoPlay
+              playsInline
+              preload="metadata"
+              onCanPlay={() => setPlayState("ready")}
+              onError={() => setPlayState("error")}
+              style={{ width: "100%", maxHeight: "70vh", background: "var(--ink)", borderRadius: 10 }}
+            />
+            {playState !== "ready" && (
+              <div
+                style={{
+                  position: "absolute", inset: 0, borderRadius: 10,
+                  background: "color-mix(in srgb, var(--ink) 55%, transparent)",
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  gap: 10, padding: 18, textAlign: "center",
+                }}
+              >
+                {playState === "loading" ? (
+                  <>
+                    <Spinner size={24} />
+                    {/* 이 파일들은 영상 목차가 파일 끝에 있어 첫 재생 준비가 오래 걸릴 수 있다 */}
+                    <div style={{ color: "var(--paper)", fontSize: 12.5, lineHeight: 1.6 }}>
+                      불러오는 중입니다.
+                      <br />영상에 따라 30초 이상 걸릴 수 있습니다.
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ color: "var(--paper)", fontSize: 12.5, lineHeight: 1.7 }}>
+                    영상을 불러오지 못했습니다.
+                    <br />아래 링크로 홈페이지에서 보실 수 있습니다.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <a
+            href={UMS_VIEW(playing.board, playing.post_no)}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12,
+              color: "color-mix(in srgb, var(--paper) 80%, transparent)",
+              fontSize: 12, fontWeight: 600, textDecoration: "underline",
+            }}
+          >
+            <ExternalLink size={13} strokeWidth={2} />
+            홈페이지에서 보기
+          </a>
           <div style={{ marginTop: 10, color: "var(--paper)", fontSize: 13, fontWeight: 700, lineHeight: 1.5 }}>
             {playing.title}
           </div>
