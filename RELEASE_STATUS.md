@@ -206,7 +206,11 @@
 - Scope: stores acceptance of the automatic-attendance disclosure securely so it is not shown on every app launch.
 - Android EAS build ID: `c87d3bfc-127f-4ee2-a36a-53e99b6af3df`, versionCode `34`, status `IN_PROGRESS`.
 - iOS EAS build ID: `6d4e872d-90cb-4d32-89d6-98eb79aa9ec6`, build number `15`, status `IN_PROGRESS`.
-- Store submission: not started.
+- Android build status: `FINISHED`; artifact: `https://expo.dev/artifacts/eas/0I2MIqLtftuKaEBjarPpGLQzmjwHpVl22oCV3bPq-nU.aab`
+- iOS build status: `FINISHED`; artifact: `https://expo.dev/artifacts/eas/HPB6H-7OEN_Ts9Tzfo6lvBhTVQGI8P97a_48AwM4HG8.ipa`
+- Android internal-test submission ID: `73925eb5-31fb-40e8-bf56-4d4f58eeff6e`; processing pending.
+- iOS TestFlight submission ID: `81afeafd-0edb-4eaa-9c63-3d6afbe37404`; processing pending.
+- Public production submission: not started.
 
 ## 2026-07-29 Android v1.1.2 internal-test submission
 
