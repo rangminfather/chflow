@@ -114,7 +114,7 @@ export default function LivePage() {
           <span>홈</span>
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>실시간 예배</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>예배</div>
           <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 1 }}>
             울산명성교회 유튜브
             {status?.checked_at && ` · ${formatChecked(status.checked_at)} 확인`}
