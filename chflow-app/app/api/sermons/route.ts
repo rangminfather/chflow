@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   if (!SERMON_BOARDS.some((b) => b.id === board)) {
     return NextResponse.json({ ok: false, error: "알 수 없는 게시판입니다." }, { status: 400 });
   }
-  const limit = Math.min(Number(req.nextUrl.searchParams.get("limit") || 20), 50);
+  const limit = Math.min(Number(req.nextUrl.searchParams.get("limit") || 15), 50);
 
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

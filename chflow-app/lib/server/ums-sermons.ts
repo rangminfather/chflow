@@ -79,8 +79,11 @@ async function login(userId: string, password: string): Promise<string> {
   return cookie;
 }
 
-async function fetchBoard(board: string, cookie: string): Promise<string> {
-  const res = await fetch(`${UMS_ORIGIN}/bbs/zboard.php?id=${encodeURIComponent(board)}&page=1`, {
+/** 게시판 한 페이지에 5건씩 들어 있다. 3페이지까지 모아 최대 15건을 제공한다. */
+export const BOARD_PAGES = 3;
+
+async function fetchBoard(board: string, cookie: string, page = 1): Promise<string> {
+  const res = await fetch(`${UMS_ORIGIN}/bbs/zboard.php?id=${encodeURIComponent(board)}&page=${page}`, {
     cache: "no-store",
     headers: { ...BROWSER_HEADERS, Cookie: cookie, Referer: `${UMS_ORIGIN}/` },
   });
@@ -186,10 +189,19 @@ export async function syncSermons(
 
   for (const { id } of SERMON_BOARDS) {
     try {
-      const rows = parseSermons(id, await fetchBoard(id, cookie));
+      // 여러 페이지를 모으고 글번호로 중복을 제거한다
+      const seen = new Set<number>();
+      const rows: SermonRow[] = [];
+      for (let page = 1; page <= BOARD_PAGES; page++) {
+        for (const row of parseSermons(id, await fetchBoard(id, cookie, page))) {
+          if (seen.has(row.post_no)) continue;
+          seen.add(row.post_no);
+          rows.push(row);
+        }
+      }
       if (opts.withSize !== false) {
-        // 크기 조회는 게시판당 최신 몇 건만 (매번 전부 HEAD 를 날릴 이유가 없다)
-        for (const row of rows.slice(0, 3)) {
+        // 용량은 목록에 표시하므로 모두 조회한다 (HEAD 요청이라 가볍다)
+        for (const row of rows) {
           row.byte_size = await headSize(VOD_BASE, row.video_path);
         }
       }

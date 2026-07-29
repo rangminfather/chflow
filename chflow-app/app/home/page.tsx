@@ -71,7 +71,7 @@ type CommonMenu = {
 };
 
 const COMMON_MENUS: CommonMenu[] = [
-  { id: "live",      label: "실시간 예배",   icon: Radio,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/live" },
+  { id: "live",      label: "예배",         icon: Radio,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/live" },
   { id: "bulletin",  label: "주보 보기",     icon: BookOpen,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/bulletin" },
   { id: "directory", label: "성도 요람",     icon: Users,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/directory" },
   { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/feedback" },
@@ -853,26 +853,27 @@ function MenuCard({ menu, router, compact, live }: { menu: CommonMenu; router: R
             color: T.text,
             lineHeight: 1.25,
           }}>{menu.label}</div>
-          {/* 방송 중이면 녹색 ON AIR, 아니면 빨간 OFF AIR — 켜져 있는지 한눈에 */}
-          {typeof live === "boolean" && (
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: 4,
-              marginTop: 4, padding: "2px 7px", borderRadius: 999,
-              background: live
-                ? "color-mix(in srgb, var(--success) 16%, transparent)"
-                : "color-mix(in srgb, var(--danger) 14%, transparent)",
-              color: live ? "var(--success)" : "var(--danger)",
-              fontSize: 9, fontWeight: 800, letterSpacing: 0.6,
-            }}>
-              <span style={{
-                width: 6, height: 6, borderRadius: "50%",
-                background: live ? "var(--success)" : "var(--danger)",
-                boxShadow: live ? "0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent)" : "none",
-              }} />
-              {live ? "ON AIR" : "OFF AIR"}
-            </span>
-          )}
         </SafeGrow>
+        {/* 방송 상태 표시등 — 글씨 아래가 아니라 카드 오른쪽 끝, 세로 중앙에 둔다 */}
+        {typeof live === "boolean" && (
+          <span style={{
+            flexShrink: 0, alignSelf: "center",
+            display: "inline-flex", alignItems: "center", gap: 4,
+            padding: "3px 8px", borderRadius: 999,
+            background: live
+              ? "color-mix(in srgb, var(--success) 16%, transparent)"
+              : "color-mix(in srgb, var(--danger) 14%, transparent)",
+            color: live ? "var(--success)" : "var(--danger)",
+            fontSize: 9, fontWeight: 800, letterSpacing: 0.6, whiteSpace: "nowrap",
+          }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: "50%",
+              background: live ? "var(--success)" : "var(--danger)",
+              boxShadow: live ? "0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent)" : "none",
+            }} />
+            {live ? "ON AIR" : "OFF AIR"}
+          </span>
+        )}
       </SafeRow>
     </SafeCard>
   );
