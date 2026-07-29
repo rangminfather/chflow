@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import * as Application from 'expo-application';
+import * as SecureStore from 'expo-secure-store';
 import { maybeConfirmAttendance, stopAttendanceGeofence, syncAttendanceGeofence } from './attendanceGeofence';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -21,6 +22,7 @@ import { WebView, WebViewMessageEvent, WebViewNavigation } from 'react-native-we
 
 const TARGET_URL = 'https://chflow-app.vercel.app';
 const TARGET_ORIGIN = new URL(TARGET_URL).origin;
+const ATTENDANCE_DISCLOSURE_KEY = 'chflow.attendance-disclosure-accepted.v1';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -369,14 +371,23 @@ function AppWebView() {
     pendingAccessTokenRef.current = message.accessToken;
     if (!attendanceDisclosureShownRef.current) {
       attendanceDisclosureShownRef.current = true;
-      Alert.alert(
-        '교회 출석 자동기록 안내',
-        '교회에 오시면 자동으로 출석을 기록하기 위해 위치 권한이 필요합니다. 앱을 사용하지 않을 때도 교회 주변에 머무는지만 확인하며, 원시 GPS 위치는 저장하지 않습니다. 자동출석 기능을 사용하려면 위치 권한을 허용해 주세요.',
-        [
-          { text: '나중에', style: 'cancel' },
-          { text: '허용하기', onPress: () => { syncAttendanceGeofence(message.accessToken!).catch(() => {}); } },
-        ],
-      );
+      SecureStore.getItemAsync(ATTENDANCE_DISCLOSURE_KEY).then((accepted) => {
+        if (accepted === 'accepted') return;
+        Alert.alert(
+          '교회 출석 자동기록 안내',
+          '교회에 오시면 자동으로 출석을 기록하기 위해 위치 권한이 필요합니다. 앱을 사용하지 않을 때도 교회 주변에 머무는지만 확인하며, 원시 GPS 위치는 저장하지 않습니다. 자동출석 기능을 사용하려면 위치 권한을 허용해 주세요.',
+          [
+            { text: '나중에', style: 'cancel' },
+            {
+              text: '허용하기',
+              onPress: () => {
+                SecureStore.setItemAsync(ATTENDANCE_DISCLOSURE_KEY, 'accepted').catch(() => {});
+                syncAttendanceGeofence(message.accessToken!).catch(() => {});
+              },
+            },
+          ],
+        );
+      }).catch(() => {});
     }
     if (expoPushToken) {
       registerPushToken(message.accessToken, expoPushToken).catch(() => {});
