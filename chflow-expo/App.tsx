@@ -107,6 +107,10 @@ function AppWebView() {
   }, []);
 
   useEffect(() => {
+    // Android Play versionCode is not comparable to the iOS TestFlight build number.
+    // Keep the Android update banner out of iOS until a separate iOS rollout policy exists.
+    if (Platform.OS !== 'android') return;
+
     const check = async () => {
       try {
         const res = await fetch(`${TARGET_URL}/api/app-config`);
