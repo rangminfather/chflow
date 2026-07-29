@@ -151,7 +151,7 @@ export async function findLiveVideo(channelId: string, apiKey?: string): Promise
   const ids = (playlist.items || [])
     .map((i) => i.contentDetails?.videoId)
     .filter((id): id is string => !!id);
-  if (ids.length === 0) return null;
+  if (ids.length === 0) return findLiveVideoFallback(channelId);
 
   const videos = await fetchJson<VideosResponse>(
     `https://www.googleapis.com/youtube/v3/videos` +
@@ -160,7 +160,7 @@ export async function findLiveVideo(channelId: string, apiKey?: string): Promise
   const live = (videos.items || []).find(
     (v) => v.snippet?.liveBroadcastContent === "live" && !v.liveStreamingDetails?.actualEndTime
   );
-  if (!live?.id) return null;
+  if (!live?.id) return findLiveVideoFallback(channelId);
 
   const t = live.snippet?.thumbnails || {};
   return {
