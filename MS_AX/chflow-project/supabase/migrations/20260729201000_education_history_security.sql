@@ -688,6 +688,7 @@ begin
     case when p_action in ('approve', 'unapprove') then 'education_history.approve'
          else 'education_history.manage' end
   );
+  perform set_config('app.education_audit_reason', coalesce(p_review_note, ''), true);
 
   select * into v_row
   from public.education_import_rows

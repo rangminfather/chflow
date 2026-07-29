@@ -13,6 +13,7 @@ drop function if exists public.education_course_dashboard();
 drop function if exists public.education_required_dashboard();
 drop function if exists public.education_lmtc_dashboard();
 drop function if exists public.education_statistics();
+drop function if exists public.education_search_member_candidates(text, integer);
 drop function if exists public.get_my_app_capabilities();
 drop function if exists public.assert_app_capability(text);
 
