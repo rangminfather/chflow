@@ -366,11 +366,11 @@ function AppWebView() {
     if (!attendanceDisclosureShownRef.current) {
       attendanceDisclosureShownRef.current = true;
       Alert.alert(
-        '자동출석 위치 안내',
-        '이 앱은 앱이 사용되지 않거나 종료된 상태에서도 교회 주변 위치를 확인하여 자동출석 후보를 기록할 수 있습니다. 위치는 교회 반경 체류 확인에만 사용하며 원시 GPS 좌표는 저장하지 않습니다.',
+        '교회 출석 자동기록 안내',
+        '교회에 오시면 자동으로 출석을 기록하기 위해 위치 권한이 필요합니다. 앱을 사용하지 않을 때도 교회 주변에 머무는지만 확인하며, 원시 GPS 위치는 저장하지 않습니다. 자동출석 기능을 사용하려면 위치 권한을 허용해 주세요.',
         [
           { text: '나중에', style: 'cancel' },
-          { text: '위치 권한 진행', onPress: () => { syncAttendanceGeofence(message.accessToken!).catch(() => {}); } },
+          { text: '허용하기', onPress: () => { syncAttendanceGeofence(message.accessToken!).catch(() => {}); } },
         ],
       );
     }
@@ -431,7 +431,7 @@ function AppWebView() {
         />
         {exitReloading && <View style={styles.exitOverlay} pointerEvents="none" />}
         {updateAvailable && !updateDismissed && (
-          <View style={styles.updateBanner}>
+          <View style={[styles.updateBanner, { top: safeAreaPadding.paddingTop + 12 }]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.updateBannerTitle}>새 버전이 있습니다</Text>
               <Text style={styles.updateBannerBody}>더 나은 사용을 위해 업데이트해 주세요.</Text>
