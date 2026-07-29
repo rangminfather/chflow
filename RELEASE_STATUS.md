@@ -200,6 +200,14 @@
 - iOS TestFlight submission: scheduled; Apple processing pending.
 - Public production submission: not started.
 
+## 2026-07-29 v1.1.5 attendance disclosure persistence patch
+
+- Source commit: `46e9fd0` (`fix(mobile): persist attendance disclosure acceptance`)
+- Scope: stores acceptance of the automatic-attendance disclosure securely so it is not shown on every app launch.
+- Android EAS build ID: `c87d3bfc-127f-4ee2-a36a-53e99b6af3df`, versionCode `34`, status `IN_PROGRESS`.
+- iOS EAS build ID: `6d4e872d-90cb-4d32-89d6-98eb79aa9ec6`, build number `15`, status `IN_PROGRESS`.
+- Store submission: not started.
+
 ## 2026-07-29 Android v1.1.2 internal-test submission
 
 - Source commits: `88047fd` (`fix(android): enable fullscreen sermon video`), `4938c2c` (`release(android): prepare v1.1.2`), `1a46857` (EAS archive exclusions).
