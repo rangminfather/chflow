@@ -8,8 +8,8 @@
 //
 // 설교 영상은 한 편에 수백 MB다. 재생 전에 용량을 반드시 보여준다(모바일 데이터).
 
-import { useCallback, useEffect, useState } from "react";
-import { Play, ExternalLink, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Play, ExternalLink, X, Maximize } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Spinner } from "@/components/StatusViews";
 
@@ -42,6 +42,46 @@ function fmtSize(bytes: number | null) {
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)}GB` : `${Math.round(mb)}MB`;
 }
 
+
+/**
+ * 전체화면 + 가로 고정.
+ *
+ * - 아이폰 사파리는 표준 Fullscreen API 대신 video.webkitEnterFullscreen 을 쓴다.
+ *   이 경우 iOS 기본 플레이어가 열리고 기기 방향에 따라 알아서 회전한다
+ *   (iOS 는 screen.orientation.lock 을 지원하지 않는다).
+ * - 안드로이드 크롬은 컨테이너를 전체화면으로 만든 뒤 가로로 고정한다.
+ * - 어느 것도 안 되면 조용히 넘어간다. 재생 자체는 계속된다.
+ */
+type FsVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
+type LockableOrientation = ScreenOrientation & { lock?: (o: string) => Promise<void> };
+
+async function goFullscreenLandscape(box: HTMLElement | null, video: HTMLVideoElement | null) {
+  const v = video as FsVideo | null;
+  if (v?.webkitEnterFullscreen && !document.fullscreenEnabled) {
+    v.webkitEnterFullscreen();
+    return;
+  }
+  try {
+    if (box && !document.fullscreenElement) await box.requestFullscreen();
+  } catch {
+    // 전체화면이 거부되면 가로 고정도 의미가 없다
+    return;
+  }
+  try {
+    await (screen.orientation as LockableOrientation)?.lock?.("landscape");
+  } catch {
+    // 데스크톱·아이폰 등 미지원 환경
+  }
+}
+
+function releaseOrientation() {
+  try {
+    screen.orientation?.unlock?.();
+  } catch {
+    // 미지원 환경
+  }
+}
+
 export default function SermonArchive() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [board, setBoard] = useState<string>("sermon_am");
@@ -51,6 +91,8 @@ export default function SermonArchive() {
   const [playing, setPlaying] = useState<Sermon | null>(null);
   // 첫 재생 준비가 오래 걸리는 파일이 있어 상태를 표시한다
   const [playState, setPlayState] = useState<"loading" | "ready" | "error">("loading");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async (target: string) => {
     setLoading(true);
@@ -75,6 +117,16 @@ export default function SermonArchive() {
   }, []);
 
   useEffect(() => { load(board); }, [board, load]);
+
+  // 전체화면을 벗어나면 가로 고정을 풀어 준다
+  useEffect(() => {
+    const onChange = () => { if (!document.fullscreenElement) releaseOrientation(); };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      releaseOrientation();
+    };
+  }, []);
 
   return (
     <div style={{ marginTop: 22 }}>
@@ -231,7 +283,21 @@ export default function SermonArchive() {
             display: "flex", flexDirection: "column", justifyContent: "center", padding: 14,
           }}
         >
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 8 }}>
+            <button
+              onClick={() => void goFullscreenLandscape(stageRef.current, videoRef.current)}
+              aria-label="전체화면"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                height: 38, padding: "0 13px", borderRadius: 12, border: "none",
+                background: "color-mix(in srgb, var(--paper) 22%, transparent)",
+                color: "var(--paper)", fontSize: 12, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              <Maximize size={15} strokeWidth={2.1} />
+              전체화면
+            </button>
             <button
               onClick={() => setPlaying(null)}
               aria-label="닫기"
@@ -245,7 +311,7 @@ export default function SermonArchive() {
               <X size={19} strokeWidth={2.2} />
             </button>
           </div>
-          <div style={{ position: "relative" }}>
+          <div ref={stageRef} style={{ position: "relative", background: "var(--ink)", borderRadius: 10 }}>
             <video
               key={playing.video_url}
               src={playing.video_url}
@@ -254,7 +320,10 @@ export default function SermonArchive() {
               autoPlay
               playsInline
               preload="metadata"
-              onCanPlay={() => setPlayState("ready")}
+              onCanPlay={() => {
+                setPlayState("ready");
+                void goFullscreenLandscape(stageRef.current, videoRef.current);
+              }}
               onError={() => setPlayState("error")}
               style={{ width: "100%", maxHeight: "70vh", background: "var(--ink)", borderRadius: 10 }}
             />
