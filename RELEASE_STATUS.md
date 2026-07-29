@@ -210,6 +210,11 @@
 - iOS TestFlight submission ID: `b2f26be2-d4da-45f5-9269-0902edcf608d`; processing pending.
 - Public production submission: intentionally not started.
 
+### Android 1.1.6 APK verification build attempt
+
+- Verify APK build was not started because the EAS free-plan Android build credits are exhausted (reset estimated in 2 days 16 hours at the time of attempt).
+- No APK artifact or download link was created. Existing versionCode `35` AAB remains unchanged.
+
 ### Android 1.1.6 submission failure
 
 - Submission status: `FAILED`
