@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { readStatus, refreshIfStale, serviceClient, STALE_AFTER_MS } from "@/lib/server/youtube-live";
+import { notifyIfNewlyLive, readStatus, refreshIfStale, serviceClient, STALE_AFTER_MS } from "@/lib/server/youtube-live";
 
 export const runtime = "nodejs";
 
@@ -30,6 +30,9 @@ export async function GET(req: NextRequest) {
 
   const admin = serviceClient();
   await refreshIfStale(admin);
+  // 외부 폴러가 지연·중단되어도, 로그인 사용자가 예배 화면을 열면 새 방송을
+  // 한 번만 알린다. notifyIfNewlyLive의 조건부 갱신이 중복 발송을 막는다.
+  await notifyIfNewlyLive(admin);
   const status = await readStatus(admin);
 
   const checkedMs = status?.checked_at ? new Date(status.checked_at).getTime() : NaN;
