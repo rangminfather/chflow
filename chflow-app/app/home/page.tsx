@@ -12,7 +12,7 @@ import {
   BookOpen, BookText, Users, User, Lightbulb, Vote, Megaphone, CalendarDays,
   Landmark, Bus, CalendarClock, Menu, LogOut, X, Folder, Home,
   Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid, MessagesSquare, SearchCheck,
-  Sparkles, HeartHandshake, Sun, Moon, BarChart3, Radio,
+  Sparkles, HeartHandshake, Sun, Moon, BarChart3, Radio, MapPin,
 } from "lucide-react";
 import { useTheme } from "@/lib/useTheme";
 import { LoadingView } from "@/components/StatusViews";
@@ -79,6 +79,8 @@ const COMMON_MENUS: CommonMenu[] = [
 ];
 
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [
+  { id: "attendance", label: "교회 출석 현황", icon: MapPin, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/attendance" },
+  { id: "attendance-settings", label: "자동출석 설정", icon: MapPin, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/attendance/settings" },
   { id: "vote",     label: "투표",        icon: Vote,          color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/vote" },
   { id: "messenger-reports", label: "메신저 신고", icon: MessagesSquare, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/messenger-reports" },
   { id: "messenger-diagnostics", label: "메신저 진단", icon: SearchCheck, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/messenger-diagnostics" },
