@@ -179,3 +179,13 @@
 - Build status: `FINISHED`
 - Artifact: `https://expo.dev/artifacts/eas/E2VJWY2Wrdm_dGk3o4B10dlUVcG9807dDTVaRSHw08Q.ipa`
 - TestFlight submission: not started.
+
+## 2026-07-29 Android v1.1.2 internal-test submission
+
+- Source commits: `88047fd` (`fix(android): enable fullscreen sermon video`), `4938c2c` (`release(android): prepare v1.1.2`), `1a46857` (EAS archive exclusions).
+- Android EAS build ID: `7559429c-063f-4891-8a52-d0bc50352151`
+- Android versionCode: `32`
+- Build status: `FINISHED`
+- Internal-test submission ID: `d2b348a0-8a9f-4a40-a842-0b8f9454ced0`
+- Internal-test submission: scheduled with `releaseStatus: completed`; Google Play processing and tester availability remain pending.
+- Production submission: not started.
