@@ -54,6 +54,10 @@ on conflict do nothing;
 2. `20260729201000_education_history_security.sql`
 3. `20260729202000_education_history_seed.sql`
 4. `20260729203000_education_history_queries.sql`
+5. `20260729204000_education_candidate_search.sql`
+6. `20260729205000_education_import_uuid_aggregate_fix.sql`
+7. `20260729206000_education_import_bulk_runtime.sql`
+8. `20260729207000_education_audit_trigger_guard.sql`
 
 운영 전 staging에서 `supabase db lint`, RLS 권한 테스트, 두 dry-run을 다시 수행한다. 이후 migration을 적용하고 웹 앱을 배포한다. 원본 HWPX와 `private/import` 출력은 배포 artifact나 공개 Storage에 포함하지 않는다.
 
@@ -109,7 +113,26 @@ npm run education:import -- --file="<원본.hwpx>" --type=general --env-file=".e
 | 미등록 후보 | 996 | 185 |
 | 원본 내부 중복 의심 | 0 | 1 |
 
-별칭 테이블은 아직 운영 migration 전이므로 위 매칭 통계는 현재 성도의 정확한 이름만 사용했다. migration 후 검증 별칭을 포함해 다시 계산해야 한다. 일반 명부 예상 “3,000건 이상”, LMTC 예상 “400건 이상”과 일치한다. LMTC 전체 466행과 데이터 439행 차이는 헤더 21, 빈 행 5, 표 제목 1행이다.
+최초 dry-run 시점에는 검증 별칭이 없어 현재 성도의 정확한 이름만 사용했다. 이후 관리자가 저장한 검증 별칭은 다음 import부터 추천 후보에 포함된다. 일반 명부 예상 “3,000건 이상”, LMTC 예상 “400건 이상”과 일치한다. LMTC 전체 466행과 데이터 439행 차이는 헤더 21, 빈 행 5, 표 제목 1행이다.
+
+## 2026-07-29 운영 staging 결과
+
+- 모든 migration을 원격 Supabase에 적용했다.
+- 일반 명부 batch: `d4aa8e48-3e4a-4798-997e-5923faa6896b`
+- LMTC batch: `415c8594-10ac-4288-9f54-b5eb53d72832`
+- staging 원본 행: 3,536건
+- 추천 매칭: 2,230건
+- 동명이인: 125건
+- 미등록: 1,181건
+- 과정 자동 추천: 3,390건
+- 과정 미분류: 146건
+- 날짜 parsed/partial/blank: 3,442/40/54건
+- 중복 의심: 2건
+- 정식 `member_education_history`: 0건
+
+비로그인은 공개 통계 RPC가 `42501`로 차단됐다. 일반 성도 세션은
+`education_history.read`만 받았고 공개 통계 조회는 성공했으며, 원본 import
+행은 0건으로 가려지고 과정 쓰기는 `42501`로 거부됐다.
 
 ## 운영 승인 체크리스트
 

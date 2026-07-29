@@ -514,7 +514,7 @@ begin
   with course_suggestions as (
     select
       ir0.id,
-      min(c.id) as course_id,
+      min(c.id::text)::uuid as course_id,
       count(c.id)::integer as course_count
     from public.education_import_rows ir0
     left join public.education_courses c
@@ -585,7 +585,7 @@ begin
     select
       ir2.id,
       count(distinct mc.member_id)::integer as member_count,
-      min(mc.member_id) as single_member_id
+      min(mc.member_id::text)::uuid as single_member_id
     from public.education_import_rows ir2
     left join public.education_import_match_candidates mc on mc.import_row_id = ir2.id
     where ir2.batch_id = v_batch_id
@@ -665,6 +665,8 @@ end;
 $$;
 revoke all on function public.stage_education_import(jsonb, jsonb) from public, anon;
 grant execute on function public.stage_education_import(jsonb, jsonb) to authenticated;
+alter function public.stage_education_import(jsonb, jsonb)
+  set statement_timeout = '120s';
 
 create or replace function public.review_education_import_row(
   p_row_id uuid,
