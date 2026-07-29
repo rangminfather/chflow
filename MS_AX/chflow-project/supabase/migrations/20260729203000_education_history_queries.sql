@@ -196,17 +196,24 @@ begin
   perform public.assert_app_capability('education_history.manage');
   return query
   select
-    m.id, m.name, m.sub_role,
-    extract(year from m.birth_date)::integer,
-    right(regexp_replace(coalesce(m.phone, ''), '\D', '', 'g'), 4),
-    count(h.id)::bigint
+    m.id,
+    m.name,
+    to_jsonb(m)->>'sub_role',
+    case
+      when coalesce(to_jsonb(m)->>'birth_date', '') ~ '^\d{4}'
+      then left(to_jsonb(m)->>'birth_date', 4)::integer
+      else null
+    end,
+    right(regexp_replace(coalesce(to_jsonb(m)->>'phone', ''), '\D', '', 'g'), 4),
+    (
+      select count(*)::bigint
+      from public.member_education_history h
+      where h.member_id = m.id and h.deleted_at is null
+    )
   from public.members m
-  left join public.member_education_history h
-    on h.member_id = m.id and h.deleted_at is null
   where m.status = 'active'
     and nullif(trim(p_query), '') is not null
     and m.name ilike '%' || trim(p_query) || '%'
-  group by m.id, m.name, m.sub_role, m.birth_date, m.phone
   order by
     case when regexp_replace(m.name, '\s+', '', 'g') =
       regexp_replace(trim(p_query), '\s+', '', 'g') then 0 else 1 end,
