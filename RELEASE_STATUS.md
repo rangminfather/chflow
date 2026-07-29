@@ -188,10 +188,12 @@
 - Scope: moves the native update banner below the iPhone safe area/Dynamic Island and simplifies the automatic-attendance permission disclosure.
 - Android EAS build ID: `582c5c12-9b49-4484-ae62-5cb1aabb3174`
 - Android versionCode: `33`
-- Android build status: `IN_PROGRESS`
+- Android build status: `FINISHED`
+- Android artifact: `https://expo.dev/artifacts/eas/_4NdW7014IAuo86hLpoi1aUlrVlyJeYVyTvsBQHkPcA.aab`
 - iOS EAS build ID: `2df0e62a-ea9c-4441-82e7-dc5ed23a5373`
 - iOS build number: `13`
-- iOS build status: `IN_PROGRESS`
+- iOS build status: `FINISHED`
+- iOS artifact: `https://expo.dev/artifacts/eas/6QcFPWd6WDj6NrRfkGnAOPWGZjHmUypV4tHpywZCKIM.ipa`
 - Store submission: not started.
 
 ## 2026-07-29 Android v1.1.2 internal-test submission
