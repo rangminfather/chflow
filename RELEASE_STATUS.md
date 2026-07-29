@@ -182,6 +182,18 @@
 - TestFlight submission ID: `bd4eb8a7-9bb4-4d6b-8951-a38c88e45da4`
 - TestFlight submission: uploaded successfully; Apple processing pending.
 
+## 2026-07-29 v1.1.3 safe-area and attendance wording patch
+
+- Source commit: `d33444d` (`release(android-ios): prepare v1.1.3 safe area and attendance wording`)
+- Scope: moves the native update banner below the iPhone safe area/Dynamic Island and simplifies the automatic-attendance permission disclosure.
+- Android EAS build ID: `582c5c12-9b49-4484-ae62-5cb1aabb3174`
+- Android versionCode: `33`
+- Android build status: `IN_PROGRESS`
+- iOS EAS build ID: `2df0e62a-ea9c-4441-82e7-dc5ed23a5373`
+- iOS build number: `13`
+- iOS build status: `IN_PROGRESS`
+- Store submission: not started.
+
 ## 2026-07-29 Android v1.1.2 internal-test submission
 
 - Source commits: `88047fd` (`fix(android): enable fullscreen sermon video`), `4938c2c` (`release(android): prepare v1.1.2`), `1a46857` (EAS archive exclusions).
