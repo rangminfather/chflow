@@ -75,8 +75,11 @@ test-excel/
 # 원본 자료 (PDF, 한글 파일 등 - 개인정보)
 자료/
 *.hwp
-*.hwpx
 *.docx
+
+# Private education-history imports. HWPX templates under public/ are versioned.
+private/import/
+chflow-app/private/import/
 
 # 루트의 잡다한 자료
 chflow_요구정의서_*.pdf
