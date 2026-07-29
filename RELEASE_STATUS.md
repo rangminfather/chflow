@@ -169,3 +169,13 @@
 - Latest artifact: `https://expo.dev/artifacts/eas/mV1NJtxSt9NDbRKZp3mXhKEqsl-S85lim-UEOZeByQU.ipa`
 - Apple distribution certificate, provisioning profile, and push key configured successfully.
 - TestFlight submission: not started.
+
+## 2026-07-29 iOS v1.1.2 build
+
+- Source branch: `codex/android-v1-1-2`
+- EAS build ID: `a541f239-038a-461d-bd19-9c3216dbbcec`
+- App version: `1.1.2`
+- Build number: `12`
+- Build status: `FINISHED`
+- Artifact: `https://expo.dev/artifacts/eas/E2VJWY2Wrdm_dGk3o4B10dlUVcG9807dDTVaRSHw08Q.ipa`
+- TestFlight submission: not started.
