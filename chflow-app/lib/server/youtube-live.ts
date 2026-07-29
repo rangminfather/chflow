@@ -101,7 +101,48 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 /** 현재 라이브 중인 방송 1건. 없으면 null. */
-export async function findLiveVideo(channelId: string, apiKey: string) {
+type FoundLiveVideo = {
+  videoId: string;
+  title: string | null;
+  thumbnailUrl: string | null;
+  startedAt: string | null;
+};
+
+async function findLiveVideoFallback(channelId: string): Promise<FoundLiveVideo | null> {
+  const feed = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`, {
+    cache: "no-store",
+    headers: { "user-agent": "Mozilla/5.0 (compatible; SmartMyungsungLiveMonitor/1.0)" },
+  });
+  if (!feed.ok) throw new Error(`YouTube RSS ${feed.status}`);
+  const xml = await feed.text();
+  const ids = [...xml.matchAll(/<yt:videoId>([^<]+)<\/yt:videoId>/g)]
+    .map((m) => m[1])
+    .slice(0, RECENT_COUNT);
+
+  for (const videoId of ids) {
+    const page = await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`, {
+      cache: "no-store",
+      headers: { "user-agent": "Mozilla/5.0 (compatible; SmartMyungsungLiveMonitor/1.0)" },
+    });
+    if (!page.ok) continue;
+    const html = await page.text();
+    if (!/"isLiveNow":true/.test(html)) continue;
+    const title = html.match(/<meta name="title" content="([^"]*)"/)?.[1]
+      ?.replace(/&quot;/g, '"')
+      .replace(/&amp;/g, "&") ?? null;
+    return {
+      videoId,
+      title,
+      thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+      startedAt: null,
+    };
+  }
+  return null;
+}
+
+export async function findLiveVideo(channelId: string, apiKey?: string): Promise<FoundLiveVideo | null> {
+  if (!apiKey) return findLiveVideoFallback(channelId);
+  try {
   const playlist = await fetchJson<PlaylistItemsResponse>(
     `https://www.googleapis.com/youtube/v3/playlistItems` +
       `?part=contentDetails&maxResults=${RECENT_COUNT}` +
@@ -128,6 +169,9 @@ export async function findLiveVideo(channelId: string, apiKey: string) {
     thumbnailUrl: t.maxres?.url || t.standard?.url || t.high?.url || t.medium?.url || null,
     startedAt: live.liveStreamingDetails?.actualStartTime ?? null,
   };
+  } catch {
+    return findLiveVideoFallback(channelId);
+  }
 }
 
 /**
@@ -136,7 +180,6 @@ export async function findLiveVideo(channelId: string, apiKey: string) {
  */
 export async function refreshIfStale(admin: SupabaseClient, force = false): Promise<boolean> {
   const apiKey = process.env.YOUTUBE_API_KEY;
-  if (!apiKey) return false;
 
   const nowIso = new Date().toISOString();
   const cutoff = new Date(Date.now() - REFRESH_AFTER_MS).toISOString();

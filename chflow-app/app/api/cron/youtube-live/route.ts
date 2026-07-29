@@ -18,10 +18,6 @@ export async function GET(req: NextRequest) {
   if (CRON_SECRET && auth !== `Bearer ${CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!process.env.YOUTUBE_API_KEY) {
-    return NextResponse.json({ ok: true, skipped: "YOUTUBE_API_KEY 없음" });
-  }
-
   const admin = serviceClient();
   const refreshed = await refreshIfStale(admin, true);
   const status = await readStatus(admin);

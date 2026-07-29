@@ -36,10 +36,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!process.env.YOUTUBE_API_KEY) {
-    return NextResponse.json({ ok: true, skipped: "YOUTUBE_API_KEY 없음" });
-  }
-
   const admin = serviceClient();
   // ?dry=1 — 감지까지만 하고 알림은 보내지 않는다 (예배 전 사전 점검용)
   const dryRun = req.nextUrl.searchParams.get("dry") === "1";
