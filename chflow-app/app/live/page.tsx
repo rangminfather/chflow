@@ -14,6 +14,7 @@ import { ArrowLeft, ExternalLink, RefreshCw, Radio } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
 import { worshipNowLabel, WORSHIP_SCHEDULE_TEXT } from "@/lib/worshipSchedule";
+import SermonArchive from "@/components/SermonArchive";
 
 type LiveStatus = {
   channel_id: string | null;
@@ -256,6 +257,9 @@ export default function LivePage() {
           <ExternalLink size={15} strokeWidth={1.9} />
           {isLive ? "유튜브 앱에서 보기" : stale ? "유튜브 채널에서 확인하기" : "유튜브 채널에서 지난 예배 보기"}
         </a>
+
+        {/* 지난 말씀 듣기 — UMS 설교 게시판 목록 */}
+        <SermonArchive />
       </div>
     </div>
   );
