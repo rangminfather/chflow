@@ -169,3 +169,10 @@
 - Latest artifact: `https://expo.dev/artifacts/eas/mV1NJtxSt9NDbRKZp3mXhKEqsl-S85lim-UEOZeByQU.ipa`
 - Apple distribution certificate, provisioning profile, and push key configured successfully.
 - TestFlight submission: not started.
+
+## 2026-07-29 sermon fullscreen web fix
+
+- Production commit: `6ccac83` (`fix(sermon): wire fullscreen button to video element`)
+- Scope: connects the custom fullscreen button to the video element and removes the unsupported automatic fullscreen call on iOS.
+- Verification: `chflow-app` TypeScript check passed; `https://smartms.kr` returned HTTP 200 after the main push.
+- Mobile rebuild: not required; the WebView loads this web fix from the deployed site.
