@@ -66,7 +66,46 @@ export default function AttendanceSettingsPage() {
       { enableHighAccuracy: true, timeout: 10000 },
     );
   };
-  const save = async () => { setSaving(true); setMessage(null); const token = (await supabase.auth.getSession()).data.session?.access_token; if (!token) { setMessage("로그인이 필요합니다."); setSaving(false); return; } const response = await fetch("/api/attendance/geofence", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ name: form.name, latitude: Number(form.latitude), longitude: Number(form.longitude), radiusM: Number(form.radiusM), dwellSeconds: Number(form.dwellMinutes) * 60, windowStart: form.windowStart, windowEnd: form.windowEnd, isActive: form.isActive }) }); const payload = await response.json(); setMessage(response.ok ? "자동출석 설정을 저장했습니다." : (payload.error || "저장하지 못했습니다.")); setSaving(false); };
+  const save = async () => {
+    const latitudeText = form.latitude.trim();
+    const longitudeText = form.longitude.trim();
+    if (!latitudeText || !longitudeText) {
+      setMessage("현재 위치를 먼저 입력해 주세요.");
+      return;
+    }
+    const latitude = Number(latitudeText);
+    const longitude = Number(longitudeText);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || (latitude === 0 && longitude === 0)) {
+      setMessage("현재 위치 좌표가 올바르지 않습니다.");
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    if (!token) {
+      setMessage("로그인이 필요합니다.");
+      setSaving(false);
+      return;
+    }
+    const response = await fetch("/api/attendance/geofence", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        name: form.name,
+        latitude,
+        longitude,
+        radiusM: Number(form.radiusM),
+        dwellSeconds: Number(form.dwellMinutes) * 60,
+        windowStart: form.windowStart,
+        windowEnd: form.windowEnd,
+        isActive: form.isActive,
+      }),
+    });
+    const payload = await response.json();
+    setMessage(response.ok ? "자동출석 설정을 저장했습니다." : (payload.error || "저장하지 못했습니다."));
+    setSaving(false);
+  };
   const set = (key: keyof Form, value: string | boolean) => setForm((current) => ({ ...current, [key]: value }));
   return <main style={{ maxWidth: 680, margin: "0 auto", padding: "32px 20px 64px" }}><Link href="/attendance" style={{ display: "inline-flex", gap: 6, color: "var(--ink-soft)", fontSize: 13, textDecoration: "none" }}><ArrowLeft size={16} /> 출석 현황</Link><h1 style={{ margin: "22px 0 8px", fontSize: 30, letterSpacing: "-0.04em" }}>자동출석 설정</h1><p style={{ color: "var(--ink-mid)", fontSize: 14, lineHeight: 1.6 }}>교회 좌표와 운영 시간 안에서만 위치 후보를 수집합니다. 자동출석은 목회 참고용입니다.</p><section style={card}><label style={label}>위치 이름<input value={form.name} onChange={(e) => set("name", e.target.value)} style={input} /></label><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}><label style={label}>위도<input inputMode="decimal" value={form.latitude} onChange={(e) => set("latitude", e.target.value)} style={input} /></label><label style={label}>경도<input inputMode="decimal" value={form.longitude} onChange={(e) => set("longitude", e.target.value)} style={input} /></label></div><button type="button" onClick={locate} style={secondary}><LocateFixed size={16} /> 현재 위치 사용</button><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}><label style={label}>반경(m)<input type="number" min="50" max="500" value={form.radiusM} onChange={(e) => set("radiusM", e.target.value)} style={input} /></label><label style={label}>최소 체류(분)<input type="number" min="5" max="60" value={form.dwellMinutes} onChange={(e) => set("dwellMinutes", e.target.value)} style={input} /></label></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}><label style={label}>시작<input type="time" value={form.windowStart} onChange={(e) => set("windowStart", e.target.value)} style={input} /></label><label style={label}>종료<input type="time" value={form.windowEnd} onChange={(e) => set("windowEnd", e.target.value)} style={input} /></label></div><label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 18, fontSize: 14 }}><input type="checkbox" checked={form.isActive} onChange={(e) => set("isActive", e.target.checked)} /> 설정 활성화</label></section>{message && <p role="status" style={{ color: "var(--ink-mid)", fontSize: 14 }}>{message}</p>}<button type="button" onClick={save} disabled={saving} style={primary}><Save size={16} /> {saving ? "저장 중..." : "저장"}</button></main>;
 }

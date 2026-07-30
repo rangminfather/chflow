@@ -12,6 +12,7 @@ type AttendanceStatus = {
   serverTime: string;
   localDate: string;
   memberLinked: boolean;
+  withinOperatingWindow: boolean;
   geofence: {
     name: string;
     radiusM: number;
@@ -168,6 +169,11 @@ export default function MyAttendancePage() {
           )}
         </section>
 
+        {data?.geofence && !data.withinOperatingWindow && (
+          <p style={warning}>
+            현재는 자동출석 운영시간 밖입니다. 이 시간에는 교회 반경 안에 있어도 진입시각을 기록하지 않습니다.
+          </p>
+        )}
         {!data?.memberLinked && (
           <p style={warning}>현재 계정과 연결된 성도 정보를 찾지 못했습니다.</p>
         )}

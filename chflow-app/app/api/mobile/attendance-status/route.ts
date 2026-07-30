@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { localDateInTimeZone } from "@/lib/server/attendance-window";
+import {
+  isWithinAttendanceWindow,
+  localDateInTimeZone,
+} from "@/lib/server/attendance-window";
 
 export const runtime = "nodejs";
 
@@ -76,6 +79,14 @@ export async function GET(req: NextRequest) {
     serverTime: now.toISOString(),
     localDate,
     memberLinked: Boolean(memberId),
+    withinOperatingWindow: geofence
+      ? isWithinAttendanceWindow(
+          now,
+          String(geofence.window_start),
+          String(geofence.window_end),
+          timezone,
+        )
+      : false,
     geofence: geofence
       ? {
           name: geofence.name,
