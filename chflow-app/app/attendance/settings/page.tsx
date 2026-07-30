@@ -8,7 +8,7 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 
 type Form = { name: string; latitude: string; longitude: string; radiusM: string; dwellMinutes: string; windowStart: string; windowEnd: string; isActive: boolean };
-const initial: Form = { name: "본당", latitude: "", longitude: "", radiusM: "150", dwellMinutes: "10", windowStart: "07:00", windowEnd: "15:00", isActive: false };
+const initial: Form = { name: "본당", latitude: "", longitude: "", radiusM: "150", dwellMinutes: "5", windowStart: "07:00", windowEnd: "15:00", isActive: false };
 
 export default function AttendanceSettingsPage() {
   const router = useRouter();
