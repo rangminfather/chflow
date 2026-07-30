@@ -1,0 +1,50 @@
+name: Android filming APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/android-v1-1-2
+    paths:
+      - "chflow-expo/**"
+      - ".github/workflows/android-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    name: Build installable APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: chflow-expo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: chflow-expo/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npx expo prebuild --platform android --non-interactive
+        env:
+          CI: "1"
+      - run: chmod +x gradlew
+        working-directory: chflow-expo/android
+      - run: ./gradlew assembleRelease --no-daemon
+        working-directory: chflow-expo/android
+      - name: Name APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/smartms-1.1.7-filming.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smartms-1.1.7-filming-apk
+          path: chflow-expo/android/app/build/outputs/apk/release/smartms-1.1.7-filming.apk
+          if-no-files-found: error
+          retention-days: 7
