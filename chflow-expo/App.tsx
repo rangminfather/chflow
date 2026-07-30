@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import * as Application from 'expo-application';
+import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import {
@@ -110,6 +111,17 @@ function AppWebView() {
   // 종료 후 재실행 시 마지막 화면이 잠깐 보이는 것을 가리는 덮개
   const [exitReloading, setExitReloading] = useState(false);
   const safeAreaPadding = useSafeAreaPadding();
+
+  const sendNativeLocationResult = (detail: {
+    ok: boolean;
+    latitude?: number;
+    longitude?: number;
+    error?: string;
+  }) => {
+    webViewRef.current?.injectJavaScript(
+      `window.dispatchEvent(new CustomEvent('chflow-native-location',{detail:${JSON.stringify(detail)}}));true;`,
+    );
+  };
 
   const showAttendanceDisclosure = async (accessToken: string, force = false) => {
     const geofence = await fetchAttendanceGeofence(accessToken);
@@ -422,6 +434,43 @@ function AppWebView() {
       if (pendingAccessTokenRef.current) {
         showAttendanceDisclosure(pendingAccessTokenRef.current, true).catch(() => {});
       }
+      return;
+    }
+
+    if (message.type === 'CHFLOW_GET_CURRENT_LOCATION') {
+      void (async () => {
+        try {
+          const permission = await Location.requestForegroundPermissionsAsync();
+          if (permission.status !== 'granted') {
+            sendNativeLocationResult({
+              ok: false,
+              error: '위치 권한이 필요합니다. 휴대폰 설정에서 스마트명성의 위치 권한을 허용해 주세요.',
+            });
+            Alert.alert(
+              '위치 권한이 필요합니다',
+              '자동출석 위치를 입력하려면 휴대폰 설정에서 스마트명성의 위치 권한을 허용해 주세요.',
+              [
+                { text: '취소', style: 'cancel' },
+                { text: '설정 열기', onPress: () => Linking.openSettings().catch(() => {}) },
+              ],
+            );
+            return;
+          }
+          const position = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+          sendNativeLocationResult({
+            ok: true,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        } catch {
+          sendNativeLocationResult({
+            ok: false,
+            error: 'GPS 위치를 확인하지 못했습니다. 위치 서비스를 켠 뒤 다시 눌러 주세요.',
+          });
+        }
+      })();
       return;
     }
 
