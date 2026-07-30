@@ -37,6 +37,7 @@ export async function PATCH(req: NextRequest) {
   const radiusM = Number(body.radiusM);
   const dwellSeconds = Number(body.dwellSeconds);
   if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) return NextResponse.json({ ok: false, error: "좌표가 올바르지 않습니다." }, { status: 400 });
+  if (latitude === 0 && longitude === 0) return NextResponse.json({ ok: false, error: "현재 위치를 먼저 입력해 주세요." }, { status: 400 });
   if (!Number.isInteger(radiusM) || radiusM < 50 || radiusM > 500) return NextResponse.json({ ok: false, error: "반경은 50~500m 사이여야 합니다." }, { status: 400 });
   if (!Number.isInteger(dwellSeconds) || dwellSeconds < 300 || dwellSeconds > 3600) return NextResponse.json({ ok: false, error: "체류 기준은 5~60분 사이여야 합니다." }, { status: 400 });
   if (!/^\d{2}:\d{2}(:\d{2})?$/.test(body.windowStart || "") || !/^\d{2}:\d{2}(:\d{2})?$/.test(body.windowEnd || "")) return NextResponse.json({ ok: false, error: "운영 시간 형식이 올바르지 않습니다." }, { status: 400 });
