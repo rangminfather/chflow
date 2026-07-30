@@ -17,7 +17,39 @@ export default function AttendanceSettingsPage() {
   const [saving, setSaving] = useState(false);
   async function load() { const token = (await supabase.auth.getSession()).data.session?.access_token; if (!token) return; const response = await fetch("/api/attendance/geofence", { headers: { Authorization: `Bearer ${token}` } }); const payload = await response.json(); if (payload.geofence) setForm({ name: payload.geofence.name, latitude: String(payload.geofence.latitude), longitude: String(payload.geofence.longitude), radiusM: String(payload.geofence.radius_m), dwellMinutes: String(Math.round(payload.geofence.dwell_seconds / 60)), windowStart: String(payload.geofence.window_start).slice(0, 5), windowEnd: String(payload.geofence.window_end).slice(0, 5), isActive: payload.geofence.is_active }); }
   useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    const receiveNativeLocation = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        ok?: boolean;
+        latitude?: number;
+        longitude?: number;
+        error?: string;
+      }>).detail;
+      if (!detail?.ok || typeof detail.latitude !== "number" || typeof detail.longitude !== "number") {
+        setMessage(detail?.error || "현재 위치를 확인하지 못했습니다.");
+        return;
+      }
+      setForm((current) => ({
+        ...current,
+        latitude: detail.latitude!.toFixed(6),
+        longitude: detail.longitude!.toFixed(6),
+      }));
+      setMessage("현재 위치를 입력했습니다.");
+    };
+    window.addEventListener("chflow-native-location", receiveNativeLocation);
+    return () => window.removeEventListener("chflow-native-location", receiveNativeLocation);
+  }, []);
   const locate = () => {
+    const nativeWindow = window as typeof window & {
+      ReactNativeWebView?: { postMessage: (message: string) => void };
+    };
+    if (nativeWindow.ReactNativeWebView) {
+      setMessage("휴대폰 GPS 위치를 확인하고 있습니다.");
+      nativeWindow.ReactNativeWebView.postMessage(JSON.stringify({
+        type: "CHFLOW_GET_CURRENT_LOCATION",
+      }));
+      return;
+    }
     if (!navigator.geolocation) {
       setMessage("현재 설치된 앱에서는 위치 기능을 사용할 수 없습니다. 최신 Android 앱으로 업데이트해 주세요.");
       return;
