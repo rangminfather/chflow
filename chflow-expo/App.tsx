@@ -23,7 +23,7 @@ import { WebView, WebViewMessageEvent, WebViewNavigation } from 'react-native-we
 
 const TARGET_URL = 'https://chflow-app.vercel.app';
 const TARGET_ORIGIN = new URL(TARGET_URL).origin;
-const ATTENDANCE_DISCLOSURE_KEY = 'chflow.attendance-disclosure-accepted.v1';
+const ATTENDANCE_DISCLOSURE_KEY = 'chflow.attendance-disclosure-accepted.v2';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -385,12 +385,12 @@ function AppWebView() {
       SecureStore.getItemAsync(ATTENDANCE_DISCLOSURE_KEY).then((accepted) => {
         if (accepted === 'accepted') return;
         Alert.alert(
-          '교회 출석 자동기록 안내',
-          '교회에 오시면 자동으로 출석을 기록하기 위해 위치 권한이 필요합니다. 앱을 사용하지 않을 때도 교회 주변에 머무는지만 확인하며, 원시 GPS 위치는 저장하지 않습니다. 자동출석 기능을 사용하려면 위치 권한을 허용해 주세요.',
+          '위치정보 수집·사용 안내',
+          '스마트명성은 자동출석 후보를 생성하고 출석 여부를 확인하기 위해 앱이 닫혀 있거나 사용 중이 아닐 때에도 기기의 정확한 위치정보를 수집·사용합니다.\n\n위치정보는 교회 반경 진입과 체류 여부를 확인하는 자동출석 기능에만 사용됩니다. 원시 GPS 좌표는 기기 안에서만 처리하며 서버로 전송하거나 저장하지 않습니다. 광고에 사용하거나 판매하지 않습니다.\n\n동의하지 않아도 자동출석 외의 기능은 계속 이용할 수 있습니다.',
           [
-            { text: '나중에', style: 'cancel' },
+            { text: '동의 안 함', style: 'cancel' },
             {
-              text: '허용하기',
+              text: '동의하고 계속',
               onPress: () => {
                 SecureStore.setItemAsync(ATTENDANCE_DISCLOSURE_KEY, 'accepted').catch(() => {});
                 syncAttendanceGeofence(message.accessToken!).catch(() => {});
