@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  isWithinAttendanceWindow,
+  localDateInTimeZone,
+} from "@/lib/server/attendance-window";
 
 export const runtime = "nodejs";
 
@@ -54,6 +58,36 @@ export async function POST(req: NextRequest) {
   }
 
   const client = clientFor(token);
+  const { data: geofence, error: geofenceError } = await client
+    .from("attendance_geofences")
+    .select("id, window_start, window_end, timezone")
+    .eq("id", body.geofenceId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (geofenceError) {
+    return NextResponse.json({ ok: false, error: geofenceError.message }, { status: 400 });
+  }
+  if (!geofence) {
+    return NextResponse.json({ ok: false, error: "활성화된 자동출석 위치가 없습니다." }, { status: 409 });
+  }
+
+  const requestTime = new Date();
+  if (!isWithinAttendanceWindow(
+    requestTime,
+    String(geofence.window_start),
+    String(geofence.window_end),
+    String(geofence.timezone || "Asia/Seoul"),
+  )) {
+    return NextResponse.json({ ok: false, error: "자동출석 운영시간이 아닙니다." }, { status: 409 });
+  }
+  const expectedLocalDate = localDateInTimeZone(
+    requestTime,
+    String(geofence.timezone || "Asia/Seoul"),
+  );
+  if (body.localDate !== expectedLocalDate) {
+    return NextResponse.json({ ok: false, error: "출석 날짜가 올바르지 않습니다." }, { status: 400 });
+  }
+
   const { data, error } = await client.rpc("submit_attendance_candidate", {
     p_geofence_id: body.geofenceId,
     p_local_date: body.localDate,
