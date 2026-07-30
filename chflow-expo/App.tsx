@@ -471,6 +471,8 @@ function AppWebView() {
           domStorageEnabled={true}
           // JS 필수
           javaScriptEnabled={true}
+          // 자동출석 관리자 설정의 "현재 위치 사용" 허용
+          geolocationEnabled={true}
           // 파일 업로드 허용 (프로필 사진 등)
           allowsInlineMediaPlayback={true}
           allowsFullscreenVideo={true}
