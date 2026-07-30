@@ -4,7 +4,13 @@ import * as Notifications from 'expo-notifications';
 import * as Application from 'expo-application';
 import * as SecureStore from 'expo-secure-store';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import { maybeConfirmAttendance, stopAttendanceGeofence, syncAttendanceGeofence } from './attendanceGeofence';
+import {
+  attendancePermissionsGranted,
+  fetchAttendanceGeofence,
+  maybeConfirmAttendance,
+  stopAttendanceGeofence,
+  syncAttendanceGeofence,
+} from './attendanceGeofence';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -23,7 +29,7 @@ import { WebView, WebViewMessageEvent, WebViewNavigation } from 'react-native-we
 
 const TARGET_URL = 'https://chflow-app.vercel.app';
 const TARGET_ORIGIN = new URL(TARGET_URL).origin;
-const ATTENDANCE_DISCLOSURE_KEY = 'chflow.attendance-disclosure-accepted.v2';
+const ATTENDANCE_DISCLOSURE_KEY = 'chflow.attendance-disclosure-choice.v3';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -104,6 +110,40 @@ function AppWebView() {
   // 종료 후 재실행 시 마지막 화면이 잠깐 보이는 것을 가리는 덮개
   const [exitReloading, setExitReloading] = useState(false);
   const safeAreaPadding = useSafeAreaPadding();
+
+  const showAttendanceDisclosure = async (accessToken: string, force = false) => {
+    const geofence = await fetchAttendanceGeofence(accessToken);
+    if (!geofence) return;
+
+    const choice = await SecureStore.getItemAsync(ATTENDANCE_DISCLOSURE_KEY);
+    if (!force && choice === 'declined') return;
+    if (!force && choice === 'accepted' && await attendancePermissionsGranted()) {
+      await syncAttendanceGeofence(accessToken);
+      return;
+    }
+
+    Alert.alert(
+      '위치정보 수집·사용 안내',
+      '스마트명성은 자동출석 후보를 생성하고 출석 여부를 확인하기 위해 앱이 닫혀 있거나 사용 중이 아닐 때에도 기기의 정확한 위치정보를 수집·사용합니다.\n\n위치정보는 교회 반경 진입과 체류 여부를 확인하는 자동출석 기능에만 사용됩니다. 원시 GPS 좌표는 기기 안에서만 처리하며 서버로 전송하거나 저장하지 않습니다. 광고에 사용하거나 판매하지 않습니다.\n\n동의하지 않아도 자동출석 외의 기능은 계속 이용할 수 있습니다.',
+      [
+        {
+          text: '동의 안 함',
+          style: 'cancel',
+          onPress: () => {
+            SecureStore.setItemAsync(ATTENDANCE_DISCLOSURE_KEY, 'declined').catch(() => {});
+            stopAttendanceGeofence().catch(() => {});
+          },
+        },
+        {
+          text: '동의하고 계속',
+          onPress: () => {
+            SecureStore.setItemAsync(ATTENDANCE_DISCLOSURE_KEY, 'accepted').catch(() => {});
+            syncAttendanceGeofence(accessToken).catch(() => {});
+          },
+        },
+      ],
+    );
+  };
 
   useEffect(() => {
     registerForPushNotifications().then(setExpoPushToken).catch(() => setExpoPushToken(null));
@@ -378,27 +418,19 @@ function AppWebView() {
       return;
     }
 
+    if (message.type === 'CHFLOW_ATTENDANCE_SETUP') {
+      if (pendingAccessTokenRef.current) {
+        showAttendanceDisclosure(pendingAccessTokenRef.current, true).catch(() => {});
+      }
+      return;
+    }
+
     if (message.type !== 'CHFLOW_AUTH_TOKEN' || !message.accessToken) return;
     pendingAccessTokenRef.current = message.accessToken;
+    maybeConfirmAttendance(message.accessToken).catch(() => {});
     if (!attendanceDisclosureShownRef.current) {
       attendanceDisclosureShownRef.current = true;
-      SecureStore.getItemAsync(ATTENDANCE_DISCLOSURE_KEY).then((accepted) => {
-        if (accepted === 'accepted') return;
-        Alert.alert(
-          '위치정보 수집·사용 안내',
-          '스마트명성은 자동출석 후보를 생성하고 출석 여부를 확인하기 위해 앱이 닫혀 있거나 사용 중이 아닐 때에도 기기의 정확한 위치정보를 수집·사용합니다.\n\n위치정보는 교회 반경 진입과 체류 여부를 확인하는 자동출석 기능에만 사용됩니다. 원시 GPS 좌표는 기기 안에서만 처리하며 서버로 전송하거나 저장하지 않습니다. 광고에 사용하거나 판매하지 않습니다.\n\n동의하지 않아도 자동출석 외의 기능은 계속 이용할 수 있습니다.',
-          [
-            { text: '동의 안 함', style: 'cancel' },
-            {
-              text: '동의하고 계속',
-              onPress: () => {
-                SecureStore.setItemAsync(ATTENDANCE_DISCLOSURE_KEY, 'accepted').catch(() => {});
-                syncAttendanceGeofence(message.accessToken!).catch(() => {});
-              },
-            },
-          ],
-        );
-      }).catch(() => {});
+      showAttendanceDisclosure(message.accessToken).catch(() => {});
     }
     if (expoPushToken) {
       registerPushToken(message.accessToken, expoPushToken).catch(() => {});

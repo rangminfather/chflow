@@ -14,6 +14,9 @@ type Geofence = {
   longitude: number;
   radius_m: number;
   dwell_seconds: number;
+  window_start: string;
+  window_end: string;
+  timezone: string;
 };
 
 type StoredEvent = { enteredAt: string; geofenceId: string };
@@ -25,7 +28,7 @@ async function submitCandidate(token: string, geofence: Geofence, event: StoredE
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({
       geofenceId: geofence.id,
-      localDate: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date()),
+      localDate: localDateInTimeZone(new Date(), geofence.timezone),
       source: Platform.OS === 'ios' ? 'ios_region' : 'android_geofence',
       enteredAt: event.enteredAt,
       lastSeenAt: now,
@@ -47,6 +50,7 @@ TaskManager.defineTask(ATTENDANCE_TASK, async ({ data, error }) => {
   const event = data as { eventType?: number };
   // expo-location: 1 = enter, 2 = exit. Only enter creates/updates a candidate.
   if (event.eventType !== Location.GeofencingEventType.Enter) return;
+  if (!isWithinOperatingWindow(new Date(), geofence)) return;
 
   const enteredAt = new Date().toISOString();
   const storedEvent: StoredEvent = { enteredAt, geofenceId: geofence.id };
@@ -90,14 +94,17 @@ export async function maybeConfirmAttendance(accessToken: string) {
 
 export async function syncAttendanceGeofence(accessToken: string) {
   await SecureStore.setItemAsync(TOKEN_KEY, accessToken);
-  const response = await fetch(`${API_ORIGIN}/api/mobile/attendance-geofence`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!response.ok) throw new Error(`attendance geofence config failed: ${response.status}`);
-  const payload = await response.json() as { geofence: Geofence | null };
-  if (!payload.geofence) return false;
+  const geofence = await fetchAttendanceGeofence(accessToken);
+  if (!geofence) {
+    if (await Location.hasStartedGeofencingAsync(ATTENDANCE_TASK)) {
+      await Location.stopGeofencingAsync(ATTENDANCE_TASK);
+    }
+    await SecureStore.deleteItemAsync(GEOFENCE_KEY);
+    await SecureStore.deleteItemAsync(`${GEOFENCE_KEY}.event`);
+    return false;
+  }
 
-  await SecureStore.setItemAsync(GEOFENCE_KEY, JSON.stringify(payload.geofence));
+  await SecureStore.setItemAsync(GEOFENCE_KEY, JSON.stringify(geofence));
   const foreground = await Location.requestForegroundPermissionsAsync();
   if (foreground.status !== 'granted') return false;
   const background = await Location.requestBackgroundPermissionsAsync();
@@ -106,14 +113,31 @@ export async function syncAttendanceGeofence(accessToken: string) {
   const alreadyStarted = await Location.hasStartedGeofencingAsync(ATTENDANCE_TASK);
   if (alreadyStarted) await Location.stopGeofencingAsync(ATTENDANCE_TASK);
   await Location.startGeofencingAsync(ATTENDANCE_TASK, [{
-      identifier: payload.geofence.id,
-      latitude: payload.geofence.latitude,
-      longitude: payload.geofence.longitude,
-      radius: payload.geofence.radius_m,
+      identifier: geofence.id,
+      latitude: geofence.latitude,
+      longitude: geofence.longitude,
+      radius: geofence.radius_m,
       notifyOnEnter: true,
       notifyOnExit: true,
     }]);
   return true;
+}
+
+export async function fetchAttendanceGeofence(accessToken: string): Promise<Geofence | null> {
+  const response = await fetch(`${API_ORIGIN}/api/mobile/attendance-geofence`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) throw new Error(`attendance geofence config failed: ${response.status}`);
+  const payload = await response.json() as { geofence: Geofence | null };
+  return payload.geofence;
+}
+
+export async function attendancePermissionsGranted() {
+  const [foreground, background] = await Promise.all([
+    Location.getForegroundPermissionsAsync(),
+    Location.getBackgroundPermissionsAsync(),
+  ]);
+  return foreground.status === 'granted' && background.status === 'granted';
 }
 
 export async function stopAttendanceGeofence() {
@@ -133,4 +157,38 @@ function distanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number
   const a = Math.sin(dLat / 2) ** 2
     + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
   return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function isWithinOperatingWindow(value: Date, geofence: Geofence) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: geofence.timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(value);
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value || 0);
+  const current = read('hour') * 3600 + read('minute') * 60 + read('second');
+  const parse = (time: string) => {
+    const [hour = '0', minute = '0', second = '0'] = time.split(':');
+    return Number(hour) * 3600 + Number(minute) * 60 + Number(second);
+  };
+  const start = parse(geofence.window_start);
+  const end = parse(geofence.window_end);
+  if (start === end) return true;
+  if (start < end) return current >= start && current <= end;
+  return current >= start || current <= end;
+}
+
+function localDateInTimeZone(value: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(value);
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value || '00';
+  return `${read('year')}-${read('month')}-${read('day')}`;
 }
