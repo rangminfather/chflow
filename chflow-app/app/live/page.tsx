@@ -75,7 +75,21 @@ export default function LivePage() {
     });
     // 방송 시작·종료를 화면에 반영하기 위해 1분마다 캐시만 다시 읽는다(YouTube 호출 아님)
     const timer = setInterval(() => load(), 60_000);
-    return () => clearInterval(timer);
+    const loadWhenVisible = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    const loadWhenActive = () => load();
+    document.addEventListener("visibilitychange", loadWhenVisible);
+    window.addEventListener("focus", loadWhenActive);
+    window.addEventListener("pageshow", loadWhenActive);
+    window.addEventListener("chflow:app-active", loadWhenActive);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", loadWhenVisible);
+      window.removeEventListener("focus", loadWhenActive);
+      window.removeEventListener("pageshow", loadWhenActive);
+      window.removeEventListener("chflow:app-active", loadWhenActive);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

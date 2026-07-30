@@ -777,7 +777,22 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
     };
     read();
     const timer = setInterval(read, 120_000);
-    return () => { alive = false; clearInterval(timer); };
+    const readWhenVisible = () => {
+      if (document.visibilityState === "visible") read();
+    };
+    const readWhenActive = () => read();
+    document.addEventListener("visibilitychange", readWhenVisible);
+    window.addEventListener("focus", readWhenActive);
+    window.addEventListener("pageshow", readWhenActive);
+    window.addEventListener("chflow:app-active", readWhenActive);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", readWhenVisible);
+      window.removeEventListener("focus", readWhenActive);
+      window.removeEventListener("pageshow", readWhenActive);
+      window.removeEventListener("chflow:app-active", readWhenActive);
+    };
   }, []);
 
   return (

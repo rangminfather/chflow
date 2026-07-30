@@ -99,6 +99,7 @@ export default function SermonArchive() {
   const [playState, setPlayState] = useState<"loading" | "ready" | "error">("loading");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const isIosDevice = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   const load = useCallback(async (target: string) => {
     setLoading(true);
@@ -323,6 +324,11 @@ export default function SermonArchive() {
               <X size={19} strokeWidth={2.2} />
             </button>
           </div>
+          {isIosDevice && (
+            <p style={{ margin: "0 4px 8px", color: "var(--paper)", fontSize: 11.5, textAlign: "right", opacity: 0.82 }}>
+              가로로 보려면 화면 회전 잠금을 해제해 주세요.
+            </p>
+          )}
           <div ref={stageRef} style={{ position: "relative", background: "var(--ink)", borderRadius: 10 }}>
             <video
               key={playing.video_url}

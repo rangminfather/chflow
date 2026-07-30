@@ -1,22 +1,31 @@
 // 예배 생방송(YouTube Live) 상태 조회 공용 로직.
 //
-// 쿼터 설계: search.list 는 호출당 100 유닛(일 10,000 = 100회)이라 쓰지 않는다.
-//   uploads 플레이리스트 조회(1) → videos.list(1) = 2 유닛/회.
+// 감지 우선순위:
+//   1) 이미 ON AIR 인 영상 ID를 직접 재검증한다.
+//   2) 명성교회 홈페이지가 관리하는 실시간 방송 링크를 읽는다.
+//   3) 공개 영상은 uploads 플레이리스트와 제한적인 search.list 로 보완한다.
 //
-// 갱신 방식: Vercel Hobby 플랜은 cron 을 하루 1회로 제한하므로 주기적 폴링을 쓸 수 없다.
-//   대신 사용자가 화면을 열 때 서버에서 "마지막 확인이 오래됐으면" 한 번만 갱신한다.
-//   동시 요청이 몰려도 조건부 update 로 한 요청만 선점해 YouTube 를 호출한다.
+// 교회 방송은 YouTube "미등록"으로 송출되는 경우가 있어 채널 목록/검색만으로는
+// 찾을 수 없다. 홈페이지의 실시간 링크가 미등록 영상 ID의 기준 원천이다.
+//
+// 갱신 방식: Cloudflare Worker가 /api/live/poll 을 매분 호출하고, 사용자 화면은
+//   마지막 확인이 1분 이상 오래됐을 때만 보완 갱신한다. 동시 요청이 몰려도
+//   조건부 update 로 한 요청만 선점해 외부 서비스를 호출한다.
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { detectWorshipSession, worshipStartedTitle } from "@/lib/worshipSchedule";
+import { detectWorshipSession, worshipStartedTitle } from "../worshipSchedule";
+import { umsViaCf } from "../bulletin/ums-via-cf";
 
 export const DEFAULT_CHANNEL_ID = "UCGqoK8XTWHLkyU8Nt-as1og"; // 울산명성교회
 /** 이 시간보다 오래된 확인 결과는 갱신 대상 */
-export const REFRESH_AFTER_MS = 3 * 60 * 1000;
+export const REFRESH_AFTER_MS = 60 * 1000;
 /** 이 시간보다 오래되면 상태를 신뢰하지 않고 '확인 불가'로 안내 */
 export const STALE_AFTER_MS = 20 * 60 * 1000;
 
 const RECENT_COUNT = 5;
+const SEARCH_INTERVAL_MINUTES = 10;
+const UMS_LIVE_PATH = "/libs/real_youtube/ajax_youtube_real_check.php";
+const UMS_LIVE_REFERER = "http://www.ums.or.kr/m/mmenu/___blank_pc_main.php";
 
 export type LiveStatusRow = {
   channel_id: string;
@@ -101,7 +110,129 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 /** 현재 라이브 중인 방송 1건. 없으면 null. */
-export async function findLiveVideo(channelId: string, apiKey: string) {
+type FoundLiveVideo = {
+  videoId: string;
+  title: string | null;
+  thumbnailUrl: string | null;
+  startedAt: string | null;
+};
+
+type SearchResponse = {
+  items?: Array<{
+    id?: { videoId?: string };
+  }>;
+};
+
+export function extractYouTubeVideoId(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    if (host === "youtu.be") {
+      const id = url.pathname.split("/").filter(Boolean)[0];
+      return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
+    }
+    if (host !== "youtube.com" && host !== "m.youtube.com") return null;
+
+    const watchId = url.searchParams.get("v");
+    if (watchId && /^[A-Za-z0-9_-]{11}$/.test(watchId)) return watchId;
+
+    const parts = url.pathname.split("/").filter(Boolean);
+    if (["live", "embed", "shorts"].includes(parts[0] || "")) {
+      const id = parts[1];
+      return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
+    }
+  } catch {
+    const match = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?[^#\s]*v=|live\/|embed\/))([A-Za-z0-9_-]{11})/i);
+    return match?.[1] ?? null;
+  }
+
+  return null;
+}
+
+async function findUmsLiveVideoId(): Promise<string | null> {
+  const result = await umsViaCf(UMS_LIVE_PATH, {
+    referer: UMS_LIVE_REFERER,
+    xRequestedWith: "XMLHttpRequest",
+  });
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(`명성교회 실시간 링크 조회 실패 (${result.status})`);
+  }
+  return extractYouTubeVideoId(result.body.toString("utf8"));
+}
+
+async function findLiveVideoByIds(ids: string[], apiKey: string): Promise<FoundLiveVideo | null> {
+  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+  if (uniqueIds.length === 0) return null;
+
+  const videos = await fetchJson<VideosResponse>(
+    `https://www.googleapis.com/youtube/v3/videos` +
+      `?part=snippet,liveStreamingDetails&id=${uniqueIds.join(",")}&key=${apiKey}`
+  );
+  const live = (videos.items || []).find(
+    (video) =>
+      video.snippet?.liveBroadcastContent === "live" &&
+      !video.liveStreamingDetails?.actualEndTime
+  );
+  if (!live?.id) return null;
+
+  const thumbnails = live.snippet?.thumbnails || {};
+  return {
+    videoId: live.id,
+    title: live.snippet?.title ?? null,
+    thumbnailUrl:
+      thumbnails.maxres?.url ||
+      thumbnails.standard?.url ||
+      thumbnails.high?.url ||
+      thumbnails.medium?.url ||
+      null,
+    startedAt: live.liveStreamingDetails?.actualStartTime ?? null,
+  };
+}
+
+async function findLiveVideoSearch(
+  channelId: string,
+  apiKey: string
+): Promise<FoundLiveVideo | null> {
+  const search = await fetchJson<SearchResponse>(
+    `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&eventType=live&maxResults=1` +
+      `&channelId=${encodeURIComponent(channelId)}&key=${apiKey}`
+  );
+  const videoId = search.items?.[0]?.id?.videoId;
+  return videoId ? findLiveVideoByIds([videoId], apiKey) : null;
+}
+
+function shouldUseSearchFallback(now = new Date()): boolean {
+  if (!detectWorshipSession(now)) return false;
+  return now.getUTCMinutes() % SEARCH_INTERVAL_MINUTES === 0;
+}
+
+export async function findLiveVideo(
+  channelId: string,
+  apiKey: string,
+  currentVideoId: string | null = null,
+  now = new Date()
+): Promise<FoundLiveVideo | null> {
+  // 방송 중인 영상은 채널에서 다시 "발견"하려 하지 않고 ID 자체를 확인한다.
+  // 미등록 영상도 ID를 알고 있으면 videos.list 로 방송 종료 여부를 확인할 수 있다.
+  if (currentVideoId) {
+    const current = await findLiveVideoByIds([currentVideoId], apiKey);
+    if (current) return current;
+  }
+
+  // 명성교회 홈페이지의 실시간 버튼이 미등록 YouTube 주소를 보유한다.
+  try {
+    const umsVideoId = await findUmsLiveVideoId();
+    if (umsVideoId) {
+      const umsLive = await findLiveVideoByIds([umsVideoId], apiKey);
+      if (umsLive) return umsLive;
+    }
+  } catch {
+    // UMS가 일시적으로 응답하지 않아도 공개 YouTube 경로로 계속 확인한다.
+  }
+
   const playlist = await fetchJson<PlaylistItemsResponse>(
     `https://www.googleapis.com/youtube/v3/playlistItems` +
       `?part=contentDetails&maxResults=${RECENT_COUNT}` +
@@ -110,24 +241,13 @@ export async function findLiveVideo(channelId: string, apiKey: string) {
   const ids = (playlist.items || [])
     .map((i) => i.contentDetails?.videoId)
     .filter((id): id is string => !!id);
-  if (ids.length === 0) return null;
+  const uploadedLive = await findLiveVideoByIds(ids, apiKey);
+  if (uploadedLive) return uploadedLive;
 
-  const videos = await fetchJson<VideosResponse>(
-    `https://www.googleapis.com/youtube/v3/videos` +
-      `?part=snippet,liveStreamingDetails&id=${ids.join(",")}&key=${apiKey}`
-  );
-  const live = (videos.items || []).find(
-    (v) => v.snippet?.liveBroadcastContent === "live" && !v.liveStreamingDetails?.actualEndTime
-  );
-  if (!live?.id) return null;
-
-  const t = live.snippet?.thumbnails || {};
-  return {
-    videoId: live.id,
-    title: live.snippet?.title ?? null,
-    thumbnailUrl: t.maxres?.url || t.standard?.url || t.high?.url || t.medium?.url || null,
-    startedAt: live.liveStreamingDetails?.actualStartTime ?? null,
-  };
+  // search.list 는 100유닛이므로 예배 시간대에 10분마다만 보조적으로 쓴다.
+  return shouldUseSearchFallback(now)
+    ? findLiveVideoSearch(channelId, apiKey)
+    : null;
 }
 
 /**
@@ -156,7 +276,8 @@ export async function refreshIfStale(admin: SupabaseClient, force = false): Prom
   const prev = claimed[0] as { is_live?: boolean; video_id?: string | null };
 
   try {
-    const live = await findLiveVideo(channelId, apiKey);
+    const currentVideoId = prev.is_live ? prev.video_id ?? null : null;
+    const live = await findLiveVideo(channelId, apiKey, currentVideoId);
     await admin
       .from("youtube_live_status")
       .update({

@@ -242,3 +242,10 @@
 - Internal-test submission ID: `d2b348a0-8a9f-4a40-a842-0b8f9454ced0`
 - Internal-test submission: scheduled with `releaseStatus: completed`; Google Play processing and tester availability remain pending.
 - Production submission: not started.
+
+## 2026-07-29 sermon fullscreen web fix
+
+- Production commit: `6ccac83` (`fix(sermon): wire fullscreen button to video element`)
+- Scope: connects the custom fullscreen button to the video element and removes the unsupported automatic fullscreen call on iOS.
+- Verification: `chflow-app` TypeScript check passed; `https://smartms.kr` returned HTTP 200 after the main push.
+- Mobile rebuild: not required; the WebView loads this web fix from the deployed site.
