@@ -2,7 +2,7 @@
 
 // 출결 통합 조회 — 전 반 한 달치 종합 그리드. 탭으로 출석체크/달란트체크 화면 전환.
 //  - 출석체크: 종이 출석부식 기호(/ 출석, · 결석, Ø 출석인정), 칸 탭 시 순환 수정.
-//  - 달란트체크: 달란트통장 체크 항목을 ①②③ 번호로 종합 표시, 칸 탭 → 팝업에서 체크 수정.
+//  - 달란트체크: 달란트통장 체크 항목과 기타 직접입력을 종합 표시, 칸 탭 → 팝업에서 수정.
 // 학생 추가/삭제는 학생정보관리 메뉴에서 수행. 학생 이름 클릭 → 출결 이력 모달(기간 조회).
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -62,6 +62,14 @@ interface WeeklyExtra {
   student_id: string;
   attend_date: string;
   rule_id: string;
+}
+
+interface OtherRecord {
+  id: string;
+  student_id: string;
+  record_date: string;
+  pts_other: number;
+  note: string | null;
 }
 
 interface PromoRow {
@@ -154,6 +162,7 @@ export default function AttendancePage() {
   const [attData, setAttData] = useState<AttendRow[]>([]);
   const [rules, setRules] = useState<TalentRule[]>([]);
   const [extras, setExtras] = useState<WeeklyExtra[]>([]);
+  const [others, setOthers] = useState<OtherRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
   const [toast, setToast] = useState("");
@@ -165,6 +174,9 @@ export default function AttendancePage() {
   // 달란트 체크 팝업 (학생 × 주일)
   const [talentEdit, setTalentEdit] = useState<{ student: Student; date: string } | null>(null);
   const [chipSaving, setChipSaving] = useState("");
+  const [otherNote, setOtherNote] = useState("");
+  const [otherAmount, setOtherAmount] = useState("1");
+  const [otherSaving, setOtherSaving] = useState(false);
 
   // 달란트 잔치 정산 리셋 (부서 전체 · 반기 단위 · 임원 전용)
   const [lastReset, setLastReset] = useState<TalentReset | null>(null);
@@ -228,6 +240,20 @@ export default function AttendancePage() {
     setExtras((extra || []) as WeeklyExtra[]);
   }, [deptId, month, year]);
 
+  const loadOtherRecords = useCallback(async () => {
+    const firstDate = `${year}-${String(month).padStart(2, "0")}-01`;
+    const monthEnd = new Date(year, month, 0);
+    const lastDate = `${monthEnd.getFullYear()}-${String(monthEnd.getMonth() + 1).padStart(2, "0")}-${String(monthEnd.getDate()).padStart(2, "0")}`;
+    const { data } = await supabase
+      .from("edu_talent_records")
+      .select("id, student_id, record_date, pts_other, note")
+      .eq("department_id", deptId)
+      .gte("record_date", firstDate)
+      .lte("record_date", lastDate)
+      .gt("pts_other", 0);
+    setOthers((data || []) as OtherRecord[]);
+  }, [deptId, month, year]);
+
   const loadRules = useCallback(async () => {
     const { data } = await supabase.rpc("list_talent_rules", { p_dept_id: deptId });
     setRules((data || []) as TalentRule[]);
@@ -240,9 +266,9 @@ export default function AttendancePage() {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadDepartment(), loadStudents(), loadAttendance(), loadRules(), loadPromotion(), loadResets()]);
+    await Promise.all([loadDepartment(), loadStudents(), loadAttendance(), loadOtherRecords(), loadRules(), loadPromotion(), loadResets()]);
     setLoading(false);
-  }, [loadAttendance, loadDepartment, loadStudents, loadRules, loadPromotion, loadResets]);
+  }, [loadAttendance, loadDepartment, loadOtherRecords, loadStudents, loadRules, loadPromotion, loadResets]);
 
   useEffect(() => {
     (async () => {
@@ -257,8 +283,8 @@ export default function AttendancePage() {
   }, [deptId, loadAll, router]);
 
   useEffect(() => {
-    if (authChecked) loadAttendance();
-  }, [authChecked, loadAttendance]);
+    if (authChecked) void Promise.all([loadAttendance(), loadOtherRecords()]);
+  }, [authChecked, loadAttendance, loadOtherRecords]);
 
   const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
 
@@ -299,6 +325,26 @@ export default function AttendancePage() {
     Object.values(m).forEach((arr) => arr.sort((a, b) => a - b));
     return m;
   }, [extras, ruleIndexById]);
+
+  const otherMap = useMemo(() => {
+    const m: Record<string, OtherRecord> = {};
+    others.forEach((record) => {
+      const key = `${record.student_id}_${record.record_date}`;
+      if (!m[key]) {
+        m[key] = record;
+        return;
+      }
+      m[key] = {
+        ...m[key],
+        pts_other: m[key].pts_other + record.pts_other,
+        note: [m[key].note, record.note].filter(Boolean).join(" / "),
+      };
+    });
+    return m;
+  }, [others]);
+
+  const getOther = (studentId: string, date: string): OtherRecord | undefined =>
+    otherMap[`${studentId}_${date}`];
 
   const getCell = (studentId: string, date: string): AttendRow | undefined =>
     attMap[studentId]?.[date];
@@ -372,6 +418,49 @@ export default function AttendancePage() {
       : [...prev, { student_id: student.id, attend_date: date, rule_id: rule.id }]);
   };
 
+  const openTalentEdit = (student: Student, date: string) => {
+    const current = getOther(student.id, date);
+    setOtherAmount(String(current?.pts_other || 1));
+    setOtherNote(current?.note || "");
+    setTalentEdit({ student, date });
+  };
+
+  const saveOther = async () => {
+    if (!talentEdit) return;
+    const amount = Math.max(0, Number(otherAmount) || 0);
+    const current = getOther(talentEdit.student.id, talentEdit.date);
+    setOtherSaving(true);
+
+    try {
+      if (amount === 0 && current?.id) {
+        const { error } = await supabase.rpc("edu_delete_talent", { p_id: current.id });
+        if (error) throw error;
+      } else if (amount > 0) {
+        const { error } = await supabase.rpc("edu_save_talent", {
+          p_id: current?.id ?? null,
+          p_dept_id: deptId,
+          p_student_id: talentEdit.student.id,
+          p_date: talentEdit.date,
+          p_attendance: 0,
+          p_offering: 0,
+          p_evangelism: 0,
+          p_memory: 0,
+          p_win: 0,
+          p_other: amount,
+          p_note: otherNote.trim() || "기타",
+        });
+        if (error) throw error;
+      }
+
+      await loadOtherRecords();
+      showToast("저장되었습니다");
+    } catch (error) {
+      showToast(`저장 실패: ${(error as Error).message}`);
+    } finally {
+      setOtherSaving(false);
+    }
+  };
+
   // 달란트 잔치 정산 리셋 — 반기 단위. 리셋일 = 해당 반기 말일(6/30·12/31)로 기록되어
   // 늦게 눌러도 다음 반기에 이미 체크된 달란트는 보존된다. 기록은 삭제되지 않음.
   const applyTalentReset = async (half: HalfOption) => {
@@ -412,6 +501,11 @@ export default function AttendancePage() {
         count += 1;
         points += checkRules[idx]?.points || 0;
       });
+      const other = getOther(studentId, d);
+      if (other) {
+        count += 1;
+        points += other.pts_other;
+      }
     });
     return { count, points };
   };
@@ -739,13 +833,16 @@ export default function AttendancePage() {
                           <>
                             {sundays.map((d) => {
                               const checked = extraMap[`${s.id}_${d}`] || [];
+                              const other = getOther(s.id, d);
+                              const titleParts = checked.map((idx) => `${checkRules[idx]?.label} +${checkRules[idx]?.points}`);
+                              if (other) titleParts.push(`기타(직접입력) +${other.pts_other}${other.note ? ` · ${other.note}` : ""}`);
                               return (
                                 <td key={d} style={{ textAlign: "center", padding: 0 }}>
                                   <button
                                     className="status-btn"
-                                    onClick={() => setTalentEdit({ student: s, date: d })}
-                                    title={checked.length > 0
-                                      ? checked.map((idx) => `${checkRules[idx]?.label} +${checkRules[idx]?.points}`).join(" · ")
+                                    onClick={() => openTalentEdit(s, d)}
+                                    title={titleParts.length > 0
+                                      ? titleParts.join(" · ")
                                       : "탭하여 달란트 체크"}
                                     style={{
                                       width: "100%", minHeight: 26, border: "none", background: "transparent",
@@ -753,9 +850,18 @@ export default function AttendancePage() {
                                       display: "flex", alignItems: "center", justifyContent: "center",
                                     }}
                                   >
-                                    {checked.length > 0 ? (
-                                      <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 12, letterSpacing: 1, whiteSpace: "nowrap" }}>
-                                        {checked.map((idx) => CIRCLED[idx] || `(${idx + 1})`).join("")}
+                                    {checked.length > 0 || other ? (
+                                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3, whiteSpace: "nowrap" }}>
+                                        {checked.length > 0 && (
+                                          <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 12, letterSpacing: 1 }}>
+                                            {checked.map((idx) => CIRCLED[idx] || `(${idx + 1})`).join("")}
+                                          </span>
+                                        )}
+                                        {other && (
+                                          <span style={{ color: "var(--warning)", fontWeight: 800, fontSize: 10 }}>
+                                            직+{other.pts_other}
+                                          </span>
+                                        )}
                                       </span>
                                     ) : (
                                       <span style={{ color: "var(--hairline-strong)", fontSize: 12 }}>·</span>
@@ -829,13 +935,13 @@ export default function AttendancePage() {
 
       {/* 달란트 체크 팝업 */}
       {talentEdit && (
-        <ModalBackdrop onClose={() => setTalentEdit(null)}>
+        <ModalBackdrop onClose={() => !otherSaving && setTalentEdit(null)}>
           <div style={{ background: "var(--card)", borderRadius: 16, padding: 20, width: "min(420px, 100%)", boxSizing: "border-box" }}>
             <div style={{ display: "flex", alignItems: "center", marginBottom: 4 }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>
                 {talentEdit.student.name} · {formatMD(talentEdit.date)} 달란트 체크
               </div>
-              <button onClick={() => setTalentEdit(null)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--ink-soft)", padding: 4 }}>
+              <button onClick={() => setTalentEdit(null)} disabled={otherSaving} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--ink-soft)", padding: 4 }}>
                 <X size={18} strokeWidth={2} />
               </button>
             </div>
@@ -865,12 +971,55 @@ export default function AttendancePage() {
                 );
               })}
             </div>
+
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--hairline)" }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--ink)", marginBottom: 10 }}>
+                기타(직접입력)
+              </div>
+              <label htmlFor="attendance-other-note" style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 5 }}>사유</label>
+              <input
+                id="attendance-other-note"
+                type="text"
+                value={otherNote}
+                onChange={(event) => setOtherNote(event.target.value)}
+                placeholder="예: 특별활동, 찬양, 선생님 재량"
+                disabled={otherSaving}
+                style={{ ...inputStyle, width: "100%", padding: "10px 11px", fontSize: 13, marginBottom: 10 }}
+              />
+
+              <label htmlFor="attendance-other-amount" style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 5 }}>달란트 수량</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  id="attendance-other-amount"
+                  type="number"
+                  min={0}
+                  value={otherAmount}
+                  onChange={(event) => setOtherAmount(event.target.value)}
+                  disabled={otherSaving}
+                  style={{ ...inputStyle, flex: 1, minWidth: 0, padding: "10px 11px", fontSize: 15, fontWeight: 800, textAlign: "center" }}
+                />
+                <button
+                  type="button"
+                  onClick={saveOther}
+                  disabled={otherSaving}
+                  style={{ minWidth: 92, border: "none", borderRadius: 9, background: "var(--ink)", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", opacity: otherSaving ? 0.6 : 1 }}
+                >
+                  {otherSaving ? "저장 중..." : "직접입력 저장"}
+                </button>
+              </div>
+              <div style={{ marginTop: 7, fontSize: 10, color: "var(--ink-faint)", lineHeight: 1.5 }}>
+                기존 직접입력을 삭제하려면 수량을 0으로 저장하세요.
+              </div>
+            </div>
+
             {(() => {
               const idxs = extraMap[`${talentEdit.student.id}_${talentEdit.date}`] || [];
-              const pts = idxs.reduce((sum, idx) => sum + (checkRules[idx]?.points || 0), 0);
+              const other = getOther(talentEdit.student.id, talentEdit.date);
+              const count = idxs.length + (other ? 1 : 0);
+              const pts = idxs.reduce((sum, idx) => sum + (checkRules[idx]?.points || 0), 0) + (other?.pts_other || 0);
               return (
                 <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--hairline)", fontSize: 12, fontWeight: 700, color: "var(--ink-soft)", textAlign: "right" }}>
-                  이번 주 체크 {idxs.length}개 · <span style={{ color: "var(--accent)" }}>+{pts}점</span>
+                  이번 주 항목 {count}개 · <span style={{ color: "var(--accent)" }}>+{pts}점</span>
                 </div>
               );
             })()}
