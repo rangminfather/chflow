@@ -95,10 +95,48 @@ const CIRCLED = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", 
 // 출석부 자동연동 키 — 달란트통장과 동일 기준으로 수동 체크 칩에서 제외
 const SYSTEM_AUTO_KEYS = new Set(["attendance", "prayer", "church_school", "worship", "lesson", "bible"]);
 const PROMOTION_KEY = "new_friend_promotion";
+const CLASS_COLLATOR = new Intl.Collator("ko", { numeric: true, sensitivity: "base" });
 
 function classLabel(row: { grade_year: number | null; class_no: string | null }): string {
   const grade = row.grade_year ? `${row.grade_year}학년 ` : "";
   return `${grade}${row.class_no || "미배정"}반`;
+}
+
+function classGroupKey(
+  row: { grade_year?: number | null; class_no?: string | null },
+  groupByClassOnly: boolean,
+): string {
+  const classNo = row.class_no?.trim() || "미배정";
+  return groupByClassOnly
+    ? `class:${classNo}`
+    : `grade:${row.grade_year ?? 0}:class:${classNo}`;
+}
+
+function compareClassNo(a: string | null | undefined, b: string | null | undefined): number {
+  const aClass = a?.trim();
+  const bClass = b?.trim();
+  if (!aClass && !bClass) return 0;
+  if (!aClass) return 1;
+  if (!bClass) return -1;
+  return CLASS_COLLATOR.compare(aClass, bClass);
+}
+
+function compareStudents(a: Student, b: Student, groupByClassOnly: boolean): number {
+  if (!groupByClassOnly) {
+    const gradeDiff = (a.grade_year ?? 99) - (b.grade_year ?? 99);
+    if (gradeDiff !== 0) return gradeDiff;
+  }
+
+  const classDiff = compareClassNo(a.class_no, b.class_no);
+  if (classDiff !== 0) return classDiff;
+
+  const orderDiff = (a.order_no ?? 0) - (b.order_no ?? 0);
+  if (orderDiff !== 0) return orderDiff;
+
+  const gradeDiff = (a.grade_year ?? 99) - (b.grade_year ?? 99);
+  if (gradeDiff !== 0) return gradeDiff;
+
+  return (a.student_no ?? 0) - (b.student_no ?? 0);
 }
 
 export default function AttendancePage() {
@@ -111,6 +149,7 @@ export default function AttendancePage() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [viewMode, setViewMode] = useState<"attendance" | "talent">("attendance");
+  const [deptName, setDeptName] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
   const [attData, setAttData] = useState<AttendRow[]>([]);
   const [rules, setRules] = useState<TalentRule[]>([]);
@@ -155,6 +194,11 @@ export default function AttendancePage() {
     setBoard((rows || []) as PromoRow[]);
   }, [deptId]);
 
+  const loadDepartment = useCallback(async () => {
+    const { data } = await supabase.rpc("get_department_info", { p_dept_id: deptId });
+    setDeptName(typeof data?.[0]?.name === "string" ? data[0].name : "");
+  }, [deptId]);
+
   const loadStudents = useCallback(async () => {
     const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
     const baseList = (data || []) as Student[];
@@ -196,9 +240,9 @@ export default function AttendancePage() {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadStudents(), loadAttendance(), loadRules(), loadPromotion(), loadResets()]);
+    await Promise.all([loadDepartment(), loadStudents(), loadAttendance(), loadRules(), loadPromotion(), loadResets()]);
     setLoading(false);
-  }, [loadAttendance, loadStudents, loadRules, loadPromotion, loadResets]);
+  }, [loadAttendance, loadDepartment, loadStudents, loadRules, loadPromotion, loadResets]);
 
   useEffect(() => {
     (async () => {
@@ -594,25 +638,25 @@ export default function AttendancePage() {
               </thead>
               <tbody>
                 {(() => {
-                  const sorted = [...students].sort((a, b) => {
-                    const ga = a.grade_year ?? 99;
-                    const gb = b.grade_year ?? 99;
-                    if (ga !== gb) return ga - gb;
-                    const ca = a.class_no || "zz";
-                    const cb = b.class_no || "zz";
-                    if (ca !== cb) return ca.localeCompare(cb);
-                    return a.order_no - b.order_no;
-                  });
+                  // 유아부 목장은 나이와 독립된 편성이므로 나이별로 같은 목장을
+                  // 반복하지 않고 목장 번호 기준으로 한 번만 묶어 표시한다.
+                  const groupByClassOnly = deptName.trim() === "유아부";
+                  const sorted = [...students].sort((a, b) => compareStudents(a, b, groupByClassOnly));
                   const colSpan = 3 + sundays.length + (viewMode === "attendance" ? 3 : 2);
                   let lastGroup = "__init__";
                   const rows: React.ReactNode[] = [];
+                  const groupCounts = new Map<string, number>();
+                  sorted.forEach((student) => {
+                    const key = classGroupKey(student, groupByClassOnly);
+                    groupCounts.set(key, (groupCounts.get(key) ?? 0) + 1);
+                  });
                   sorted.forEach((s) => {
-                    const group = `${s.grade_year ?? "0"}-${s.class_no ?? "미배정"}`;
+                    const group = classGroupKey(s, groupByClassOnly);
                     if (group !== lastGroup) {
                       lastGroup = group;
                       const teacherName = s.teacher_name || "—";
                       const className = s.class_no || "미배정";
-                      const count = sorted.filter((x) => `${x.grade_year ?? "0"}-${x.class_no ?? "미배정"}` === group).length;
+                      const count = groupCounts.get(group) ?? 0;
                       rows.push(
                         <tr key={`g-${group}`}>
                           <td colSpan={colSpan} style={{
