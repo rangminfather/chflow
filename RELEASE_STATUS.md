@@ -1,6 +1,6 @@
 # 배포 및 릴리스 상태
 
-마지막 검증: 2026-07-27 (Asia/Seoul)
+마지막 검증: 2026-08-03 (Asia/Seoul)
 
 이 문서는 파일 경로만 보고 작업 상태를 추측하는 일을 막기 위한 공용 인수인계 기록입니다. 상태를 평가할 때는 반드시 실제 diff 및 서비스 조회 결과와 함께 확인합니다.
 
@@ -10,8 +10,8 @@
   - 운영 URL: `https://chflow-app.vercel.app`
   - 배포 ID: `dpl_2p1eWBGxciFjcuZb16o9uVwFtoj9`
   - Android 강제 업데이트 하한: `MIN_ANDROID_BUILD=5`
-  - 전환용 최신 버전 설정: `LATEST_ANDROID_BUILD=18`
-  - v16 이하 사용자의 v18 전환 안내를 위한 일회성 갱신 완료
+  - 운영 API 확인값: `MIN_ANDROID_BUILD=5`, `LATEST_ANDROID_BUILD=40`
+  - v1.1.10 / versionCode 40의 Play 전체 출시 이후 값으로 확인됨
 - DB: Supabase 원격 마이그레이션 적용 확인
   - `20260718100000_absence_alert_summary_and_recognition.sql`
 - Android 테스트 빌드:
@@ -59,14 +59,11 @@
 
 ## 다음 릴리스 절차
 
-1. `chflow-expo`에서 `npm run release:android`
-   - EAS가 versionCode를 자동 증가
-   - Android App Bundle 빌드
-   - Google Play 프로덕션 트랙 초안으로 자동 제출
-2. Play Console에서 초안을 최종 검토하고 수동 출시
-3. Android 일반 업데이트는 앱이 Google Play의 실제 공개 버전을 직접 감지
-   - 매 릴리스마다 Vercel `LATEST_ANDROID_BUILD`를 변경할 필요 없음
-   - `MIN_ANDROID_BUILD`는 긴급 강제 업데이트가 필요할 때만 변경
+1. 사람이 `chflow-expo`에서 버전과 릴리스 노트를 작성·커밋한다.
+2. `android-release.yml`이 기준선 검증 후 EAS Android App Bundle을 빌드하고 Google Play 프로덕션 초안으로 자동 제출한다.
+3. 사람은 Play Console에서 초안을 최종 검토하고 수동 출시한다.
+4. `android-play-sync.yml`이 최대 3시간 이내에 100% 출시를 감지해 `LATEST_ANDROID_BUILD`만 갱신하고 Vercel Deploy Hook으로 재배포한다.
+5. `MIN_ANDROID_BUILD`는 긴급 강제 업데이트가 필요할 때만 사람이 변경한다.
 
 ## 2026-07-27 production deployment record
 
@@ -201,3 +198,16 @@
 - The EAS build list contains no cloud build records for versionCode `36` through `40`.
 - The reason versionCode `36` was consumed, and the exact path by which the EAS remote counter reached `39`, could not be confirmed from the available EAS audit history. This remains unresolved.
 - The local `android.versionCode` values used by the v1.1.7-v1.1.10 Gradle worktree are separate from the EAS remote version source.
+
+## 2026-08-03 Android release automation
+
+- Pipeline implementation is included in the Codex PR branch `codex/android-release-pipeline`; merge review is required before activation.
+- Version names remain human-controlled. CI does not increment, edit, or commit version files or release notes.
+- `.github/workflows/android-release.yml` validates the version baseline, builds the Android app bundle with EAS, and requests a Google Play production-track draft with `releaseStatus: draft`.
+- `.github/workflows/android-play-sync.yml` polls every three hours, detects a 100% completed Play production release, updates only `LATEST_ANDROID_BUILD`, calls the Vercel Deploy Hook, and verifies `/api/app-config`.
+- `MIN_ANDROID_BUILD` is intentionally never changed by the pipeline.
+- The Play sync uses a temporary read-only Play API edit and deletes it; it never calls `edits.commit`.
+- Required GitHub Actions secret names (values excluded): `EAS_TOKEN`, `PLAY_SERVICE_ACCOUNT_JSON`, `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, optional `VERCEL_TEAM_ID`, and `VERCEL_DEPLOY_HOOK_URL`.
+- EAS credentials inspection confirmed the existing Play submission account `eas-submit@smart-myungsung-play-submit.iam.gserviceaccount.com` and the current EAS Android keystore. The new Play polling account must remain separate and read-only.
+- EAS Android keystore SHA-256 fingerprint: `CF:77:B7:45:CC:7D:04:28:9A:BC:0A:85:99:59:CC:FB:6B:A3:6A:EA:9F:CD:0A:CE:66:29:67:3A:06:0E:E8:E7`.
+- Local 1.1.10 Gradle signing was verified to read `credentials/android/keystore.jks`; its SHA-256 fingerprint exactly matches the EAS fingerprint above. Because that AAB was accepted and released by Google Play as versionCode `40`, the Play upload key and the next EAS cloud-build key are aligned. Repeat the comparison if the Play upload key is rotated.
