@@ -204,9 +204,9 @@
 - Pipeline implementation is included in the Codex PR branch `codex/android-release-pipeline`; merge review is required before activation.
 - Version names remain human-controlled. CI does not increment, edit, or commit version files or release notes.
 - `.github/workflows/android-release.yml` validates the version baseline, builds the Android app bundle with EAS, and requests a Google Play production-track draft with `releaseStatus: draft`.
-- `.github/workflows/android-play-sync.yml` polls every three hours, detects a 100% completed Play production release, updates only `LATEST_ANDROID_BUILD`, calls the Vercel Deploy Hook, and verifies `/api/app-config`.
+- `.github/workflows/android-play-sync.yml` polls every three hours, detects a 100% completed Play production release, updates only `LATEST_ANDROID_BUILD`, compares the public `/api/app-config` value, calls the Vercel Deploy Hook whenever that public value is stale, and verifies the result.
 - `MIN_ANDROID_BUILD` is intentionally never changed by the pipeline.
-- The Play sync uses a temporary read-only Play API edit and deletes it; it never calls `edits.commit`.
+- The Play sync uses a temporary Play API edit and deletes it; it never calls `edits.commit`. Whether a separate app-information read-only account is permitted to create/delete that temporary edit is intentionally left for the post-merge rehearsal; a 403 is expected to require a permission decision.
 - Required GitHub Actions secret names (values excluded): `EAS_TOKEN`, `PLAY_SERVICE_ACCOUNT_JSON`, `VERCEL_TOKEN`, `VERCEL_PROJECT_ID`, optional `VERCEL_TEAM_ID`, and `VERCEL_DEPLOY_HOOK_URL`.
 - EAS credentials inspection confirmed the existing Play submission account `eas-submit@smart-myungsung-play-submit.iam.gserviceaccount.com` and the current EAS Android keystore. The new Play polling account must remain separate and read-only.
 - EAS Android keystore SHA-256 fingerprint: `CF:77:B7:45:CC:7D:04:28:9A:BC:0A:85:99:59:CC:FB:6B:A3:6A:EA:9F:CD:0A:CE:66:29:67:3A:06:0E:E8:E7`.

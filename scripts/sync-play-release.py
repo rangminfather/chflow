@@ -219,7 +219,12 @@ def verify_redeployment(expected: int) -> None:
     fail(f"{APP_CONFIG_URL} did not expose latest_android_build={expected} within 5 minutes")
 
 
-def write_summary(play_version: int | None, current_version: int | None, action: str) -> None:
+def write_summary(
+    play_version: int | None,
+    current_version: int | None,
+    public_version: int | None,
+    action: str,
+) -> None:
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
         return
@@ -228,6 +233,7 @@ def write_summary(play_version: int | None, current_version: int | None, action:
         "",
         f"- Play production completed versionCode: `{play_version if play_version is not None else 'none'}`",
         f"- Current Vercel LATEST_ANDROID_BUILD: `{current_version if current_version is not None else 'not read'}`",
+        f"- Public `/api/app-config` latest_android_build: `{public_version if public_version is not None else 'not read'}`",
         f"- Action: {action}",
         "",
     ]
@@ -240,20 +246,43 @@ def main() -> None:
     play_version = read_play_production_version(token)
     if play_version is None:
         print("No 100% completed production release was found; nothing to sync.")
-        write_summary(None, None, "no-op; no completed 100% production release")
+        write_summary(None, None, None, "no-op; no completed 100% production release")
         return
 
     current_version, env_id = read_vercel_latest()
-    if play_version <= current_version:
-        print(f"No-op: Play versionCode {play_version} is not greater than Vercel {current_version}.")
-        write_summary(play_version, current_version, "no-op; Vercel is already current")
-        return
+    public_version = read_public_latest()
+    if public_version is None:
+        write_summary(
+            play_version,
+            current_version,
+            None,
+            "failed; public API unavailable; no redeploy attempted",
+        )
+        fail("could not read public latest_android_build; refusing to redeploy blindly")
 
-    update_vercel_latest(env_id, play_version)
-    print(f"Updated Vercel LATEST_ANDROID_BUILD from {current_version} to {play_version}.")
-    redeploy_vercel()
-    verify_redeployment(play_version)
-    write_summary(play_version, current_version, f"updated to {play_version} and redeployed")
+    env_action = "env already current"
+    if play_version > current_version:
+        update_vercel_latest(env_id, play_version)
+        env_action = f"updated env to {play_version}"
+        print(f"Updated Vercel LATEST_ANDROID_BUILD from {current_version} to {play_version}.")
+
+    if public_version != play_version:
+        print(
+            f"Public latest_android_build is {public_version}; redeploying for Play versionCode {play_version}."
+        )
+        redeploy_vercel()
+        verify_redeployment(play_version)
+        public_version = play_version
+        action = f"{env_action}; redeployed and verified"
+    else:
+        print(f"No-op: public latest_android_build already equals Play versionCode {play_version}.")
+        action = (
+            "no-op; Vercel is already current"
+            if play_version == current_version
+            else f"{env_action}; public value is current"
+        )
+
+    write_summary(play_version, current_version, public_version, action)
 
 
 if __name__ == "__main__":

@@ -28,6 +28,9 @@ jobs:
   release:
     name: Validate and build Android release
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EAS_CLI_VERSION: 21.4.0
     defaults:
       run:
         working-directory: chflow-expo
@@ -171,7 +174,7 @@ jobs:
           build_json="$(mktemp)"
           trap 'rm -f "$build_json"' EXIT
 
-          npx eas-cli@latest build \
+          npx eas-cli@${EAS_CLI_VERSION} build \
             --platform android \
             --profile production \
             --auto-submit \
@@ -199,6 +202,6 @@ jobs:
             echo '';
             echo '### EAS remote Android versionCode';
             echo '```text';
-            npx eas-cli@latest build:version:get --platform android;
+            npx eas-cli@${EAS_CLI_VERSION} build:version:get --platform android;
             echo '```';
           } >> "$GITHUB_STEP_SUMMARY"

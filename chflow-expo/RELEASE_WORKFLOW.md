@@ -59,7 +59,9 @@ this repository:
 
 - `EAS_TOKEN`: Expo access token for starting the EAS build.
 - `PLAY_SERVICE_ACCOUNT_JSON`: a new read-only Play service account, separate
-  from the EAS submission account, with app information read permission only.
+  from the EAS submission account. Start with app information read-only access;
+  the first sync rehearsal must verify whether the temporary edit-session API
+  calls are accepted for that role.
 - `VERCEL_TOKEN`: token used by the sync job to read and update project env.
 - `VERCEL_PROJECT_ID`: the `chflow-app` Vercel project ID.
 - `VERCEL_TEAM_ID`: required only if the project belongs to a team.
@@ -68,6 +70,36 @@ this repository:
 The EAS submission service account is already stored in EAS credentials, so no
 service-account file is needed in `eas.json` for `--auto-submit`. The CI still
 needs `EAS_TOKEN` for the EAS CLI invocation.
+
+The CI pins EAS CLI `21.4.0` rather than using `@latest`. Update this pin only
+as an intentional reviewed change; the existing local release scripts retain
+their current `@latest` behavior for now.
+
+The [official API reference](https://developers.google.com/android-publisher/api-ref/rest/v3/edits/insert)
+documents the broad `androidpublisher` OAuth scope for `edits.insert`,
+`edits.tracks.get`, and `edits.delete`, but it does not establish that Play
+Console's read-only app permission allows creating and deleting an edit
+session. [Play Console defines read-only access](https://support.google.com/googleplay/android-developer/answer/10019561)
+as not allowing changes. Therefore the first sync run must measure this; a 403
+requires either a narrowly expanded Play role or reuse of the existing EAS
+submission account, with the security trade-off recorded.
+
+## Activation and rehearsal order
+
+`workflow_dispatch` appears in the Actions UI only after this workflow exists
+on the repository's default branch. Register the secrets before merging, then:
+
+1. Merge the reviewed PR after registering all six GitHub Actions secrets.
+2. Run `android-play-sync` once with `workflow_dispatch`. With Play versionCode
+   `40` and the user-confirmed Vercel value `40`, expect a no-op summary stating
+   that the public value is current. A 403 at this point confirms a Play-role
+   issue and should be resolved before the first release.
+3. Run `android-release` with `dry_run: true`; it must validate and skip EAS.
+
+If `/api/app-config` cannot be read, the sync job fails without redeploying so
+the next scheduled run can retry with an observable public state. If the
+public value differs from Play, every later run retries the Deploy Hook even
+when the Vercel environment variable already contains the Play version.
 
 ## Preflight before the first EAS cloud release
 
