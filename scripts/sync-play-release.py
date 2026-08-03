@@ -153,19 +153,17 @@ def read_vercel_latest() -> tuple[int, str]:
     env_id = entry.get("id")
     if not isinstance(env_id, str) or not env_id:
         fail("Vercel LATEST_ANDROID_BUILD has no environment-variable id")
-    value = entry.get("value")
-    if value is None:
-        # The list endpoint may omit encrypted values. Ask for this specific
-        # variable as the Vercel API supports decrypted-value retrieval by id.
-        detail = request_json(
-            vercel_url(f"/v9/projects/{project_id}/env/{env_id}"),
-            headers=vercel_headers(),
-        )
-        value = detail.get("value")
+    # Ignore the list endpoint's value because it may be masked. Always use
+    # the value returned by the individual environment-variable endpoint.
+    detail = request_json(
+        vercel_url(f"/v9/projects/{project_id}/env/{env_id}"),
+        headers=vercel_headers(),
+    )
+    value = detail.get("value")
     if value is None:
         fail("Vercel did not return the current value of LATEST_ANDROID_BUILD")
     try:
-        return int(value), env_id
+        return int(str(value).strip()), env_id
     except (KeyError, TypeError, ValueError):
         fail("Vercel LATEST_ANDROID_BUILD is not a numeric value")
 
