@@ -99,7 +99,9 @@ on the repository's default branch. Register the secrets before merging, then:
 If `/api/app-config` cannot be read, the sync job fails without redeploying so
 the next scheduled run can retry with an observable public state. If the
 public value differs from Play, every later run retries the Deploy Hook even
-when the Vercel environment variable already contains the Play version.
+when the Vercel environment variable already contains the Play version. If the
+public value is ahead of Play during a staged rollout or manual update, sync
+leaves the newer public value alone and does not attempt to roll it back.
 
 ## Preflight before the first EAS cloud release
 

@@ -266,6 +266,16 @@ def main() -> None:
         env_action = f"updated env to {play_version}"
         print(f"Updated Vercel LATEST_ANDROID_BUILD from {current_version} to {play_version}.")
 
+    if public_version > play_version:
+        print(f"No-op: public latest_android_build {public_version} is ahead of Play {play_version}; leaving it alone.")
+        write_summary(
+            play_version,
+            current_version,
+            public_version,
+            "no-op; public value is ahead of Play",
+        )
+        return
+
     if public_version != play_version:
         print(
             f"Public latest_android_build is {public_version}; redeploying for Play versionCode {play_version}."
