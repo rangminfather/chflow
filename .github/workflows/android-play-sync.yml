@@ -27,7 +27,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install Play API authentication dependency
-        run: python -m pip install --disable-pip-version-check --quiet google-auth
+        run: python -m pip install --disable-pip-version-check --quiet "google-auth[requests]"
 
       - name: Detect and sync production version
         env:
