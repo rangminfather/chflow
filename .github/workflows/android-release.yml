@@ -1,0 +1,207 @@
+name: Android release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "chflow-expo/app.json"
+      - "chflow-expo/package.json"
+      - "chflow-expo/release-notes/**"
+      - ".github/workflows/android-release.yml"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Validate the release inputs without starting an EAS build
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Validate and build Android release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EAS_CLI_VERSION: 21.4.0
+    defaults:
+      run:
+        working-directory: chflow-expo
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: chflow-expo/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate release baseline
+        id: validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const cp = require('node:child_process');
+
+          const packagePath = 'package.json';
+          const appPath = 'app.json';
+          const easPath = 'eas.json';
+          const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+          const appJson = JSON.parse(fs.readFileSync(appPath, 'utf8'));
+          const easJson = JSON.parse(fs.readFileSync(easPath, 'utf8'));
+          const version = packageJson.version;
+          const versionPattern = /^\d+\.\d+\.\d+$/;
+
+          function fail(message) {
+            console.error(`Release validation failed: ${message}`);
+            process.exit(1);
+          }
+
+          function parseVersion(value) {
+            if (!versionPattern.test(value)) return null;
+            return value.split('.').map(Number);
+          }
+
+          function compareVersions(left, right) {
+            const a = parseVersion(left);
+            const b = parseVersion(right);
+            for (let index = 0; index < 3; index += 1) {
+              if (a[index] !== b[index]) return a[index] - b[index];
+            }
+            return 0;
+          }
+
+          if (typeof version !== 'string' || !versionPattern.test(version)) {
+            fail(`package.json.version must match X.Y.Z, got ${JSON.stringify(version)}`);
+          }
+
+          if (appJson.expo?.version !== version) {
+            fail(`package.json.version (${version}) and expo.version (${appJson.expo?.version}) differ`);
+          }
+
+          const releaseNotePath = `release-notes/v${version}.md`;
+          if (!fs.existsSync(releaseNotePath) || !fs.readFileSync(releaseNotePath, 'utf8').trim()) {
+            fail(`${releaseNotePath} is missing or empty`);
+          }
+
+          if (Object.prototype.hasOwnProperty.call(appJson.expo?.android ?? {}, 'versionCode')) {
+            fail('app.json must not define expo.android.versionCode; EAS remote versioning owns it');
+          }
+
+          if (Object.prototype.hasOwnProperty.call(appJson.expo?.ios ?? {}, 'buildNumber')) {
+            fail('app.json must not define expo.ios.buildNumber; remote versioning owns it');
+          }
+
+          if (easJson.cli?.appVersionSource !== 'remote') {
+            fail('eas.json cli.appVersionSource must be "remote"');
+          }
+
+          if (easJson.build?.production?.autoIncrement !== true) {
+            fail('eas.json production.autoIncrement must be true');
+          }
+
+          if (easJson.build?.production?.android?.buildType !== 'app-bundle') {
+            fail('eas.json production.android.buildType must be "app-bundle"');
+          }
+
+          let previousVersion;
+          try {
+            previousVersion = JSON.parse(
+              cp.execFileSync('git', ['show', 'HEAD^:chflow-expo/package.json'], { encoding: 'utf8' }),
+            ).version;
+          } catch (error) {
+            fail(`could not read HEAD^ package.json: ${error.message}`);
+          }
+
+          if (typeof previousVersion !== 'string' || !versionPattern.test(previousVersion)) {
+            fail(`HEAD^ package.json.version must match X.Y.Z, got ${JSON.stringify(previousVersion)}`);
+          }
+
+          const releaseChanged = version !== previousVersion;
+          if (releaseChanged && compareVersions(version, previousVersion) <= 0) {
+            fail(`version must increase: ${previousVersion} -> ${version}`);
+          }
+
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `release_changed=${releaseChanged}\n`);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '### Android release validation',
+            '',
+            `- Version: \`${version}\``,
+            `- Previous commit version: \`${previousVersion}\``,
+            `- Release build required: \`${releaseChanged}\``,
+            '',
+          ].join('\n'));
+          console.log(`Validated ${version}; previous commit was ${previousVersion}; releaseChanged=${releaseChanged}`);
+          NODE
+
+      - name: Validate production submission settings
+        run: node scripts/verify-production-submit.mjs
+
+      - name: Skip build for unchanged version
+        if: ${{ steps.validate.outputs.release_changed != 'true' }}
+        run: |
+          echo "No version change detected; no Android build was started." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Skip build for dry run
+        if: ${{ inputs.dry_run == true && steps.validate.outputs.release_changed == 'true' }}
+        run: |
+          echo "Dry run requested; validation passed and no Android build was started." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build AAB and upload Play draft
+        id: build
+        if: ${{ inputs.dry_run != true && steps.validate.outputs.release_changed == 'true' }}
+        env:
+          EXPO_TOKEN: ${{ secrets.EAS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_json="$(mktemp)"
+          trap 'rm -f "$build_json"' EXIT
+
+          npx eas-cli@${EAS_CLI_VERSION} build \
+            --platform android \
+            --profile production \
+            --auto-submit \
+            --non-interactive \
+            --no-wait \
+            --json > "$build_json"
+
+          build_id="$(node - "$build_json" <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const build = Array.isArray(data) ? data[0] : data;
+          if (!build?.id) {
+            throw new Error('EAS did not return a build id');
+          }
+          process.stdout.write(build.id);
+          NODE
+          )"
+
+          build_url="https://expo.dev/accounts/rangminfather/projects/chflow-expo/builds/${build_id}"
+          {
+            echo '### EAS build';
+            echo "- Build ID: \`${build_id}\`";
+            echo "- Details: ${build_url}";
+            echo '- Play submission: requested with `releaseStatus: draft`';
+            echo '';
+            echo '### EAS remote Android versionCode';
+            echo '```text';
+            npx eas-cli@${EAS_CLI_VERSION} build:version:get --platform android;
+            echo '```';
+          } >> "$GITHUB_STEP_SUMMARY"
