@@ -176,3 +176,28 @@
 - Scope: connects the custom fullscreen button to the video element and removes the unsupported automatic fullscreen call on iOS.
 - Verification: `chflow-app` TypeScript check passed; `https://smartms.kr` returned HTTP 200 after the main push.
 - Mobile rebuild: not required; the WebView loads this web fix from the deployed site.
+
+## 2026-08-03 Android release baseline reconciliation
+
+- Google Play production active release: versionName `1.1.10`, versionCode `40`.
+- Google Play release date: 2026-08-03; rollout: 100% complete.
+- The published AAB was not produced by an EAS cloud build. It was built from the local Gradle project in `C:\csh\chflow-android-1.1.8` and copied to `C:\Users\최성헌\Desktop\build\스마트명성-Android-AAB-1.1.10\smartms-1.1.10-play.aab`.
+- The AAB build inputs were `versionName "1.1.10"` and `versionCode 40`.
+- `chflow-expo/.gitignore:54` excludes `/android`; the prebuild-generated native directory remains untracked and is not part of the managed workflow source.
+- EAS Android remote versionCode was reset from `39` to `40` on 2026-08-03. The next production auto-increment build should therefore use versionCode `41`.
+
+### Release baseline history v1.1.2-v1.1.10
+
+- v1.1.2: release baseline commit `4938c2c`; EAS Android build `7559429c-063f-4891-8a52-d0bc50352151`, versionCode `32`, finished internal-test build.
+- v1.1.3: release baseline commit `d33444d`; EAS Android build `582c5c12-9b49-4484-ae62-5cb1aabb3174`, versionCode `33`, finished internal-test build.
+- v1.1.4: release baseline commit `1ab70d3`; no separate v1.1.4 EAS Android build record was found in `@rangminfather/chflow-expo`.
+- v1.1.5: EAS Android build `c87d3bfc-127f-4ee2-a36a-53e99b6af3df`, versionCode `34`, finished build.
+- v1.1.6: release commit `d584a92`; EAS Android build `ae2e0de6-01b9-4044-b727-fcf3bd4d5974`, versionCode `35`, finished build.
+- v1.1.7-v1.1.10: local Gradle builds from the Android worktree, not EAS cloud builds; the local versionCode sequence was `37`, `38`, `39`, `40` respectively.
+- v1.1.10: source commit `dcf42f7`; local AAB versionCode `40`; Google Play production rollout completed at 100%.
+
+### Unresolved Android version counter history
+
+- The EAS build list contains no cloud build records for versionCode `36` through `40`.
+- The reason versionCode `36` was consumed, and the exact path by which the EAS remote counter reached `39`, could not be confirmed from the available EAS audit history. This remains unresolved.
+- The local `android.versionCode` values used by the v1.1.7-v1.1.10 Gradle worktree are separate from the EAS remote version source.
