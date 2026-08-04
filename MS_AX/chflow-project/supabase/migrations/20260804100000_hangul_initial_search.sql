@@ -10,6 +10,17 @@
 --   · 검색어에 초성이 하나도 없으면 hangul_search_regex() 가 NULL 을 반환하므로
 --     기존 검색 동작·결과·정렬은 100% 그대로다.
 --   · ㄱ 입력 시 ㄲ 은 매칭하지 않는다 (사용자 결정).
+--
+-- 권한(ACL)은 이 마이그레이션에서 건드리지 않는다.
+--   · 기존 7개 RPC 는 create or replace 라 기존 ACL 이 그대로 보존된다.
+--   · 익명 차단·GRANT 정리는 선행 마이그레이션
+--     20260804095000_member_search_security_hardening.sql 담당.
+--   · 새로 만드는 hangul_search_regex() 만은 Postgres 기본 PUBLIC EXECUTE 가
+--     붙으므로 생성 직후 회수한다(신규 객체 권한 설정, 기존 ACL 변경 아님).
+--
+-- ⚠ 095000 이 익명 차단 검사를 넣은 3개 함수(directory_search_members,
+--   search_member_candidates, dept_search_children)를 여기서 다시 정의한다.
+--   가드를 빠뜨리면 095000 이 무효화되므로 아래 정의에도 반드시 포함한다.
 -- ============================================================================
 
 -- ─────────────────────────────────────────────────────────────
@@ -20,6 +31,7 @@ returns text
 language plpgsql
 immutable
 parallel safe
+set search_path = ''
 as $fn$
 declare
   v_src  text := btrim(coalesce(p_query, ''));
@@ -98,11 +110,15 @@ $fn$;
 comment on function public.hangul_search_regex(text) is
   '검색어를 초성 매칭용 정규식으로 변환한다. 초성이 하나도 없으면 NULL 을 반환하여 기존 ilike 검색만 쓰도록 한다.';
 
-grant execute on function public.hangul_search_regex(text) to anon, authenticated;
+-- 신규 함수의 Postgres 기본 PUBLIC EXECUTE 회수 (기존 ACL 변경 아님).
+-- 호출하는 RPC 들은 전부 SECURITY DEFINER 라 소유자 권한으로 실행되므로 문제없다.
+revoke all on function public.hangul_search_regex(text) from public, anon;
+grant execute on function public.hangul_search_regex(text) to authenticated, service_role, postgres;
 
 
 -- ─────────────────────────────────────────────────────────────
 -- 1. 성도검색 (/directory)
+--    ⚠ 095000 의 익명 차단 가드 포함 필수
 -- ─────────────────────────────────────────────────────────────
 create or replace function public.directory_search_members(
   p_query     text default null,
@@ -128,11 +144,18 @@ returns table (
   photo_url text,
   total_count bigint
 )
-language sql
+language plpgsql
 stable
 security definer
 set search_path = public
-as $$
+as $fn$
+#variable_conflict use_column
+begin
+  if public.search_request_is_anonymous() then
+    raise exception '로그인이 필요합니다' using errcode = '42501';
+  end if;
+
+  return query
   with input as (
     select
       nullif(trim(p_query), '') as query_text,
@@ -241,36 +264,36 @@ as $$
        or (i.query_text is not null and s.id in (select id from related_ids))
   )
   select
-    id,
-    name,
-    phone,
-    home_phone,
-    gender,
-    family_church,
-    sub_role,
-    spouse_name,
-    pasture_name,
-    grassland_name,
-    plain_name,
-    is_child,
-    photo_url,
+    f.id,
+    f.name,
+    f.phone,
+    f.home_phone,
+    f.gender,
+    f.family_church,
+    f.sub_role,
+    f.spouse_name,
+    f.pasture_name,
+    f.grassland_name,
+    f.plain_name,
+    f.is_child,
+    f.photo_url,
     (select count(*) from filtered)::bigint as total_count
-  from filtered
+  from filtered f
   order by
-    match_order,
-    coalesce(is_child, false),
-    case gender when 'M' then 0 when 'F' then 1 else 2 end,
-    name,
-    id
+    f.match_order,
+    coalesce(f.is_child, false),
+    case f.gender when 'M' then 0 when 'F' then 1 else 2 end,
+    f.name,
+    f.id
   offset greatest(coalesce(p_offset, 0), 0)
   limit least(greatest(coalesce(p_limit, 30), 1), 100);
-$$;
-
-grant execute on function public.directory_search_members(text, text, text, text, int, int) to authenticated;
+end;
+$fn$;
 
 
 -- ─────────────────────────────────────────────────────────────
 -- 2. 관리자 성도관리 / 투표 명단 (admin_search_members_paged)
+--    내부에 admin·office·pastor 권한 검사가 이미 있다.
 -- ─────────────────────────────────────────────────────────────
 create or replace function public.admin_search_members_paged(
   p_query         text    default null,
@@ -420,18 +443,13 @@ begin
 end;
 $$;
 
-grant execute on function public.admin_search_members_paged(text, text, text, text, int, int, boolean, boolean, text) to authenticated;
-
 
 -- ─────────────────────────────────────────────────────────────
 -- 3. 성도 후보 검색 (성도카드 모달 · 부모 연결)
 --    기존은 이름 완전일치(=)만 매칭. 초성이 들어온 경우에만 초성 매칭을 추가한다.
---
---    ※ 이 RPC 는 anon 에게도 grant 되어 있다. 완전일치였기 때문에 명단 열람이
---      불가능했는데, 초성을 무조건 허용하면 비로그인 상태에서 "ㄱ" 한 글자로
---      성도 명단(이름·전화·주소·목장)을 훑을 수 있게 된다.
---      → 초성 매칭은 로그인 사용자(auth.uid() is not null)에게만 허용한다.
---        비로그인 동작은 기존과 완전히 동일.
+--    ⚠ 095000 의 익명 차단 가드 포함 필수.
+--      익명은 이 가드에서 막히므로 초성 매칭에 별도 조건을 두지 않는다
+--      (= service_role 서버 호출에서도 초성 검색이 정상 동작한다).
 -- ─────────────────────────────────────────────────────────────
 create or replace function public.search_member_candidates(
   p_name  text,
@@ -455,11 +473,20 @@ returns table (
   pasture_id uuid,
   match_score int
 )
-language sql
+language plpgsql
 stable
 security definer
 set search_path = public
-as $$
+as $fn$
+#variable_conflict use_column
+declare
+  v_regex text := public.hangul_search_regex(p_name);
+begin
+  if public.search_request_is_anonymous() then
+    raise exception '로그인이 필요합니다' using errcode = '42501';
+  end if;
+
+  return query
   select
     m.id, m.name, m.phone, m.home_phone, m.gender, m.family_church, m.sub_role,
     h.address,
@@ -488,26 +515,20 @@ as $$
   left join public.directory_pastures p  on h.pasture_id = p.id
   left join public.grasslands g          on p.grassland_id = g.id
   left join public.plains pl             on g.plain_id = pl.id
-  cross join (
-    select case when auth.uid() is not null
-                then public.hangul_search_regex(p_name)
-                else null
-           end as name_regex
-  ) hs
   where m.status = 'active'
     and (
       m.name = p_name
-      or (hs.name_regex is not null and m.name ~* hs.name_regex)
+      or (v_regex is not null and m.name ~* v_regex)
     )
   order by match_score desc, m.is_child asc, m.name
   limit p_limit;
-$$;
-
-grant execute on function public.search_member_candidates(text, text, int) to anon, authenticated;
+end;
+$fn$;
 
 
 -- ─────────────────────────────────────────────────────────────
 -- 4. 교육이력 성도 후보 검색
+--    내부에 education_history.manage capability 검사가 이미 있다.
 -- ─────────────────────────────────────────────────────────────
 create or replace function public.education_search_member_candidates(
   p_query text,
@@ -552,13 +573,11 @@ as $$
   ) q;
 $$;
 
-revoke all on function public.education_search_member_candidates(text, integer) from public, anon;
-grant execute on function public.education_search_member_candidates(text, integer) to authenticated;
-
 
 -- ─────────────────────────────────────────────────────────────
 -- 5. 부서 학생(자녀) 이름 검색
---    개인정보 보호용 "2자 이상" 제한은 그대로 유지한다.
+--    ⚠ 095000 의 익명 차단 가드 포함 필수.
+--    개인정보 보호용 "2자 이상" 제한도 그대로 유지한다.
 -- ─────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.dept_search_children(p_dept_id uuid, p_query text)
 RETURNS TABLE (
@@ -572,6 +591,10 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_regex text;
 BEGIN
+  IF public.search_request_is_anonymous() THEN
+    RAISE EXCEPTION '로그인이 필요합니다' USING ERRCODE = '42501';
+  END IF;
+
   IF length(trim(p_query)) < 2 THEN
     RAISE EXCEPTION '검색어는 2자 이상 입력해 주세요';
   END IF;
@@ -592,11 +615,10 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.dept_search_children(uuid, text) TO authenticated;
-
 
 -- ─────────────────────────────────────────────────────────────
 -- 6. 부서 임명 대상 검색
+--    내부에 dept_mgmt_grade_ok 권한 검사가 이미 있다.
 -- ─────────────────────────────────────────────────────────────
 create or replace function public.dept_search_members_for_appoint(p_dept_id uuid, p_query text)
 returns table(member_id uuid, app_user_id uuid, name text, phone text, gender text, birth_date date, photo_url text, sub_role text, pasture_name text, grassland_name text, plain_name text, already_member boolean)
@@ -652,6 +674,7 @@ $$;
 
 -- ─────────────────────────────────────────────────────────────
 -- 7. 메신저 사용자 검색
+--    내부에 "요청자가 active 프로필이어야 한다" 검사가 이미 있다.
 -- ─────────────────────────────────────────────────────────────
 create or replace function public.search_messenger_users(
   p_query text default '',
@@ -705,5 +728,3 @@ as $$
     p.name nulls last
   limit greatest(1, least(coalesce(p_limit, 20), 50));
 $$;
-
-grant execute on function public.search_messenger_users(text, int) to authenticated;
