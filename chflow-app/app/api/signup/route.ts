@@ -338,6 +338,11 @@ export async function POST(req: NextRequest) {
       await admin.from("members").update({
         app_user_id: userId,
         guard_status: autoApprove ? "회원" : "가입대기",
+        account_state: "active",
+        status: "active",
+        withdrawn_at: null,
+        withdrawn_by: null,
+        withdrawal_reason: null,
       }).eq("id", matchedMemberId);
     }
 
