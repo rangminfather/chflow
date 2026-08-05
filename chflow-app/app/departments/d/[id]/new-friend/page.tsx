@@ -39,7 +39,25 @@ interface FriendSummary {
   created_at: string;
 }
 
-interface FamilyEntry { name: string; relation: string; phone: string }
+interface FamilyEntry { relative_id?: string | null; name: string; relation: string; phone: string }
+
+interface FamilyMatchRelative extends FamilyEntry {
+  relative_id: string;
+  photo_url: string | null;
+  default_selected: boolean;
+}
+
+interface FamilyMatchCandidate {
+  member_id: string;
+  name: string;
+  phone: string | null;
+  birth_date: string | null;
+  gender: string | null;
+  photo_url: string | null;
+  address: string | null;
+  strength: "strong" | "medium" | "weak";
+  family: FamilyMatchRelative[];
+}
 
 const FAMILY_RELATIONS = ["부", "모", "형", "누나", "오빠", "언니", "동생", "조부", "조모", "기타"];
 
@@ -88,6 +106,7 @@ interface FormState {
   photo_url: string | null;
   photoFile: File | null;
   photoPreviewUrl: string | null;
+  member_id: string | null;
 }
 
 const EMPTY_FORM: FormState = {
@@ -109,6 +128,7 @@ const EMPTY_FORM: FormState = {
   photo_url: null,
   photoFile: null,
   photoPreviewUrl: null,
+  member_id: null,
 };
 
 function todayLocalISO(): string {
@@ -136,6 +156,11 @@ export default function NewFriendPage() {
   const [deptStudents, setDeptStudents] = useState<DeptStudent[]>([]);
   const [deptClasses, setDeptClasses] = useState<DeptClass[]>([]);
   const [myClass, setMyClass] = useState<DeptClass | null>(null);
+  const [familyCandidates, setFamilyCandidates] = useState<FamilyMatchCandidate[]>([]);
+  const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<string | null>(null);
+  const [selectedRelativeIds, setSelectedRelativeIds] = useState<string[]>([]);
+  const [familyReviewOpen, setFamilyReviewOpen] = useState(false);
+  const [skipFamilyCheck, setSkipFamilyCheck] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -199,6 +224,7 @@ export default function NewFriendPage() {
         photo_url: studentPhoto,
         photoFile: null,
         photoPreviewUrl: null,
+        member_id: null,
       });
       setPhotoDirty(false);
       setIsNew(false);
@@ -216,8 +242,10 @@ export default function NewFriendPage() {
       guideGrade: grade,
       enroll_class_no: myClass?.class_no ?? "",
       family: [],
+      member_id: null,
     });
     setPhotoDirty(false);
+    setSkipFamilyCheck(false);
     setIsNew(true);
   };
 
@@ -241,6 +269,10 @@ export default function NewFriendPage() {
     if (form.gender !== "남" && form.gender !== "여") { showToast("성별을 선택하세요"); return; }
     if (!form.gradeYear) { showToast(`${gradeFieldLabel(deptName)}를 선택하세요`); return; }
     if (form.guide_kind === "student" && !form.guide_student_id) { showToast("인도자 학생을 선택하세요"); return; }
+    if (!form.member_id && form.family.length === 0 && !skipFamilyCheck) {
+      const opened = await openFamilyReview();
+      if (opened) return;
+    }
 
     const grade = Number(form.gradeYear);
     // 생년월일: 학년 선택 시 연도 자동(수정 가능), 월·일 미입력이면 1월 1일로 저장
@@ -253,7 +285,7 @@ export default function NewFriendPage() {
     }
 
     const family = form.family
-      .map((entry) => ({ name: entry.name.trim(), relation: entry.relation, phone: entry.phone.trim() }))
+      .map((entry) => ({ relative_id: entry.relative_id ?? null, name: entry.name.trim(), relation: entry.relation, phone: entry.phone.trim() }))
       .filter((entry) => entry.name);
 
     setSaving(true);
@@ -286,6 +318,17 @@ export default function NewFriendPage() {
         p_family_members: family,
       });
       if (error) throw error;
+
+      if (form.member_id && savedId) {
+        const { data: savedFriend } = await supabase
+          .from("edu_new_friends")
+          .select("student_id")
+          .eq("id", savedId)
+          .maybeSingle();
+        if (savedFriend?.student_id) {
+          await linkStudentFamily(savedFriend.student_id, form.member_id, family);
+        }
+      }
 
       // 사진: 편입 학생 레코드에 저장 (담임메뉴 새친구 등록과 동일 경로)
       if (photoDirty && (form.photoFile || form.photo_url)) {
@@ -323,6 +366,66 @@ export default function NewFriendPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const birthDateFromForm = () => {
+    const by = Number(form.birthYear);
+    if (!form.birthYear || !Number.isFinite(by) || by < 2000 || by > 2100) return null;
+    const bm = Math.min(12, Math.max(1, Number(form.birthMonth) || 1));
+    const bd = Math.min(31, Math.max(1, Number(form.birthDay) || 1));
+    return `${by}-${String(bm).padStart(2, "0")}-${String(bd).padStart(2, "0")}`;
+  };
+
+  const openFamilyReview = async () => {
+    if (!form.name.trim()) { showToast("이름을 먼저 입력하세요"); return false; }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { router.replace("/login"); return false; }
+    const response = await fetch("/api/edu/family-match", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({
+        dept_id: deptId,
+        student: { name: form.name.trim(), birth_date: birthDateFromForm(), phone: form.mobile || null, gender: form.gender === "남" ? "M" : form.gender === "여" ? "F" : null },
+      }),
+    });
+    const result = await response.json();
+    const candidates = (result.results?.[0]?.candidates || []) as FamilyMatchCandidate[];
+    if (!response.ok || !result.ok) { showToast(result.error || "요람 가족 후보를 찾지 못했습니다"); return false; }
+    if (candidates.length === 0) { showToast("매칭되는 요람 가족 후보가 없습니다"); return false; }
+    setFamilyCandidates(candidates);
+    setSelectedFamilyMemberId(candidates[0].member_id);
+    setSelectedRelativeIds(candidates[0].family.filter((family) => family.default_selected).map((family) => family.relative_id));
+    setFamilyReviewOpen(true);
+    return true;
+  };
+
+  const applyFamilyReview = () => {
+    const candidate = familyCandidates.find((item) => item.member_id === selectedFamilyMemberId);
+    if (!candidate) return;
+    const family = candidate.family
+      .filter((entry) => selectedRelativeIds.includes(entry.relative_id))
+      .map((entry) => ({ relative_id: entry.relative_id, name: entry.name, relation: entry.relation, phone: entry.phone || "" }));
+    setForm((current) => ({
+      ...current,
+      member_id: candidate.member_id,
+      mobile: current.mobile || formatPhone(candidate.phone || ""),
+      address: current.address || candidate.address || "",
+      family: mergeFamilyEntries(current.family, family),
+    }));
+    setSkipFamilyCheck(true);
+    setFamilyReviewOpen(false);
+  };
+
+  const linkStudentFamily = async (studentId: string, memberId: string, family: FamilyEntry[]) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const response = await fetch("/api/edu/link-student-family", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ dept_id: deptId, student_id: studentId, member_id: memberId, family }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "요람 가족 연결 실패");
   };
 
   const handleDelete = async () => {
@@ -579,6 +682,11 @@ export default function NewFriendPage() {
                   )}
                   <button
                     type="button"
+                    onClick={openFamilyReview}
+                    style={{ marginRight: 8, padding: "7px 12px", borderRadius: 8, border: "1.5px solid var(--accent)", background: "var(--accent-soft)", color: "var(--accent)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                  >요람 가족 찾기</button>
+                  <button
+                    type="button"
                     onClick={() => setForm((p) => ({ ...p, family: [...p.family, { name: "", relation: "부", phone: "" }] }))}
                     style={{ padding: "7px 12px", borderRadius: 8, border: "1.5px solid var(--hairline)", background: "var(--card)", color: "var(--ink-soft)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}
                   ><Plus size={13} strokeWidth={2.4} /> 가족 추가</button>
@@ -660,9 +768,124 @@ export default function NewFriendPage() {
         </div>
       </div>
 
+      {familyReviewOpen && (
+        <FamilyReviewModal
+          candidates={familyCandidates}
+          selectedMemberId={selectedFamilyMemberId}
+          selectedRelativeIds={selectedRelativeIds}
+          onClose={() => setFamilyReviewOpen(false)}
+          onSkip={() => { setSkipFamilyCheck(true); setFamilyReviewOpen(false); }}
+          onApply={applyFamilyReview}
+          onSelectCandidate={(memberId) => {
+            const candidate = familyCandidates.find((item) => item.member_id === memberId);
+            setSelectedFamilyMemberId(memberId);
+            setSelectedRelativeIds(candidate?.family.filter((family) => family.default_selected).map((family) => family.relative_id) || []);
+          }}
+          onToggleRelative={(relativeId) => setSelectedRelativeIds((current) => current.includes(relativeId) ? current.filter((id) => id !== relativeId) : [...current, relativeId])}
+          onToggleAll={(checked) => {
+            const candidate = familyCandidates.find((item) => item.member_id === selectedFamilyMemberId);
+            setSelectedRelativeIds(checked ? (candidate?.family.map((family) => family.relative_id) || []) : []);
+          }}
+        />
+      )}
       {toast && <div style={toastStyle}>{toast}</div>}
     </div>
   );
+}
+
+function mergeFamilyEntries(current: FamilyEntry[], additions: FamilyEntry[]) {
+  const seen = new Set(current.map((entry) => entry.relative_id || `${entry.relation}|${entry.name}|${entry.phone}`));
+  const next = [...current];
+  additions.forEach((entry) => {
+    const key = entry.relative_id || `${entry.relation}|${entry.name}|${entry.phone}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    next.push(entry);
+  });
+  return next;
+}
+
+function FamilyReviewModal({
+  candidates,
+  selectedMemberId,
+  selectedRelativeIds,
+  onClose,
+  onSkip,
+  onApply,
+  onSelectCandidate,
+  onToggleRelative,
+  onToggleAll,
+}: {
+  candidates: FamilyMatchCandidate[];
+  selectedMemberId: string | null;
+  selectedRelativeIds: string[];
+  onClose: () => void;
+  onSkip: () => void;
+  onApply: () => void;
+  onSelectCandidate: (memberId: string) => void;
+  onToggleRelative: (relativeId: string) => void;
+  onToggleAll: (checked: boolean) => void;
+}) {
+  const selected = candidates.find((candidate) => candidate.member_id === selectedMemberId) || candidates[0];
+  if (!selected) return null;
+  const allSelected = selected.family.length > 0 && selected.family.every((family) => selectedRelativeIds.includes(family.relative_id));
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onMouseDown={onClose}>
+      <div style={{ width: "min(860px, 100%)", maxHeight: "90vh", overflow: "auto", background: "var(--card)", borderRadius: 10, padding: 18 }} onMouseDown={(event) => event.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>요람 가족 후보</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-faint)", marginTop: 4 }}>후보를 선택하고 등록할 가족만 체크하세요.</div>
+          </div>
+          <button type="button" onClick={onClose} style={{ width: 36, height: 36, borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--card)", cursor: "pointer" }}><X size={16} /></button>
+        </div>
+        <div className="grid gap-3 md:grid-cols-[280px_1fr]">
+          <div>
+            <button type="button" onClick={onSkip} className="mb-2 w-full rounded-md border border-hairline bg-card px-3 py-2 text-left text-[13px] font-extrabold text-ink">해당없음 <span className="text-ink-faint">· 수동 입력</span></button>
+            {candidates.map((candidate) => (
+              <button key={candidate.member_id} type="button" onClick={() => onSelectCandidate(candidate.member_id)} className={`mb-2 flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left ${candidate.member_id === selected.member_id ? "border-amber-400 bg-amber-50" : "border-hairline bg-card"}`}>
+                <Avatar src={candidate.photo_url} name={candidate.name} />
+                <span className="min-w-0">
+                  <span className="block truncate text-[14px] font-extrabold text-ink">{candidate.name}</span>
+                  <span className="block truncate text-[12px] font-semibold text-ink-faint">{candidate.birth_date || "생년 미등록"} · {candidate.phone ? formatPhone(candidate.phone) : "연락처 없음"}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-[15px] font-extrabold text-ink">{selected.name} 가족</div>
+              <label className="inline-flex items-center gap-2 rounded-md border border-hairline bg-card px-3 py-2 text-[13px] font-extrabold text-ink">
+                <input type="checkbox" checked={allSelected} onChange={(event) => onToggleAll(event.target.checked)} /> 전체 선택
+              </label>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {selected.family.map((family) => (
+                <label key={family.relative_id} className="flex cursor-pointer items-center gap-2 rounded-md border border-hairline bg-card px-3 py-2">
+                  <input type="checkbox" checked={selectedRelativeIds.includes(family.relative_id)} onChange={() => onToggleRelative(family.relative_id)} />
+                  <Avatar src={family.photo_url} name={family.name} />
+                  <span className="min-w-0">
+                    <span className="block truncate text-[14px] font-extrabold text-ink">{family.relation} · {family.name}</span>
+                    <span className="block truncate text-[12px] font-semibold text-ink-faint">{family.phone ? formatPhone(family.phone) : "연락처 없음"}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" onClick={onSkip} className="rounded-md border border-hairline bg-card px-4 py-2 text-[14px] font-extrabold text-ink">가족 없이 계속</button>
+          <button type="button" onClick={onApply} className="rounded-md bg-ink px-4 py-2 text-[14px] font-extrabold text-white">선택한 가족 입력하기</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Avatar({ src, name }: { src?: string | null; name: string }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  if (src) return <img src={src} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />;
+  return <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg-soft text-[13px] font-extrabold text-ink-faint">{(name || "?").slice(0, 1)}</span>;
 }
 
 function FormField({ label, children, fullWidth }: { label: string; children: React.ReactNode; fullWidth?: boolean }) {

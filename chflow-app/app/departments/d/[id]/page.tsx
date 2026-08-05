@@ -134,7 +134,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
       // ── 명부·부서 운영 ──
       { id: "students-info", label: "학생정보관리", icon: FileText, desc: "학생 명부 · 인적사항", color: "#B97B3D", implemented: true, section: "ops" },
       { id: "new-friend", label: "새친구등록", icon: Sparkles, desc: "새친구 등록카드 · 생활기록부", color: "#C26D8C", implemented: true, section: "ops" },
-      { id: "teacher-assign", label: "반 관리", icon: UserCog, desc: "반 추가·삭제 · 담임 지정 (전도사·부장)", color: "var(--accent-muted)", implemented: true, section: "ops" },
+      { id: "teacher-assign", label: "반 관리", icon: UserCog, desc: "반 추가·삭제 · 담임 지정 (임원진)", color: "var(--accent-muted)", implemented: true, section: "ops" },
       { id: "dept-approval", label: "사역 가입 승인", icon: Inbox, desc: "본 부서 가입 신청 승인 · 등급 부여", color: "var(--success)", implemented: true, onlyForDept: null, onlyForCategory: null, maxGrade: 2, section: "ops" },
     ],
   },
@@ -161,6 +161,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
 // ─────────────────────────────────────────────────────────────────
 type MenuSetting = { label: string | null; description: string | null; max_grade: number | null; section?: string | null };
 type MenuSettings = Record<string, MenuSetting>;
+type SectionLabels = Record<string, string>;
 // 접근등급(학부모까지/선생님만) 변경 가능한 공통메뉴 항목
 const ACCESS_CONFIGURABLE = new Set(["monthly-plan", "review-problems"]);
 // 설정 대상 공통메뉴 (순서 = 표시 순서)
@@ -189,6 +190,7 @@ export default function DepartmentDetailPage() {
   const [editCatId, setEditCatId] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ catId: string; itemId: string } | null>(null);
   const [sectionOrder, setSectionOrder] = useState<string[]>(ADMIN_SECTIONS.map((s) => s.id));
+  const [sectionLabels, setSectionLabels] = useState<SectionLabels>({});
   const [itemOrder, setItemOrder] = useState<Record<string, string[]>>({});
   // 드래그 정렬 (편집모드) — Pointer Events 라 마우스·터치 모두 동작
   const [draggingKey, setDraggingKey] = useState<string | null>(null); // `${catId}:${itemId}`
@@ -207,7 +209,7 @@ export default function DepartmentDetailPage() {
       if (!session) { router.replace("/login"); return; }
       setAuthChecked(true);
       setLoading(true);
-      const [deptResp, gradeResp, teacherResp, settingsResp, sectionOrderResp, itemOrderResp] = await Promise.all([
+      const [deptResp, gradeResp, teacherResp, settingsResp, sectionOrderResp, sectionLabelsResp, itemOrderResp] = await Promise.all([
         supabase.rpc("get_department_info", { p_dept_id: deptId }),
         supabase.rpc("get_user_grade", { p_dept_id: deptId }),
         supabase
@@ -219,6 +221,7 @@ export default function DepartmentDetailPage() {
           .maybeSingle(),
         supabase.rpc("get_dept_menu_settings", { p_department_id: deptId }),
         supabase.rpc("get_dept_admin_section_order", { p_department_id: deptId }),
+        supabase.rpc("get_dept_admin_section_labels", { p_department_id: deptId }),
         supabase.rpc("get_dept_menu_item_order", { p_department_id: deptId }),
       ]);
       if (!itemOrderResp.error && itemOrderResp.data && typeof itemOrderResp.data === "object") {
@@ -229,6 +232,9 @@ export default function DepartmentDetailPage() {
       }
       if (!sectionOrderResp.error && Array.isArray(sectionOrderResp.data) && sectionOrderResp.data.length === ADMIN_SECTIONS.length) {
         setSectionOrder(sectionOrderResp.data as string[]);
+      }
+      if (!sectionLabelsResp.error && sectionLabelsResp.data && typeof sectionLabelsResp.data === "object") {
+        setSectionLabels(sectionLabelsResp.data as SectionLabels);
       }
       if (!deptResp.error && deptResp.data && deptResp.data.length > 0) {
         setDept(deptResp.data[0]);
@@ -324,6 +330,30 @@ export default function DepartmentDetailPage() {
       setSectionOrder(prev);
       showToast(`순서 저장 실패: ${error.message}`);
     }
+  };
+
+  const sectionLabelOf = (id: string, fallback: string) => {
+    const custom = sectionLabels[id];
+    return custom && custom.trim() ? custom : fallback;
+  };
+
+  const saveSectionLabel = async (id: string, fallback: string, nextLabel: string) => {
+    const trimmed = nextLabel.trim();
+    if (!trimmed || trimmed === sectionLabelOf(id, fallback)) return;
+    const prev = sectionLabels;
+    setSectionLabels((labels) => ({ ...labels, [id]: trimmed }));
+    const { data, error } = await supabase.rpc("set_dept_admin_section_label", {
+      p_department_id: deptId,
+      p_section_id: id,
+      p_label: trimmed,
+    });
+    if (error) {
+      setSectionLabels(prev);
+      showToast(`섹션명 저장 실패: ${error.message}`);
+      return;
+    }
+    if (data && typeof data === "object") setSectionLabels(data as SectionLabels);
+    showToast("섹션명을 수정했습니다");
   };
 
   // 참여 멤버 팝업 — RPC(list_dept_member_faces): members(app_user_id) 우선, profiles 폴백
@@ -605,9 +635,27 @@ export default function DepartmentDetailPage() {
                     <div key={sec.id} style={{ marginTop: gi === 0 ? 0 : 16 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
                         <sec.icon size={13} strokeWidth={1.9} style={{ color: "var(--ink-faint)" }} />
-                        <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.3, whiteSpace: "nowrap" }}>
-                          {sec.label}
-                        </span>
+                        {sectionsEditable ? (
+                          <input
+                            defaultValue={sectionLabelOf(sec.id, sec.label)}
+                            aria-label={`${sec.label} 섹션명`}
+                            maxLength={24}
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={(e) => saveSectionLabel(sec.id, sec.label, e.currentTarget.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") e.currentTarget.blur();
+                              if (e.key === "Escape") {
+                                e.currentTarget.value = sectionLabelOf(sec.id, sec.label);
+                                e.currentTarget.blur();
+                              }
+                            }}
+                            style={sectionLabelInputStyle}
+                          />
+                        ) : (
+                          <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.3, whiteSpace: "nowrap" }}>
+                            {sectionLabelOf(sec.id, sec.label)}
+                          </span>
+                        )}
                         <div style={{ flex: 1, height: 1, background: "var(--hairline)" }} />
                         {sectionsEditable && (
                           <div style={{ display: "flex", gap: 2 }}>
@@ -714,6 +762,7 @@ export default function DepartmentDetailPage() {
           catId={editing.catId}
           itemId={editing.itemId}
           setting={menuSettings[settingKeyOf(editing.catId, editing.itemId)]}
+          sectionLabels={sectionLabels}
           myGrade={grade}
           onClose={() => setEditing(null)}
           onSaved={(next) => { setMenuSettings(next); setEditing(null); showToast("메뉴를 수정했습니다"); }}
@@ -731,13 +780,14 @@ export default function DepartmentDetailPage() {
 //  - 그 외: 제목/설명만
 // ─────────────────────────────────────────────────────────────────
 function EditMenuPopup({
-  deptId, deptName, catId, itemId, setting, myGrade, onClose, onSaved,
+  deptId, deptName, catId, itemId, setting, sectionLabels, myGrade, onClose, onSaved,
 }: {
   deptId: string;
   deptName: string;
   catId: string;
   itemId: string;
   setting?: MenuSetting;
+  sectionLabels: SectionLabels;
   myGrade: number;
   onClose: () => void;
   onSaved: (next: MenuSettings) => void;
@@ -837,7 +887,7 @@ function EditMenuPopup({
                         color: active ? "var(--accent-strong)" : "var(--ink-soft)",
                       }}
                     >
-                      <sec.icon size={13} strokeWidth={1.9} /> {sec.label}
+                      <sec.icon size={13} strokeWidth={1.9} /> {sectionLabels[sec.id]?.trim() || sec.label}
                     </button>
                   );
                 })}
@@ -894,6 +944,19 @@ const sectionMoveBtnStyle = (disabled: boolean): React.CSSProperties => ({
   border: "1px solid var(--hairline)", background: "var(--card)", color: disabled ? "var(--ink-faint)" : "var(--ink-mid)",
   cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.4 : 1,
 });
+const sectionLabelInputStyle: React.CSSProperties = {
+  width: "min(220px, 44vw)",
+  minHeight: 28,
+  border: "1px solid var(--hairline)",
+  borderRadius: 7,
+  background: "var(--card)",
+  color: "var(--ink-mid)",
+  padding: "4px 8px",
+  fontFamily: "inherit",
+  fontSize: 12,
+  fontWeight: 800,
+  outline: "none",
+};
 
 const modalLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", letterSpacing: 0.2 };
 const modalInput: React.CSSProperties = { width: "100%", marginTop: 5, padding: "10px 12px", fontSize: 14, background: "var(--card)", border: "1.5px solid var(--hairline)", borderRadius: 9, outline: "none", fontFamily: "inherit", boxSizing: "border-box", color: "var(--ink)", fontWeight: 500 };

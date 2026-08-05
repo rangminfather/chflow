@@ -1,5 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
+import {
+  detectBulletinAttachmentKind,
+  normalizeBulletinAttachmentAsPdf,
+} from "@/lib/bulletin/attachment-to-pdf";
 import { r2 } from "@/lib/r2";
 
 // 초등1부 주보(UMS samusil 게시판) 수집 로직.
@@ -187,10 +191,6 @@ async function findLatestDeptBulletin() {
   return items[0];
 }
 
-function pdfFromBuffer(buf: Buffer) {
-  return buf.byteLength > 1000 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46;
-}
-
 async function findRawPdfPathFromPost(no: number) {
   const html = await workerEucKr(`/bbs/zboard.php?id=samusil&no=${no}`);
   const match = html.match(/data\/samusil\/\d+\/[a-f0-9]+__pdf\.jpg/i);
@@ -203,16 +203,21 @@ async function downloadPdf(no: number) {
     const raw = await umsViaCf(`/bbs/${rawPath}`, {
       referer: `${BOARD_URL}&no=${no}`,
     });
-    if (pdfFromBuffer(raw.body)) return raw.body;
+    const normalized = await normalizeBulletinAttachmentAsPdf(raw.body);
+    if (normalized) return normalized;
   }
 
   const downloaded = await umsViaCf(
     `/bbs/skin/PSM_Revolution_DragDrop_board_domi_t_reply_comment/m_download.php?id=samusil&no=${no}&filenum=0&snum=0&hit=0`,
     { referer: `${BOARD_URL}&no=${no}` },
   );
-  if (pdfFromBuffer(downloaded.body)) return downloaded.body;
+  const normalized = await normalizeBulletinAttachmentAsPdf(downloaded.body);
+  if (normalized) return normalized;
 
-  throw new Error(`${DEPT_KEY} PDF 다운로드 실패: ${downloaded.status}`);
+  const kind = detectBulletinAttachmentKind(downloaded.body);
+  throw new Error(
+    `${DEPT_KEY} 첨부파일 처리 실패: HTTP ${downloaded.status}, ${downloaded.contentType}, ${downloaded.body.byteLength} bytes (${kind})`
+  );
 }
 
 // 동시 호출 방지 (in-flight 잠금) — cron 과 사용자 트리거가 겹쳐도 1회만 수집
