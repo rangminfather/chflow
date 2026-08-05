@@ -34,6 +34,69 @@ type AttendanceStatus = {
   } | null;
 };
 
+type NativeDiagnostic = {
+  code: string;
+  message?: string;
+  at: string;
+  sessionStartedAt?: string;
+  dwellSeconds?: number;
+  requiredSeconds?: number;
+  distanceM?: number;
+  accuracyM?: number;
+};
+
+type NativeSnapshot = {
+  platform: string;
+  foregroundPermission: string;
+  backgroundPermission: string;
+  geofencingStarted: boolean;
+  session: {
+    enteredAt: string;
+    status: "open" | "closed";
+    localDate: string;
+    elapsedSeconds: number;
+    pendingSubmit: boolean;
+    lastSubmitError?: string;
+  } | null;
+  lastDiagnostic: NativeDiagnostic | null;
+};
+
+/** 네이티브가 보고한 사유 코드를 사람이 읽을 수 있는 문장으로 바꾼다. */
+const DIAGNOSTIC_LABEL: Record<string, string> = {
+  no_geofence: "관리자가 설정한 자동출석 위치를 찾지 못했습니다.",
+  config_fetch_failed: "자동출석 설정을 내려받지 못했습니다.",
+  config_changed: "자동출석 설정이 바뀌어 체류 기록을 새로 시작합니다.",
+  foreground_denied: "위치 권한(앱 사용 중)이 허용되지 않았습니다.",
+  background_denied: "위치 권한 '항상 허용'이 필요합니다.",
+  geofencing_start_failed: "위치 감지를 시작하지 못했습니다.",
+  geofencing_started: "교회 위치 감지를 시작했습니다.",
+  geofencing_stopped: "교회 위치 감지를 중지했습니다.",
+  outside_window: "자동출석 운영시간이 아닙니다.",
+  enter_new: "교회 반경 진입을 새로 기록했습니다.",
+  enter_kept: "이미 기록된 진입 시각을 유지했습니다.",
+  exit_closed: "교회 반경을 벗어나 체류 기록을 닫았습니다.",
+  submit_failed: "서버로 진입 기록을 보내지 못했습니다. 앱을 다시 열면 재전송합니다.",
+  submit_retried: "보내지 못했던 진입 기록을 다시 보냈습니다.",
+  no_local_session: "진행 중인 체류 기록이 없습니다.",
+  date_rolled: "날짜가 바뀌어 체류를 새로 시작합니다.",
+  session_expired: "체류 기록이 오래되어 새로 시작합니다.",
+  dwell_short: "최소 체류시간이 아직 지나지 않았습니다.",
+  position_failed: "현재 위치를 확인하지 못했습니다.",
+  outside_radius: "현재 위치가 교회 인정 반경 밖입니다.",
+  confirm_failed: "자동출석 확정에 실패했습니다.",
+  confirmed: "자동출석을 기록했습니다.",
+  already_attended: "오늘 출석이 이미 기록되어 있습니다.",
+  candidate_closed: "오늘 후보가 이미 처리되었습니다.",
+  task_error: "위치 이벤트 처리 중 오류가 발생했습니다.",
+};
+
+const PERMISSION_LABEL: Record<string, string> = {
+  granted: "허용",
+  denied: "거부",
+  undetermined: "미결정",
+  unknown: "확인 불가",
+};
+
 function time(value: string | null | undefined) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("ko-KR", {
@@ -52,6 +115,8 @@ export default function MyAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const [snapshot, setSnapshot] = useState<NativeSnapshot | null>(null);
+  const [diagnostic, setDiagnostic] = useState<NativeDiagnostic | null>(null);
 
   const load = useCallback(async () => {
     const token = (await supabase.auth.getSession()).data.session?.access_token;
@@ -84,6 +149,45 @@ export default function MyAttendancePage() {
     };
   }, [load]);
 
+  // 네이티브(앱) 쪽 진단 상태 — 권한·지오펜스 등록·전송 실패를 화면에 드러낸다.
+  useEffect(() => {
+    const nativeWindow = window as typeof window & {
+      ReactNativeWebView?: { postMessage: (message: string) => void };
+    };
+
+    const receive = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        kind?: string;
+        snapshot?: NativeSnapshot;
+        diagnostic?: NativeDiagnostic;
+        message?: string;
+      }>).detail;
+      if (detail?.kind === "snapshot" && detail.snapshot) {
+        setSnapshot(detail.snapshot);
+        if (detail.snapshot.lastDiagnostic) setDiagnostic(detail.snapshot.lastDiagnostic);
+        return;
+      }
+      if (detail?.kind === "diagnostic" && detail.diagnostic) {
+        setDiagnostic(detail.diagnostic);
+        return;
+      }
+      if (detail?.kind === "snapshot-error") {
+        setDiagnostic({ code: "task_error", message: detail.message, at: new Date().toISOString() });
+      }
+    };
+
+    window.addEventListener("chflow-native-attendance", receive);
+    const ask = () => nativeWindow.ReactNativeWebView?.postMessage(
+      JSON.stringify({ type: "CHFLOW_ATTENDANCE_DIAGNOSE" }),
+    );
+    ask();
+    const timer = window.setInterval(ask, 10_000);
+    return () => {
+      window.removeEventListener("chflow-native-attendance", receive);
+      window.clearInterval(timer);
+    };
+  }, []);
+
   const elapsedSeconds = useMemo(() => {
     if (!data?.candidate?.entered_at) return 0;
     return Math.max(0, Math.floor((now.getTime() - Date.parse(data.candidate.entered_at)) / 1000));
@@ -94,7 +198,7 @@ export default function MyAttendancePage() {
       ReactNativeWebView?: { postMessage: (message: string) => void };
     };
     if (!nativeWindow.ReactNativeWebView) {
-      setNotice("스마트명성 Android 앱에서 이 버튼을 사용해 주세요.");
+      setNotice("스마트명성 앱(Android·iOS)에서 이 버튼을 사용해 주세요.");
       return;
     }
     nativeWindow.ReactNativeWebView.postMessage(JSON.stringify({
@@ -168,6 +272,59 @@ export default function MyAttendancePage() {
             <p style={warning}>관리자가 자동출석 위치를 아직 설정하지 않았습니다.</p>
           )}
         </section>
+
+        {snapshot && (
+          <section style={card}>
+            <h2 style={sectionTitle}>기기 상태 (진단)</h2>
+            {(
+              <dl style={details}>
+                <Row label="플랫폼" value={snapshot.platform} />
+                <Row
+                  label="위치 권한 (앱 사용 중)"
+                  value={PERMISSION_LABEL[snapshot.foregroundPermission] || snapshot.foregroundPermission}
+                />
+                <Row
+                  label="위치 권한 (항상 허용)"
+                  value={PERMISSION_LABEL[snapshot.backgroundPermission] || snapshot.backgroundPermission}
+                  accent={snapshot.backgroundPermission === "granted"}
+                />
+                <Row
+                  label="교회 위치 감지"
+                  value={snapshot.geofencingStarted ? "등록됨" : "등록 안 됨"}
+                  accent={snapshot.geofencingStarted}
+                />
+                <Row
+                  label="기기 체류 시작"
+                  value={snapshot.session?.status === "open" ? time(snapshot.session.enteredAt) : "—"}
+                />
+                <Row
+                  label="기기 체류시간"
+                  value={
+                    snapshot.session?.status === "open"
+                      ? `${Math.floor(snapshot.session.elapsedSeconds / 60)}분 ${snapshot.session.elapsedSeconds % 60}초`
+                      : "—"
+                  }
+                />
+                {snapshot.session?.pendingSubmit && (
+                  <Row label="서버 전송" value="미완료 (앱 재실행 시 재전송)" />
+                )}
+              </dl>
+            )}
+            {diagnostic && (
+              <p style={{ margin: "14px 0 0", color: "var(--ink-mid)", fontSize: 13, lineHeight: 1.6 }}>
+                <strong style={{ color: "var(--ink)" }}>최근 상태 </strong>
+                {time(diagnostic.at)} · {DIAGNOSTIC_LABEL[diagnostic.code] || diagnostic.code}
+                {diagnostic.message ? ` (${diagnostic.message})` : ""}
+                {typeof diagnostic.distanceM === "number"
+                  ? ` · 거리 ${Math.round(diagnostic.distanceM)}m / 정확도 ${Math.round(diagnostic.accuracyM ?? 0)}m`
+                  : ""}
+              </p>
+            )}
+            {snapshot?.session?.lastSubmitError && (
+              <p role="alert" style={warning}>전송 실패 사유: {snapshot.session.lastSubmitError}</p>
+            )}
+          </section>
+        )}
 
         {data?.geofence && !data.withinOperatingWindow && (
           <p style={warning}>
