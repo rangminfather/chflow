@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "CHFlow desktop 최소 권한 (3단계). allow-all 금지.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-unminimize",
+    "core:window:allow-set-focus",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://chflow-app.vercel.app/*" },
+        { "url": "https://*.supabase.co/*" }
+      ],
+      "deny": []
+    }
+  ]
+}
