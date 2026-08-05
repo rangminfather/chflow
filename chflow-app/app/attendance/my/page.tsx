@@ -193,6 +193,19 @@ export default function MyAttendancePage() {
     return Math.max(0, Math.floor((now.getTime() - Date.parse(data.candidate.entered_at)) / 1000));
   }, [data?.candidate?.entered_at, now]);
 
+  // 서버 candidate.entered_at 은 '당일 최초 진입'이고 이탈해도 지워지지 않는다.
+  // 앱이 현재 세션 상태를 알려주면 그 값을 기준으로 삼아, 반경 밖에서 카운터가 계속 도는 것을 막는다.
+  const nativeSession = snapshot?.session ?? null;
+  const nativeSessionOpen = nativeSession?.status === "open";
+  const enteredAtLabel = snapshot
+    ? (nativeSessionOpen ? time(nativeSession!.enteredAt) : "—")
+    : time(data?.candidate?.entered_at);
+  const dwellLabel = snapshot
+    ? (nativeSessionOpen
+      ? `${Math.floor(nativeSession!.elapsedSeconds / 60)}분 ${nativeSession!.elapsedSeconds % 60}초`
+      : "—")
+    : (data?.candidate ? `${Math.floor(elapsedSeconds / 60)}분 ${elapsedSeconds % 60}초` : "—");
+
   const beginSetup = () => {
     const nativeWindow = window as typeof window & {
       ReactNativeWebView?: { postMessage: (message: string) => void };
@@ -210,14 +223,18 @@ export default function MyAttendancePage() {
   const isAutomatic = data?.attendance?.source === "auto_geofence";
   const isAttended = Boolean(data?.attendance);
   const isCandidate = Boolean(data?.candidate) && !isAttended;
+  // 앱이 세션을 닫았다면(이탈·확정·만료) 체류 확인 중이라고 표시하지 않는다.
+  const outsideNow = Boolean(snapshot) && !nativeSessionOpen && isCandidate;
   const statusLabel = isAutomatic
     ? "자동출석 완료"
     : isAttended
       ? "출석 확인 완료"
-      : isCandidate
-        ? "교회 체류 확인 중"
-        : "오늘은 아직 미출석";
-  const statusColor = isAttended ? "#16794f" : isCandidate ? "#a35b00" : "var(--ink-mid)";
+      : outsideNow
+        ? "교회 반경 밖"
+        : isCandidate
+          ? "교회 체류 확인 중"
+          : "오늘은 아직 미출석";
+  const statusColor = isAttended ? "#16794f" : (isCandidate && !outsideNow) ? "#a35b00" : "var(--ink-mid)";
 
   return (
     <>
@@ -246,11 +263,8 @@ export default function MyAttendancePage() {
           <dl style={details}>
             <Row label="현재 시각" value={time(now.toISOString())} />
             <Row label="출석 날짜" value={data?.localDate || "—"} />
-            <Row label="교회 진입 시각" value={time(data?.candidate?.entered_at)} />
-            <Row
-              label="현재 체류시간"
-              value={data?.candidate ? `${Math.floor(elapsedSeconds / 60)}분 ${elapsedSeconds % 60}초` : "—"}
-            />
+            <Row label="교회 진입 시각" value={enteredAtLabel} />
+            <Row label="현재 체류시간" value={dwellLabel} />
             <Row
               label="자동출석 완료 시각"
               value={time(data?.attendance?.recorded_at)}

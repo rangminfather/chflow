@@ -675,6 +675,165 @@ describe('교회 위치 저장 직후 재등록 + 즉시 진입 판정', () => {
   });
 });
 
+describe('이탈·재진입·날짜 변경', () => {
+  it('진입 후 3분 만에 이탈하면 자동출석이 되지 않고 세션이 종료된다', async () => {
+    seedSession();
+    await fireEnter();
+    advance(180);
+    await fireExit();
+
+    const event = readEvent()!;
+    expect(event.status).toBe('closed');
+    expect(event.exitedAt).toBeTruthy();
+
+    // 이탈 후 앱을 열어도 확정되지 않는다.
+    const confirmed = await maybeConfirmAttendance('token-1');
+    expect(confirmed).toBe(false);
+    expect(calls.some((url) => url.endsWith('/confirm'))).toBe(false);
+  });
+
+  it('미완료 3분은 다음 진입에 이어지지 않고 0부터 다시 센다', async () => {
+    seedSession();
+    await fireEnter();
+    advance(180);
+    await fireExit();
+
+    advance(1200);
+    await fireEnter();
+    const session = readEvent()!;
+    // 새 진입 시각 = 지금. 이전 3분과 합산하지 않는다.
+    expect(session.enteredAt).toBe(new Date(BASE + 1380 * 1000).toISOString());
+    expect(elapsedSecondsSince(session.enteredAt, Date.now())).toBe(0);
+
+    // 재진입 직후에는 체류 미달로 확정되지 않는다.
+    expect(await maybeConfirmAttendance('token-1')).toBe(false);
+    expect(lastCode()).toBe('dwell_short');
+  });
+
+  it('재진입 후 5분을 채우면 자동출석이 확정된다', async () => {
+    seedSession();
+    await fireEnter();
+    advance(180);
+    await fireExit();
+
+    advance(60);
+    await fireEnter();
+    advance(301);
+    const confirmed = await maybeConfirmAttendance('token-1');
+
+    expect(confirmed).toBe(true);
+    expect(lastCode()).toBe('confirmed');
+    expect(readEvent()!.status).toBe('closed');
+  });
+
+  it('출석 완료 후 이탈·재진입해도 중복 출석을 만들지 않고 완료를 취소하지 않는다', async () => {
+    seedSession();
+    await fireEnter();
+    advance(301);
+    expect(await maybeConfirmAttendance('token-1')).toBe(true);
+
+    // 서버 상태를 확정 이후로 맞춘다.
+    server.attendance = { source: 'auto_geofence', recorded_at: new Date(Date.now()).toISOString() };
+    server.candidate = { status: 'confirmed', entered_at: new Date(BASE).toISOString(), dwell_seconds: 301 };
+    const confirmCallsBefore = calls.filter((url) => url.endsWith('/confirm')).length;
+
+    advance(60);
+    await fireExit();
+    advance(600);
+    await fireEnter();
+    const confirmedAgain = await maybeConfirmAttendance('token-1');
+
+    expect(confirmedAgain).toBe(false);
+    expect(calls.filter((url) => url.endsWith('/confirm')).length).toBe(confirmCallsBefore);
+    expect(server.attendance).not.toBeNull();   // 완료 기록 보존
+  });
+
+  it('반경 밖에서 자정이 지난 뒤 진입하면 새 날짜로 기록한다', async () => {
+    seedSession();
+    // 2026-08-05 23:50 KST
+    vi.setSystemTime(Date.parse('2026-08-05T14:50:00.000Z'));
+    await fireEnter();
+    expect(readEvent()!.localDate).toBe('2026-08-05');
+    await fireExit();
+
+    // 2026-08-06 00:10 KST — 날짜 변경 후 재진입
+    vi.setSystemTime(Date.parse('2026-08-05T15:10:00.000Z'));
+    await fireEnter();
+
+    const session = readEvent()!;
+    expect(session.localDate).toBe('2026-08-06');
+    expect(session.enteredAt).toBe(new Date(Date.parse('2026-08-05T15:10:00.000Z')).toISOString());
+  });
+
+  it('반경 안에서 자정을 넘기면 전날 체류를 이월하지 않고 새 날짜 세션으로 재판정한다', async () => {
+    seedSession();
+    // 2026-08-05 23:50 KST 진입 (이탈 없음 → ENTER 이벤트도 더 오지 않음)
+    vi.setSystemTime(Date.parse('2026-08-05T14:50:00.000Z'));
+    await fireEnter();
+    const yesterday = readEvent()!;
+    expect(yesterday.localDate).toBe('2026-08-05');
+
+    // 2026-08-06 00:20 KST 앱 복귀 → 날짜 재판정 경로
+    vi.setSystemTime(Date.parse('2026-08-05T15:20:00.000Z'));
+    const confirmed = await maybeConfirmAttendance('token-1');
+
+    expect(confirmed).toBe(false);
+    expect(lastCode()).toBe('date_rolled');
+    const session = readEvent()!;
+    expect(session.localDate).toBe('2026-08-06');
+    // 전날 23:50 이 아니라 지금(00:20)부터 다시 센다.
+    expect(session.enteredAt).toBe(new Date(Date.parse('2026-08-05T15:20:00.000Z')).toISOString());
+    expect(elapsedSecondsSince(session.enteredAt, Date.now())).toBe(0);
+  });
+
+  it('Asia/Seoul 자정과 UTC 날짜가 다른 시각에도 local_date 는 서울 기준이다', async () => {
+    seedSession();
+    // 2026-08-05 15:30 UTC = 2026-08-06 00:30 KST
+    vi.setSystemTime(Date.parse('2026-08-05T15:30:00.000Z'));
+    await fireEnter();
+
+    expect(readEvent()!.localDate).toBe('2026-08-06');
+    expect(localDateInTimeZone(new Date(), 'UTC')).toBe('2026-08-05');
+    expect(localDateInTimeZone(new Date(), 'Asia/Seoul')).toBe('2026-08-06');
+  });
+
+  it('EXIT 이벤트가 늦게 또는 중복으로 도착해도 확정된 출석과 새 세션을 훼손하지 않는다', async () => {
+    seedSession();
+    await fireEnter();
+    advance(301);
+    expect(await maybeConfirmAttendance('token-1')).toBe(true);
+    const afterConfirm = readEvent()!;
+
+    // 지연 EXIT 2회
+    advance(30);
+    await fireExit();
+    await fireExit();
+    const afterExits = readEvent()!;
+    expect(afterExits.status).toBe('closed');
+    expect(afterExits.enteredAt).toBe(afterConfirm.enteredAt);
+
+    // 이후 새 진입은 정상적으로 새 세션을 만든다.
+    advance(600);
+    await fireEnter();
+    const fresh = readEvent()!;
+    expect(fresh.status).toBe('open');
+    expect(fresh.enteredAt).not.toBe(afterConfirm.enteredAt);
+  });
+
+  it('앱이 종료된 동안 이탈했다가 재실행하면 반경 밖으로 판정하고 확정하지 않는다', async () => {
+    seedSession();
+    await fireEnter();               // 반경 안에서 진입
+    advance(1800);                   // 앱 종료 상태로 30분 경과 (EXIT 이벤트 못 받음)
+    h.state.coords = { latitude: 36.6, longitude: 127.5, accuracy: 10 };  // 실제로는 밖
+
+    const confirmed = await maybeConfirmAttendance('token-1');
+
+    expect(confirmed).toBe(false);
+    expect(lastCode()).toBe('outside_radius');
+    expect(calls.some((url) => url.endsWith('/confirm'))).toBe(false);
+  });
+});
+
 describe('권한·등록 실패 진단', () => {
   it("'항상 허용'이 없으면 지오펜스를 등록하지 않고 사유를 남긴다", async () => {
     seedSession();
