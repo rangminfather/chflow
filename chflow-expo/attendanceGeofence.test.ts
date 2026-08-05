@@ -13,6 +13,9 @@ const h = vi.hoisted(() => {
     background: 'granted',
     coords: { latitude: 35.524065, longitude: 129.432155, accuracy: 5 },
     positionThrows: false,
+    // startGeofencingAsync 에 실제로 넘어간 region 목록을 기록해 재등록 좌표를 검증한다.
+    registeredRegions: [] as Array<{ identifier: string; latitude: number; longitude: number; radius: number }>,
+    stopCalls: 0,
     task: null as null | ((body: { data?: unknown; error?: { message: string } | null }) => Promise<void>),
   };
   return { store, state };
@@ -36,8 +39,12 @@ vi.mock('expo-location', () => ({
   getForegroundPermissionsAsync: async () => ({ status: h.state.foreground }),
   getBackgroundPermissionsAsync: async () => ({ status: h.state.background }),
   hasStartedGeofencingAsync: async () => h.state.geofencingStarted,
-  startGeofencingAsync: async () => { h.state.geofencingStarted = true; },
-  stopGeofencingAsync: async () => { h.state.geofencingStarted = false; },
+  startGeofencingAsync: async (_task: string, regions: Array<{ identifier: string; latitude: number; longitude: number; radius: number }>) => {
+    h.state.geofencingStarted = true;
+    h.state.registeredRegions = regions;
+  },
+  stopGeofencingAsync: async () => { h.state.geofencingStarted = false; h.state.stopCalls += 1; },
+  getLastKnownPositionAsync: async () => null,
 }));
 
 vi.mock('expo-task-manager', () => ({
@@ -50,6 +57,7 @@ vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 
 import {
   EVENT_VERSION,
+  applyGeofenceAndDetectPresence,
   elapsedSecondsSince,
   fingerprint,
   getAttendanceSnapshot,
@@ -105,6 +113,8 @@ beforeEach(() => {
   h.state.background = 'granted';
   h.state.coords = { latitude: 35.524065, longitude: 129.432155, accuracy: 5 };
   h.state.positionThrows = false;
+  h.state.registeredRegions = [];
+  h.state.stopCalls = 0;
 
   server = {
     candidate: null,
@@ -531,6 +541,137 @@ describe('출석 확정 판정', () => {
     const event = readEvent()!;
     expect(event.enteredAt).toBe(new Date(BASE).toISOString());
     expect(calls.some((url) => url.endsWith('/confirm'))).toBe(false);
+  });
+});
+
+describe('교회 위치 저장 직후 재등록 + 즉시 진입 판정', () => {
+  // 새 교회 좌표 = 사용자가 서 있는 자리 (대전). 기존 저장값은 울산.
+  const MOVED: Geofence = { ...GEOFENCE, latitude: 36.331919, longitude: 127.436083 };
+
+  it('좌표가 바뀌면 기존 지오펜스를 해제하고 새 좌표로 다시 등록한다', async () => {
+    seedSession();
+    await syncAttendanceGeofence('token-1');
+    expect(h.state.registeredRegions[0]).toMatchObject({
+      identifier: GEOFENCE.id, latitude: GEOFENCE.latitude, longitude: GEOFENCE.longitude, radius: 150,
+    });
+
+    server.geofence = MOVED;
+    const stopsBefore = h.state.stopCalls;
+    await applyGeofenceAndDetectPresence('token-1');
+
+    expect(h.state.stopCalls).toBeGreaterThan(stopsBefore);   // 기존 지오펜스 해제
+    expect(h.state.registeredRegions[0]).toMatchObject({      // 새 좌표·반경으로 재등록
+      identifier: MOVED.id, latitude: 36.331919, longitude: 127.436083, radius: 150,
+    });
+  });
+
+  it('이미 반경 안에서 교회 위치를 현재 위치로 바꾸면 즉시 진입으로 기록한다', async () => {
+    seedSession();
+    server.geofence = MOVED;
+    h.state.coords = { latitude: 36.331919, longitude: 127.436083, accuracy: 5 };
+
+    const result = await applyGeofenceAndDetectPresence('token-1');
+
+    expect(result.registered).toBe(true);
+    expect(result.inside).toBe(true);
+    expect(result.enteredAt).toBe(new Date(BASE).toISOString());
+    expect(result.message).toContain('현재 교회 반경 안에 있습니다');
+    // 진입 기록이 실제로 서버로 전송됐는지
+    expect(calls.some((url) => url.endsWith('/api/mobile/attendance-candidate'))).toBe(true);
+    const event = readEvent()!;
+    expect(event.status).toBe('open');
+    expect(event.enteredAt).toBe(new Date(BASE).toISOString());
+  });
+
+  it('반경 밖이면 등록만 하고 진입 기록을 남기지 않으며 거리를 알려준다', async () => {
+    seedSession();
+    server.geofence = MOVED;
+    h.state.coords = { latitude: 36.5, longitude: 127.9, accuracy: 5 };
+
+    const result = await applyGeofenceAndDetectPresence('token-1');
+
+    expect(result.registered).toBe(true);
+    expect(result.inside).toBe(false);
+    expect(result.enteredAt).toBeNull();
+    expect(result.message).toContain('교회 반경 밖');
+    expect(readEvent()).toBeNull();
+    expect(calls.some((url) => url.endsWith('/api/mobile/attendance-candidate'))).toBe(false);
+  });
+
+  it('오늘 진입 기록이 이미 있으면 진입 시각을 덮어쓰지 않는다', async () => {
+    seedSession();
+    h.state.coords = { latitude: 35.524065, longitude: 129.432155, accuracy: 5 };
+    await fireEnter();
+    const first = readEvent()!.enteredAt;
+
+    advance(600);
+    const result = await applyGeofenceAndDetectPresence('token-1');
+
+    expect(result.inside).toBe(true);
+    expect(readEvent()!.enteredAt).toBe(first);     // 유지
+    expect(result.enteredAt).toBe(first);
+    expect(result.alreadyRecorded).toBe(true);
+  });
+
+  it('이미 출석이 확정돼 있으면 중복 기록하지 않는다', async () => {
+    seedSession();
+    server.attendance = { source: 'auto_geofence', recorded_at: new Date(BASE).toISOString() };
+
+    const result = await applyGeofenceAndDetectPresence('token-1');
+
+    expect(result.inside).toBe(true);
+    expect(result.alreadyRecorded).toBe(true);
+    expect(result.enteredAt).toBeNull();
+    expect(result.message).toContain('이미 기록');
+  });
+
+  it('반경 밖으로 나갔다가 다시 들어오면 새 진입 시각으로 시작한다', async () => {
+    seedSession();
+    await fireEnter();
+    const first = readEvent()!.enteredAt;
+
+    advance(60);
+    await fireExit();
+    expect(readEvent()!.status).toBe('closed');
+
+    advance(600);
+    const result = await applyGeofenceAndDetectPresence('token-1');
+
+    expect(result.inside).toBe(true);
+    expect(result.enteredAt).not.toBe(first);
+    expect(result.enteredAt).toBe(new Date(BASE + 660_000).toISOString());
+    expect(readEvent()!.status).toBe('open');
+  });
+
+  it('운영시간 밖이면 등록만 하고 진입 기록은 남기지 않는다', async () => {
+    seedSession();
+    server.geofence = { ...GEOFENCE, window_start: '01:00:00', window_end: '02:00:00' };
+
+    const result = await applyGeofenceAndDetectPresence('token-1');
+
+    expect(result.registered).toBe(true);
+    expect(result.message).toContain('운영시간');
+    expect(readEvent()).toBeNull();
+  });
+
+  it("'항상 허용' 권한이 없으면 등록 실패를 그대로 알린다", async () => {
+    seedSession();
+    h.state.background = 'denied';
+
+    const result = await applyGeofenceAndDetectPresence('token-1');
+
+    expect(result.registered).toBe(false);
+    expect(result.message).toContain('항상 허용');
+  });
+
+  it('기기 스냅샷이 실제 등록된 좌표를 노출한다 (DB 값과 대조 가능)', async () => {
+    seedSession();
+    server.geofence = MOVED;
+    await applyGeofenceAndDetectPresence('token-1');
+
+    const snapshot = await getAttendanceSnapshot();
+    expect(snapshot.geofence).toMatchObject({ latitude: 36.331919, longitude: 127.436083, radiusM: 150 });
+    expect(snapshot.geofencingStarted).toBe(true);
   });
 });
 

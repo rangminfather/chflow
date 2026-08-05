@@ -5,6 +5,7 @@ import * as Application from 'expo-application';
 import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
 import {
+  applyGeofenceAndDetectPresence,
   attendancePermissionsGranted,
   fetchAttendanceGeofence,
   getAttendanceSnapshot,
@@ -685,6 +686,32 @@ function AppWebView() {
     // '내 자동출석' 화면이 요청하는 기기 진단 상태
     if (message.type === 'CHFLOW_ATTENDANCE_DIAGNOSE') {
       sendAttendanceSnapshot().catch(() => {});
+      return;
+    }
+
+    // 관리자가 교회 위치를 저장한 직후 — 지오펜스를 새 좌표로 재등록하고 즉시 진입 여부를 판정
+    if (message.type === 'CHFLOW_ATTENDANCE_APPLY_GEOFENCE') {
+      const token = pendingAccessTokenRef.current;
+      if (!token) {
+        sendToWeb('chflow-native-geofence-applied', {
+          registered: false,
+          message: '앱에서 로그인 정보를 찾지 못했습니다. 앱을 다시 실행한 뒤 저장해 주세요.',
+        });
+        return;
+      }
+      void (async () => {
+        try {
+          const result = await applyGeofenceAndDetectPresence(token);
+          sendToWeb('chflow-native-geofence-applied', result);
+        } catch (error) {
+          sendToWeb('chflow-native-geofence-applied', {
+            registered: false,
+            message: `자동출석 위치 감지를 등록하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`,
+          });
+        } finally {
+          sendAttendanceSnapshot().catch(() => {});
+        }
+      })();
       return;
     }
 

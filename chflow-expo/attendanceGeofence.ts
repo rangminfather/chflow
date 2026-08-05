@@ -101,6 +101,8 @@ export type AttendanceSnapshot = {
   geofencingStarted: boolean;
   geofence: {
     name: string;
+    latitude: number;
+    longitude: number;
     radiusM: number;
     dwellSeconds: number;
     windowStart: string;
@@ -630,6 +632,123 @@ export async function syncAttendanceGeofence(accessToken: string) {
   return true;
 }
 
+export type GeofenceApplyResult = {
+  registered: boolean;
+  inside: boolean | null;
+  distanceM: number | null;
+  accuracyM: number | null;
+  radiusM: number | null;
+  enteredAt: string | null;
+  alreadyRecorded: boolean;
+  reason: AttendanceDiagnosticCode;
+  message: string;
+};
+
+/**
+ * 관리자가 교회 위치를 저장한 직후 호출한다.
+ * 1) 기존 지오펜스를 해제하고 새 좌표로 다시 등록
+ * 2) 지금 새 반경 안에 있으면 즉시 진입으로 판정 (iOS 초기 Inside 이벤트에만 의존하지 않는다)
+ * 3) 오늘 진입 기록이 이미 있으면 중복 저장하지 않는다
+ */
+export async function applyGeofenceAndDetectPresence(accessToken: string): Promise<GeofenceApplyResult> {
+  const base: GeofenceApplyResult = {
+    registered: false,
+    inside: null,
+    distanceM: null,
+    accuracyM: null,
+    radiusM: null,
+    enteredAt: null,
+    alreadyRecorded: false,
+    reason: 'no_geofence',
+    message: '',
+  };
+
+  const registered = await syncAttendanceGeofence(accessToken);
+  const geofence = await readGeofence();
+  if (!registered || !geofence) {
+    const last = await readDiagnostic();
+    return {
+      ...base,
+      reason: last?.code ?? 'no_geofence',
+      message: last?.message || '자동출석 위치 감지를 등록하지 못했습니다. 내 자동출석 화면에서 위치 안내·권한 설정을 확인해 주세요.',
+    };
+  }
+
+  const result: GeofenceApplyResult = { ...base, registered: true, radiusM: geofence.radius_m };
+  const now = new Date();
+
+  if (!isWithinOperatingWindow(now, geofence)) {
+    await report({ code: 'outside_window' });
+    return { ...result, reason: 'outside_window', message: '자동출석 위치를 등록했습니다. 지금은 운영시간이 아니라 진입 기록은 남기지 않았습니다.' };
+  }
+
+  let position: Location.LocationObject;
+  try {
+    position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+  } catch (error) {
+    await report({ code: 'position_failed', message: errorMessage(error) });
+    return { ...result, reason: 'position_failed', message: '자동출석 위치를 등록했지만 현재 위치를 확인하지 못해 반경 안인지 판정하지 못했습니다.' };
+  }
+
+  const accuracyM = Math.max(position.coords.accuracy ?? 0, 0);
+  const distanceM = distanceInMeters(
+    position.coords.latitude,
+    position.coords.longitude,
+    geofence.latitude,
+    geofence.longitude,
+  );
+  const inside = distanceM <= geofence.radius_m + accuracyM;
+  const measured = { ...result, inside, distanceM, accuracyM };
+
+  if (!inside) {
+    await report({ code: 'outside_radius', distanceM, accuracyM });
+    return {
+      ...measured,
+      reason: 'outside_radius',
+      message: `자동출석 위치를 등록했습니다. 지금은 교회 반경 밖입니다. (약 ${Math.round(distanceM)}m 떨어짐)`,
+    };
+  }
+
+  // 서버에 오늘 기록이 이미 있으면 그 시각을 그대로 유지한다.
+  const status = await fetchAttendanceStatus(accessToken);
+  if (status?.attendance) {
+    return { ...measured, alreadyRecorded: true, reason: 'already_attended', message: '현재 교회 반경 안에 있습니다. 오늘 출석은 이미 기록되어 있습니다.' };
+  }
+
+  const today = localDateInTimeZone(now, geofence.timezone);
+  const existing = await readEvent();
+  const reusable = isOpenSessionFor(existing, geofence, today)
+    && elapsedSecondsSince(existing!.enteredAt, now.getTime()) <= sessionMaxSeconds(geofence);
+
+  const session = reusable
+    ? { ...existing!, lastEventAt: now.toISOString(), pendingSubmit: true }
+    : newSession(geofence, now.toISOString(), today);
+  await writeEvent(session);
+  await report({
+    code: reusable ? 'enter_kept' : 'enter_new',
+    sessionStartedAt: session.enteredAt,
+    dwellSeconds: elapsedSecondsSince(session.enteredAt, now.getTime()),
+    requiredSeconds: geofence.dwell_seconds,
+    distanceM,
+    accuracyM,
+  });
+  const submitted = await trySubmit(accessToken, geofence, session);
+
+  const serverEnteredAt = status?.candidate?.entered_at ?? null;
+  const minutes = Math.max(1, Math.round(geofence.dwell_seconds / 60));
+  return {
+    ...measured,
+    enteredAt: session.enteredAt,
+    alreadyRecorded: Boolean(serverEnteredAt) || reusable,
+    reason: reusable ? 'enter_kept' : 'enter_new',
+    message: submitted.pendingSubmit
+      ? '현재 교회 반경 안에 있습니다. 진입 기록을 서버로 보내지 못해 앱을 다시 열 때 재전송합니다.'
+      : reusable || serverEnteredAt
+        ? `현재 교회 반경 안에 있습니다. 오늘 진입 기록이 이미 있어 그대로 유지했습니다. ${minutes}분 이상 머무르면 자동출석으로 기록됩니다.`
+        : `현재 교회 반경 안에 있습니다. 진입 시각을 기록했습니다. ${minutes}분 이상 머무르면 자동출석으로 기록됩니다.`,
+  };
+}
+
 export async function stopAttendanceGeofence() {
   if (await Location.hasStartedGeofencingAsync(ATTENDANCE_TASK)) {
     await Location.stopGeofencingAsync(ATTENDANCE_TASK);
@@ -664,6 +783,9 @@ export async function getAttendanceSnapshot(): Promise<AttendanceSnapshot> {
     geofence: geofence
       ? {
         name: geofence.name || '등록된 위치',
+        // 기기에 실제 등록된 좌표를 그대로 노출한다. DB 저장값과 다르면 재등록이 안 된 것이다.
+        latitude: geofence.latitude,
+        longitude: geofence.longitude,
         radiusM: geofence.radius_m,
         dwellSeconds: geofence.dwell_seconds,
         windowStart: String(geofence.window_start).slice(0, 5),
