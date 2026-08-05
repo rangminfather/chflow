@@ -8,10 +8,16 @@ export const preferredRegion = "icn1";
 const DEPT_KEY = "초등1부";
 
 function hasCronAccess(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return process.env.NODE_ENV !== "production";
+  const secrets = [
+    process.env.CRON_SECRET,
+    process.env.PUSH_DISPATCH_SECRET,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+  ].filter((value): value is string => !!value);
+  if (secrets.length === 0) return process.env.NODE_ENV !== "production";
+
   const auth = req.headers.get("Authorization") || "";
-  return auth === `Bearer ${secret}`;
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  return secrets.includes(token);
 }
 
 async function handler(req: NextRequest) {
