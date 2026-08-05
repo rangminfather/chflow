@@ -1,0 +1,7 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "//": "개발 전용 오버레이 — devUrl(로컬 Vite 서버). base tauri.conf.json 에 두지 않아 release 바이너리에 localhost 가 박히지 않게 분리. `tauri dev --config src-tauri/tauri.dev.conf.json` 로 병합 사용.",
+  "build": {
+    "devUrl": "http://localhost:1420"
+  }
+}
