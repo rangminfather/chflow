@@ -33,6 +33,50 @@ const TARGET_URL = 'https://chflow-app.vercel.app';
 const TARGET_ORIGIN = new URL(TARGET_URL).origin;
 const ATTENDANCE_DISCLOSURE_KEY = 'chflow.attendance-disclosure-choice.v3';
 
+// iOS의 requestForegroundPermissionsAsync / getCurrentPositionAsync 는 콜백이 오지 않으면
+// 영원히 반환되지 않는다(LocationRequester.swift 의 continuation 이 resume 되지 않음).
+// 그래서 모든 단계에 자체 타임아웃을 둔다.
+const PERMISSION_TIMEOUT_MS = 20_000;
+// Android 는 기존 동작이 정상이므로 여유를 더 준다.
+const POSITION_TIMEOUT_MS = Platform.OS === 'ios' ? 12_000 : 25_000;
+const LAST_KNOWN_TIMEOUT_MS = 5_000;
+const SERVICES_CHECK_TIMEOUT_MS = 5_000;
+// 마지막 확인 위치 채택 기준
+const LAST_KNOWN_MAX_AGE_MS = 5 * 60_000;
+const LAST_KNOWN_MAX_ACCURACY_M = 200;
+// 웹이 결과를 받았다는 ACK 가 이 시간 안에 오지 않으면 네이티브 Alert 로 알린다.
+const LOCATION_ACK_TIMEOUT_MS = 3_000;
+
+class StepTimeoutError extends Error {
+  constructor(public step: string, public ms: number) {
+    super(`${step} 단계가 ${Math.round(ms / 1000)}초 안에 응답하지 않았습니다.`);
+    this.name = 'StepTimeoutError';
+  }
+}
+
+/** 응답 없는 네이티브 호출이 화면을 멈추게 하지 않도록 모든 단계를 시간 제한한다. */
+function withTimeout<T>(work: Promise<T>, ms: number, step: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new StepTimeoutError(step, ms));
+    }, ms);
+    work.then(
+      (value) => { if (settled) return; settled = true; clearTimeout(timer); resolve(value); },
+      (error) => { if (settled) return; settled = true; clearTimeout(timer); reject(error); },
+    );
+  });
+}
+
+const PERMISSION_GUIDE: Record<string, string> = {
+  granted: '위치 권한이 허용되어 있습니다.',
+  denied: '위치 권한이 거부되어 있습니다. 휴대폰 설정 → 스마트명성 → 위치에서 "앱을 사용하는 동안"을 선택해 주세요.',
+  restricted: '기기 정책(스크린타임·MDM 등)으로 위치 사용이 제한되어 있습니다. 제한을 해제해야 사용할 수 있습니다.',
+  undetermined: '위치 권한이 아직 결정되지 않았습니다. 권한 요청 창에서 허용을 선택해 주세요.',
+};
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
@@ -109,6 +153,18 @@ function AppWebView() {
   const pendingNotificationUrlRef = useRef<string | null>(null);
   const webViewReadyRef = useRef(false);
   const exitedRef = useRef(false);
+  const locationAckTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const locationRequestSeqRef = useRef(0);
+  const locationRequestInFlightRef = useRef(false);
+
+  // 화면이 사라질 때 남은 ACK 대기 타이머를 정리해 뒤늦은 Alert 가 뜨지 않게 한다.
+  useEffect(() => {
+    const timers = locationAckTimersRef.current;
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
   // 종료 후 재실행 시 마지막 화면이 잠깐 보이는 것을 가리는 덮개
   const [exitReloading, setExitReloading] = useState(false);
   const safeAreaPadding = useSafeAreaPadding();
@@ -135,6 +191,187 @@ function AppWebView() {
         kind: 'snapshot-error',
         message: error instanceof Error ? error.message : String(error),
       });
+    }
+  }, [sendToWeb]);
+
+  // '현재 위치 사용' 요청 — 어떤 경로로도 무반응으로 끝나지 않게 만든다.
+  const runCurrentLocationRequest = useCallback(async () => {
+    // 버튼을 여러 번 눌러도 요청이 겹치지 않게 한다. (중복 응답·중복 Alert 방지)
+    if (locationRequestInFlightRef.current) {
+      sendToWeb('chflow-native-location', {
+        kind: 'step',
+        stage: 'position_requesting',
+        detail: '이미 위치를 확인하는 중입니다.',
+      });
+      return;
+    }
+    locationRequestInFlightRef.current = true;
+
+    const requestId = `loc-${Date.now()}-${locationRequestSeqRef.current++}`;
+
+    const step = (stage: string, detail?: Record<string, unknown>) => {
+      sendToWeb('chflow-native-location', { kind: 'step', requestId, stage, ...detail });
+    };
+
+    // 최종 결과는 요청당 정확히 한 번만 전송한다. 타임아웃 이후 원래 Promise 가 늦게
+    // 반환되더라도 withTimeout 의 settled 플래그에서 버려지지만, 제어 흐름 차원에서도 한 번 더 막는다.
+    let settledOnce = false;
+
+    /** 최종 결과 전송 + 웹 수신 확인(ACK). suppressAckAlert 면 별도 Alert 를 이미 띄운 경우다. */
+    const finish = (
+      payload: Record<string, unknown>,
+      alertOnNoAck: { title: string; body: string } | null,
+    ) => {
+      if (settledOnce) return;
+      settledOnce = true;
+      // 구버전 웹도 읽을 수 있도록 ok/latitude/longitude/error 필드를 그대로 유지한다.
+      sendToWeb('chflow-native-location', { kind: 'result', requestId, ...payload });
+      step('sent_to_web');
+      if (!alertOnNoAck) return;
+      const timer = setTimeout(() => {
+        locationAckTimersRef.current.delete(requestId);
+        // 웹이 결과를 못 받은 경우에도 사용자가 멈춘 화면만 보지 않도록 네이티브로 알린다.
+        Alert.alert(alertOnNoAck.title, alertOnNoAck.body);
+      }, LOCATION_ACK_TIMEOUT_MS);
+      locationAckTimersRef.current.set(requestId, timer);
+    };
+
+    /** ownAlert=true 면 호출부가 이미 Alert 를 띄우므로 ACK 대체 Alert 를 걸지 않는다. */
+    const fail = (reason: string, error: string, ownAlert = false) => {
+      finish({ ok: false, reason, error }, ownAlert ? null : { title: '현재 위치 확인 실패', body: error });
+    };
+
+    step('message_received', { platform: Platform.OS });
+
+    try {
+      // 1) 기기 위치 서비스가 꺼져 있으면 권한 요청 자체가 의미 없다.
+      let servicesEnabled = true;
+      try {
+        servicesEnabled = await withTimeout(
+          Location.hasServicesEnabledAsync(), SERVICES_CHECK_TIMEOUT_MS, 'services_checked',
+        );
+      } catch {
+        servicesEnabled = true; // 확인 실패는 차단 사유로 삼지 않고 계속 진행한다.
+      }
+      step('services_checked', { servicesEnabled });
+      if (!servicesEnabled) {
+        fail('services_disabled', '기기의 위치 서비스가 꺼져 있습니다. 설정 → 개인정보 보호 및 보안 → 위치 서비스를 켜 주세요.');
+        return;
+      }
+
+      // 2) 권한 요청 — iOS 는 콜백이 안 오면 반환되지 않으므로 시간 제한을 둔다.
+      step('permission_requesting');
+      let status: string;
+      try {
+        const permission = await withTimeout(
+          Location.requestForegroundPermissionsAsync(), PERMISSION_TIMEOUT_MS, 'permission_requesting',
+        );
+        status = permission.status;
+      } catch (error) {
+        if (error instanceof StepTimeoutError) {
+          step('error', { stage: 'permission_requesting', message: error.message });
+          fail('permission_timeout', '위치 권한 확인이 응답하지 않았습니다. 앱을 완전히 종료한 뒤 다시 시도하거나, 설정에서 위치 권한을 직접 허용해 주세요.');
+          return;
+        }
+        throw error;
+      }
+      step('permission_result', { status, guide: PERMISSION_GUIDE[status] });
+
+      if (status !== 'granted') {
+        const guide = PERMISSION_GUIDE[status] || `위치 권한 상태를 확인하지 못했습니다. (${status})`;
+        const showsOwnAlert = status === 'denied' || status === 'restricted';
+        fail(`permission_${status}`, guide, showsOwnAlert);
+        if (showsOwnAlert) {
+          Alert.alert('위치 권한이 필요합니다', guide, [
+            { text: '취소', style: 'cancel' },
+            { text: '설정 열기', onPress: () => { Linking.openSettings().catch(() => {}); } },
+          ]);
+        }
+        return;
+      }
+
+      // 3) 현재 위치 취득 — 타임아웃 시 마지막 확인 위치로 폴백한다.
+      step('position_requesting', { timeoutMs: POSITION_TIMEOUT_MS });
+      try {
+        const position = await withTimeout(
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+          POSITION_TIMEOUT_MS,
+          'position_requesting',
+        );
+        step('position_ok', {
+          source: 'gps',
+          accuracyM: position.coords.accuracy ?? null,
+        });
+        finish(
+          {
+            ok: true,
+            source: 'gps',
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracyM: position.coords.accuracy ?? null,
+          },
+          {
+            title: '현재 위치를 확인했습니다',
+            body: `위도 ${position.coords.latitude.toFixed(6)} / 경도 ${position.coords.longitude.toFixed(6)}\n화면에 반영되지 않으면 이 값을 직접 입력해 주세요.`,
+          },
+        );
+        return;
+      } catch (error) {
+        const timedOut = error instanceof StepTimeoutError;
+        step(timedOut ? 'position_timeout' : 'error', {
+          stage: 'position_requesting',
+          message: error instanceof Error ? error.message : String(error),
+        });
+
+        // 4) 폴백 — 너무 오래됐거나 부정확한 좌표는 채택하지 않는다.
+        step('fallback_requesting', { maxAgeMs: LAST_KNOWN_MAX_AGE_MS, maxAccuracyM: LAST_KNOWN_MAX_ACCURACY_M });
+        let lastKnown: Location.LocationObject | null = null;
+        try {
+          lastKnown = await withTimeout(
+            Location.getLastKnownPositionAsync({
+              maxAge: LAST_KNOWN_MAX_AGE_MS,
+              requiredAccuracy: LAST_KNOWN_MAX_ACCURACY_M,
+            }),
+            LAST_KNOWN_TIMEOUT_MS,
+            'fallback_requesting',
+          );
+        } catch {
+          lastKnown = null;
+        }
+
+        if (lastKnown) {
+          const ageSeconds = Math.max(0, Math.round((Date.now() - lastKnown.timestamp) / 1000));
+          step('position_ok', { source: 'last_known', ageSeconds, accuracyM: lastKnown.coords.accuracy ?? null });
+          finish(
+            {
+              ok: true,
+              source: 'last_known',
+              latitude: lastKnown.coords.latitude,
+              longitude: lastKnown.coords.longitude,
+              accuracyM: lastKnown.coords.accuracy ?? null,
+              ageSeconds,
+            },
+            {
+              title: '마지막 확인 위치를 사용했습니다',
+              body: `위도 ${lastKnown.coords.latitude.toFixed(6)} / 경도 ${lastKnown.coords.longitude.toFixed(6)}\n${ageSeconds}초 전 기록입니다. 정확한 좌표가 필요하면 실외에서 다시 눌러 주세요.`,
+            },
+          );
+          return;
+        }
+
+        fail(
+          timedOut ? 'position_timeout' : 'position_error',
+          timedOut
+            ? `GPS가 ${Math.round(POSITION_TIMEOUT_MS / 1000)}초 안에 위치를 알려주지 않았고, 사용할 수 있는 최근 위치도 없습니다. 실외로 이동한 뒤 다시 눌러 주세요.`
+            : `현재 위치를 확인하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        return;
+      }
+    } catch (error) {
+      step('error', { stage: 'unexpected', message: error instanceof Error ? error.message : String(error) });
+      fail('unexpected', `현재 위치 확인 중 예기치 못한 오류가 발생했습니다: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      locationRequestInFlightRef.current = false;
     }
   }, [sendToWeb]);
 
@@ -387,7 +624,7 @@ function AppWebView() {
   }, [loadUrlInWebView]);
 
   const handleWebViewMessage = (event: WebViewMessageEvent) => {
-    let message: { type?: string; accessToken?: string; text?: string; count?: unknown };
+    let message: { type?: string; accessToken?: string; text?: string; count?: unknown; requestId?: string };
     try {
       message = JSON.parse(event.nativeEvent.data);
     } catch {
@@ -451,39 +688,19 @@ function AppWebView() {
       return;
     }
 
+    // 웹이 결과를 받았다는 확인 응답
+    if (message.type === 'CHFLOW_LOCATION_ACK') {
+      const timer = message.requestId ? locationAckTimersRef.current.get(message.requestId) : undefined;
+      if (timer) {
+        clearTimeout(timer);
+        locationAckTimersRef.current.delete(message.requestId!);
+      }
+      return;
+    }
+
     // 관리자 '자동출석 설정'의 '현재 위치 사용'
     if (message.type === 'CHFLOW_GET_CURRENT_LOCATION') {
-      void (async () => {
-        try {
-          const permission = await Location.requestForegroundPermissionsAsync();
-          if (permission.status !== 'granted') {
-            sendToWeb('chflow-native-location', {
-              ok: false,
-              error: '위치 권한이 필요합니다. 휴대폰 설정에서 스마트명성의 위치 권한을 허용해 주세요.',
-            });
-            Alert.alert(
-              '위치 권한이 필요합니다',
-              '자동출석 위치를 입력하려면 휴대폰 설정에서 스마트명성의 위치 권한을 허용해 주세요.',
-              [
-                { text: '취소', style: 'cancel' },
-                { text: '설정 열기', onPress: () => { Linking.openSettings().catch(() => {}); } },
-              ],
-            );
-            return;
-          }
-          const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-          sendToWeb('chflow-native-location', {
-            ok: true,
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          });
-        } catch (error) {
-          sendToWeb('chflow-native-location', {
-            ok: false,
-            error: `GPS 위치를 확인하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`,
-          });
-        }
-      })();
+      void runCurrentLocationRequest();
       return;
     }
 
