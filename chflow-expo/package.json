@@ -7,6 +7,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "test:attendance": "vitest run attendanceGeofence.test.ts",
     "release:preview": "node scripts/prepare-release.mjs",
     "release:patch": "node scripts/prepare-release.mjs patch --apply",
     "release:minor": "node scripts/prepare-release.mjs minor --apply",
@@ -31,7 +32,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "vitest": "3.2.7"
   },
   "private": true
 }

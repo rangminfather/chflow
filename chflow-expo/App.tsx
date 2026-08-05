@@ -2,7 +2,17 @@ import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import * as Application from 'expo-application';
-import { maybeConfirmAttendance, stopAttendanceGeofence, syncAttendanceGeofence } from './attendanceGeofence';
+import * as Location from 'expo-location';
+import * as SecureStore from 'expo-secure-store';
+import {
+  attendancePermissionsGranted,
+  fetchAttendanceGeofence,
+  getAttendanceSnapshot,
+  maybeConfirmAttendance,
+  setAttendanceDiagnosticListener,
+  stopAttendanceGeofence,
+  syncAttendanceGeofence,
+} from './attendanceGeofence';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -21,6 +31,7 @@ import { WebView, WebViewMessageEvent, WebViewNavigation } from 'react-native-we
 
 const TARGET_URL = 'https://chflow-app.vercel.app';
 const TARGET_ORIGIN = new URL(TARGET_URL).origin;
+const ATTENDANCE_DISCLOSURE_KEY = 'chflow.attendance-disclosure-choice.v3';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -102,11 +113,76 @@ function AppWebView() {
   const [exitReloading, setExitReloading] = useState(false);
   const safeAreaPadding = useSafeAreaPadding();
 
+  const sendToWeb = useCallback((eventName: string, detail: unknown) => {
+    webViewRef.current?.injectJavaScript(
+      `window.dispatchEvent(new CustomEvent(${JSON.stringify(eventName)},{detail:${JSON.stringify(detail)}}));true;`,
+    );
+  }, []);
+
+  // 자동출석 실패 사유를 무음으로 삼키지 않고 '내 자동출석' 화면으로 흘려보낸다.
+  useEffect(() => {
+    setAttendanceDiagnosticListener((diagnostic) => {
+      sendToWeb('chflow-native-attendance', { kind: 'diagnostic', diagnostic });
+    });
+    return () => setAttendanceDiagnosticListener(null);
+  }, [sendToWeb]);
+
+  const sendAttendanceSnapshot = useCallback(async () => {
+    try {
+      sendToWeb('chflow-native-attendance', { kind: 'snapshot', snapshot: await getAttendanceSnapshot() });
+    } catch (error) {
+      sendToWeb('chflow-native-attendance', {
+        kind: 'snapshot-error',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [sendToWeb]);
+
+  const showAttendanceDisclosure = useCallback(async (accessToken: string, force = false) => {
+    const geofence = await fetchAttendanceGeofence(accessToken);
+    if (!geofence) return;
+
+    const choice = await SecureStore.getItemAsync(ATTENDANCE_DISCLOSURE_KEY);
+    if (!force && choice === 'declined') return;
+    if (!force && choice === 'accepted' && await attendancePermissionsGranted()) {
+      await syncAttendanceGeofence(accessToken);
+      return;
+    }
+
+    Alert.alert(
+      '위치정보 수집·사용 안내',
+      '스마트명성은 자동출석 후보를 생성하고 출석 여부를 확인하기 위해 앱이 닫혀 있거나 사용 중이 아닐 때에도 기기의 정확한 위치정보를 수집·사용합니다.\n\n위치정보는 교회 반경 진입과 체류 여부를 확인하는 자동출석 기능에만 사용됩니다. 원시 GPS 좌표는 기기 안에서만 처리하며 서버로 전송하거나 저장하지 않습니다. 광고에 사용하거나 판매하지 않습니다.\n\n동의하지 않아도 자동출석 외의 기능은 계속 이용할 수 있습니다.',
+      [
+        {
+          text: '동의 안 함',
+          style: 'cancel',
+          onPress: () => {
+            SecureStore.setItemAsync(ATTENDANCE_DISCLOSURE_KEY, 'declined').catch(() => {});
+            stopAttendanceGeofence().catch(() => {});
+            sendAttendanceSnapshot().catch(() => {});
+          },
+        },
+        {
+          text: '동의하고 계속',
+          onPress: () => {
+            SecureStore.setItemAsync(ATTENDANCE_DISCLOSURE_KEY, 'accepted').catch(() => {});
+            syncAttendanceGeofence(accessToken)
+              .catch(() => {})
+              .finally(() => { sendAttendanceSnapshot().catch(() => {}); });
+          },
+        },
+      ],
+    );
+  }, [sendAttendanceSnapshot]);
+
   useEffect(() => {
     registerForPushNotifications().then(setExpoPushToken).catch(() => setExpoPushToken(null));
   }, []);
 
   useEffect(() => {
+    // Play versionCode 기반 판정이라 iOS 빌드번호와 비교할 수 없다. iOS는 건너뛴다.
+    if (Platform.OS !== 'android') return;
+
     const check = async () => {
       try {
         const res = await fetch(`${TARGET_URL}/api/app-config`);
@@ -361,18 +437,62 @@ function AppWebView() {
       return;
     }
 
+    // '내 자동출석' 화면에서 위치정보 안내를 다시 열기 위한 재진입 경로
+    if (message.type === 'CHFLOW_ATTENDANCE_SETUP') {
+      if (pendingAccessTokenRef.current) {
+        showAttendanceDisclosure(pendingAccessTokenRef.current, true).catch(() => {});
+      }
+      return;
+    }
+
+    // '내 자동출석' 화면이 요청하는 기기 진단 상태
+    if (message.type === 'CHFLOW_ATTENDANCE_DIAGNOSE') {
+      sendAttendanceSnapshot().catch(() => {});
+      return;
+    }
+
+    // 관리자 '자동출석 설정'의 '현재 위치 사용'
+    if (message.type === 'CHFLOW_GET_CURRENT_LOCATION') {
+      void (async () => {
+        try {
+          const permission = await Location.requestForegroundPermissionsAsync();
+          if (permission.status !== 'granted') {
+            sendToWeb('chflow-native-location', {
+              ok: false,
+              error: '위치 권한이 필요합니다. 휴대폰 설정에서 스마트명성의 위치 권한을 허용해 주세요.',
+            });
+            Alert.alert(
+              '위치 권한이 필요합니다',
+              '자동출석 위치를 입력하려면 휴대폰 설정에서 스마트명성의 위치 권한을 허용해 주세요.',
+              [
+                { text: '취소', style: 'cancel' },
+                { text: '설정 열기', onPress: () => { Linking.openSettings().catch(() => {}); } },
+              ],
+            );
+            return;
+          }
+          const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+          sendToWeb('chflow-native-location', {
+            ok: true,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        } catch (error) {
+          sendToWeb('chflow-native-location', {
+            ok: false,
+            error: `GPS 위치를 확인하지 못했습니다: ${error instanceof Error ? error.message : String(error)}`,
+          });
+        }
+      })();
+      return;
+    }
+
     if (message.type !== 'CHFLOW_AUTH_TOKEN' || !message.accessToken) return;
     pendingAccessTokenRef.current = message.accessToken;
+    maybeConfirmAttendance(message.accessToken).catch(() => {});
     if (!attendanceDisclosureShownRef.current) {
       attendanceDisclosureShownRef.current = true;
-      Alert.alert(
-        '자동출석 위치 안내',
-        '이 앱은 앱이 사용되지 않거나 종료된 상태에서도 교회 주변 위치를 확인하여 자동출석 후보를 기록할 수 있습니다. 위치는 교회 반경 체류 확인에만 사용하며 원시 GPS 좌표는 저장하지 않습니다.',
-        [
-          { text: '나중에', style: 'cancel' },
-          { text: '위치 권한 진행', onPress: () => { syncAttendanceGeofence(message.accessToken!).catch(() => {}); } },
-        ],
-      );
+      showAttendanceDisclosure(message.accessToken).catch(() => {});
     }
     if (expoPushToken) {
       registerPushToken(message.accessToken, expoPushToken).catch(() => {});
@@ -413,6 +533,8 @@ function AppWebView() {
           domStorageEnabled={true}
           // JS 필수
           javaScriptEnabled={true}
+          // 자동출석 관리자 설정의 '현재 위치 사용' 허용
+          geolocationEnabled={true}
           // 파일 업로드 허용 (프로필 사진 등)
           allowsInlineMediaPlayback={true}
           mediaPlaybackRequiresUserAction={false}
