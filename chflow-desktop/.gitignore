@@ -1,0 +1,21 @@
+# deps
+node_modules/
+dist/
+dist-ssr/
+
+# env (비밀값)
+.env
+.env.local
+.env.*.local
+# 로컬 전용 테스트 자격증명 (절대 커밋 금지)
+.env.local.credentials
+*.credentials
+
+# tauri / rust
+src-tauri/target/
+src-tauri/gen/
+
+# editor / os
+.DS_Store
+*.log
+.vite/

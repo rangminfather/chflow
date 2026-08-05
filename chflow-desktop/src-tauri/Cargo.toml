@@ -1,0 +1,31 @@
+[package]
+name = "chflow-desktop"
+version = "0.1.0"
+description = "CHFlow 데스크톱 메신저"
+authors = ["CHFlow"]
+edition = "2021"
+
+# Tauri v2: lib + bin 구조. main.rs 가 lib 의 run() 호출.
+[lib]
+name = "chflow_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-http = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Windows Credential Manager 기반 보안 저장(마스터키 32B만). Windows 전용 빌드.
+keyring = { version = "3", features = ["windows-native"] }
+# 세션 암호화(AES-256-GCM). CM 한도(2560자) 회피 — 세션은 암호화 파일로 저장.
+aes-gcm = "0.10"
+base64 = "0.22"
+rand = "0.8"
+
+[features]
+# 기본 features
+default = []
