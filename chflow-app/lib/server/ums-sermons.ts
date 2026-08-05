@@ -24,7 +24,7 @@ export const SERMON_BOARDS = [
   { id: "sermon_am", label: "주일오전" },
   { id: "sermon_pm", label: "주일오후" },
   { id: "sermon_pm3", label: "청년오후" },
-  { id: "sermon_wed", label: "수요저녁" },
+  { id: "sermon_wed", label: "수요예배" },
   { id: "sermon_event", label: "집회·세미나" },
 ] as const;
 

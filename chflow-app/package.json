@@ -9,6 +9,7 @@
     "lint": "eslint",
     "lint:baseline": "node scripts/check-lint-baseline.mjs",
     "test:unit": "vitest run",
+    "test:youtube-oauth": "node scripts/test-youtube-oauth.mjs",
     "typecheck": "tsc --noEmit",
     "check": "npm run lint:baseline && npm run test:unit && npm run typecheck",
     "education:import": "tsx scripts/import-education-history.ts",

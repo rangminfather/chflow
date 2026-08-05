@@ -83,9 +83,64 @@ describe("YouTube live detection", () => {
     expect(umsViaCf).not.toHaveBeenCalled();
   });
 
+  it("uses authenticated liveBroadcasts for an unlisted live stream", async () => {
+    const previous = {
+      clientId: process.env.YOUTUBE_OAUTH_CLIENT_ID,
+      clientSecret: process.env.YOUTUBE_OAUTH_CLIENT_SECRET,
+      refreshToken: process.env.YOUTUBE_OAUTH_REFRESH_TOKEN,
+    };
+    process.env.YOUTUBE_OAUTH_CLIENT_ID = "oauth-client-id";
+    process.env.YOUTUBE_OAUTH_CLIENT_SECRET = "oauth-client-secret";
+    process.env.YOUTUBE_OAUTH_REFRESH_TOKEN = "oauth-refresh-token";
+
+    try {
+      vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "https://oauth2.googleapis.com/token") {
+          expect(init?.method).toBe("POST");
+          return jsonResponse({ access_token: "access-token-for-test-only" });
+        }
+
+        const parsed = new URL(url);
+        expect(parsed.pathname).toBe("/youtube/v3/liveBroadcasts");
+        expect(parsed.searchParams.get("part")).toBe("id,snippet,status,contentDetails");
+        expect(parsed.searchParams.get("mine")).toBe("true");
+        expect(parsed.searchParams.get("broadcastStatus")).toBeNull();
+        expect(init?.headers).toEqual({ authorization: "Bearer access-token-for-test-only" });
+        return jsonResponse({
+          items: [{
+            id: "kvIN5H19z20",
+            snippet: {
+              channelId: "channel",
+              title: "미등록 예배 라이브",
+              actualStartTime: "2026-08-04T07:00:00Z",
+              thumbnails: { high: { url: "https://i.ytimg.com/live.jpg" } },
+            },
+            status: { lifeCycleStatus: "live" },
+          }],
+        });
+      }));
+
+      await expect(findLiveVideo("channel", null)).resolves.toEqual({
+        videoId: "kvIN5H19z20",
+        title: "미등록 예배 라이브",
+        thumbnailUrl: "https://i.ytimg.com/live.jpg",
+        startedAt: "2026-08-04T07:00:00Z",
+      });
+      expect(umsViaCf).not.toHaveBeenCalled();
+    } finally {
+      if (previous.clientId === undefined) delete process.env.YOUTUBE_OAUTH_CLIENT_ID;
+      else process.env.YOUTUBE_OAUTH_CLIENT_ID = previous.clientId;
+      if (previous.clientSecret === undefined) delete process.env.YOUTUBE_OAUTH_CLIENT_SECRET;
+      else process.env.YOUTUBE_OAUTH_CLIENT_SECRET = previous.clientSecret;
+      if (previous.refreshToken === undefined) delete process.env.YOUTUBE_OAUTH_REFRESH_TOKEN;
+      else process.env.YOUTUBE_OAUTH_REFRESH_TOKEN = previous.refreshToken;
+    }
+  });
+
   it("keeps the automatic Korean notification title intact", () => {
     const title = worshipStartedTitle(new Date("2026-07-29T10:15:03Z"));
-    expect(title).toBe("수요저녁예배가 시작되었습니다");
+    expect(title).toBe("수요일 2부 예배가 시작되었습니다");
     expect(title).not.toContain("?");
   });
 });

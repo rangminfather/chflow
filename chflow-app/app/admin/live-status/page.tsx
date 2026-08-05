@@ -38,7 +38,7 @@ const SESSION_LABEL: Record<string, string> = {
   sun_2: "주일 2부",
   sun_3: "주일 3부",
   sun_4: "주일 4부",
-  wed_pm: "수요저녁",
+  wed_pm: "수요예배",
 };
 
 const EVENT_LABEL: Record<string, { text: string; tone: "ok" | "warn" | "bad" | "mute" }> = {

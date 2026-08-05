@@ -109,6 +109,57 @@ async function fetchJson<T>(url: string): Promise<T> {
   return json;
 }
 
+function hasYouTubeOAuthCredentials(): boolean {
+  return [
+    process.env.YOUTUBE_OAUTH_CLIENT_ID,
+    process.env.YOUTUBE_OAUTH_CLIENT_SECRET,
+    process.env.YOUTUBE_OAUTH_REFRESH_TOKEN,
+  ].every((value) => typeof value === "string" && value.length > 0);
+}
+
+type OAuthTokenResponse = {
+  access_token?: string;
+  error?: string;
+};
+
+type OAuthExchangeResult = {
+  ok: boolean;
+  status: number;
+  accessToken?: string;
+  errorCode?: string;
+};
+
+async function exchangeYouTubeOAuthToken(): Promise<OAuthExchangeResult> {
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: process.env.YOUTUBE_OAUTH_CLIENT_ID!,
+      client_secret: process.env.YOUTUBE_OAUTH_CLIENT_SECRET!,
+      refresh_token: process.env.YOUTUBE_OAUTH_REFRESH_TOKEN!,
+      grant_type: "refresh_token",
+    }),
+    cache: "no-store",
+  });
+  const json = (await response.json()) as OAuthTokenResponse;
+  if (!response.ok || !json.access_token) {
+    return {
+      ok: false,
+      status: response.status,
+      errorCode: json.error || `http_${response.status}`,
+    };
+  }
+  return { ok: true, status: response.status, accessToken: json.access_token };
+}
+
+async function getYouTubeOAuthAccessToken(): Promise<string> {
+  const result = await exchangeYouTubeOAuthToken();
+  if (!result.ok || !result.accessToken) {
+    throw new Error(`YouTube OAuth token exchange failed (${result.errorCode || `http_${result.status}`})`);
+  }
+  return result.accessToken;
+}
+
 /** 현재 라이브 중인 방송 1건. 없으면 null. */
 type FoundLiveVideo = {
   videoId: string;
@@ -116,6 +167,67 @@ type FoundLiveVideo = {
   thumbnailUrl: string | null;
   startedAt: string | null;
 };
+
+type LiveBroadcastsResponse = {
+  items?: Array<{
+    id?: string;
+    snippet?: {
+      channelId?: string;
+      title?: string;
+      actualStartTime?: string;
+      scheduledStartTime?: string;
+      thumbnails?: Record<string, { url?: string } | undefined>;
+    };
+    status?: { lifeCycleStatus?: string };
+  }>;
+};
+
+async function findOwnedLiveBroadcasts(accessToken: string): Promise<LiveBroadcastsResponse> {
+  const params = new URLSearchParams({
+    part: "id,snippet,status,contentDetails",
+    mine: "true",
+    maxResults: "50",
+  });
+  const response = await fetch(`https://www.googleapis.com/youtube/v3/liveBroadcasts?${params}`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+  const json = (await response.json()) as LiveBroadcastsResponse & {
+    error?: { message?: string };
+  };
+  if (!response.ok) {
+    throw new Error(json.error?.message || `YouTube liveBroadcasts ${response.status}`);
+  }
+  return json;
+}
+
+async function findLiveVideoByOAuth(channelId: string): Promise<FoundLiveVideo | null> {
+  if (!hasYouTubeOAuthCredentials()) return null;
+
+  const accessToken = await getYouTubeOAuthAccessToken();
+  const broadcasts = await findOwnedLiveBroadcasts(accessToken);
+
+  const live = (broadcasts.items || []).find(
+    (item) =>
+      item.id &&
+      item.snippet?.channelId === channelId &&
+      item.status?.lifeCycleStatus === "live"
+  );
+  if (!live?.id) return null;
+
+  const thumbnails = live.snippet?.thumbnails || {};
+  return {
+    videoId: live.id,
+    title: live.snippet?.title ?? null,
+    thumbnailUrl:
+      thumbnails.maxres?.url ||
+      thumbnails.standard?.url ||
+      thumbnails.high?.url ||
+      thumbnails.medium?.url ||
+      null,
+    startedAt: live.snippet?.actualStartTime || live.snippet?.scheduledStartTime || null,
+  };
+}
 
 type SearchResponse = {
   items?: Array<{
@@ -211,13 +323,24 @@ function shouldUseSearchFallback(now = new Date()): boolean {
 
 export async function findLiveVideo(
   channelId: string,
-  apiKey: string,
+  apiKey: string | null,
   currentVideoId: string | null = null,
   now = new Date()
 ): Promise<FoundLiveVideo | null> {
+  let oauthFailure: Error | null = null;
+
+  if (hasYouTubeOAuthCredentials()) {
+    try {
+      const oauthLive = await findLiveVideoByOAuth(channelId);
+      if (oauthLive) return oauthLive;
+    } catch (error) {
+      oauthFailure = error instanceof Error ? error : new Error("YouTube OAuth discovery failed");
+    }
+  }
+
   // 방송 중인 영상은 채널에서 다시 "발견"하려 하지 않고 ID 자체를 확인한다.
   // 미등록 영상도 ID를 알고 있으면 videos.list 로 방송 종료 여부를 확인할 수 있다.
-  if (currentVideoId) {
+  if (currentVideoId && apiKey) {
     const current = await findLiveVideoByIds([currentVideoId], apiKey);
     if (current) return current;
   }
@@ -225,7 +348,7 @@ export async function findLiveVideo(
   // 명성교회 홈페이지의 실시간 버튼이 미등록 YouTube 주소를 보유한다.
   try {
     const umsVideoId = await findUmsLiveVideoId();
-    if (umsVideoId) {
+    if (umsVideoId && apiKey) {
       const umsLive = await findLiveVideoByIds([umsVideoId], apiKey);
       if (umsLive) return umsLive;
     }
@@ -233,21 +356,27 @@ export async function findLiveVideo(
     // UMS가 일시적으로 응답하지 않아도 공개 YouTube 경로로 계속 확인한다.
   }
 
-  const playlist = await fetchJson<PlaylistItemsResponse>(
-    `https://www.googleapis.com/youtube/v3/playlistItems` +
-      `?part=contentDetails&maxResults=${RECENT_COUNT}` +
-      `&playlistId=${encodeURIComponent(uploadsPlaylistId(channelId))}&key=${apiKey}`
-  );
-  const ids = (playlist.items || [])
-    .map((i) => i.contentDetails?.videoId)
-    .filter((id): id is string => !!id);
-  const uploadedLive = await findLiveVideoByIds(ids, apiKey);
-  if (uploadedLive) return uploadedLive;
+  if (apiKey) {
+    const playlist = await fetchJson<PlaylistItemsResponse>(
+      `https://www.googleapis.com/youtube/v3/playlistItems` +
+        `?part=contentDetails&maxResults=${RECENT_COUNT}` +
+        `&playlistId=${encodeURIComponent(uploadsPlaylistId(channelId))}&key=${apiKey}`
+    );
+    const ids = (playlist.items || [])
+      .map((i) => i.contentDetails?.videoId)
+      .filter((id): id is string => !!id);
+    const uploadedLive = await findLiveVideoByIds(ids, apiKey);
+    if (uploadedLive) return uploadedLive;
+  }
 
   // search.list 는 100유닛이므로 예배 시간대에 10분마다만 보조적으로 쓴다.
-  return shouldUseSearchFallback(now)
-    ? findLiveVideoSearch(channelId, apiKey)
-    : null;
+  if (apiKey && shouldUseSearchFallback(now)) {
+    const searchedLive = await findLiveVideoSearch(channelId, apiKey);
+    if (searchedLive) return searchedLive;
+  }
+
+  if (oauthFailure) throw oauthFailure;
+  return null;
 }
 
 /**
@@ -255,8 +384,8 @@ export async function findLiveVideo(
  * @returns 갱신을 수행했는지 (false = 캐시가 신선하거나 다른 요청이 이미 선점)
  */
 export async function refreshIfStale(admin: SupabaseClient, force = false): Promise<boolean> {
-  const apiKey = process.env.YOUTUBE_API_KEY;
-  if (!apiKey) return false;
+  const apiKey = process.env.YOUTUBE_API_KEY || null;
+  if (!apiKey && !hasYouTubeOAuthCredentials()) return false;
 
   const nowIso = new Date().toISOString();
   const cutoff = new Date(Date.now() - REFRESH_AFTER_MS).toISOString();

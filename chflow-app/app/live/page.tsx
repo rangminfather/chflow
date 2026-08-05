@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ExternalLink, RefreshCw, Radio } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
-import { worshipNowLabel, WORSHIP_SCHEDULE_TEXT } from "@/lib/worshipSchedule";
+import { worshipNowLabel, WORSHIP_GUIDE_TEXT } from "@/lib/worshipSchedule";
 import SermonArchive from "@/components/SermonArchive";
 
 type LiveStatus = {
@@ -235,21 +235,36 @@ export default function LivePage() {
                 : "예배가 시작되면 이 화면에서 바로 보실 수 있습니다."}
             </p>
 
-            {/* 실시간 예배 안내 — 중계하는 예배만 나열한다 */}
+            {/* 예배안내: 전체 일정은 텍스트로 간단히 보여주고 생방송 예배만 배지로 구분한다. */}
             <div style={{
               marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--hairline)",
               display: "flex", flexDirection: "column", gap: 6, textAlign: "left",
-              maxWidth: 300, marginLeft: "auto", marginRight: "auto",
+              maxWidth: 430, marginLeft: "auto", marginRight: "auto",
             }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-mid)" }}>실시간 예배 안내</div>
-              {/* 교회 전체 예배 시간표가 아니라 '중계하는 예배'만 나열한다는 점을 명확히 */}
-              <div style={{ fontSize: 11.5, color: "var(--ink-soft)", lineHeight: 1.6, marginBottom: 4 }}>
-                아래 예배만 실시간으로 중계됩니다.
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-mid)" }}>예배안내</div>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 3, color: "var(--accent)", fontSize: 10.5, fontWeight: 700 }}>
+                  <Radio size={11} strokeWidth={2} /> 실시간 중계
+                </span>
               </div>
-              {WORSHIP_SCHEDULE_TEXT.map((g) => (
-                <div key={g.when} style={{ display: "flex", gap: 8, fontSize: 12.5, color: "var(--ink-mid)", lineHeight: 1.7 }}>
-                  <span style={{ width: 44, flexShrink: 0, fontWeight: 700, color: "var(--ink)" }}>{g.when}</span>
-                  <span style={{ flex: 1 }}>{g.items.join(" · ")}</span>
+              <div style={{ fontSize: 11.5, color: "var(--ink-soft)", lineHeight: 1.6, marginBottom: 4 }}>
+                실시간 표시가 있는 예배는 생방송으로 시청할 수 있습니다.
+              </div>
+              {WORSHIP_GUIDE_TEXT.map((g) => (
+                <div key={g.when} style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: 12, color: "var(--ink-mid)", lineHeight: 1.7 }}>
+                  <span style={{ width: 58, flexShrink: 0, fontWeight: 700, color: "var(--ink)" }}>{g.when}</span>
+                  <span style={{ display: "flex", flexWrap: "wrap", gap: "3px 8px", flex: 1, minWidth: 0 }}>
+                    {g.items.map((item) => (
+                      <span key={`${item.label ?? "main"}-${item.time}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                        <span>{[item.label, item.time].filter(Boolean).join(" ")}{item.note ? ` (${item.note})` : ""}</span>
+                        {item.live && (
+                          <span style={{ display: "inline-flex", alignItems: "center", padding: "1px 4px", borderRadius: 4, background: "color-mix(in srgb, var(--accent) 12%, transparent)", color: "var(--accent)", fontSize: 9.5, fontWeight: 800, lineHeight: 1.3 }}>
+                            실시간
+                          </span>
+                        )}
+                      </span>
+                    ))}
+                  </span>
                 </div>
               ))}
             </div>

@@ -1,8 +1,8 @@
 // 실시간 예배 시간표 → 라이브가 어느 예배인지 판별.
 //
 // 실제 일정 (KST):
-//   주일 2부 09:00 / 3부 11:00 / 4부 13:30
-//   수요 저녁예배 19:30
+//   주일 2부 09:00 / 3부 11:00 / 4부 13:40 / 젊은이예배 13:40
+//   수요일 1부 10:00 / 2부 19:30
 //
 // 방송이 정시에 딱 시작되지 않으므로 각 예배의 "구간"으로 판별한다. 구간 경계는
 // 인접 예배 시각의 중간값을 쓰되, 앞뒤로 준비 시간을 여유 있게 둔다.
@@ -34,10 +34,12 @@ const WINDOWS: Window[] = [
   { key: "sun_2", label: "주일 2부 예배", day: 0, from: HM(7, 30), to: HM(10, 0) },
   // 주일 3부 11:00 — 4부와의 중간 12:15 까지
   { key: "sun_3", label: "주일 3부 예배", day: 0, from: HM(10, 0), to: HM(12, 15) },
-  // 주일 4부 13:30
+  // 주일 4부 13:40 / 젊은이예배 13:40
   { key: "sun_4", label: "주일 4부 예배", day: 0, from: HM(12, 15), to: HM(15, 30) },
-  // 수요 저녁예배 19:30
-  { key: "wed_pm", label: "수요저녁예배", day: 3, from: HM(17, 0), to: HM(22, 0) },
+  // 수요일 1부 오전 10:00
+  { key: "wed_am", label: "수요일 1부 예배", day: 3, from: HM(8, 0), to: HM(12, 0) },
+  // 수요일 2부 오후 7:30
+  { key: "wed_pm", label: "수요일 2부 예배", day: 3, from: HM(17, 0), to: HM(22, 0) },
 ];
 
 /**
@@ -61,11 +63,51 @@ export function worshipNowLabel(at: Date = new Date()): string {
   return detectWorshipSession(at)?.label ?? "실시간 예배";
 }
 
-/**
- * 화면 안내용 — **실시간 중계를 제공하는 예배만** 담는다.
- * 교회 전체 예배 시간표가 아니다(1부 예배·수요 오전예배 등은 중계하지 않으므로 넣지 않는다).
- */
+/** 예배 메뉴에 표시할 전체 예배 일정. */
+export type WorshipGuideItem = {
+  label?: string;
+  time: string;
+  note?: string;
+  live?: boolean;
+};
+
+/** 예배 메뉴에서 보여줄 전체 예배 일정. live가 true인 항목만 생방송 배지를 표시한다. */
+export const WORSHIP_GUIDE_TEXT: Array<{
+  when: string;
+  items: WorshipGuideItem[];
+}> = [
+  {
+    when: "새벽기도회",
+    items: [
+      { label: "1부", time: "오전 5:00" },
+      { label: "2부", time: "오전 6:00" },
+    ],
+  },
+  {
+    when: "주일예배",
+    items: [
+      { label: "1부", time: "오전 7:00" },
+      { label: "2부", time: "오전 9:00", live: true },
+      { label: "3부", time: "오전 11:00", live: true },
+      { label: "4부", time: "오후 1:40", note: "젊은이예배", live: true },
+      { label: "오후", time: "오후 1:40", note: "온세대연합 오후찬양예배" },
+    ],
+  },
+  {
+    when: "수요예배",
+    items: [
+      { label: "1부", time: "오전 10:00", live: true },
+      { label: "2부", time: "오후 7:30", live: true },
+    ],
+  },
+  {
+    when: "금요기도회",
+    items: [{ time: "오후 11:00" }],
+  },
+];
+
+/** 관리자 화면에서 사용하는 실시간 중계 예배 일정. */
 export const WORSHIP_SCHEDULE_TEXT = [
-  { when: "주일", items: ["2부 오전 9:00", "3부 오전 11:00", "4부 오후 1:30"] },
-  { when: "수요일", items: ["저녁예배 오후 7:30"] },
+  { when: "주일", items: ["2부 오전 9:00", "3부 오전 11:00", "4부 오후 1:40", "젊은이예배 오후 1:40"] },
+  { when: "수요일", items: ["1부 오전 10:00", "2부 오후 7:30"] },
 ];
