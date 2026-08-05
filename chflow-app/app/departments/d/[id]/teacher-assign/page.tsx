@@ -48,6 +48,14 @@ interface LogRow {
   changed_at: string;
 }
 
+const GRADE_LABEL: Record<number, string> = {
+  0: "전도사·교육사",
+  1: "부장",
+  2: "부부장·총무·서기",
+  3: "교사",
+  4: "학부모",
+};
+
 export default function TeacherAssignPage() {
   const router = useRouter();
   const params = useParams();
@@ -99,8 +107,8 @@ export default function TeacherAssignPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/login"); return; }
       const { data: g } = await supabase.rpc("get_user_grade", { p_dept_id: deptId });
-      if (g === null || g === undefined || g > 1) {
-        showToast("권한 없음 (전도사·부장만 접근 가능)");
+      if (g === null || g === undefined || g > 2) {
+        showToast("권한 없음 (임원진만 접근 가능)");
         setTimeout(() => router.replace(`/departments/d/${deptId}`), 1500);
         return;
       }
@@ -195,6 +203,13 @@ export default function TeacherAssignPage() {
 
   const placeholders = teachers.filter((t) => t.is_placeholder && t.is_active);
   const linkedTeachers = teachers.filter((t) => !t.is_placeholder && t.is_active);
+  const gradeLabel = (grade: number) => GRADE_LABEL[grade] || `${grade}등급`;
+  const normalizeName = (name: string) => name.replace(/\s+/g, "").trim();
+  const mergeTargetName = normalizeName(mergeTarget?.name || "");
+  const recommendedEligible = mergeTargetName
+    ? eligible.filter((u) => normalizeName(u.name) === mergeTargetName && !u.already_linked)
+    : [];
+  const otherEligible = eligible.filter((u) => !recommendedEligible.some((r) => r.user_id === u.user_id));
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-soft)", paddingBottom: 60, fontFamily: "'Noto Sans KR', sans-serif" }}>
@@ -235,8 +250,8 @@ export default function TeacherAssignPage() {
                   </div>
                   <div style={{ fontSize: 12, color: "var(--ink-mid)", marginBottom: 8 }}>
                     담임: <strong>{c.teacher_name || "(없음)"}</strong>
-                    {c.is_placeholder && <span style={{ color: "var(--warning)", marginLeft: 4, fontSize: 10, display: "inline-flex", alignItems: "center", gap: 3 }}><Circle size={9} strokeWidth={1.8} /> placeholder</span>}
-                    {!c.is_placeholder && c.teacher_id && <span style={{ color: "var(--success)", marginLeft: 4, fontSize: 10, display: "inline-flex", alignItems: "center", gap: 3 }}><CheckCircle2 size={10} strokeWidth={1.8} /> 가입회원</span>}
+                    {c.is_placeholder && <span style={{ color: "var(--warning)", marginLeft: 4, fontSize: 10, display: "inline-flex", alignItems: "center", gap: 3 }}><Circle size={9} strokeWidth={1.8} /> 계정 미연결</span>}
+                    {!c.is_placeholder && c.teacher_id && <span style={{ color: "var(--success)", marginLeft: 4, fontSize: 10, display: "inline-flex", alignItems: "center", gap: 3 }}><CheckCircle2 size={10} strokeWidth={1.8} /> 계정 연결됨</span>}
                   </div>
                   <button onClick={() => { setEditingClass(c); setPickedTeacherId(c.teacher_id || ""); }} style={btnSm}>담임 변경</button>
                 </div>
@@ -245,31 +260,32 @@ export default function TeacherAssignPage() {
           )}
         </div>
 
-        {/* placeholder 회원 연결 */}
+        {/* 이름만 등록된 담임 계정 연결 */}
         {placeholders.length > 0 && (
           <div style={card}>
-            <div style={{ ...sectionTitle, display: "flex", alignItems: "center", gap: 6 }}><Circle size={12} strokeWidth={1.8} /> placeholder ↔ 가입 회원 연결 ({placeholders.length})</div>
-            <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 8 }}>
-              담임 선생님이 회원가입 + 부서원이 되었으면 연결 → 학생들 자동 인계
+            <div style={{ ...sectionTitle, display: "flex", alignItems: "center", gap: 6 }}><Circle size={12} strokeWidth={1.8} /> 계정 연결이 필요한 담임 ({placeholders.length})</div>
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 10, lineHeight: 1.6 }}>
+              이름만 먼저 등록된 담임입니다. 선생님이 회원가입과 부서 가입을 마쳤다면 아래 이름을 눌러 실제 계정과 연결하세요.
+              연결하면 해당 반 학생들이 선생님의 <strong>내 반</strong>에 바로 보입니다.
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {placeholders.map((t) => (
                 <button key={t.id} onClick={() => openMergeModal(t)} style={{ ...chipGhost, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <Circle size={10} strokeWidth={1.8} /> {t.name}
+                  <Circle size={10} strokeWidth={1.8} /> {t.name} 선생님 계정 연결
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        {/* 가입회원 담임 */}
+        {/* 계정 연결된 담임 */}
         <div style={card}>
-          <div style={{ ...sectionTitle, display: "flex", alignItems: "center", gap: 6 }}><CheckCircle2 size={14} strokeWidth={1.8} /> 가입회원 담임 ({linkedTeachers.length})</div>
+          <div style={{ ...sectionTitle, display: "flex", alignItems: "center", gap: 6 }}><CheckCircle2 size={14} strokeWidth={1.8} /> 계정 연결된 담임 ({linkedTeachers.length})</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {linkedTeachers.map((t) => (
               <span key={t.id} style={chipGreen}>{t.name}</span>
             ))}
-            {linkedTeachers.length === 0 && <span style={{ fontSize: 12, color: "var(--ink-faint)" }}>아직 가입회원으로 매칭된 담임 없음</span>}
+            {linkedTeachers.length === 0 && <span style={{ fontSize: 12, color: "var(--ink-faint)" }}>아직 계정과 연결된 담임이 없습니다</span>}
           </div>
         </div>
 
@@ -287,7 +303,7 @@ export default function TeacherAssignPage() {
                     <> · {l.class_no} 반 담임 <s>{l.old_teacher_name || "없음"}</s> → <strong>{l.new_teacher_name}</strong></>
                   )}
                   {l.action_type === "merge_placeholder" && (
-                    <> · placeholder <strong>{l.new_teacher_name}</strong> ↔ 회원 연결</>
+                    <> · <strong>{l.new_teacher_name}</strong> 선생님 계정 연결</>
                   )}
                   {l.reason && <span style={{ color: "var(--ink-faint)" }}> ({l.reason})</span>}
                 </div>
@@ -311,7 +327,7 @@ export default function TeacherAssignPage() {
               <option value="">— 새 담임 선택 —</option>
               {teachers.filter((t) => t.is_active).map((t) => (
                 <option key={t.id} value={t.id}>
-                  {t.name}{t.is_placeholder ? " (placeholder)" : " (가입회원)"}
+                  {t.name}{t.is_placeholder ? " (계정 미연결)" : " (계정 연결됨)"}
                 </option>
               ))}
             </select>
@@ -326,24 +342,68 @@ export default function TeacherAssignPage() {
         </ModalBackdrop>
       )}
 
-      {/* placeholder 연결 모달 */}
+      {/* 담임 계정 연결 모달 */}
       {mergeTarget && (
         <ModalBackdrop onClose={() => setMergeTarget(null)}>
-          <div style={modalCard}>
+          <div style={{ ...modalCard, maxWidth: 460 }}>
             <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-              <Circle size={12} strokeWidth={1.8} /> {mergeTarget.name} ↔ 가입회원 연결
+              <Circle size={12} strokeWidth={1.8} /> {mergeTarget.name} 선생님 계정 연결
             </div>
-            <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 12, lineHeight: 1.5 }}>
-              연결하면 placeholder 가 가입회원 정보로 갱신되고, 이 담임이 맡고 있는 학생들의 담임 정보가 자동 인계됩니다 (학생 정보 변경 X).
+            <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 12, lineHeight: 1.6 }}>
+              이름만 등록된 담임을 실제 로그인 계정과 연결합니다. 연결 후에는 이 반 학생들이 해당 선생님의 <strong>내 반</strong> 화면에 자동으로 표시됩니다.
             </div>
-            <select value={pickedUserId} onChange={(e) => setPickedUserId(e.target.value)} style={inp}>
-              <option value="">— 부서원 (교사) 선택 —</option>
-              {eligible.map((u) => (
-                <option key={u.user_id} value={u.user_id} disabled={u.already_linked}>
-                  {u.name} (grade {u.grade}){u.already_linked ? " — 이미 연결됨" : ""}
-                </option>
-              ))}
-            </select>
+            {recommendedEligible.length > 0 ? (
+              <div style={{ marginBottom: 12 }}>
+                <div style={fieldLabel}>이름이 같은 가입 계정</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+                  {recommendedEligible.map((u) => (
+                    <button
+                      key={u.user_id}
+                      type="button"
+                      onClick={() => setPickedUserId(u.user_id)}
+                      style={accountChoiceStyle(pickedUserId === u.user_id, false)}
+                    >
+                      <span style={{ fontWeight: 800 }}>{u.name}</span>
+                      <span style={{ fontSize: 11, color: pickedUserId === u.user_id ? "var(--accent-strong)" : "var(--ink-soft)" }}>{gradeLabel(u.grade)}</span>
+                      <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800 }}>{pickedUserId === u.user_id ? "선택됨" : "선택"}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div style={{ ...hintBox, marginBottom: 12 }}>
+                이름이 같은 가입 계정을 찾지 못했습니다. 먼저 사역 가입 승인이 되었는지 확인하거나, 아래에서 직접 계정을 선택하세요.
+              </div>
+            )}
+
+            <details open={recommendedEligible.length === 0} style={{ marginBottom: 8 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 800, color: "var(--ink-mid)", marginBottom: 8 }}>
+                같은 선생님인데 이름이 다르게 등록된 경우
+              </summary>
+              <div style={{ fontSize: 11.5, color: "var(--ink-soft)", lineHeight: 1.5, margin: "0 0 8px 2px" }}>
+                예: 담임 명단은 “김철수”, 가입 계정은 “김철수 집사”처럼 보일 때만 아래에서 직접 선택하세요.
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 190, overflowY: "auto", paddingRight: 2 }}>
+                {otherEligible.map((u) => (
+                  <button
+                    key={u.user_id}
+                    type="button"
+                    disabled={u.already_linked}
+                    onClick={() => setPickedUserId(u.user_id)}
+                    style={accountChoiceStyle(pickedUserId === u.user_id, u.already_linked)}
+                  >
+                    <span style={{ fontWeight: 800 }}>{u.name}</span>
+                    <span style={{ fontSize: 11, color: pickedUserId === u.user_id ? "var(--accent-strong)" : "var(--ink-soft)" }}>{gradeLabel(u.grade)}</span>
+                    <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800 }}>
+                      {u.already_linked ? "이미 연결됨" : pickedUserId === u.user_id ? "선택됨" : "선택"}
+                    </span>
+                  </button>
+                ))}
+                {otherEligible.length === 0 && (
+                  <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: "8px 2px" }}>직접 선택할 수 있는 선생님 계정이 없습니다.</div>
+                )}
+              </div>
+            </details>
             <input value={mergeReason} onChange={(e) => setMergeReason(e.target.value)} placeholder="사유 (선택)" style={{ ...inp, marginTop: 8 }} />
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
               <button onClick={() => setMergeTarget(null)} style={btnGhost}>취소</button>
@@ -398,3 +458,27 @@ const iconBtn: React.CSSProperties = { width: 26, height: 26, display: "inline-f
 const chipGhost: React.CSSProperties = { padding: "6px 12px", background: "var(--warning-soft)", color: "var(--warning)", border: "1px solid #E0C893", borderRadius: 999, fontSize: 11, cursor: "pointer", fontFamily: "inherit" };
 const chipGreen: React.CSSProperties = { padding: "6px 12px", background: "var(--success-soft)", color: "var(--success)", border: "1px solid var(--success-soft)", borderRadius: 999, fontSize: 11, fontFamily: "inherit" };
 const modalCard: React.CSSProperties = { background: "var(--card)", borderRadius: 14, padding: 20, maxWidth: 420, width: "calc(100vw - 32px)", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" };
+const fieldLabel: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: "var(--ink-mid)" };
+const hintBox: React.CSSProperties = {
+  padding: 10,
+  borderRadius: 8,
+  background: "var(--bg-soft)",
+  color: "var(--ink-soft)",
+  fontSize: 12,
+  lineHeight: 1.5,
+};
+const accountChoiceStyle = (active: boolean, disabled: boolean): React.CSSProperties => ({
+  minHeight: 42,
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "8px 10px",
+  borderRadius: 9,
+  border: `1.5px solid ${active ? "var(--accent)" : "var(--hairline)"}`,
+  background: active ? "var(--accent-soft)" : "var(--card)",
+  color: disabled ? "var(--ink-faint)" : "var(--ink)",
+  cursor: disabled ? "default" : "pointer",
+  opacity: disabled ? 0.55 : 1,
+  fontFamily: "inherit",
+  textAlign: "left",
+});
