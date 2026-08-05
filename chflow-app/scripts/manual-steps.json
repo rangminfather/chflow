@@ -315,8 +315,8 @@
         {
           "id": "ta-11",
           "title": "학생 출결 조회 (개인별)",
-          "desc": "특정 학생의 출석 이력을 조회합니다. 이름을 검색하면 주차별 출결 현황과 누적 출석 횟수·출석률을 확인할 수 있습니다.",
-          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/student-record",
+          "desc": "개인별 출석 이력은 출결 통합 조회 화면에서 확인합니다. 학생 이름을 누르면 기간별 출결 이력 창이 열려 주차별 출결 현황과 누적 출석 횟수·출석률을 볼 수 있습니다.",
+          "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/attendance",
           "highlight": null,
           "requireLogin": true
         },
