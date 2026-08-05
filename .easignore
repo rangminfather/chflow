@@ -1,0 +1,27 @@
+# EAS is resolving the Git repository root as the archive root.
+# Keep the Expo project, exclude unrelated repositories and local history.
+.git/
+chflow-desktop/
+chflow-app/
+MS_AX/
+_scratch/
+pastor-intro-site/
+depoly(android)/
+archive/
+node_modules/
+**/node_modules/
+.expo/
+**/.expo/
+dist/
+**/dist/
+build/
+**/build/
+*.log
+*.aab
+*.apk
+*.ipa
+*.zip
+coverage/
+.cache/
+tmp/
+temp/
