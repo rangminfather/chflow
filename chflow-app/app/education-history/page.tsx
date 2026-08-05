@@ -59,6 +59,7 @@ export default function EducationHistoryPage() {
   const [courses, setCourses] = useState<JsonRecord[]>([]);
   const [courseAliases, setCourseAliases] = useState<JsonRecord[]>([]);
   const [coursePolicies, setCoursePolicies] = useState<JsonRecord[]>([]);
+  const [unclassifiedRows, setUnclassifiedRows] = useState<JsonRecord[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -98,16 +99,20 @@ export default function EducationHistoryPage() {
     setLmtcData((lmtcResult.data ?? {}) as JsonRecord);
     setStats((statsResult.data ?? {}) as JsonRecord);
     if (isManager) {
-      const [batchResult, courseMasterResult, aliasResult, policyResult] = await Promise.all([
+      const [batchResult, courseMasterResult, aliasResult, policyResult, unclassifiedResult] = await Promise.all([
         supabase.from("education_import_batches").select("*").order("uploaded_at", { ascending: false }).limit(100),
         supabase.from("education_courses").select("*").is("deleted_at", null).order("sort_order"),
         supabase.from("education_course_aliases").select("*").eq("active", true).order("created_at", { ascending: false }),
         supabase.from("education_course_policies").select("*").eq("active", true).order("created_at", { ascending: false }),
+        supabase.from("education_import_rows")
+          .select("id,course_name_raw,raw_row_text,person_name_normalized,person_name_raw,completed_on,started_on,date_raw,cohort_label_raw,cohort_no")
+          .is("suggested_course_id", null).is("excluded_at", null).limit(1000),
       ]);
       setBatches((batchResult.data ?? []) as JsonRecord[]);
       setCourses((courseMasterResult.data ?? []) as JsonRecord[]);
       setCourseAliases((aliasResult.data ?? []) as JsonRecord[]);
       setCoursePolicies((policyResult.data ?? []) as JsonRecord[]);
+      setUnclassifiedRows((unclassifiedResult.data ?? []) as JsonRecord[]);
     }
     setLoading(false);
   }, [router]);
@@ -150,7 +155,7 @@ export default function EducationHistoryPage() {
         {tab === "통계" && <StatsTab data={stats} />}
         {tab === "자료 가져오기" && (canImport ? <ImportTab batches={batches} reload={reload} /> : <Denied />)}
         {tab === "매칭·검수" && (canManage ? <ReviewTab courses={courses} batches={batches} reloadDashboard={reload} /> : <Denied />)}
-        {tab === "과정 관리" && (canCourseManage ? <CourseManageTab courses={courses} aliases={courseAliases} policies={coursePolicies} reload={reload} /> : <Denied />)}
+        {tab === "과정 관리" && (canCourseManage ? <CourseManageTab courses={courses} aliases={courseAliases} policies={coursePolicies} unclassifiedRows={unclassifiedRows} reload={reload} /> : <Denied />)}
       </div>
     </main>
   );
@@ -409,7 +414,146 @@ function ReviewTab({ courses, batches, reloadDashboard }: {
   </div>;
 }
 
-function CourseManageTab({ courses, aliases, policies, reload }: { courses: JsonRecord[]; aliases: JsonRecord[]; policies: JsonRecord[]; reload: () => Promise<void> }) {
+const COURSE_CATEGORIES = [
+  "life_study", "discipleship", "mission_training", "family_ministry",
+  "bible_training", "leadership_training", "lmtc", "other", "unclassified",
+] as const;
+
+async function postCourseResource(payload: JsonRecord): Promise<JsonRecord> {
+  const { data } = await supabase.auth.getSession();
+  const response = await fetch("/api/education-history/courses", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json() as JsonRecord;
+  if (!response.ok) throw new Error(text(result.error) || "요청이 실패했습니다.");
+  return result;
+}
+
+function UnclassifiedCoursePanel({ rows, courses, reload }: { rows: JsonRecord[]; courses: JsonRecord[]; reload: () => Promise<void> }) {
+  const [linkTo, setLinkTo] = useState<Record<string, string>>({});
+  const [newName, setNewName] = useState<Record<string, string>>({});
+  const [newCategory, setNewCategory] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState("");
+  const [open, setOpen] = useState("");
+
+  const groups = useMemo(() => {
+    const map = new Map<string, JsonRecord[]>();
+    for (const row of rows) {
+      const key = text(row.course_name_raw) || "(과정명 없음)";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(row);
+    }
+    return [...map.entries()]
+      .map(([raw, items]) => ({ raw, items }))
+      .sort((a, b) => b.items.length - a.items.length || a.raw.localeCompare(b.raw, "ko"));
+  }, [rows]);
+
+  async function run(raw: string, task: () => Promise<void>) {
+    setBusy(raw);
+    try {
+      await task();
+      await reload();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "처리하지 못했습니다.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function attach(raw: string) {
+    const courseId = linkTo[raw];
+    if (!courseId) { alert("붙일 표준 과정을 선택하세요."); return; }
+    void run(raw, async () => { await postCourseResource({ resource: "alias", rawCourseName: raw, courseId }); });
+  }
+
+  function createAndAttach(raw: string) {
+    const name = (newName[raw] ?? raw).trim();
+    if (!name) { alert("새 과정명을 입력하세요."); return; }
+    void run(raw, async () => {
+      const created = await postCourseResource({ name, category: newCategory[raw] ?? "life_study", default_audience: "adult" });
+      await postCourseResource({ resource: "alias", rawCourseName: raw, courseId: text(created.id) });
+    });
+  }
+
+  function discard(raw: string, items: JsonRecord[]) {
+    if (!confirm(`"${raw}" ${items.length}건을 폐기(검수 제외)합니다. 정식 이력으로 넘어가지 않습니다.`)) return;
+    void run(raw, async () => {
+      const { data } = await supabase.auth.getSession();
+      const ids = items.map((item) => text(item.id));
+      for (let index = 0; index < ids.length; index += 50) {
+        const response = await fetch("/api/education-history/review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` },
+          body: JSON.stringify({ rowIds: ids.slice(index, index + 50), action: "exclude", reviewNote: `과정 미분류 폐기 (${raw})` }),
+        });
+        if (!response.ok) throw new Error(text((await response.json() as JsonRecord).error) || "폐기에 실패했습니다.");
+      }
+    });
+  }
+
+  return <Panel>
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <h2 className="font-black">미분류 과정 검수</h2>
+      <Badge>{groups.length}종 · {rows.length}건</Badge>
+    </div>
+    <p className="mb-4 text-sm opacity-70">
+      명부의 과정명이 표준 과정과 연결되지 않은 항목입니다. 기존 과정에 붙이거나, 새 과정으로 만들거나, 폐기하세요.
+      기수는 과정명에서 빼고 <b>과정 하나로 묶는 것</b>을 권합니다.
+    </p>
+    {!groups.length && <div className="p-8 text-center text-sm opacity-60">미분류 과정이 없습니다.</div>}
+    <div className="space-y-3">
+      {groups.map(({ raw, items }) => {
+        const working = busy === raw;
+        const expanded = open === raw;
+        return <div key={raw} className="rounded-xl border border-[var(--hairline)] p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <b className="text-sm">{raw}</b>
+            <Badge>{items.length}건</Badge>
+            <button className="ml-auto text-xs underline opacity-70" onClick={() => setOpen(expanded ? "" : raw)}>
+              {expanded ? "원본 닫기" : "원본 보기"}
+            </button>
+          </div>
+          {expanded && <div className="mt-2 space-y-1 rounded-lg bg-[var(--bg-soft)] p-2 text-xs opacity-80">
+            {items.slice(0, 10).map((item) => <p key={text(item.id)}>
+              {text(item.person_name_normalized || item.person_name_raw)} · {text(item.completed_on || item.started_on || item.date_raw) || "날짜없음"} · {text(item.raw_row_text)}
+            </p>)}
+            {items.length > 10 && <p className="opacity-60">외 {items.length - 10}건</p>}
+          </div>}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <CourseSelect courses={courses} value={linkTo[raw] ?? ""} onChange={(value) => setLinkTo((prev) => ({ ...prev, [raw]: value }))} />
+            <button disabled={working} className="rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-bold text-white disabled:opacity-40" onClick={() => attach(raw)}>
+              이 과정에 붙이기
+            </button>
+            <span className="text-xs opacity-50">또는</span>
+            <input
+              className="rounded-lg border p-2 text-sm"
+              value={newName[raw] ?? raw}
+              onChange={(event) => setNewName((prev) => ({ ...prev, [raw]: event.target.value }))}
+              placeholder="새 과정명"
+            />
+            <select
+              className="rounded-lg border p-2 text-sm"
+              value={newCategory[raw] ?? "life_study"}
+              onChange={(event) => setNewCategory((prev) => ({ ...prev, [raw]: event.target.value }))}
+            >
+              {COURSE_CATEGORIES.map((item) => <option key={item}>{item}</option>)}
+            </select>
+            <button disabled={working} className="rounded-lg border border-[var(--accent)] px-3 py-2 text-sm font-bold text-[var(--accent)] disabled:opacity-40" onClick={() => createAndAttach(raw)}>
+              새 과정으로 신설
+            </button>
+            <button disabled={working} className="ml-auto rounded-lg border px-3 py-2 text-sm opacity-70 disabled:opacity-30" onClick={() => discard(raw, items)}>
+              폐기
+            </button>
+          </div>
+        </div>;
+      })}
+    </div>
+  </Panel>;
+}
+
+function CourseManageTab({ courses, aliases, policies, unclassifiedRows, reload }: { courses: JsonRecord[]; aliases: JsonRecord[]; policies: JsonRecord[]; unclassifiedRows: JsonRecord[]; reload: () => Promise<void> }) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("life_study");
   const [aliasRaw, setAliasRaw] = useState("");
@@ -428,7 +572,9 @@ function CourseManageTab({ courses, aliases, policies, reload }: { courses: Json
     const response = await fetch("/api/education-history/courses", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` }, body: JSON.stringify(payload) });
     if (response.ok) await reload(); else alert(text((await response.json() as JsonRecord).error));
   }
-  return <div className="space-y-4"><Panel><h2 className="mb-3 font-black">표준 과정 생성</h2><div className="flex flex-wrap gap-2"><input className="rounded-lg border p-2" value={name} onChange={(event) => setName(event.target.value)} placeholder="과정명" /><select className="rounded-lg border p-2" value={category} onChange={(event) => setCategory(event.target.value)}>{["life_study","discipleship","mission_training","family_ministry","bible_training","leadership_training","lmtc","other","unclassified"].map((item) => <option key={item}>{item}</option>)}</select><button onClick={create} className="rounded-lg bg-[var(--accent)] px-4 py-2 font-bold text-white">추가</button></div></Panel>
+  return <div className="space-y-4">
+    <UnclassifiedCoursePanel rows={unclassifiedRows} courses={courses} reload={reload} />
+    <Panel><h2 className="mb-3 font-black">표준 과정 생성</h2><div className="flex flex-wrap gap-2"><input className="rounded-lg border p-2" value={name} onChange={(event) => setName(event.target.value)} placeholder="과정명" /><select className="rounded-lg border p-2" value={category} onChange={(event) => setCategory(event.target.value)}>{["life_study","discipleship","mission_training","family_ministry","bible_training","leadership_training","lmtc","other","unclassified"].map((item) => <option key={item}>{item}</option>)}</select><button onClick={create} className="rounded-lg bg-[var(--accent)] px-4 py-2 font-bold text-white">추가</button></div></Panel>
     <Panel><h2 className="mb-3 font-black">과정 별칭 연결</h2><div className="flex flex-wrap gap-2"><input className="rounded-lg border p-2" value={aliasRaw} onChange={(event) => setAliasRaw(event.target.value)} placeholder="원본 과정명" /><CourseSelect courses={courses} value={aliasCourse} onChange={setAliasCourse} /><button className="rounded-lg bg-[var(--accent)] px-4 text-white" onClick={() => createResource({ resource: "alias", rawCourseName: aliasRaw, courseId: aliasCourse })}>별칭 저장</button></div><Table headers={["원본명","표준 과정"]} rows={aliases.map((row) => [text(row.raw_course_name), text(courses.find((course) => course.id === row.course_id)?.name)])} /></Panel>
     <Panel><h2 className="mb-3 font-black">과정 정책</h2><div className="flex flex-wrap gap-2"><CourseSelect courses={courses} value={policyCourse} onChange={setPolicyCourse} /><select className="rounded-lg border p-2" value={requirementType} onChange={(event) => setRequirementType(event.target.value)}>{["basic_required","elective","not_applicable","unknown"].map((item) => <option key={item}>{item}</option>)}</select><input type="date" className="rounded-lg border p-2" value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} /><input type="date" className="rounded-lg border p-2" value={effectiveTo} onChange={(event) => setEffectiveTo(event.target.value)} /><button className="rounded-lg bg-[var(--accent)] px-4 text-white" onClick={() => createResource({ resource: "policy", courseId: policyCourse, requirementType, effectiveFrom, effectiveTo, policyName: "관리자 등록 정책" })}>정책 추가</button></div><Table headers={["과정","구분","시작","종료","정책명"]} rows={policies.map((row) => [text(courses.find((course) => course.id === row.course_id)?.name), text(row.requirement_type), text(row.effective_from) || "현재 기준", text(row.effective_to) || "-", text(row.policy_name)])} /></Panel>
     <Panel><Table headers={["과정명","분류","대상","활성","정렬"]} rows={courses.map((row) => [text(row.name), text(row.category), text(row.default_audience), row.active ? "활성" : "비활성", number(row.sort_order)])} /></Panel></div>;
