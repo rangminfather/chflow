@@ -781,6 +781,7 @@ function AppWebView() {
           geolocationEnabled={true}
           // 파일 업로드 허용 (프로필 사진 등)
           allowsInlineMediaPlayback={true}
+          allowsFullscreenVideo={true}
           mediaPlaybackRequiresUserAction={false}
           // 줌 비활성 (모바일 웹에서 의도치 않은 확대 방지)
           scalesPageToFit={false}
