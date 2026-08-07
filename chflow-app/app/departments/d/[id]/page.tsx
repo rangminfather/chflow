@@ -186,6 +186,7 @@ export default function DepartmentDetailPage() {
   const [hasHomeroom, setHasHomeroom] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
+  const [deptApprovalPendingCount, setDeptApprovalPendingCount] = useState(0);
   const [menuSettings, setMenuSettings] = useState<MenuSettings>({});
   const [editCatId, setEditCatId] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ catId: string; itemId: string } | null>(null);
@@ -240,7 +241,14 @@ export default function DepartmentDetailPage() {
         setDept(deptResp.data[0]);
       }
       if (!gradeResp.error && gradeResp.data !== null && gradeResp.data !== undefined) {
-        setMyGrade(typeof gradeResp.data === "number" ? gradeResp.data : Number(gradeResp.data));
+        const grade = typeof gradeResp.data === "number" ? gradeResp.data : Number(gradeResp.data);
+        setMyGrade(grade);
+        if (grade <= 2) {
+          const { data } = await supabase.rpc("list_dept_pending_for_leader", { p_dept_id: deptId });
+          setDeptApprovalPendingCount(Array.isArray(data) ? data.length : 0);
+        } else {
+          setDeptApprovalPendingCount(0);
+        }
       }
       if (teacherResp.data?.id) {
         const { count } = await supabase
@@ -603,6 +611,7 @@ export default function DepartmentDetailPage() {
                     <MenuCard
                       key={item.id}
                       item={item}
+                      badgeCount={item.id === "dept-approval" ? deptApprovalPendingCount : 0}
                       onClick={() => handleItemClick(item)}
                       onEdit={editingCat
                         && (cat.id !== "notices" || COMMON_MENU_KEYS.includes(item.id))
@@ -961,8 +970,9 @@ const sectionLabelInputStyle: React.CSSProperties = {
 const modalLabel: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", letterSpacing: 0.2 };
 const modalInput: React.CSSProperties = { width: "100%", marginTop: 5, padding: "10px 12px", fontSize: 14, background: "var(--card)", border: "1.5px solid var(--hairline)", borderRadius: 9, outline: "none", fontFamily: "inherit", boxSizing: "border-box", color: "var(--ink)", fontWeight: 500 };
 
-function MenuCard({ item, onClick, onEdit, cardRef, dragging, onDragHandle }: {
+function MenuCard({ item, badgeCount = 0, onClick, onEdit, cardRef, dragging, onDragHandle }: {
   item: MenuItem;
+  badgeCount?: number;
   onClick: () => void;
   onEdit?: () => void;
   cardRef?: (el: HTMLDivElement | null) => void;
@@ -1038,6 +1048,19 @@ function MenuCard({ item, onClick, onEdit, cardRef, dragging, onDragHandle }: {
           background: "var(--accent)", color: "#fff",
         }}>
           <Pencil size={11} strokeWidth={2.4} /> 수정
+        </span>
+      )}
+      {!onEdit && badgeCount > 0 && (
+        <span style={{
+          position: "absolute", top: -6, right: -6,
+          minWidth: 20, height: 20, padding: "0 6px", borderRadius: 999,
+          background: "var(--danger)", color: "#fff",
+          border: "2px solid var(--card)",
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          fontSize: 11, fontWeight: 900, lineHeight: 1,
+          boxSizing: "border-box",
+        }}>
+          {badgeCount > 99 ? "99+" : badgeCount}
         </span>
       )}
     </div>
