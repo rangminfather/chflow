@@ -676,10 +676,10 @@ function CellShepherdSection({ user, router }: { user: UserInfo; router: RouterT
   if (!isCellShepherd) return null;
 
   return (
-    <Section bg="var(--accent-soft)" style={{ marginBottom: 18 }}>
+    <Section bg="var(--surface)" style={{ marginBottom: 18, border: "1px solid var(--hairline)" }}>
       <SectionHeader
         icon={<Home size={18} strokeWidth={1.75} />}
-        iconColor={T.mokjangPoint}
+        iconColor="var(--accent)"
         title="나의 목장"
       />
       <SafeCard onClick={() => router.push("/pasture/journal")} padding={12} style={{ borderRadius: 10 }}>
