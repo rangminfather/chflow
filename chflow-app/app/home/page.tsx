@@ -81,6 +81,11 @@ const COMMON_MENUS: CommonMenu[] = [
   { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/manual" },
 ];
 
+// family_church 가 목자/목녀인 사람에게만 노출 (해외선교 후원목장 목장일지 — 일반 목자/목녀 전체 대상 아님)
+const CELL_JOURNAL_MENU: CommonMenu = {
+  id: "cell-journal", label: "목장일지", icon: BookText, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/pasture/journal",
+};
+
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "attendance", label: "교회 출석 현황", icon: MapPin, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/attendance" },
   { id: "attendance-settings", label: "자동출석 설정", icon: MapPin, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/attendance/settings" },
@@ -270,7 +275,7 @@ export default function HomePage() {
               <MinistrySection myDepartments={myDepartments} router={router} />
             </div>
 
-            <CommonMenuSection isAdmin={isAdmin} router={router} />
+            <CommonMenuSection isAdmin={isAdmin} router={router} user={user} />
           </PageContent>
         </div>
       </div>
@@ -753,7 +758,10 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
 // =============================================================
 // 3) 공통 메뉴
 // =============================================================
-function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: RouterType }) {
+function CommonMenuSection({ isAdmin, router, user }: { isAdmin: boolean; router: RouterType; user: UserInfo }) {
+  const isCellShepherd = user.family_church === "목자" || user.family_church === "목녀";
+  const menus = isCellShepherd ? [...COMMON_MENUS, CELL_JOURNAL_MENU] : COMMON_MENUS;
+
   // 생방송 여부는 서버가 스로틀링하는 /api/live/status 에서 받는다 (YouTube 직접 호출 아님)
   // null = 아직 모름 → 표시등을 아예 띄우지 않는다 (모르는 상태를 OFF AIR 로 단정하지 않기)
   const [liveOn, setLiveOn] = useState<boolean | null>(null);
@@ -804,7 +812,7 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
         title="공통 메뉴"
       />
       <SafeGrid cols={2} gap={10} className="home-menu-grid">
-        {COMMON_MENUS.map((m) => (
+        {menus.map((m) => (
           <MenuCard key={m.id} menu={m} router={router} live={m.id === "live" ? liveOn : undefined} />
         ))}
       </SafeGrid>
@@ -994,7 +1002,9 @@ function SidebarContent({ user, myDepartments, router, onNavigate, onLogout }: {
   onLogout: () => void;
 }) {
   const isAdmin = ["admin", "office", "pastor"].includes(user.role);
-  const sideMenus = isAdmin ? [...COMMON_MENUS, ...ADMIN_EXTRA_MENUS] : COMMON_MENUS;
+  const isCellShepherd = user.family_church === "목자" || user.family_church === "목녀";
+  const baseMenus = isCellShepherd ? [...COMMON_MENUS, CELL_JOURNAL_MENU] : COMMON_MENUS;
+  const sideMenus = isAdmin ? [...baseMenus, ...ADMIN_EXTRA_MENUS] : baseMenus;
   const approved = myDepartments.filter((d) => d.status === "approved");
   const pending = myDepartments.filter((d) => d.status === "pending");
   const go = (path: string) => { router.push(path); onNavigate?.(); };
