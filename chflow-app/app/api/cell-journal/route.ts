@@ -3,13 +3,14 @@
 // GET /api/cell-journal            → 등록 상태 + (있으면) 내 목장 게시글 목록
 // GET /api/cell-journal?rediscover=1 → 캐시 무시하고 내 목장 다시 찾기
 //
-// 인증: Supabase JWT. 본인 UMS 계정(user_ums_credentials)으로 로그인해서 조회하므로
-// 서버 쪽 역할(목자/목녀) 검사는 하지 않는다 — 어차피 UMS 쪽 권한이 실질적인 경계다.
+// 인증: Supabase JWT + 본인 members.family_church 가 목자/목녀여야 함 (메뉴는 UI에서만
+// 숨겨져 있으므로, 다른 role이 URL을 직접 두드리는 경우까지 막는 서버 쪽 방어선).
+// 실제 열람 데이터 경계는 UMS 쪽 계정별 권한이 한 번 더 막아준다 (본인 목장 외엔 로그인해도 거부됨).
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { decryptString } from "@/lib/bulletin/creds-crypto";
-import { loginUms, listAllCandidates, discoverMyBoard, fetchEntryList } from "@/lib/server/ums-cell-journal";
+import { loginUms, listAllCandidates, discoverMyBoard, fetchEntryList, isCellShepherd } from "@/lib/server/ums-cell-journal";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -35,6 +36,11 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ ok: false, error: "Unauthenticated" }, { status: 401 });
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+
+  if (!(await isCellShepherd(admin, user.uid))) {
+    return NextResponse.json({ ok: false, error: "목자/목녀만 이용할 수 있습니다." }, { status: 403 });
+  }
+
   const { data: creds, error: credsError } = await admin
     .from("user_ums_credentials")
     .select("ums_user_id, ums_password_encrypted, cell_board_id, cell_board_category, cell_board_label, cell_board_checked_at")

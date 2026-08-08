@@ -9,6 +9,7 @@
 // 실제로 열리는 것을 "내 목장"으로 확정 → user_ums_credentials 에 캐싱한다.
 
 import iconv from "iconv-lite";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
 
 const UMS_ORIGIN = "http://www.ums.or.kr";
@@ -70,6 +71,16 @@ function setCookiesFrom(res: Response): string[] {
   if (multi && multi.length) return multi;
   const single = res.headers.get("set-cookie");
   return single ? [single] : [];
+}
+
+/** 목자/목녀만 통과. 메뉴는 UI에서만 숨겨져 있어서 직접 URL 접근을 막는 서버 쪽 방어선. */
+export async function isCellShepherd(admin: SupabaseClient, uid: string): Promise<boolean> {
+  const { data } = await admin
+    .from("members")
+    .select("family_church")
+    .eq("app_user_id", uid)
+    .maybeSingle();
+  return data?.family_church === "목자" || data?.family_church === "목녀";
 }
 
 /** UMS 로그인 → 쿠키 헤더 문자열. 데이터센터 IP 차단 대비 direct → worker 순으로 시도. */

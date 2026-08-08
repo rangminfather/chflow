@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { decryptString } from "@/lib/bulletin/creds-crypto";
-import { loginUms, fetchEntryDetail } from "@/lib/server/ums-cell-journal";
+import { loginUms, fetchEntryDetail, isCellShepherd } from "@/lib/server/ums-cell-journal";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -32,6 +32,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ no: 
   if (!user) return NextResponse.json({ ok: false, error: "Unauthenticated" }, { status: 401 });
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+
+  if (!(await isCellShepherd(admin, user.uid))) {
+    return NextResponse.json({ ok: false, error: "목자/목녀만 이용할 수 있습니다." }, { status: 403 });
+  }
+
   const { data: creds, error: credsError } = await admin
     .from("user_ums_credentials")
     .select("ums_user_id, ums_password_encrypted, cell_board_id, cell_board_category")

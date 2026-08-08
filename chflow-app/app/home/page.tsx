@@ -13,7 +13,7 @@ import {
   Landmark, Bus, CalendarClock, Menu, LogOut, X, Folder, Home,
   Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid, MessagesSquare, SearchCheck,
   Sparkles, HeartHandshake, Sun, Moon, BarChart3, Radio, MapPin,
-  GraduationCap,
+  GraduationCap, ChevronRight,
 } from "lucide-react";
 import { useTheme } from "@/lib/useTheme";
 import { LoadingView } from "@/components/StatusViews";
@@ -80,11 +80,6 @@ const COMMON_MENUS: CommonMenu[] = [
   { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/feedback" },
   { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/manual" },
 ];
-
-// family_church 가 목자/목녀인 사람에게만 노출 (해외선교 후원목장 목장일지 — 일반 목자/목녀 전체 대상 아님)
-const CELL_JOURNAL_MENU: CommonMenu = {
-  id: "cell-journal", label: "목장일지", icon: BookText, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/pasture/journal",
-};
 
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "attendance", label: "교회 출석 현황", icon: MapPin, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/attendance" },
@@ -263,8 +258,10 @@ export default function HomePage() {
               router={router}
             />
 
-            {/* TODO: 나의 목장 — 구현 완료 후 아래 주석 해제, home-summary-grid 안으로 이동 */}
+            {/* TODO: 나의 목장(가입신청/목장보기) — 구현 완료 후 아래 주석 해제, home-summary-grid 안으로 이동 */}
             {/* <MyMokjangSection user={user} /> */}
+
+            <CellShepherdSection user={user} router={router} />
 
             <div className="home-summary-grid" style={{
               display: "grid",
@@ -275,7 +272,7 @@ export default function HomePage() {
               <MinistrySection myDepartments={myDepartments} router={router} />
             </div>
 
-            <CommonMenuSection isAdmin={isAdmin} router={router} user={user} />
+            <CommonMenuSection isAdmin={isAdmin} router={router} />
           </PageContent>
         </div>
       </div>
@@ -669,7 +666,42 @@ function MinistryCard({ dept, status, onClick }: {
 }
 
 // =============================================================
-// 2) 나의 목장
+// 1-1) 나의 목장 — 목장일지 (해외선교 후원목장, 목자/목녀 전용)
+//
+// 아래 MyMokjangSection(가입신청/목장보기)은 아직 미구현이라 계속 숨겨둔다.
+// 목장일지만 먼저 "나의 목장" 카테고리 형태로 노출.
+// =============================================================
+function CellShepherdSection({ user, router }: { user: UserInfo; router: RouterType }) {
+  const isCellShepherd = user.family_church === "목자" || user.family_church === "목녀";
+  if (!isCellShepherd) return null;
+
+  return (
+    <Section bg="var(--accent-soft)" style={{ marginBottom: 18 }}>
+      <SectionHeader
+        icon={<Home size={18} strokeWidth={1.75} />}
+        iconColor={T.mokjangPoint}
+        title="나의 목장"
+      />
+      <SafeCard onClick={() => router.push("/pasture/journal")} padding={12} style={{ borderRadius: 10 }}>
+        <SafeRow gap={12}>
+          <IconBox bg="var(--accent-soft)" size={40}>
+            <BookText size={21} strokeWidth={1.75} color="var(--accent)" />
+          </IconBox>
+          <SafeGrow>
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>목장일지</div>
+            <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
+              해외선교 후원목장 · 본인 UMS 계정으로 열람
+            </div>
+          </SafeGrow>
+          <ChevronRight size={16} strokeWidth={1.8} color={T.textMuted} />
+        </SafeRow>
+      </SafeCard>
+    </Section>
+  );
+}
+
+// =============================================================
+// 2) 나의 목장 — 가입신청 / 목장보기 (미구현, 아직 숨김)
 // =============================================================
 function MyMokjangSection({ user }: { user: UserInfo }) {
   const hasPasture = !!user.pasture_name;
@@ -758,10 +790,7 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
 // =============================================================
 // 3) 공통 메뉴
 // =============================================================
-function CommonMenuSection({ isAdmin, router, user }: { isAdmin: boolean; router: RouterType; user: UserInfo }) {
-  const isCellShepherd = user.family_church === "목자" || user.family_church === "목녀";
-  const menus = isCellShepherd ? [...COMMON_MENUS, CELL_JOURNAL_MENU] : COMMON_MENUS;
-
+function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: RouterType }) {
   // 생방송 여부는 서버가 스로틀링하는 /api/live/status 에서 받는다 (YouTube 직접 호출 아님)
   // null = 아직 모름 → 표시등을 아예 띄우지 않는다 (모르는 상태를 OFF AIR 로 단정하지 않기)
   const [liveOn, setLiveOn] = useState<boolean | null>(null);
@@ -812,7 +841,7 @@ function CommonMenuSection({ isAdmin, router, user }: { isAdmin: boolean; router
         title="공통 메뉴"
       />
       <SafeGrid cols={2} gap={10} className="home-menu-grid">
-        {menus.map((m) => (
+        {COMMON_MENUS.map((m) => (
           <MenuCard key={m.id} menu={m} router={router} live={m.id === "live" ? liveOn : undefined} />
         ))}
       </SafeGrid>
@@ -1002,9 +1031,7 @@ function SidebarContent({ user, myDepartments, router, onNavigate, onLogout }: {
   onLogout: () => void;
 }) {
   const isAdmin = ["admin", "office", "pastor"].includes(user.role);
-  const isCellShepherd = user.family_church === "목자" || user.family_church === "목녀";
-  const baseMenus = isCellShepherd ? [...COMMON_MENUS, CELL_JOURNAL_MENU] : COMMON_MENUS;
-  const sideMenus = isAdmin ? [...baseMenus, ...ADMIN_EXTRA_MENUS] : baseMenus;
+  const sideMenus = isAdmin ? [...COMMON_MENUS, ...ADMIN_EXTRA_MENUS] : COMMON_MENUS;
   const approved = myDepartments.filter((d) => d.status === "approved");
   const pending = myDepartments.filter((d) => d.status === "pending");
   const go = (path: string) => { router.push(path); onNavigate?.(); };
