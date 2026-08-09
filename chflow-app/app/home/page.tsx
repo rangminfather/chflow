@@ -72,8 +72,7 @@ type CommonMenu = {
 };
 
 const COMMON_MENUS: CommonMenu[] = [
-  { id: "live",      label: "예배(구현중)",  icon: Radio,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/live" },
-  { id: "my-attendance", label: "내 자동출석(구현중)", icon: MapPin, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/attendance/my" },
+  { id: "live",      label: "예배",  icon: Radio,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/live" },
   { id: "bulletin",  label: "주보 보기",     icon: BookOpen,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/bulletin" },
   { id: "directory", label: "성도 요람",     icon: Users,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/directory" },
   { id: "education-history", label: "삶공부·교육이력(구현중)", icon: GraduationCap, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/education-history" },

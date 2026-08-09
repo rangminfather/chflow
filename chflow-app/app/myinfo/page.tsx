@@ -7,6 +7,7 @@ import { getRoleImageByLabel, ROLES, getLockedGroupLabels, type Role } from "@/l
 import HeaderLogo from "@/components/HeaderLogo";
 import PhotoAvatar from "@/components/PhotoAvatar";
 import { LoadingView } from "@/components/StatusViews";
+import { MapPin } from "lucide-react";
 
 interface Profile {
   user_id: string;
@@ -307,7 +308,23 @@ export default function MyInfoPage() {
           )}
         </div>
 
-        {/* 2. 등록 정보 */}
+        {/* 2. 내 자동출석 */}
+        <div style={card}>
+          <CardHeader title="내 자동출석" sub="교회 위치 감지와 오늘 출석 상태 확인" />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, marginTop: 12 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, minWidth: 0 }}>
+              <MapPin size={20} color="var(--accent)" style={{ flexShrink: 0, marginTop: 2 }} />
+              <span style={{ color: "var(--ink-mid)", fontSize: 13, lineHeight: 1.55 }}>
+                자동출석 설정과 현재 감지 상태를 확인할 수 있습니다.
+              </span>
+            </div>
+            <button onClick={() => router.push("/attendance/my")} style={{ ...btnPrimary, flexShrink: 0 }}>
+              확인하기
+            </button>
+          </div>
+        </div>
+
+        {/* 3. 등록 정보 */}
         <div style={card}>
           <CardHeader title="등록 정보" sub="변경은 관리자 또는 사무실에 문의" />
           <div style={infoGrid}>
