@@ -6,6 +6,8 @@ chflow-app/.env
 chflow-app/.env.*
 chflow-app/.next
 chflow-app/.next/**
+chflow-app/.next-codex-logs
+chflow-app/.next-codex-logs/**
 chflow-app/node_modules
 chflow-app/node_modules/**
 chflow-app/.vercel/output

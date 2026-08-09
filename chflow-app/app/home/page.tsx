@@ -13,7 +13,7 @@ import {
   Landmark, Bus, CalendarClock, Menu, LogOut, X, Folder, Home,
   Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid, MessagesSquare, SearchCheck,
   Sparkles, HeartHandshake, Sun, Moon, BarChart3, Radio, MapPin,
-  GraduationCap,
+  GraduationCap, ChevronRight,
 } from "lucide-react";
 import { useTheme } from "@/lib/useTheme";
 import { LoadingView } from "@/components/StatusViews";
@@ -258,8 +258,10 @@ export default function HomePage() {
               router={router}
             />
 
-            {/* TODO: 나의 목장 — 구현 완료 후 아래 주석 해제, home-summary-grid 안으로 이동 */}
+            {/* TODO: 나의 목장(가입신청/목장보기) — 구현 완료 후 아래 주석 해제, home-summary-grid 안으로 이동 */}
             {/* <MyMokjangSection user={user} /> */}
+
+            <CellShepherdSection user={user} router={router} />
 
             <div className="home-summary-grid" style={{
               display: "grid",
@@ -664,7 +666,42 @@ function MinistryCard({ dept, status, onClick }: {
 }
 
 // =============================================================
-// 2) 나의 목장
+// 1-1) 나의 목장 — 목장일지 (해외선교 후원목장, 목자/목녀 전용)
+//
+// 아래 MyMokjangSection(가입신청/목장보기)은 아직 미구현이라 계속 숨겨둔다.
+// 목장일지만 먼저 "나의 목장" 카테고리 형태로 노출.
+// =============================================================
+function CellShepherdSection({ user, router }: { user: UserInfo; router: RouterType }) {
+  const isCellShepherd = user.family_church === "목자" || user.family_church === "목녀";
+  if (!isCellShepherd) return null;
+
+  return (
+    <Section bg="var(--surface)" style={{ marginBottom: 18, border: "1px solid var(--hairline)" }}>
+      <SectionHeader
+        icon={<Home size={18} strokeWidth={1.75} />}
+        iconColor="var(--accent)"
+        title="나의 목장"
+      />
+      <SafeCard onClick={() => router.push("/pasture/journal")} padding={12} style={{ borderRadius: 10 }}>
+        <SafeRow gap={12}>
+          <IconBox bg="var(--accent-soft)" size={40}>
+            <BookText size={21} strokeWidth={1.75} color="var(--accent)" />
+          </IconBox>
+          <SafeGrow>
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>목장일지</div>
+            <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
+              해외선교 후원목장 · 본인 UMS 계정으로 열람
+            </div>
+          </SafeGrow>
+          <ChevronRight size={16} strokeWidth={1.8} color={T.textMuted} />
+        </SafeRow>
+      </SafeCard>
+    </Section>
+  );
+}
+
+// =============================================================
+// 2) 나의 목장 — 가입신청 / 목장보기 (미구현, 아직 숨김)
 // =============================================================
 function MyMokjangSection({ user }: { user: UserInfo }) {
   const hasPasture = !!user.pasture_name;

@@ -89,8 +89,8 @@ export const WORSHIP_GUIDE_TEXT: Array<{
       { label: "1부", time: "오전 7:00" },
       { label: "2부", time: "오전 9:00", live: true },
       { label: "3부", time: "오전 11:00", live: true },
-      { label: "4부", time: "오후 1:40", note: "젊은이예배", live: true },
-      { label: "오후", time: "오후 1:40", note: "온세대연합 오후찬양예배" },
+      { label: "4부", time: "오후 1:40", note: "온세대연합예배", live: true },
+      { label: "젊은이예배", time: "오후 1:40", live: true },
     ],
   },
   {
