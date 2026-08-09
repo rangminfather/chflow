@@ -80,6 +80,58 @@ export async function logLiveEvent(admin: SupabaseClient, e: LiveEvent): Promise
   }
 }
 
+/** 라이브 종료 전환 시 기존 알림 경로를 통해 사용자에게 종료를 안내한다. */
+export async function notifyIfLiveEnded(
+  admin: SupabaseClient,
+  input: { videoId: string | null; title: string | null }
+): Promise<{ sent: boolean; recipients: number }> {
+  const { data: users } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("status", "active");
+
+  const recipients = users || [];
+  if (recipients.length === 0) {
+    await logLiveEvent(admin, {
+      event: "notify_skipped",
+      videoId: input.videoId,
+      detail: "라이브 종료 알림 대상자가 없습니다.",
+    });
+    return { sent: false, recipients: 0 };
+  }
+
+  const { error } = await admin.from("notifications").insert(
+    recipients.map((user) => ({
+      user_id: user.id,
+      type: "notice_worship_live_ended",
+      title: "예배 생방송이 종료되었습니다",
+      body: input.title
+        ? `「${input.title}」 방송이 종료되었습니다.`
+        : "예배 생방송이 종료되었습니다.",
+      link_url: "/live",
+      metadata: { video_id: input.videoId, event: "live_ended" },
+    }))
+  );
+
+  if (error) {
+    await logLiveEvent(admin, {
+      event: "error",
+      videoId: input.videoId,
+      detail: `라이브 종료 알림 발송 실패: ${error.message}`,
+    });
+    return { sent: false, recipients: 0 };
+  }
+
+  await logLiveEvent(admin, {
+    event: "notified",
+    videoId: input.videoId,
+    title: "예배 생방송이 종료되었습니다",
+    detail: "live_ended",
+    recipients: recipients.length,
+  });
+  return { sent: true, recipients: recipients.length };
+}
+
 /** 오래된 이벤트 정리 — 폴러가 가끔만 수행한다(매분 DELETE 를 날릴 이유가 없다) */
 export async function pruneLiveEvents(admin: SupabaseClient): Promise<void> {
   try {
@@ -397,12 +449,12 @@ export async function refreshIfStale(admin: SupabaseClient, force = false): Prom
     .eq("id", "main");
   if (!force) claim = claim.lt("checked_at", cutoff);
   // 이전 상태를 함께 받아 "방송 시작/종료" 전환만 로그로 남긴다
-  const { data: claimed, error: claimError } = await claim.select("channel_id, is_live, video_id");
+  const { data: claimed, error: claimError } = await claim.select("channel_id, is_live, video_id, title");
 
   if (claimError || !claimed || claimed.length === 0) return false;
 
   const channelId = claimed[0].channel_id || DEFAULT_CHANNEL_ID;
-  const prev = claimed[0] as { is_live?: boolean; video_id?: string | null };
+  const prev = claimed[0] as { is_live?: boolean; video_id?: string | null; title?: string | null };
 
   try {
     const currentVideoId = prev.is_live ? prev.video_id ?? null : null;
@@ -430,7 +482,9 @@ export async function refreshIfStale(admin: SupabaseClient, force = false): Prom
         title: live.title,
       });
     } else if (!live && prev.is_live) {
-      await logLiveEvent(admin, { event: "live_ended", videoId: prev.video_id ?? null });
+      const endedVideoId = prev.video_id ?? null;
+      await logLiveEvent(admin, { event: "live_ended", videoId: endedVideoId, title: prev.title ?? null });
+      await notifyIfLiveEnded(admin, { videoId: endedVideoId, title: prev.title ?? null });
     }
     return true;
   } catch (err) {

@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { umsViaCf } from "../bulletin/ums-via-cf";
 import {
   extractYouTubeVideoId,
   findLiveVideo,
+  notifyIfLiveEnded,
 } from "./youtube-live";
 import { worshipStartedTitle } from "../worshipSchedule";
 
@@ -136,6 +138,54 @@ describe("YouTube live detection", () => {
       if (previous.refreshToken === undefined) delete process.env.YOUTUBE_OAUTH_REFRESH_TOKEN;
       else process.env.YOUTUBE_OAUTH_REFRESH_TOKEN = previous.refreshToken;
     }
+  });
+
+  it("creates a user notification when a live broadcast ends", async () => {
+    const notifications: Array<Record<string, unknown>> = [];
+    const events: Array<Record<string, unknown>> = [];
+    const admin = {
+      from(table: string) {
+        if (table === "profiles") {
+          return {
+            select: () => ({
+              eq: async () => ({ data: [{ id: "user-a" }, { id: "user-b" }], error: null }),
+            }),
+          };
+        }
+        if (table === "notifications") {
+          return {
+            insert: async (rows: Array<Record<string, unknown>>) => {
+              notifications.push(...rows);
+              return { error: null };
+            },
+          };
+        }
+        if (table === "youtube_live_events") {
+          return {
+            insert: async (row: Record<string, unknown>) => {
+              events.push(row);
+              return { error: null };
+            },
+          };
+        }
+        throw new Error(`Unexpected table: ${table}`);
+      },
+    } as unknown as SupabaseClient;
+
+    await expect(notifyIfLiveEnded(admin, {
+      videoId: "kvIN5H19z20",
+      title: "주일 3부 예배",
+    })).resolves.toEqual({ sent: true, recipients: 2 });
+
+    expect(notifications).toHaveLength(2);
+    expect(notifications[0]).toMatchObject({
+      user_id: "user-a",
+      type: "notice_worship_live_ended",
+      title: "예배 생방송이 종료되었습니다",
+      body: "「주일 3부 예배」 방송이 종료되었습니다.",
+      link_url: "/live",
+    });
+    expect(events.at(-1)).toMatchObject({ event: "notified", detail: "live_ended", recipients: 2 });
   });
 
   it("keeps the automatic Korean notification title intact", () => {
