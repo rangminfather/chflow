@@ -17,6 +17,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   AppState,
   BackHandler,
   Linking,
@@ -157,6 +158,7 @@ function AppWebView() {
   const locationAckTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const locationRequestSeqRef = useRef(0);
   const locationRequestInFlightRef = useRef(false);
+  const updateBannerAnim = useRef(new Animated.Value(0)).current;
 
   // 화면이 사라질 때 남은 ACK 대기 타이머를 정리해 뒤늦은 Alert 가 뜨지 않게 한다.
   useEffect(() => {
@@ -452,6 +454,26 @@ function AppWebView() {
     };
     check();
   }, []);
+
+  // 신규 버전 배너 등장 애니메이션 (아래에서 위로 슬라이드 + 페이드인)
+  useEffect(() => {
+    if (!updateAvailable || updateDismissed) return;
+    Animated.spring(updateBannerAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      damping: 16,
+      stiffness: 180,
+      mass: 0.9,
+    }).start();
+  }, [updateAvailable, updateDismissed, updateBannerAnim]);
+
+  const dismissUpdateBanner = useCallback(() => {
+    Animated.timing(updateBannerAnim, {
+      toValue: 0,
+      duration: 160,
+      useNativeDriver: true,
+    }).start(() => setUpdateDismissed(true));
+  }, [updateBannerAnim]);
 
   // 종료 확인 모달 (웹이 '루트에서 뒤로가기' 신호를 보낼 때 호출)
   const promptExit = useCallback(() => {
@@ -803,25 +825,47 @@ function AppWebView() {
         />
         {exitReloading && <View style={styles.exitOverlay} pointerEvents="none" />}
         {updateAvailable && !updateDismissed && (
-          <View style={styles.updateBanner}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.updateBannerTitle}>새 버전이 있습니다</Text>
-              <Text style={styles.updateBannerBody}>더 나은 사용을 위해 업데이트해 주세요.</Text>
+          <Animated.View
+            style={[
+              styles.updateBanner,
+              {
+                opacity: updateBannerAnim,
+                transform: [
+                  {
+                    translateY: updateBannerAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-28, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <View style={styles.updateBannerRow}>
+              <View style={styles.updateBannerIcon}>
+                <Text style={styles.updateBannerIconText}>↑</Text>
+              </View>
+              <View style={styles.updateBannerTextGroup}>
+                <Text style={styles.updateBannerTitle}>새 버전이 나왔어요</Text>
+                <Text style={styles.updateBannerBody}>더 빠르고 안정적인 스마트명성을 만나보세요</Text>
+              </View>
             </View>
-            <TouchableOpacity
-              style={styles.updateBannerBtn}
-              onPress={() => {
-                Linking.openURL(storeUrl).catch(() =>
-                  Linking.openURL('https://play.google.com/store/apps/details?id=com.smartmyungsung.app')
-                );
-              }}
-            >
-              <Text style={styles.updateBannerBtnText}>업데이트</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.updateBannerClose} onPress={() => setUpdateDismissed(true)}>
-              <Text style={styles.updateBannerCloseText}>✕</Text>
-            </TouchableOpacity>
-          </View>
+            <View style={styles.updateBannerActions}>
+              <TouchableOpacity style={styles.updateBannerLater} onPress={dismissUpdateBanner}>
+                <Text style={styles.updateBannerLaterText}>나중에</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.updateBannerBtn}
+                onPress={() => {
+                  Linking.openURL(storeUrl).catch(() =>
+                    Linking.openURL('https://play.google.com/store/apps/details?id=com.smartmyungsung.app')
+                  );
+                }}
+              >
+                <Text style={styles.updateBannerBtnText}>업데이트</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
         )}
       </View>
     </View>
@@ -978,51 +1022,80 @@ const styles = StyleSheet.create({
   },
   updateBanner: {
     position: 'absolute',
-    left: 12,
-    right: 12,
+    left: 16,
+    right: 16,
     // 컨테이너가 Safe Area 상단 여백을 이미 적용하므로, 펀치홀·상태바 아래에 표시된다.
     top: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
+    shadowColor: '#000',
+    shadowOpacity: 0.16,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+  },
+  updateBannerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2B4539',
+    gap: 12,
+  },
+  updateBannerIcon: {
+    width: 44,
+    height: 44,
     borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    gap: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    backgroundColor: '#2B4539',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  updateBannerIconText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  updateBannerTextGroup: {
+    flex: 1,
   },
   updateBannerTitle: {
-    color: '#fff',
-    fontSize: 14,
+    color: '#1a1a1a',
+    fontSize: 15,
     fontWeight: '700',
   },
   updateBannerBody: {
-    color: '#D7E3DC',
-    fontSize: 12,
+    color: '#6b7280',
+    fontSize: 12.5,
     marginTop: 2,
+    lineHeight: 17,
+  },
+  updateBannerActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 14,
+  },
+  updateBannerLater: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#F1F0EC',
+  },
+  updateBannerLaterText: {
+    color: '#6b7280',
+    fontSize: 13.5,
+    fontWeight: '600',
   },
   updateBannerBtn: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 9,
+    flex: 1,
+    backgroundColor: '#2B4539',
+    paddingVertical: 11,
+    borderRadius: 12,
+    alignItems: 'center',
   },
   updateBannerBtnText: {
-    color: '#2B4539',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  updateBannerClose: {
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-  },
-  updateBannerCloseText: {
-    color: '#A9BDB2',
-    fontSize: 14,
+    color: '#fff',
+    fontSize: 13.5,
     fontWeight: '700',
   },
 });
