@@ -158,7 +158,7 @@ export default function SermonArchive() {
         })}
       </div>
 
-      {loading ? (
+      {loading && items.length === 0 ? (
         <div style={{ display: "flex", justifyContent: "center", padding: "28px 0" }}><Spinner size={22} /></div>
       ) : items.length === 0 ? (
         <div style={{
@@ -169,7 +169,7 @@ export default function SermonArchive() {
           <br />잠시 후 다시 확인해 주세요.
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, opacity: loading ? 0.55 : 1, transition: "opacity 0.15s" }}>
           {items.map((s) => {
             const size = fmtSize(s.byte_size);
             const canPlay = proxyReady && !!s.video_url;
