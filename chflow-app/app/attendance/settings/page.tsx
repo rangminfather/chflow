@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { LocateFixed, Save, MapPin } from "lucide-react";
+import { LocateFixed, Save, MapPin, Trash2 } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { supabase } from "@/lib/supabase";
 
 type Form = { name: string; latitude: string; longitude: string; radiusM: string; dwellMinutes: string; windowStart: string; windowEnd: string; isActive: boolean };
 const initial: Form = { name: "본당", latitude: "", longitude: "", radiusM: "150", dwellMinutes: "5", windowStart: "07:00", windowEnd: "15:00", isActive: false };
+type SavedLocation = { id: string; name: string; latitude: number; longitude: number; created_at: string; updated_at: string; isRegistered: boolean };
 
 /** 네이티브가 보내는 단계·결과 이벤트. 구버전 앱은 kind 없이 {ok,...} 만 보낸다. */
 type NativeLocationEvent = {
@@ -63,6 +64,9 @@ export default function AttendanceSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [confirmLocate, setConfirmLocate] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [locations, setLocations] = useState<SavedLocation[]>([]);
+  const [locationsLoading, setLocationsLoading] = useState(false);
+  const [locationBusyId, setLocationBusyId] = useState<string | null>(null);
   const watchdogRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
 
@@ -82,7 +86,28 @@ export default function AttendanceSettingsPage() {
       watchdogRef.current = null;
     }
   }, []);
-  async function load() { const token = (await supabase.auth.getSession()).data.session?.access_token; if (!token) return; const response = await fetch("/api/attendance/geofence", { headers: { Authorization: `Bearer ${token}` } }); const payload = await response.json(); if (payload.geofence) setForm({ name: payload.geofence.name, latitude: String(payload.geofence.latitude), longitude: String(payload.geofence.longitude), radiusM: String(payload.geofence.radius_m), dwellMinutes: String(Math.round(payload.geofence.dwell_seconds / 60)), windowStart: String(payload.geofence.window_start).slice(0, 5), windowEnd: String(payload.geofence.window_end).slice(0, 5), isActive: payload.geofence.is_active }); }
+  async function load() {
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    if (!token) return;
+    setLocationsLoading(true);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const [geofenceResponse, locationsResponse] = await Promise.all([
+        fetch("/api/attendance/geofence", { headers }),
+        fetch("/api/attendance/geofence-locations", { headers }),
+      ]);
+      const geofencePayload = await geofenceResponse.json();
+      const locationsPayload = await locationsResponse.json();
+      if (!geofenceResponse.ok) throw new Error(geofencePayload.error || "자동출석 설정을 불러오지 못했습니다.");
+      if (!locationsResponse.ok) throw new Error(locationsPayload.error || "저장된 위치를 불러오지 못했습니다.");
+      if (geofencePayload.geofence) setForm({ name: geofencePayload.geofence.name, latitude: String(geofencePayload.geofence.latitude), longitude: String(geofencePayload.geofence.longitude), radiusM: String(geofencePayload.geofence.radius_m), dwellMinutes: String(Math.round(geofencePayload.geofence.dwell_seconds / 60)), windowStart: String(geofencePayload.geofence.window_start).slice(0, 5), windowEnd: String(geofencePayload.geofence.window_end).slice(0, 5), isActive: geofencePayload.geofence.is_active });
+      setLocations(Array.isArray(locationsPayload.locations) ? locationsPayload.locations : []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "자동출석 설정을 불러오지 못했습니다.");
+    } finally {
+      setLocationsLoading(false);
+    }
+  }
   useEffect(() => { void load(); }, []);
   useEffect(() => {
     const receiveNativeLocation = (event: Event) => {
@@ -206,9 +231,9 @@ export default function AttendanceSettingsPage() {
       { enableHighAccuracy: true, timeout: 10000 },
     );
   };
-  const save = async () => {
-    const latitudeText = form.latitude.trim();
-    const longitudeText = form.longitude.trim();
+  const save = async (location?: SavedLocation) => {
+    const latitudeText = location ? String(location.latitude) : form.latitude.trim();
+    const longitudeText = location ? String(location.longitude) : form.longitude.trim();
     if (!latitudeText || !longitudeText) {
       setMessage("현재 위치를 먼저 입력해 주세요.");
       return;
@@ -232,7 +257,7 @@ export default function AttendanceSettingsPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
-        name: form.name,
+        name: location?.name ?? form.name,
         latitude,
         longitude,
         radiusM: Number(form.radiusM),
@@ -240,6 +265,7 @@ export default function AttendanceSettingsPage() {
         windowStart: form.windowStart,
         windowEnd: form.windowEnd,
         isActive: form.isActive,
+        locationId: location?.id,
       }),
     });
     const payload = await response.json();
@@ -267,8 +293,49 @@ export default function AttendanceSettingsPage() {
       type: "CHFLOW_ATTENDANCE_APPLY_GEOFENCE",
     }));
   };
+  const applyLocation = async (location: SavedLocation) => {
+    if (location.isRegistered) return;
+    if (!window.confirm(`"${location.name}"을 현재 자동출석 등록지점으로 지정할까요?\n다른 모바일 기기에도 적용되는 전역 설정입니다.`)) return;
+    setForm((current) => ({ ...current, name: location.name, latitude: String(location.latitude), longitude: String(location.longitude) }));
+    setLocationBusyId(location.id);
+    try {
+      await save(location);
+    } finally {
+      setLocationBusyId(null);
+    }
+  };
+  const deleteLocation = async (location: SavedLocation) => {
+    if (location.isRegistered) {
+      setMessage("현재 등록지점은 먼저 다른 위치로 변경한 뒤 삭제해 주세요.");
+      return;
+    }
+    if (!window.confirm(`"${location.name}" 저장 위치를 삭제할까요?`)) return;
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    if (!token) {
+      setMessage("로그인이 필요합니다.");
+      return;
+    }
+    setLocationBusyId(location.id);
+    try {
+      const response = await fetch(`/api/attendance/geofence-locations/${location.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setMessage(payload.error || "저장 위치를 삭제하지 못했습니다.");
+        return;
+      }
+      await load();
+      showToast("저장 위치를 삭제했습니다.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "저장 위치를 삭제하지 못했습니다.");
+    } finally {
+      setLocationBusyId(null);
+    }
+  };
   const set = (key: keyof Form, value: string | boolean) => setForm((current) => ({ ...current, [key]: value }));
-  return <><div className="app-subpage-header" style={subpageHeaderStyle}><HeaderLogo /><button className="app-header-back" onClick={() => router.push("/attendance")} style={headerBackStyle} aria-label="출석 현황으로">← 출석 현황</button><div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 16, fontWeight: 800, color: "var(--ink)" }}><MapPin size={18} strokeWidth={1.8} /> 자동출석 설정</div></div><main style={{ maxWidth: 680, margin: "0 auto", padding: "32px 20px 64px" }}><h1 style={{ margin: "22px 0 8px", fontSize: 30, letterSpacing: "-0.04em" }}>자동출석 설정</h1><p style={{ color: "var(--ink-mid)", fontSize: 14, lineHeight: 1.6 }}>교회 좌표와 운영 시간 안에서만 위치 후보를 수집합니다. 자동출석은 목회 참고용입니다.</p><section style={card}><label style={label}>위치 이름<input value={form.name} onChange={(e) => set("name", e.target.value)} style={input} /></label><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}><label style={label}>위도<input inputMode="decimal" value={form.latitude} onChange={(e) => set("latitude", e.target.value)} style={input} /></label><label style={label}>경도<input inputMode="decimal" value={form.longitude} onChange={(e) => set("longitude", e.target.value)} style={input} /></label></div><button type="button" onClick={locate} style={secondary}><LocateFixed size={16} /> 현재 내 위치 적용</button><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}><label style={label}>반경(m)<input type="number" min="50" max="500" value={form.radiusM} onChange={(e) => set("radiusM", e.target.value)} style={input} /></label><label style={label}>최소 체류(분)<input type="number" min="5" max="60" value={form.dwellMinutes} onChange={(e) => set("dwellMinutes", e.target.value)} style={input} /></label></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}><label style={label}>시작<input type="time" value={form.windowStart} onChange={(e) => set("windowStart", e.target.value)} style={input} /></label><label style={label}>종료<input type="time" value={form.windowEnd} onChange={(e) => set("windowEnd", e.target.value)} style={input} /></label></div><label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 18, fontSize: 14 }}><input type="checkbox" checked={form.isActive} onChange={(e) => set("isActive", e.target.checked)} /> 설정 활성화</label></section>{message && <p role="status" style={{ color: "var(--ink-mid)", fontSize: 14 }}>{message}</p>}{stage && <p style={{ color: "var(--ink-soft)", fontSize: 12, margin: "4px 0 0" }}>진행 단계: {stage}</p>}<button type="button" onClick={save} disabled={saving || applying} style={primary}><Save size={16} /> {saving ? "저장 중..." : applying ? "위치 감지 등록 중..." : "저장"}</button></main>{confirmLocate && (
+  return <><div className="app-subpage-header" style={subpageHeaderStyle}><HeaderLogo /><button className="app-header-back" onClick={() => router.push("/attendance")} style={headerBackStyle} aria-label="출석 현황으로">← 출석 현황</button><div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 16, fontWeight: 800, color: "var(--ink)" }}><MapPin size={18} strokeWidth={1.8} /> 자동출석 설정</div></div><main style={{ maxWidth: 680, margin: "0 auto", padding: "32px 20px 64px" }}><h1 style={{ margin: "22px 0 8px", fontSize: 30, letterSpacing: "-0.04em" }}>자동출석 설정</h1><p style={{ color: "var(--ink-mid)", fontSize: 14, lineHeight: 1.6 }}>교회 좌표와 운영 시간 안에서만 위치 후보를 수집합니다. 자동출석은 목회 참고용입니다.</p><section style={card}><label style={label}>위치 이름<input value={form.name} onChange={(e) => set("name", e.target.value)} style={input} /></label><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}><label style={label}>위도<input inputMode="decimal" value={form.latitude} onChange={(e) => set("latitude", e.target.value)} style={input} /></label><label style={label}>경도<input inputMode="decimal" value={form.longitude} onChange={(e) => set("longitude", e.target.value)} style={input} /></label></div><button type="button" onClick={locate} style={secondary}><LocateFixed size={16} /> 현재 내 위치 적용</button><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}><label style={label}>반경(m)<input type="number" min="50" max="500" value={form.radiusM} onChange={(e) => set("radiusM", e.target.value)} style={input} /></label><label style={label}>최소 체류(분)<input type="number" min="5" max="60" value={form.dwellMinutes} onChange={(e) => set("dwellMinutes", e.target.value)} style={input} /></label></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}><label style={label}>시작<input type="time" value={form.windowStart} onChange={(e) => set("windowStart", e.target.value)} style={input} /></label><label style={label}>종료<input type="time" value={form.windowEnd} onChange={(e) => set("windowEnd", e.target.value)} style={input} /></label></div><label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 18, fontSize: 14 }}><input type="checkbox" checked={form.isActive} onChange={(e) => set("isActive", e.target.checked)} /> 설정 활성화</label></section><section style={locationsCard}><div style={locationsHeader}><div><h2 style={locationsTitle}>저장된 GPS 위치</h2><p style={locationsDescription}>저장 후 목록에서 현재 자동출석 등록지점으로 지정할 수 있습니다.</p></div>{locationsLoading && <span style={locationsLoadingText}>불러오는 중...</span>}</div>{locations.length === 0 ? <p style={locationsEmpty}>저장된 GPS 위치가 없습니다. 위 위치를 저장하면 목록에 자동으로 추가됩니다.</p> : <div style={locationsList}>{locations.map((location) => <div key={location.id} style={locationRow}><div style={{ minWidth: 0 }}><div style={locationNameLine}><strong style={locationName}>{location.name}</strong>{location.isRegistered && <span style={registeredBadge}>현재 등록지점</span>}</div><div style={locationCoordinates}>{Number(location.latitude).toFixed(6)} · {Number(location.longitude).toFixed(6)}</div></div><div style={locationActions}>{location.isRegistered ? <span style={currentLocationText}>사용 중</span> : <button type="button" onClick={() => void applyLocation(location)} disabled={saving || applying || locationBusyId !== null} style={locationApplyButton}>등록지점으로 지정</button>}<button type="button" onClick={() => void deleteLocation(location)} disabled={location.isRegistered || saving || applying || locationBusyId !== null} style={locationDeleteButton} title={location.isRegistered ? "현재 등록지점은 삭제할 수 없습니다." : "저장 위치 삭제"}><Trash2 size={15} /> 삭제</button></div></div>)}</div>}</section>{message && <p role="status" style={{ color: "var(--ink-mid)", fontSize: 14 }}>{message}</p>}{stage && <p style={{ color: "var(--ink-soft)", fontSize: 12, margin: "4px 0 0" }}>진행 단계: {stage}</p>}<button type="button" onClick={() => void save()} disabled={saving || applying} style={primary}><Save size={16} /> {saving ? "저장 중..." : applying ? "위치 감지 등록 중..." : "저장"}</button></main>{confirmLocate && (
     <ModalBackdrop onClose={() => setConfirmLocate(false)}>
       <div role="dialog" aria-modal="true" aria-labelledby="locate-confirm-title" style={dialog}>
         <h2 id="locate-confirm-title" style={{ margin: 0, fontSize: 18, color: "var(--ink)" }}>현재 위치를 적용하시겠습니까?</h2>
@@ -283,6 +350,22 @@ export default function AttendanceSettingsPage() {
 }
 
 const card: CSSProperties = { marginTop: 24, padding: 20, border: "1px solid var(--hairline)", borderRadius: 18, background: "var(--card)" };
+const locationsCard: CSSProperties = { marginTop: 16, padding: 20, border: "1px solid var(--hairline)", borderRadius: 18, background: "var(--card)" };
+const locationsHeader: CSSProperties = { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 };
+const locationsTitle: CSSProperties = { margin: 0, color: "var(--ink)", fontSize: 18 };
+const locationsDescription: CSSProperties = { margin: "6px 0 0", color: "var(--ink-mid)", fontSize: 13, lineHeight: 1.5 };
+const locationsLoadingText: CSSProperties = { color: "var(--ink-soft)", fontSize: 12, whiteSpace: "nowrap" };
+const locationsEmpty: CSSProperties = { margin: "18px 0 0", color: "var(--ink-soft)", fontSize: 13, lineHeight: 1.5 };
+const locationsList: CSSProperties = { display: "grid", gap: 10, marginTop: 18 };
+const locationRow: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "13px 0", borderTop: "1px solid var(--hairline)" };
+const locationNameLine: CSSProperties = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 };
+const locationName: CSSProperties = { color: "var(--ink)", fontSize: 14 };
+const registeredBadge: CSSProperties = { padding: "3px 7px", borderRadius: 999, background: "var(--accent-soft)", color: "var(--accent)", fontSize: 11, fontWeight: 700 };
+const locationCoordinates: CSSProperties = { marginTop: 5, color: "var(--ink-soft)", fontSize: 12, fontVariantNumeric: "tabular-nums" };
+const locationActions: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 7, flexShrink: 0 };
+const locationApplyButton: CSSProperties = { border: "1px solid var(--hairline-strong)", borderRadius: 8, padding: "7px 9px", background: "var(--bg-soft)", color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600 };
+const locationDeleteButton: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, border: "1px solid var(--hairline)", borderRadius: 8, padding: "7px 9px", background: "transparent", color: "var(--ink-soft)", cursor: "pointer", fontFamily: "inherit", fontSize: 12 };
+const currentLocationText: CSSProperties = { color: "var(--accent)", fontSize: 12, fontWeight: 700 };
 const label: CSSProperties = { display: "block", marginBottom: 14, color: "var(--ink-mid)", fontSize: 13 };
 const input: CSSProperties = { display: "block", width: "100%", boxSizing: "border-box", marginTop: 7, padding: "10px 11px", border: "1px solid var(--hairline)", borderRadius: 9, background: "var(--paper)", color: "var(--ink)" };
 const secondary: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 7, border: "1px solid var(--hairline)", borderRadius: 9, padding: "9px 12px", background: "var(--card)", color: "var(--ink)", cursor: "pointer" };
