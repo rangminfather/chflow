@@ -382,8 +382,13 @@ function AppWebView() {
 
     const choice = await SecureStore.getItemAsync(ATTENDANCE_DISCLOSURE_KEY);
     if (!force && choice === 'declined') return;
-    if (!force && choice === 'accepted' && await attendancePermissionsGranted()) {
-      await syncAttendanceGeofence(accessToken);
+    // 개인정보 수집·사용 동의와 Android 시스템 권한은 별개의 상태다.
+    // 동의가 끝난 뒤 권한이 부족하더라도 같은 안내창을 매번 다시 보여주지 않는다.
+    // 권한 설정은 '내 자동출석' 화면의 별도 진단·설정 경로에서 처리한다.
+    if (!force && choice === 'accepted') {
+      if (await attendancePermissionsGranted()) {
+        await syncAttendanceGeofence(accessToken);
+      }
       return;
     }
 
@@ -402,8 +407,9 @@ function AppWebView() {
         },
         {
           text: '동의하고 계속',
-          onPress: () => {
-            SecureStore.setItemAsync(ATTENDANCE_DISCLOSURE_KEY, 'accepted').catch(() => {});
+          onPress: async () => {
+            // 권한 요청으로 앱이 백그라운드로 전환되기 전에 동의값 저장을 완료한다.
+            await SecureStore.setItemAsync(ATTENDANCE_DISCLOSURE_KEY, 'accepted').catch(() => {});
             syncAttendanceGeofence(accessToken)
               .catch(() => {})
               .finally(() => { sendAttendanceSnapshot().catch(() => {}); });
