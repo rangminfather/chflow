@@ -59,9 +59,50 @@ async function removeHighlight(page) {
   });
 }
 
+const PERSONAL_DATA_PATHS = [
+  '/my-class',
+  '/attendance',
+  '/attendance-stats',
+  '/teacher-attendance',
+  '/talent-stats',
+  '/talent-feast',
+  '/quiz-talent',
+  '/students-info',
+  '/new-friend',
+  '/teacher-assign',
+  '/dept-approval',
+  '/members-grade',
+];
+
+/** 공개 매뉴얼 캡처에 실사용자 이름·전화번호·이메일이 남지 않게 DOM 복사본만 마스킹 */
+async function maskPersonalData(page, url) {
+  if (!PERSONAL_DATA_PATHS.some((pathPart) => url.includes(pathPart))) return;
+  await page.evaluate(() => {
+    const keep = new Set([
+      '홈', '부서홈', '검색', '교사', '학부모', '남', '여', '출석', '결석', '예정',
+      '전체', '저장', '취소', '삭제', '복구', '승인', '거절', '등록', '수정', '조회',
+    ]);
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const textNode = node;
+      const original = textNode.textContent || '';
+      const trimmed = original.trim();
+      let next = original
+        .replace(/01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/g, '010-****-****')
+        .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '***@***.***')
+        .replace(/(담임\s*)[가-힣]{2,4}/g, '$1○○○');
+      if (/^[가-힣]{2,4}$/.test(trimmed) && !keep.has(trimmed)) {
+        next = original.replace(trimmed, '○○○');
+      }
+      if (next !== original) textNode.textContent = next;
+    }
+  });
+}
+
 /** 로그인 수행 */
 async function doLogin(page, account) {
-  await page.goto(BASE_URL + '/login', { waitUntil: 'networkidle' });
+  await page.goto(BASE_URL + '/login', { waitUntil: 'domcontentloaded' });
   await page.fill('#login-username', account.username);
   await page.fill('#login-password', account.password);
   await page.click('.login-submit');
@@ -140,33 +181,34 @@ async function captureSignupChapter(page, chapter, manifest) {
 
   // signup-01: 로그인 화면 (회원가입 버튼 하이라이트)
   console.log('  [signup-01] 로그인 화면 진입');
-  await page.goto(BASE_URL + '/login', { waitUntil: 'networkidle' });
+  await page.goto(BASE_URL + '/login', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1000);
   await takeShot('signup-01', '로그인 화면 진입',
     '앱(smartms.kr)에 접속하면 로그인 화면이 나타납니다. 처음 사용하시는 분은 하단 \'회원가입\' 버튼을 누릅니다.',
     '.login-link-primary');
 
-  // signup-02: 가입 조회 폼 (이름·전화번호 입력 화면 — 입력 전)
-  console.log('  [signup-02] 이름·전화번호 조회 폼');
-  await page.goto(BASE_URL + '/signup', { waitUntil: 'networkidle' });
+  // signup-02: 현재 가입 진입 화면
+  console.log('  [signup-02] 가입 방법 선택 화면');
+  await page.goto(BASE_URL + '/signup', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1200);
-  await takeShot('signup-02', '이름·전화번호 조회',
-    '가입된 성도 명단에서 본인을 찾습니다. 이름과 휴대폰 번호를 입력하고 \'다음\' 버튼을 누릅니다.',
+  await takeShot('signup-02', '일반회원가입 시작',
+    '일반회원가입에서 이름과 휴대폰 번호를 입력하고 \'일반회원가입 계속\'을 누릅니다. 휴대폰이 없는 어린이·유아는 아래 전용 메뉴를 누릅니다.',
     null);
 
-  // signup-02b: 자녀(어린이) 가입 — 휴대폰 없음 체크 시 보호자 입력란
+  // signup-02b: 자녀(어린이) 가입 — 전용 메뉴를 눌러 보호자 입력란 진입
   console.log('  [signup-02b] 자녀 가입 — 보호자 정보 입력란');
+  await page.getByRole('button', { name: '휴대폰이 없는 어린이·유아 가입' }).click();
+  await page.waitForTimeout(500);
   const noPhoneBox = page.locator('label:has-text("휴대폰 없음") input[type="checkbox"]');
-  await noPhoneBox.check();
+  if (!(await noPhoneBox.isChecked())) await noPhoneBox.check();
   await page.waitForTimeout(600);
   await takeShot('signup-02b', '자녀(어린이) 가입 시 — 보호자 정보',
     '휴대폰이 없는 어린이·유아(예: 초등1부 자녀)를 가입시킬 때는 \'휴대폰 없음\' 칸에 체크합니다. 그러면 보호자 이름과 보호자 휴대폰 입력란이 나타납니다. 명성교회에 등록된 부모님(보호자)의 이름과 휴대폰 번호를 입력하면 자녀를 명단에서 찾아 줍니다. 이후 절차는 성인 가입과 같습니다.',
     null);
-  await noPhoneBox.uncheck();
-  await page.waitForTimeout(400);
-
   // signup-03: 조회 → 정보 확인 화면 (실제 사람이 조회된 화면)
   console.log('  [signup-03] 조회 결과 확인 화면');
+  await page.goto(BASE_URL + '/signup', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(700);
   await page.fill('input[placeholder="실명을 입력해주세요"]', '매뉴얼테스트');
   await page.fill('input[placeholder="010-0000-0000"]', '01099990001');
   await page.click('button[type="submit"]');
@@ -214,7 +256,7 @@ async function captureSignupChapter(page, chapter, manifest) {
 
   // signup-07: 승인 대기 안내 로그인 화면
   console.log('  [signup-07] 승인 대기 로그인 화면');
-  await page.goto(BASE_URL + '/login?notice=signup', { waitUntil: 'networkidle' });
+  await page.goto(BASE_URL + '/login?notice=signup', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1200);
   await takeShot('signup-07', '승인 대기 안내 화면',
     '가입 완료 후 로그인 화면으로 돌아오면 승인 대기 안내가 표시됩니다. 관리자 승인 후 로그인이 가능합니다.',
@@ -242,7 +284,7 @@ async function captureDeptJoinChapter(page, chapter, manifest) {
 
   // deptjoin-01: 사역국 대분류
   console.log('  [deptjoin-01] 사역·부서 가입 화면');
-  await page.goto(BASE_URL + '/departments', { waitUntil: 'networkidle' });
+  await page.goto(BASE_URL + '/departments', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1500);
   await takeShot('deptjoin-01', '사역·부서 가입 화면',
     '홈 화면 아래 \'+ 사역·부서 가입\' 버튼을 누르면 이 화면이 나옵니다. 교육사역국, 예배사역국 등 사역국 대분류가 카드로 보입니다. 초등1부는 \'교육사역국\' 안에 있으므로 교육사역국 카드를 누릅니다.');
@@ -256,12 +298,12 @@ async function captureDeptJoinChapter(page, chapter, manifest) {
 
   // deptjoin-03~05: 가입 모달 (가입 안 된 부서 카드에서 캡처 — 초등1 우선)
   try {
-    const cards = page.locator('.dept-card-item');
+    const cards = page.locator('.dept-card-item.is-tappable');
     const n = await cards.count();
     let target = -1;
     for (let i = 0; i < n; i++) {
       const txt = await cards.nth(i).innerText();
-      if (txt.includes('가입됨') || txt.includes('승인 대기')) continue;
+      if (!txt.includes('가입 신청')) continue;
       if (txt.includes('초등1')) { target = i; break; }
       if (target === -1) target = i;
     }
@@ -326,7 +368,7 @@ async function main() {
       await doLogin(page, ACCOUNTS[chapter.account]);
       currentAccount = chapter.account;
     } else if (!chapter.account && currentAccount) {
-      await page.goto(BASE_URL + '/login', { waitUntil: 'networkidle' });
+      await page.goto(BASE_URL + '/login', { waitUntil: 'domcontentloaded' });
       currentAccount = null;
     }
 
@@ -338,13 +380,40 @@ async function main() {
 
     for (const step of chapter.steps) {
       console.log(`  [${step.id}] ${step.title}`);
+      if (step.shot) {
+        const fixedShotPath = path.join(OUTPUT_DIR, step.shot);
+        if (fs.existsSync(fixedShotPath)) {
+          manifest.push({
+            chapterId: chapter.id,
+            chapterTitle: chapter.title,
+            stepId: step.id,
+            title: step.title,
+            desc: step.desc,
+            shot: step.shot,
+          });
+          console.log(`    ✓ 고정 이미지 사용: ${step.shot}`);
+        } else {
+          manifest.push({
+            chapterId: chapter.id,
+            chapterTitle: chapter.title,
+            stepId: step.id,
+            title: step.title,
+            desc: step.desc,
+            shot: null,
+            error: `고정 이미지 없음: ${step.shot}`,
+          });
+          console.error(`    ✗ 고정 이미지 없음: ${step.shot}`);
+        }
+        continue;
+      }
       const shotFile = `${step.id}.png`;
       const shotPath = path.join(OUTPUT_DIR, shotFile);
 
       try {
         if (step.url) {
-          await page.goto(BASE_URL + step.url, { waitUntil: 'networkidle', timeout: 20000 });
-          await page.waitForTimeout(1200);
+          await page.goto(BASE_URL + step.url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+          await page.waitForTimeout(3000);
+          await maskPersonalData(page, step.url);
         }
 
         if (step.highlight) {
