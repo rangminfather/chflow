@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
-import { UserCheck, Trash2, GitMerge, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
+import { UserCheck, Trash2, GitMerge, RotateCcw, ChevronDown, ChevronUp, Pencil } from "lucide-react";
 
 interface Teacher {
   id: string;
@@ -28,6 +28,13 @@ interface AttendRow {
   note: string | null;
 }
 
+// 수동 등록(placeholder) 교사 판별 — 성도·계정 어느 쪽과도 연결되지 않은 행.
+// 연결 교사(member_id/user_id 보유)의 이름·직책 원본은 members + department_members 이고
+// 임명·계정연결 RPC가 edu_teachers 를 덮어쓰므로 이 화면에서 수정하지 않는다.
+function isManualTeacher(t: Teacher) {
+  return !t.user_id && !t.member_id;
+}
+
 export default function TeacherAttendancePage() {
   const router = useRouter();
   const { confirm } = useConfirm();
@@ -42,6 +49,7 @@ export default function TeacherAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editing, setEditing] = useState<Teacher | null>(null);
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("");
   const [toast, setToast] = useState("");
@@ -128,20 +136,48 @@ export default function TeacherAttendancePage() {
     setSaving("");
   };
 
-  const addTeacher = async () => {
+  const openAddForm = () => {
+    setEditing(null);
+    setNewName(""); setNewRole("");
+    setShowAddForm(true);
+  };
+
+  // 수동 등록(계정 미연결) 교사만 수정 가능 — 연결 교사는 부서원관리가 원본
+  const openEditForm = (t: Teacher) => {
+    if (!isManualTeacher(t)) {
+      showToast("연결된 교사의 정보는 부서원관리에서 변경할 수 있습니다");
+      return;
+    }
+    setEditing(t);
+    setNewName(t.name); setNewRole(t.teacher_role || "");
+    setShowAddForm(true);
+    // 폼은 표 위쪽에 열리므로 명단이 길면 화면 밖에 있다 — 폼까지 올려준다
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const closeForm = () => {
+    setShowAddForm(false);
+    setEditing(null);
+    setNewName(""); setNewRole("");
+  };
+
+  const saveTeacher = async () => {
     if (!newName.trim()) return;
+    // 수정은 기존 행 id를 그대로 넘긴다 (삭제 후 재등록 금지 — 출석 이력 유지)
     const { error } = await supabase.rpc("edu_save_teacher", {
-      p_id:       null,
+      p_id:       editing ? editing.id : null,
       p_dept_id:  deptId,
       p_name:     newName.trim(),
       p_role:     newRole.trim() || null,
-      p_order_no: teachers.length,
+      p_order_no: editing ? editing.order_no : teachers.length,
     });
-    if (!error) {
-      showToast("교사가 추가되었습니다");
-      setNewName(""); setNewRole(""); setShowAddForm(false);
-      await loadAll();
+    if (error) {
+      showToast((editing ? "수정 실패: " : "추가 실패: ") + error.message);
+      return;
     }
+    showToast(editing ? "교사 정보가 수정되었습니다" : "교사가 추가되었습니다");
+    closeForm();
+    await loadAll();
   };
 
   const deleteTeacher = async (id: string, name: string) => {
@@ -216,13 +252,13 @@ export default function TeacherAttendancePage() {
           <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
             일요일: {sundays.length}주
           </div>
-          <button onClick={() => setShowAddForm(!showAddForm)} style={{ ...addBtnStyle, marginLeft: "auto" }}>+ 교사 추가</button>
+          <button onClick={() => (showAddForm && !editing ? closeForm() : openAddForm())} style={{ ...addBtnStyle, marginLeft: "auto" }}>+ 교사 추가</button>
         </div>
 
-        {/* 교사 추가 폼 */}
+        {/* 교사 추가 / 수정 폼 */}
         {showAddForm && (
           <div style={{ ...cardStyle, marginBottom: 16 }}>
-            <div style={sectionLabel}>교사 추가</div>
+            <div style={sectionLabel}>{editing ? `교사 수정 — ${editing.name}` : "교사 추가"}</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <input
                 type="text"
@@ -238,9 +274,14 @@ export default function TeacherAttendancePage() {
                 placeholder="직책 (부장, 교사 등)"
                 style={{ ...inputStyle, width: 180 }}
               />
-              <button onClick={addTeacher} style={saveBtnStyle}>추가</button>
-              <button onClick={() => setShowAddForm(false)} style={cancelBtnStyle}>취소</button>
+              <button onClick={saveTeacher} style={saveBtnStyle}>{editing ? "저장" : "추가"}</button>
+              <button onClick={closeForm} style={cancelBtnStyle}>취소</button>
             </div>
+            {editing && (
+              <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 10, lineHeight: 1.6 }}>
+                같은 교사 정보를 그대로 수정합니다. 출석 기록은 그대로 유지됩니다.
+              </div>
+            )}
           </div>
         )}
 
@@ -264,7 +305,7 @@ export default function TeacherAttendancePage() {
                     </th>
                   ))}
                   <th style={thStyle("center", 60)}>출석수</th>
-                  <th style={thStyle("center", 50)}>관리</th>
+                  <th style={thStyle("center", 76)}>관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -320,6 +361,18 @@ export default function TeacherAttendancePage() {
                             style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", display: "inline-flex", alignItems: "center", marginRight: 4 }}
                           ><GitMerge size={15} strokeWidth={1.8} /></button>
                         )}
+                        <button
+                          onClick={() => openEditForm(t)}
+                          title={isManualTeacher(t)
+                            ? "이름·직책 수정"
+                            : "연결된 교사의 정보는 부서원관리에서 변경할 수 있습니다"}
+                          style={{
+                            background: "none", border: "none", cursor: "pointer",
+                            color: isManualTeacher(t) ? "var(--ink-soft)" : "var(--ink-faint)",
+                            opacity: isManualTeacher(t) ? 1 : 0.5,
+                            display: "inline-flex", alignItems: "center", marginRight: 4,
+                          }}
+                        ><Pencil size={15} strokeWidth={1.8} /></button>
                         <button
                           onClick={() => deleteTeacher(t.id, t.name)}
                           style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", display: "inline-flex", alignItems: "center" }}
