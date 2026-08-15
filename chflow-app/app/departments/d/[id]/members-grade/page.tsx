@@ -7,6 +7,7 @@ import { photoThumb } from "@/lib/photo";
 import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
+import { GRADE_OPTIONS, ROLE_OPTIONS } from "@/lib/deptRoles";
 import { Lock, Medal, UserMinus } from "lucide-react";
 
 interface DeptMember {
@@ -33,24 +34,6 @@ interface SearchResult {
   plain_name: string | null;
   already_member: boolean;
 }
-
-const GRADE_OPTIONS = [
-  { value: 0, label: "0 — 전도사 / 교육사" },
-  { value: 1, label: "1 — 부장" },
-  { value: 2, label: "2 — 부부장 / 총무 / 서기" },
-  { value: 3, label: "3 — 교사" },
-  { value: 4, label: "4 — 학부모" },
-];
-
-const ROLE_OPTIONS: { grade: number; role: string; label: string }[] = [
-  { grade: 0, role: "전도사",  label: "전도사 / 교육사" },
-  { grade: 1, role: "부장",    label: "부장" },
-  { grade: 2, role: "부부장",  label: "부부장" },
-  { grade: 2, role: "총무",    label: "총무" },
-  { grade: 2, role: "서기",    label: "서기" },
-  { grade: 3, role: "교사",    label: "교사" },
-  { grade: 4, role: "학부모",  label: "학부모" },
-];
 
 const GRADE_BG: Record<number, string> = {
   0: "var(--success-soft)",
