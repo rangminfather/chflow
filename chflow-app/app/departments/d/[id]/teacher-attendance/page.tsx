@@ -6,7 +6,8 @@ import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
-import { UserCheck, Trash2, GitMerge, RotateCcw, ChevronDown, ChevronUp, Pencil } from "lucide-react";
+import { isManualTeacher, moveInOrder, buildSaveTeacherPayload } from "@/lib/eduTeacher";
+import { UserCheck, Trash2, GitMerge, RotateCcw, ChevronDown, ChevronUp, Pencil, ArrowUp, ArrowDown } from "lucide-react";
 
 interface Teacher {
   id: string;
@@ -28,13 +29,6 @@ interface AttendRow {
   note: string | null;
 }
 
-// 수동 등록(placeholder) 교사 판별 — 성도·계정 어느 쪽과도 연결되지 않은 행.
-// 연결 교사(member_id/user_id 보유)의 이름·직책 원본은 members + department_members 이고
-// 임명·계정연결 RPC가 edu_teachers 를 덮어쓰므로 이 화면에서 수정하지 않는다.
-function isManualTeacher(t: Teacher) {
-  return !t.user_id && !t.member_id;
-}
-
 export default function TeacherAttendancePage() {
   const router = useRouter();
   const { confirm } = useConfirm();
@@ -54,6 +48,7 @@ export default function TeacherAttendancePage() {
   const [newRole, setNewRole] = useState("");
   const [toast, setToast] = useState("");
   const [saving, setSaving] = useState<string>("");
+  const [moving, setMoving] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
 
   const loadTeachers = useCallback(async () => {
@@ -164,13 +159,10 @@ export default function TeacherAttendancePage() {
   const saveTeacher = async () => {
     if (!newName.trim()) return;
     // 수정은 기존 행 id를 그대로 넘긴다 (삭제 후 재등록 금지 — 출석 이력 유지)
-    const { error } = await supabase.rpc("edu_save_teacher", {
-      p_id:       editing ? editing.id : null,
-      p_dept_id:  deptId,
-      p_name:     newName.trim(),
-      p_role:     newRole.trim() || null,
-      p_order_no: editing ? editing.order_no : teachers.length,
-    });
+    const { error } = await supabase.rpc(
+      "edu_save_teacher",
+      buildSaveTeacherPayload({ editing, deptId, name: newName, role: newRole }),
+    );
     if (error) {
       showToast((editing ? "수정 실패: " : "추가 실패: ") + error.message);
       return;
@@ -178,6 +170,21 @@ export default function TeacherAttendancePage() {
     showToast(editing ? "교사 정보가 수정되었습니다" : "교사가 추가되었습니다");
     closeForm();
     await loadAll();
+  };
+
+  // 표시 순서만 한 칸 이동 — teacher id·출석 기록은 그대로다
+  const moveTeacher = async (t: Teacher, dir: -1 | 1) => {
+    if (moving) return;
+    setMoving(true);
+    setTeachers((prev) => {
+      const active = prev.filter((x) => x.is_active);
+      const rest = prev.filter((x) => !x.is_active);
+      return [...moveInOrder(active, t.id, dir), ...rest];
+    });
+    const { error } = await supabase.rpc("edu_move_teacher", { p_id: t.id, p_dir: dir });
+    if (error) showToast("순서 변경 실패: " + error.message);
+    await loadTeachers();
+    setMoving(false);
   };
 
   const deleteTeacher = async (id: string, name: string) => {
@@ -305,11 +312,12 @@ export default function TeacherAttendancePage() {
                     </th>
                   ))}
                   <th style={thStyle("center", 60)}>출석수</th>
+                  <th style={thStyle("center", 56)}>순서</th>
                   <th style={thStyle("center", 76)}>관리</th>
                 </tr>
               </thead>
               <tbody>
-                {activeTeachers.map((t) => {
+                {activeTeachers.map((t, idx) => {
                   const tMap = attMap[t.id] || {};
                   const presentCount = sundays.filter((d) => tMap[d]).length;
                   return (
@@ -352,6 +360,20 @@ export default function TeacherAttendancePage() {
                         }}>
                           {presentCount}/{sundays.length}
                         </span>
+                      </td>
+                      <td style={{ textAlign: "center", padding: "6px 4px", whiteSpace: "nowrap" }}>
+                        <button
+                          onClick={() => moveTeacher(t, -1)}
+                          disabled={idx === 0 || moving}
+                          title="위로"
+                          style={orderBtnStyle(idx === 0 || moving)}
+                        ><ArrowUp size={14} strokeWidth={2} /></button>
+                        <button
+                          onClick={() => moveTeacher(t, 1)}
+                          disabled={idx === activeTeachers.length - 1 || moving}
+                          title="아래로"
+                          style={orderBtnStyle(idx === activeTeachers.length - 1 || moving)}
+                        ><ArrowDown size={14} strokeWidth={2} /></button>
                       </td>
                       <td style={{ textAlign: "center", padding: "6px 4px", whiteSpace: "nowrap" }}>
                         {mergeTargetOf[t.id] && (
@@ -553,6 +575,21 @@ const navBtnStyle: React.CSSProperties = {
   fontFamily: "inherit",
   color: "var(--ink-mid)",
 };
+
+// 모바일에서도 누르기 쉬운 크기(24px) — 순서 이동 전용 버튼
+const orderBtnStyle = (disabled: boolean): React.CSSProperties => ({
+  width: 24,
+  height: 24,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "var(--bg-soft)",
+  border: "none",
+  borderRadius: 6,
+  color: disabled ? "var(--hairline-strong)" : "var(--ink-soft)",
+  cursor: disabled ? "default" : "pointer",
+  margin: "0 1px",
+});
 
 const thStyle = (align: "left" | "center", minWidth?: number): React.CSSProperties => ({
   padding: "10px 8px",
