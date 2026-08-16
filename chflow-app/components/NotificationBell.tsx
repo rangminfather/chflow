@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, MessagesSquare, Settings, X, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Bell, MessagesSquare, X, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import NotificationSettingsCard from "@/components/NotificationSettingsCard";
 import { supabase } from "@/lib/supabase";
 import {
   fetchNotifications,
@@ -29,7 +30,7 @@ interface ToastNotification {
   type: string;
 }
 
-type PanelTab = "all" | "message" | "notice";
+type PanelTab = "all" | "message" | "notice" | "settings";
 
 // 이미 토스트로 띄운 알림 ID를 사용자별로 localStorage 에 보관한다.
 // 벨 컴포넌트가 재마운트(화면 이동)·새로고침으로 초기화돼도 같은 알림이
@@ -73,7 +74,6 @@ export default function NotificationBell({
   const [unreadCount, setUnreadCount] = useState(0);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [activeTab, setActiveTab] = useState<PanelTab>("all");
-  const [preferences, setPreferences] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
   const preferencesRef = useRef<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
   const preferencesLoadedRef = useRef(false);
   const seenIdsRef = useRef<Set<string>>(new Set());
@@ -91,6 +91,7 @@ export default function NotificationBell({
   }), [notifications]);
 
   const visibleNotifications = useMemo(() => {
+    if (activeTab === "settings") return [];
     if (activeTab === "all") return notifications;
     return notifications.filter((n) => getNotificationGroup(n.type) === activeTab);
   }, [activeTab, notifications]);
@@ -151,7 +152,7 @@ export default function NotificationBell({
     ]);
     preferencesRef.current = nextPreferences;
     preferencesLoadedRef.current = true;
-    setPreferences(nextPreferences);
+    if (!nextPreferences.enabled || !nextPreferences.in_app_enabled) setToasts([]);
     setNotifications(list);
     setUnreadCount(count);
     setAppBadge(count);
@@ -192,7 +193,6 @@ export default function NotificationBell({
       const next = (event as CustomEvent<NotificationPreferences>).detail;
       if (next) {
         preferencesRef.current = next;
-        setPreferences(next);
       }
       void refresh();
     };
@@ -229,7 +229,6 @@ export default function NotificationBell({
           fetchNotifications(30), getUnreadCount(), fetchNotificationPreferences(),
         ]);
         preferencesRef.current = nextPreferences;
-        setPreferences(nextPreferences);
         // 새 알림 감지: 기존에 보지 못한 ID
         const newNotifs = list.filter((n) => !seenIdsRef.current.has(n.id) && !n.is_read);
         for (const n of newNotifs) {
@@ -316,8 +315,6 @@ export default function NotificationBell({
     clearAppBadge();
     await deleteAllNotifications();
   };
-
-  if (!preferences.enabled || !preferences.in_app_enabled) return null;
 
   return (
     <>
@@ -422,16 +419,7 @@ export default function NotificationBell({
                   )}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => { setOpen(false); router.push("/myinfo#notification-settings"); }}
-                    aria-label="알림 설정"
-                    title="알림 설정"
-                    style={{ width: 26, height: 26, borderRadius: 7, background: "none", border: "none", cursor: "pointer", color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}
-                  >
-                    <Settings size={15} strokeWidth={2} />
-                  </button>
-                  {notifications.length > 0 && (
+                  {activeTab !== "settings" && notifications.length > 0 && (
                     <button
                       onClick={handleDeleteAll}
                       style={{ fontSize: 11, color: "var(--ink-faint)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 4, fontFamily: "inherit" }}
@@ -458,7 +446,7 @@ export default function NotificationBell({
               {placement === "dock" && (
                 <div style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
                   gap: 6,
                   padding: "10px 12px",
                   borderBottom: "1px solid var(--hairline)",
@@ -481,6 +469,11 @@ export default function NotificationBell({
                     count={tabCounts.notice}
                     active={activeTab === "notice"}
                     onClick={() => setActiveTab("notice")}
+                  />
+                  <PanelTabButton
+                    label="설정"
+                    active={activeTab === "settings"}
+                    onClick={() => setActiveTab("settings")}
                   />
                 </div>
               )}
@@ -518,7 +511,9 @@ export default function NotificationBell({
                 </div>
               )}
               <div style={{ overflowY: "auto", flex: 1 }}>
-                {visibleNotifications.length === 0 ? (
+                {activeTab === "settings" ? (
+                  <NotificationSettingsCard embedded />
+                ) : visibleNotifications.length === 0 ? (
                   <div
                     style={{
                       textAlign: "center",
@@ -597,7 +592,7 @@ function PanelTabButton({
   onClick,
 }: {
   label: string;
-  count: number;
+  count?: number;
   active: boolean;
   onClick: () => void;
 }) {
@@ -622,7 +617,7 @@ function PanelTabButton({
       }}
     >
       <span>{label}</span>
-      <span style={{
+      {count !== undefined && <span style={{
         minWidth: 18,
         height: 18,
         padding: "0 5px",
@@ -635,7 +630,7 @@ function PanelTabButton({
         fontWeight: 800,
       }}>
         {count > 99 ? "99+" : count}
-      </span>
+      </span>}
     </button>
   );
 }
@@ -936,6 +931,7 @@ function getNotificationGroup(type: string): PanelTab | "alert" {
 function getEmptyLabel(tab: PanelTab): string {
   if (tab === "message") return "메시지가 없습니다";
   if (tab === "notice") return "공지가 없습니다";
+  if (tab === "settings") return "";
   return "알림이 없습니다";
 }
 
