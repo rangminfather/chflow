@@ -89,7 +89,12 @@ export async function deleteNotification(id: string): Promise<void> {
 }
 
 export async function deleteAllNotifications(): Promise<void> {
-  await supabase.from("notifications").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+  // RLS 만 믿지 않고 본인 알림으로 명시 한정한다. (정책이 잘못 적용되면
+  // user_id 조건 없는 전체 delete 가 다른 사용자 알림까지 지울 수 있다)
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) return;
+  await supabase.from("notifications").delete().eq("user_id", userId);
 }
 
 // PWA 앱 아이콘 배지 (지원 브라우저만)
