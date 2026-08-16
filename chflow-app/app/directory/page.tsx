@@ -51,6 +51,7 @@ type ProfileMember = DirectoryPerson & {
   has_app_account?: boolean | null;
   app_status?: string | null;
   app_username?: string | null;
+  app_user_id?: string | null;
 };
 
 type RelatedMember = {
@@ -63,6 +64,7 @@ type RelatedMember = {
   sub_role?: string | null;
   spouse_name?: string | null;
   is_child?: boolean | null;
+  has_account?: boolean | null;
   photo_url: string | null;
   gender?: string | null;
   kind?: string;
@@ -381,6 +383,23 @@ function DirectoryProfileModal({
   const [pendingChanges, setPendingChanges] = useState<QuickEditChange[] | null>(null);
   const [savingQuickEdit, setSavingQuickEdit] = useState(false);
 
+  // 자녀 관리(등록/수정/삭제): 관리자 이거나, 지금 보는 카드가 로그인한 본인 카드일 때만
+  const [viewerUid, setViewerUid] = useState<string | null>(null);
+  const [addingChild, setAddingChild] = useState(false);
+  const [newChildName, setNewChildName] = useState("");
+  const [newChildGender, setNewChildGender] = useState("");
+  const [newChildBirth, setNewChildBirth] = useState("");
+  const [savingChild, setSavingChild] = useState(false);
+  const [editingChildId, setEditingChildId] = useState<string | null>(null);
+  const [childEdit, setChildEdit] = useState({ name: "", gender: "", birth_date: "" });
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      setViewerUid(authUser?.id ?? null);
+    })();
+  }, []);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -407,6 +426,57 @@ function DirectoryProfileModal({
     setLoading(false);
   }, [memberId, onClose]);
 
+  const handleAddChild = async () => {
+    if (!newChildName.trim()) { alert("이름을 입력하세요"); return; }
+    setSavingChild(true);
+    try {
+      const { error } = await supabase.rpc("member_add_child", {
+        p_parent_id: memberId,
+        p_name: newChildName.trim(),
+        p_gender: newChildGender || null,
+        p_birth_date: newChildBirth || null,
+      });
+      if (error) { alert(`추가 실패: ${error.message}`); return; }
+      setAddingChild(false);
+      setNewChildName(""); setNewChildGender(""); setNewChildBirth("");
+      await reloadProfile();
+      onChanged();
+    } finally {
+      setSavingChild(false);
+    }
+  };
+
+  const startEditChild = (item: RelatedMember) => {
+    setEditingChildId(item.relative_id || null);
+    setChildEdit({ name: item.name, gender: "", birth_date: "" });
+  };
+
+  const handleSaveChildEdit = async (childId: string) => {
+    setSavingChild(true);
+    try {
+      const { error } = await supabase.rpc("member_update_child", {
+        p_child_id: childId,
+        p_name: childEdit.name.trim() || null,
+        p_gender: childEdit.gender || null,
+        p_birth_date: childEdit.birth_date || null,
+      });
+      if (error) { alert(`수정 실패: ${error.message}`); return; }
+      setEditingChildId(null);
+      await reloadProfile();
+      onChanged();
+    } finally {
+      setSavingChild(false);
+    }
+  };
+
+  const handleDeleteChild = async (childId: string) => {
+    if (!confirm("이 자녀를 삭제하시겠습니까?\n등록된 자녀 정보가 완전히 삭제됩니다.")) return;
+    const { error } = await supabase.rpc("member_delete_child", { p_child_id: childId });
+    if (error) { alert(`삭제 실패: ${error.message}`); return; }
+    await reloadProfile();
+    onChanged();
+  };
+
   if (loading || !data) {
     return (
       <ModalBackdrop onClose={onClose} style={modalBgStyle}>
@@ -417,6 +487,7 @@ function DirectoryProfileModal({
 
   const member = data.member;
   const relations = [...(data.relations || []), ...(data.descendants || [])];
+  const canManageChildren = canQuickEdit || (!!viewerUid && member.app_user_id === viewerUid);
 
   function openQuickEdit() {
     if (!canQuickEdit) return;
@@ -662,15 +733,53 @@ function DirectoryProfileModal({
           )}
         </ProfileSection>
 
-        <ProfileSection title={`가족 관계 ${relations.length}`}>
+        <ProfileSection title={`가족 관계 ${relations.length}`} action={
+          canManageChildren && (
+            <button style={ghostButtonStyle} onClick={() => setAddingChild((v) => !v)}>+ 자녀 등록</button>
+          )
+        }>
+          {addingChild && (
+            <div style={childFormStyle}>
+              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                <input value={newChildName} onChange={(e) => setNewChildName(e.target.value)}
+                  placeholder="자녀 이름" style={{ ...quickEditInputStyle, flex: 2 }} />
+                <select value={newChildGender} onChange={(e) => setNewChildGender(e.target.value)}
+                  style={{ ...quickEditInputStyle, flex: 1 }}>
+                  <option value="">성별</option><option value="M">남</option><option value="F">여</option>
+                </select>
+                <input type="date" value={newChildBirth} onChange={(e) => setNewChildBirth(e.target.value)}
+                  style={{ ...quickEditInputStyle, flex: 1 }} />
+              </div>
+              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                <button style={ghostButtonStyle} onClick={() => { setAddingChild(false); setNewChildName(""); setNewChildGender(""); setNewChildBirth(""); }}>취소</button>
+                <button style={buttonStyle} onClick={handleAddChild} disabled={savingChild}>{savingChild ? "저장 중..." : "저장"}</button>
+              </div>
+            </div>
+          )}
           {relations.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {relations.map((item, index) => (
-                <RelatedRow
-                  key={`${item.relative_id}-${index}`}
-                  item={item}
-                  onClick={() => item.relative_id && onNavigate(item.relative_id)}
-                />
+                item.kind === "parent" && item.direction === "descendant" && item.is_child && canManageChildren ? (
+                  <ChildRelationRow
+                    key={`${item.relative_id}-${index}`}
+                    item={item}
+                    editing={editingChildId === item.relative_id}
+                    edit={childEdit}
+                    setEdit={setChildEdit}
+                    saving={savingChild}
+                    onClick={() => item.relative_id && onNavigate(item.relative_id)}
+                    onStartEdit={() => startEditChild(item)}
+                    onCancelEdit={() => setEditingChildId(null)}
+                    onSave={() => item.relative_id && handleSaveChildEdit(item.relative_id)}
+                    onDelete={() => item.relative_id && handleDeleteChild(item.relative_id)}
+                  />
+                ) : (
+                  <RelatedRow
+                    key={`${item.relative_id}-${index}`}
+                    item={item}
+                    onClick={() => item.relative_id && onNavigate(item.relative_id)}
+                  />
+                )
               ))}
             </div>
           ) : (
@@ -769,10 +878,13 @@ function normalizeDialNumber(value?: string | null) {
   return digits.length >= 8 ? digits : "";
 }
 
-function ProfileSection({ title, children }: { title: string; children: React.ReactNode }) {
+function ProfileSection({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <section style={profileSectionStyle}>
-      <div style={sectionTitleStyle}>{title}</div>
+      <div style={sectionTitleRowStyle}>
+        <div style={sectionTitleStyle}>{title}</div>
+        {action}
+      </div>
       {children}
     </section>
   );
@@ -879,6 +991,59 @@ function RelatedRow({ item, onClick }: { item: RelatedMember; onClick: () => voi
       </span>
     </button>
   );
+}
+
+function ChildRelationRow({
+  item, editing, edit, setEdit, saving, onClick, onStartEdit, onCancelEdit, onSave, onDelete,
+}: {
+  item: RelatedMember;
+  editing: boolean;
+  edit: { name: string; gender: string; birth_date: string };
+  setEdit: (v: { name: string; gender: string; birth_date: string }) => void;
+  saving: boolean;
+  onClick: () => void;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSave: () => void;
+  onDelete: () => void;
+}) {
+  if (editing) {
+    return (
+      <div style={childFormStyle}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })}
+            placeholder="이름" style={{ ...quickEditInputStyle, flex: 2 }} />
+          <select value={edit.gender} onChange={(e) => setEdit({ ...edit, gender: e.target.value })}
+            style={{ ...quickEditInputStyle, flex: 1 }}>
+            <option value="">성별</option><option value="M">남</option><option value="F">여</option>
+          </select>
+          <input type="date" value={edit.birth_date} onChange={(e) => setEdit({ ...edit, birth_date: e.target.value })}
+            style={{ ...quickEditInputStyle, flex: 1 }} />
+        </div>
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+          <button style={ghostButtonStyle} onClick={onCancelEdit}>취소</button>
+          <button style={buttonStyle} onClick={onSave} disabled={saving}>{saving ? "저장 중..." : "저장"}</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ ...relationRowStyle, cursor: "pointer" }} onClick={onClick}>
+      <Avatar member={{ name: item.name, photo_url: item.photo_url }} size={40} />
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <strong style={relationNameStyle}>{item.name}</strong>
+        <span style={relationSubStyle}>자녀 · {item.phone || item.home_phone || "연락처 없음"}</span>
+      </span>
+      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+        <button onClick={(e) => { e.stopPropagation(); onStartEdit(); }} style={childRowActionStyle("var(--accent-soft)", "var(--accent-strong)")}>수정</button>
+        <button onClick={(e) => { e.stopPropagation(); onDelete(); }} style={childRowActionStyle("var(--danger-soft)", "var(--danger)")}>삭제</button>
+      </div>
+    </div>
+  );
+}
+
+function childRowActionStyle(bg: string, color: string): CSSProperties {
+  return { padding: "4px 8px", background: bg, color, border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" };
 }
 
 function relationLabel(item: RelatedMember) {
@@ -1151,7 +1316,8 @@ const profileSectionStyle: CSSProperties = {
   marginTop: 14,
 };
 
-const sectionTitleStyle: CSSProperties = { marginBottom: 10, fontSize: 13, fontWeight: 800, color: "var(--ink-mid)" };
+const sectionTitleStyle: CSSProperties = { fontSize: 13, fontWeight: 800, color: "var(--ink-mid)" };
+const sectionTitleRowStyle: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 };
 const sectionEmptyStyle: CSSProperties = { padding: "10px 0", color: "var(--ink-faint)", fontSize: 12 };
 
 const adminQuickEditWrapStyle: CSSProperties = {
@@ -1333,6 +1499,14 @@ const chipStyle: CSSProperties = {
 };
 const chipNameStyle: CSSProperties = { display: "block", fontSize: 12, color: "var(--ink)" };
 const chipSubStyle: CSSProperties = { display: "block", fontSize: 10, color: "var(--ink-soft)" };
+
+const childFormStyle: CSSProperties = {
+  padding: 10,
+  background: "var(--surface)",
+  borderRadius: 8,
+  border: "1px solid var(--hairline-strong)",
+  marginBottom: 8,
+};
 
 const relationRowStyle: CSSProperties = {
   display: "flex",
