@@ -27,6 +27,7 @@ interface Student {
   member_id: string | null;
   teacher_id: string | null;
   teacher_name: string | null;
+  class_no: string | null;
   gender?: string | null;
   photo_url?: string | null;
 }
@@ -106,6 +107,7 @@ export default function TalentPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
+  const [myClassNos, setMyClassNos] = useState<string[]>([]);
   const [myClassName, setMyClassName] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<AttendRow[]>([]);
@@ -142,6 +144,8 @@ export default function TalentPage() {
         .eq("is_active", true)
         .maybeSingle();
 
+      const { data: classRows } = await supabase.rpc("edu_list_my_homeroom_classes", { p_dept_id: deptId });
+      setMyClassNos(((classRows || []) as { class_no: string }[]).map((row) => row.class_no));
       setMyTeacherId(teacher?.id || null);
       setAuthChecked(true);
     })();
@@ -154,9 +158,9 @@ export default function TalentPage() {
       setLoading(false);
       return;
     }
-    loadAll(myTeacherId);
+    loadAll(myTeacherId, myClassNos);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, myTeacherId, year, month]);
+  }, [authChecked, myTeacherId, myClassNos, year, month]);
 
   useEffect(() => {
     if (loading || todayWeekIndex < 0) return;
@@ -169,10 +173,10 @@ export default function TalentPage() {
     return () => window.clearTimeout(timer);
   }, [loading, students.length, sundays, todayWeekIndex]);
 
-  async function loadAll(teacherId: string) {
+  async function loadAll(teacherId: string, classNos: string[]) {
     setLoading(true);
 
-    const classStudents = await loadStudents(teacherId);
+    const classStudents = await loadStudents(teacherId, classNos);
     const studentIds = classStudents.map((student) => student.id);
     const loadedRules = await ensureDefaultRules();
 
@@ -256,11 +260,11 @@ export default function TalentPage() {
     setCumulative(map);
   }
 
-  async function loadStudents(teacherId: string) {
+  async function loadStudents(teacherId: string, classNos: string[]) {
     const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
     const all = (data || []) as Student[];
     const mine = all
-      .filter((student) => student.teacher_id === teacherId)
+      .filter((student) => student.teacher_id === teacherId || Boolean(student.class_no && classNos.includes(student.class_no)))
       .sort((a, b) => (a.order_no || 0) - (b.order_no || 0) || (a.student_no || 0) - (b.student_no || 0));
     const memberIds = mine.map((student) => student.member_id).filter(Boolean) as string[];
     const memberInfo: Record<string, { gender: string | null; photo_url: string | null }> = {};

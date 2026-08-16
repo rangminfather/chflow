@@ -1,12 +1,12 @@
 "use client";
 
-// 출결 통합 조회 — 전 반 한 달치 종합 그리드. 탭으로 출석체크/달란트체크 화면 전환.
+// 출결 통합 조회 / 달란트 통합체크 — 같은 조회·정렬 구조를 공유하는 단독 메뉴 화면.
 //  - 출석체크: 종이 출석부식 기호(/ 출석, · 결석, Ø 출석인정), 칸 탭 시 순환 수정.
 //  - 달란트체크: 달란트통장 체크 항목과 기타 직접입력을 종합 표시, 칸 탭 → 팝업에서 수정.
 // 학생 추가/삭제는 학생정보관리 메뉴에서 수행. 학생 이름 클릭 → 출결 이력 모달(기간 조회).
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -149,6 +149,7 @@ function compareStudents(a: Student, b: Student, groupByClassOnly: boolean): num
 
 export default function AttendancePage() {
   const router = useRouter();
+  const pathname = usePathname();
   const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
@@ -156,7 +157,7 @@ export default function AttendancePage() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const [viewMode, setViewMode] = useState<"attendance" | "talent">("attendance");
+  const viewMode: "attendance" | "talent" = pathname.endsWith("/talent-check") ? "talent" : "attendance";
   const [deptName, setDeptName] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
   const [attData, setAttData] = useState<AttendRow[]>([]);
@@ -563,39 +564,21 @@ export default function AttendancePage() {
       <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
         <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
-        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><ClipboardList size={18} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 출결 통합 조회</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          {viewMode === "talent" ? <Medal size={18} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> : <ClipboardList size={18} strokeWidth={1.8} style={{ color: "var(--accent)" }} />}
+          {viewMode === "talent" ? "달란트 통합체크" : "출결 통합 조회"}
+        </div>
         <div />
       </div>
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: 16 }}>
-        {/* 월 선택 + 화면 전환 탭 */}
+        {/* 월 선택 */}
         <div style={{ ...cardStyle, marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
           <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", minWidth: 110, textAlign: "center" }}>
             {year}년 {month}월
           </div>
           <button onClick={() => nextMonth(year, month, setYear, setMonth)} style={navBtnStyle}>▶</button>
-
-          <div style={{ display: "flex", gap: 4, marginLeft: "auto", background: "var(--bg-soft)", borderRadius: 10, padding: 3 }}>
-            {([
-              { key: "attendance", label: "출석체크" },
-              { key: "talent", label: "달란트체크" },
-            ] as const).map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setViewMode(t.key)}
-                style={{
-                  padding: "7px 16px", border: "none", borderRadius: 8, cursor: "pointer",
-                  fontSize: 12, fontWeight: 700, fontFamily: "inherit",
-                  background: viewMode === t.key ? "var(--card)" : "transparent",
-                  color: viewMode === t.key ? "var(--accent)" : "var(--ink-soft)",
-                  boxShadow: viewMode === t.key ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* 등반 확정 대상 ('출' 4회 이상) — 출석부 접근자 누구나 확정 가능 */}

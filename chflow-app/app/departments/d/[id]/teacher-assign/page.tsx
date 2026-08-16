@@ -15,6 +15,10 @@ interface ClassRow {
   teacher_name: string | null;
   teacher_member_id: string | null;
   is_placeholder: boolean;
+  assistant_teacher_id: string | null;
+  assistant_teacher_name: string | null;
+  assistant_teacher_member_id: string | null;
+  assistant_is_placeholder: boolean;
   student_count: number;
   sort_order: number;
   in_registry: boolean;
@@ -69,6 +73,7 @@ export default function TeacherAssignPage() {
   const [loading, setLoading] = useState(true);
 
   const [editingClass, setEditingClass] = useState<ClassRow | null>(null);
+  const [editingRole, setEditingRole] = useState<"정" | "부">("정");
   const [pickedTeacherId, setPickedTeacherId] = useState<string>("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -126,19 +131,27 @@ export default function TeacherAssignPage() {
   }
 
   async function doAssign() {
-    if (!editingClass || !pickedTeacherId) return;
+    if (!editingClass) return;
     setSubmitting(true);
-    const { error } = await supabase.rpc("bulk_assign_class_teacher", {
+    const { error } = await supabase.rpc("set_class_homeroom_teacher", {
       p_dept_id: deptId,
       p_class_no: editingClass.class_no,
-      p_new_teacher_id: pickedTeacherId,
+      p_role: editingRole,
+      p_teacher_id: pickedTeacherId || null,
       p_reason: reason.trim() || null,
     });
     setSubmitting(false);
     if (error) { showToast(error.message); return; }
-    showToast(`${editingClass.class_no} 담임 변경 완료`);
+    showToast(`${editingClass.class_no} 담임 ${editingRole} 지정 완료`);
     setEditingClass(null); setPickedTeacherId(""); setReason("");
     load();
+  }
+
+  function openAssign(c: ClassRow, role: "정" | "부") {
+    setEditingClass(c);
+    setEditingRole(role);
+    setPickedTeacherId(role === "정" ? (c.teacher_id || "") : (c.assistant_teacher_id || ""));
+    setReason("");
   }
 
   async function doMerge() {
@@ -248,12 +261,19 @@ export default function TeacherAssignPage() {
                       <button onClick={() => doDeleteClass(c)} title="반 삭제" style={{ ...iconBtn, color: "var(--danger)" }}><Trash2 size={13} strokeWidth={2} /></button>
                     </div>
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--ink-mid)", marginBottom: 8 }}>
-                    담임: <strong>{c.teacher_name || "(없음)"}</strong>
-                    {c.is_placeholder && <span style={{ color: "var(--warning)", marginLeft: 4, fontSize: 10, display: "inline-flex", alignItems: "center", gap: 3 }}><Circle size={9} strokeWidth={1.8} /> 계정 미연결</span>}
-                    {!c.is_placeholder && c.teacher_id && <span style={{ color: "var(--success)", marginLeft: 4, fontSize: 10, display: "inline-flex", alignItems: "center", gap: 3 }}><CheckCircle2 size={10} strokeWidth={1.8} /> 계정 연결됨</span>}
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "var(--ink-mid)", marginTop: 10, marginBottom: 6 }}>담임 지정</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+                    <button type="button" onClick={() => openAssign(c, "정")} style={homeroomSlotStyle(Boolean(c.teacher_id))}>
+                      <span style={{ fontSize: 14, fontWeight: 900, color: "var(--accent)" }}>정</span>
+                      <strong style={{ fontSize: 13 }}>{c.teacher_name || "+ 지정"}</strong>
+                      {c.is_placeholder && <span style={{ color: "var(--warning)", fontSize: 9 }}>계정 미연결</span>}
+                    </button>
+                    <button type="button" onClick={() => openAssign(c, "부")} style={homeroomSlotStyle(Boolean(c.assistant_teacher_id))}>
+                      <span style={{ fontSize: 14, fontWeight: 900, color: "var(--success)" }}>부</span>
+                      <strong style={{ fontSize: 13 }}>{c.assistant_teacher_name || "+ 지정"}</strong>
+                      {c.assistant_is_placeholder && <span style={{ color: "var(--warning)", fontSize: 9 }}>계정 미연결</span>}
+                    </button>
                   </div>
-                  <button onClick={() => { setEditingClass(c); setPickedTeacherId(c.teacher_id || ""); }} style={btnSm}>담임 변경</button>
                 </div>
               ))}
             </div>
@@ -318,13 +338,13 @@ export default function TeacherAssignPage() {
         <ModalBackdrop onClose={() => setEditingClass(null)}>
           <div style={modalCard}>
             <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>
-              {editingClass.class_no} 반 담임 변경
+              {editingClass.class_no} 반 담임 지정 · {editingRole}
             </div>
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 8 }}>
-              현재 담임: <strong>{editingClass.teacher_name || "없음"}</strong> · 학생 {editingClass.student_count}명
+              현재 {editingRole}: <strong>{editingRole === "정" ? (editingClass.teacher_name || "없음") : (editingClass.assistant_teacher_name || "없음")}</strong> · 학생 {editingClass.student_count}명
             </div>
             <select value={pickedTeacherId} onChange={(e) => setPickedTeacherId(e.target.value)} style={inp}>
-              <option value="">— 새 담임 선택 —</option>
+              <option value="">— 지정하지 않음 —</option>
               {teachers.filter((t) => t.is_active).map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}{t.is_placeholder ? " (계정 미연결)" : " (계정 연결됨)"}
@@ -334,8 +354,8 @@ export default function TeacherAssignPage() {
             <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="사유 (예: 2026 신학기 배정)" style={{ ...inp, marginTop: 8 }} />
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
               <button onClick={() => setEditingClass(null)} style={btnGhost}>취소</button>
-              <button onClick={doAssign} disabled={!pickedTeacherId || submitting} style={btnPrimary}>
-                {submitting ? "처리 중..." : "변경"}
+              <button onClick={doAssign} disabled={submitting} style={btnPrimary}>
+                {submitting ? "처리 중..." : pickedTeacherId ? "지정" : "지정 해제"}
               </button>
             </div>
           </div>
@@ -453,7 +473,6 @@ const sectionTitle: React.CSSProperties = { fontSize: 14, fontWeight: 700, color
 const inp: React.CSSProperties = { width: "100%", padding: "10px 12px", border: "1px solid var(--hairline-strong)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "var(--card)" };
 const btnPrimary: React.CSSProperties = { padding: "10px 18px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const btnGhost: React.CSSProperties = { padding: "10px 16px", background: "var(--bg-soft)", color: "var(--ink-mid)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const btnSm: React.CSSProperties = { padding: "6px 10px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
 const iconBtn: React.CSSProperties = { width: 26, height: 26, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--bg-soft)", color: "var(--ink-soft)", border: "none", borderRadius: 6, cursor: "pointer" };
 const chipGhost: React.CSSProperties = { padding: "6px 12px", background: "var(--warning-soft)", color: "var(--warning)", border: "1px solid #E0C893", borderRadius: 999, fontSize: 11, cursor: "pointer", fontFamily: "inherit" };
 const chipGreen: React.CSSProperties = { padding: "6px 12px", background: "var(--success-soft)", color: "var(--success)", border: "1px solid var(--success-soft)", borderRadius: 999, fontSize: 11, fontFamily: "inherit" };
@@ -481,4 +500,20 @@ const accountChoiceStyle = (active: boolean, disabled: boolean): React.CSSProper
   opacity: disabled ? 0.55 : 1,
   fontFamily: "inherit",
   textAlign: "left",
+});
+const homeroomSlotStyle = (assigned: boolean): React.CSSProperties => ({
+  minHeight: 70,
+  padding: "9px 7px",
+  borderRadius: 9,
+  border: `1.5px solid ${assigned ? "var(--accent)" : "var(--hairline-strong)"}`,
+  background: assigned ? "var(--accent-soft)" : "var(--card)",
+  color: assigned ? "var(--ink)" : "var(--ink-soft)",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 4,
+  textAlign: "center",
 });

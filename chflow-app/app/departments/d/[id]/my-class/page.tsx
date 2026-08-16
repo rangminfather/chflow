@@ -162,6 +162,7 @@ export default function MyClassPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
+  const [myClassNos, setMyClassNos] = useState<string[]>([]);
   const [myClassName, setMyClassName] = useState("");
   const [myGradeYear, setMyGradeYear] = useState<number | null>(null);
   const [students, setStudents] = useState<EditableStudent[]>([]);
@@ -199,12 +200,16 @@ export default function MyClassPage() {
         .eq("is_active", true)
         .maybeSingle();
 
+      const { data: classRows } = await supabase.rpc("edu_list_my_homeroom_classes", { p_dept_id: deptId });
+      const classNos = ((classRows || []) as { class_no: string }[]).map((row) => row.class_no);
+      setMyClassNos(classNos);
+
       setMyTeacherId(teacher?.id || null);
       setAuthChecked(true);
       supabase.rpc("get_department_info", { p_dept_id: deptId }).then(({ data }) => {
         if (data?.[0]?.name) setDeptName(data[0].name as string);
       });
-      if (teacher?.id) await loadStudents(teacher.id);
+      if (teacher?.id) await loadStudents(teacher.id, classNos);
       else setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -219,14 +224,13 @@ export default function MyClassPage() {
     if (selectedStudent && !editMode) setDraft({ ...selectedStudent });
   }, [selectedStudent, editMode]);
 
-  async function loadStudents(teacherId: string) {
+  async function loadStudents(teacherId: string, classNos?: string[]) {
     setLoading(true);
 
     const { data: studentRows, error: studentErr } = await supabase
         .from("edu_students")
       .select("id, department_id, student_no, name, student_type, mgmt_status, grade, grade_year, class_no, school_name, is_active, order_no, member_id, teacher_id, photo_url")
       .eq("department_id", deptId)
-      .eq("teacher_id", teacherId)
       .eq("is_active", true)
       .order("order_no", { ascending: true })
       .order("student_no", { ascending: true })
@@ -238,7 +242,9 @@ export default function MyClassPage() {
       return;
     }
 
-    const rows = (studentRows || []) as StudentRow[];
+    const rows = ((studentRows || []) as StudentRow[]).filter(
+      (row) => row.teacher_id === teacherId || Boolean(row.class_no && classNos?.includes(row.class_no)),
+    );
     const memberIds = rows.map((row) => row.member_id).filter(Boolean) as string[];
     const memberMap: Record<string, MemberRow & { photo_url?: string | null }> = {};
 
@@ -310,7 +316,7 @@ export default function MyClassPage() {
   }
 
   async function refreshSavedFamily(studentId: string) {
-    if (myTeacherId) await loadStudents(myTeacherId);
+    if (myTeacherId) await loadStudents(myTeacherId, myClassNos);
     await reloadFamilyByStudentId(studentId);
     setDetailFamilyDraft([]);
     setFamilyEditDrafts({});
@@ -579,7 +585,7 @@ export default function MyClassPage() {
 
     setShowNewFriend(false);
     showToast("새친구가 등록되었습니다");
-    if (myTeacherId) await loadStudents(myTeacherId);
+    if (myTeacherId) await loadStudents(myTeacherId, myClassNos);
   }
 
   async function openNewFriendFamilyReview() {

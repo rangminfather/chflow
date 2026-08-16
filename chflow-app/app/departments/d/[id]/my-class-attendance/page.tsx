@@ -37,6 +37,7 @@ interface Student {
   member_id: string | null;
   teacher_id: string | null;
   teacher_name: string | null;
+  class_no: string | null;
   gender?: string | null;
   photo_url?: string | null;
   school_name?: string | null;
@@ -86,6 +87,7 @@ export default function MyClassAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
   const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
+  const [myClassNos, setMyClassNos] = useState<string[]>([]);
   const [myClassName, setMyClassName] = useState<string>("");
   const [saving, setSaving] = useState<string>("");
   const [board, setBoard] = useState<PromoRow[]>([]);
@@ -105,10 +107,13 @@ export default function MyClassAttendancePage() {
         .eq("user_id", user.id)
         .eq("is_active", true)
         .maybeSingle();
+      const { data: classRows } = await supabase.rpc("edu_list_my_homeroom_classes", { p_dept_id: deptId });
+      const classNos = ((classRows || []) as { class_no: string }[]).map((row) => row.class_no);
       setMyTeacherId(t?.id || null);
+      setMyClassNos(classNos);
 
       setAuthChecked(true);
-      await loadAll(t?.id || null);
+      await loadAll(t?.id || null, classNos);
     })();
   }, [router, deptId]);
 
@@ -117,18 +122,18 @@ export default function MyClassAttendancePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, month, authChecked]);
 
-  const loadAll = async (teacherId: string | null) => {
+  const loadAll = async (teacherId: string | null, classNos: string[]) => {
     setLoading(true);
     if (teacherId) {
-      await Promise.all([loadStudents(teacherId), loadAttendance(), loadPromotion(teacherId)]);
+      await Promise.all([loadStudents(teacherId, classNos), loadAttendance(), loadPromotion(classNos)]);
     }
     setLoading(false);
   };
 
   // 내 반 등반 대상/예정 ('출' 4회 이상 ready / 3회 upcoming, 정상·미등반)
-  const loadPromotion = async (teacherId: string) => {
+  const loadPromotion = async (classNos: string[]) => {
     const { data } = await supabase.rpc("edu_promotion_board", { p_dept_id: deptId });
-    setBoard(((data || []) as PromoRow[]).filter((b) => b.teacher_id === teacherId));
+    setBoard(((data || []) as PromoRow[]).filter((b) => Boolean(b.class_no && classNos.includes(b.class_no))));
   };
 
   const confirmPromotion = async (row: PromoRow) => {
@@ -143,14 +148,14 @@ export default function MyClassAttendancePage() {
     if (error) { setPromoToast(`등반 확정 실패: ${error.message}`); setTimeout(() => setPromoToast(""), 2500); return; }
     setPromoToast(`${row.name} 학생 등반 확정 완료`);
     setTimeout(() => setPromoToast(""), 2500);
-    if (myTeacherId) await Promise.all([loadStudents(myTeacherId), loadPromotion(myTeacherId)]);
+    if (myTeacherId) await Promise.all([loadStudents(myTeacherId, myClassNos), loadPromotion(myClassNos)]);
   };
 
-  const loadStudents = async (teacherId: string) => {
+  const loadStudents = async (teacherId: string, classNos: string[]) => {
     const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
     const all = (data || []) as Student[];
     // 장기결석 처리 학생은 출석체크 명단에서 제외 (기록은 보존 — 해제 시 복귀)
-    const mine = all.filter((s) => s.teacher_id === teacherId && s.mgmt_status !== "장기결석");
+    const mine = all.filter((s) => (s.teacher_id === teacherId || Boolean(s.class_no && classNos.includes(s.class_no))) && s.mgmt_status !== "장기결석");
     const memberIds = mine.map((s) => s.member_id).filter(Boolean) as string[];
     const memberInfo: Record<string, { gender: string | null; photo_url: string | null; school_name: string | null }> = {};
 

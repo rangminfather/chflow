@@ -299,7 +299,7 @@ export async function POST(req: NextRequest) {
 
   const { data: student, error: studentErr } = await admin
     .from("edu_students")
-    .select("id, teacher_id, member_id")
+    .select("id, teacher_id, member_id, class_no")
     .eq("id", body.student_id)
     .eq("department_id", body.dept_id)
     .maybeSingle();
@@ -307,7 +307,16 @@ export async function POST(req: NextRequest) {
   if (studentErr || !student) {
     return NextResponse.json({ ok: false, error: "학생을 찾을 수 없습니다" }, { status: 404 });
   }
-  if (student.teacher_id !== teacher.id) {
+  const { data: assistantClass } = student.class_no
+    ? await admin
+      .from("edu_classes")
+      .select("class_no")
+      .eq("department_id", body.dept_id)
+      .eq("class_no", student.class_no)
+      .eq("assistant_teacher_id", teacher.id)
+      .maybeSingle()
+    : { data: null };
+  if (student.teacher_id !== teacher.id && !assistantClass) {
     return NextResponse.json({ ok: false, error: "담당 반 학생만 수정할 수 있습니다" }, { status: 403 });
   }
 
@@ -325,8 +334,7 @@ export async function POST(req: NextRequest) {
       school_name: body.student.school_name?.trim() || null,
     })
     .eq("id", body.student_id)
-    .eq("department_id", body.dept_id)
-    .eq("teacher_id", teacher.id);
+    .eq("department_id", body.dept_id);
 
   if (updateStudentErr) {
     return NextResponse.json({ ok: false, error: "학생 정보 저장에 실패했습니다" }, { status: 500 });
