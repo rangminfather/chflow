@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as CFB from "cfb";
 import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
 import { parseHwpBlocks } from "@/lib/bulletin/hwp-parse";
+import { extractHwpxPreview, parseHwpxBlocks } from "@/lib/bulletin/hwpx-parse";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -59,6 +60,7 @@ function detectContentType(buf: Uint8Array, fileName: string | null) {
   const ext = fileName?.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
   if (buf[0] === 0x50 && buf[1] === 0x4b) {
     if (ext === "pptx") return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    if (ext === "hwpx") return "application/vnd.hancom.hwpx";
     return "application/zip";
   }
   if (buf[0] === 0xd0 && buf[1] === 0xcf && buf[2] === 0x11 && buf[3] === 0xe0) {
@@ -112,6 +114,10 @@ function extractHwpPreview(buf: Uint8Array): { image: Uint8Array; contentType: s
   }
 }
 
+function isZipFile(buf: Uint8Array) {
+  return buf[0] === 0x50 && buf[1] === 0x4b;
+}
+
 function contentDisposition(fileName: string | null, no: number) {
   const fallback = `dept-bulletin-${no}`;
   if (!fileName) return `attachment; filename="${fallback}"`;
@@ -145,7 +151,7 @@ export async function GET(req: NextRequest) {
     const file = await downloadAttachment(no, fn);
 
     if (as === "hwp-preview") {
-      const preview = extractHwpPreview(file);
+      const preview = isZipFile(file) ? await extractHwpxPreview(file) : extractHwpPreview(file);
       if (!preview) {
         return NextResponse.json({ ok: false, error: "미리보기 이미지가 없습니다" }, { status: 404 });
       }
@@ -159,7 +165,9 @@ export async function GET(req: NextRequest) {
 
     if (as === "hwp-json") {
       try {
-        const blocks = parseHwpBlocks(Buffer.from(file));
+        const blocks = isZipFile(file)
+          ? await parseHwpxBlocks(file)
+          : parseHwpBlocks(Buffer.from(file));
         if (blocks.length === 0) throw new Error("empty");
         return NextResponse.json(
           { ok: true, blocks },

@@ -9,7 +9,7 @@ export const maxDuration = 30;
 export const preferredRegion = "icn1";
 
 // 부서 주보 파일 유형 표준 체계 — 어떤 부서가 어떤 형식으로 올려도 유형별 뷰어가 대응한다.
-//  pdf → PDF 캔버스 뷰어 / pptx → 슬라이드 렌더링 / hwp → 본문 구조 리메이크 /
+//  pdf → PDF 캔버스 뷰어 / pptx → 슬라이드 렌더링 / hwp·hwpx → 본문 구조 리메이크 /
 //  image → 이미지 뷰어 / unknown → PDF 시도 후 원문 링크
 // 여러 첨부가 있으면 pdf > pptx > image > hwp 우선순위로 선택 (충실도 높은 쪽 우선).
 type DeptFileKind = "pdf" | "pptx" | "hwp" | "image" | "unknown";
@@ -30,7 +30,7 @@ type DeptBulletinItem = {
   author: string | null;
   url: string;
   pdf_url: string;
-  // 선택된 첨부파일 (2026-07 실측: 초등1부·유아부=pdf, 유치부·청소년부=pptx, 초등2부=hwp)
+  // 선택된 첨부파일 (초등2부는 hwp 또는 hwpx로 등록됨)
   file_name: string | null;
   file_kind: DeptFileKind;
   file_fn: number; // UMS 첨부 번호 (filenum)
@@ -277,7 +277,7 @@ function fileKindOf(fileName: string | null): DeptFileKind {
   const ext = fileName?.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
   if (ext === "pdf") return "pdf";
   if (ext === "pptx") return "pptx";
-  if (ext === "hwp") return "hwp";
+  if (ext === "hwp" || ext === "hwpx") return "hwp";
   if (ext && ["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) return "image";
   return "unknown";
 }
