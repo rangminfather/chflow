@@ -187,7 +187,7 @@ export default function LivePage() {
               }}
             >
               <iframe
-                src={`https://www.youtube.com/embed/${status!.video_id}?rel=0&playsinline=1`}
+                src={`https://www.youtube.com/embed/${status!.video_id}?rel=0&playsinline=1&autoplay=1`}
                 title={status?.title || "실시간 예배"}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                 allowFullScreen

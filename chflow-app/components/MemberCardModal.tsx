@@ -109,6 +109,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   const [showParents, setShowParents] = useState(false);   // 부모보기 (기본 off)
   const [showChildren, setShowChildren] = useState(true);  // 자녀보기 (기본 on)
   const fileRef = useRef<HTMLInputElement>(null);
+  const editAfterNavigateRef = useRef<string | null>(null);
 
   const navigateTo = async (targetId: string, candidateName?: string, isChildDummy?: boolean) => {
     // 자녀 더미(= is_child=true, 본인 카드가 아님) 클릭 시 동명 성인 있으면 그쪽으로 우선
@@ -128,6 +129,11 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   };
   const goBack = () => setStack(prev => prev.length > 1 ? prev.slice(0, -1) : prev);
 
+  const editRelatedMember = (targetId: string) => {
+    editAfterNavigateRef.current = targetId;
+    setStack(prev => [...prev, targetId]);
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase.rpc("admin_member_profile", { p_member_id: currentId });
@@ -135,9 +141,13 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
       const profile = data as ProfileData;
       setData(profile);
       setEdit(profile.member);
+      const shouldEdit = editAfterNavigateRef.current === currentId;
+      if (shouldEdit) editAfterNavigateRef.current = null;
+      setEditing(shouldEdit);
+    } else {
+      setEditing(false);
     }
     setLoading(false);
-    setEditing(false);
   }, [currentId]);
 
   useEffect(() => { load(); }, [load]);
@@ -440,6 +450,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                     {desc.map((r, i: number) => (
                       <RelationRow key={i} relation={r} reversed
                         onClick={() => navigateTo(r.relative_id)}
+                        onEdit={() => editRelatedMember(r.relative_id)}
                         onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "descendant")} />
                     ))}
                   </div>
@@ -499,7 +510,7 @@ function MemberChip({ name, photoUrl, subtitle, onClick }: { name: string; photo
   );
 }
 
-function RelationRow({ relation, reversed, onRemove, onClick }: { relation: RelationItem; reversed?: boolean; onRemove: () => void; onClick?: () => void }) {
+function RelationRow({ relation, reversed, onRemove, onClick, onEdit }: { relation: RelationItem; reversed?: boolean; onRemove: () => void; onClick?: () => void; onEdit?: () => void }) {
   const roleLabel = relation.role ? (ROLE_LABELS[relation.role] || relation.role) : relation.kind;
   return (
     <div onClick={onClick}
@@ -525,8 +536,14 @@ function RelationRow({ relation, reversed, onRemove, onClick }: { relation: Rela
           {relation.phone || "연락처 없음"} · {relation.plain_name ? `${relation.plain_name}평원 · ` : ""}{relation.pasture_name || "소속 없음"} 목장
         </div>
       </div>
-      <button onClick={(e) => { e.stopPropagation(); onRemove(); }}
-        style={{ padding: "4px 8px", background: "var(--danger-soft)", color: "var(--danger)", border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>제거</button>
+      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+        {onEdit && (
+          <button onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            style={{ padding: "4px 8px", background: "var(--accent-soft)", color: "var(--accent-strong)", border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>수정</button>
+        )}
+        <button onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          style={{ padding: "4px 8px", background: "var(--danger-soft)", color: "var(--danger)", border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>제거</button>
+      </div>
     </div>
   );
 }
