@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, MessagesSquare, X, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Bell, MessagesSquare, Settings, X, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   fetchNotifications,
@@ -13,8 +13,14 @@ import {
   deleteAllNotifications,
   setAppBadge,
   clearAppBadge,
+  fetchNotificationPreferences,
   type Notification,
 } from "@/lib/notifications";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  notificationAllowed,
+  type NotificationPreferences,
+} from "@/lib/notificationPreferences";
 
 interface ToastNotification {
   id: string;
@@ -67,6 +73,9 @@ export default function NotificationBell({
   const [unreadCount, setUnreadCount] = useState(0);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [activeTab, setActiveTab] = useState<PanelTab>("all");
+  const [preferences, setPreferences] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
+  const preferencesRef = useRef<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
+  const preferencesLoadedRef = useRef(false);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const initLoadedRef = useRef(false);
 
@@ -104,6 +113,8 @@ export default function NotificationBell({
   }, [markSeen]);
 
   const handleNewNotification = useCallback((n: Notification) => {
+    if (!preferencesLoadedRef.current) return;
+    if (!notificationAllowed(preferencesRef.current, n.type, "in_app")) return;
     if (seenIdsRef.current.has(n.id)) return;
 
     // 진동 (Android Chrome 등 지원 브라우저만 — iOS Safari 는 미지원)
@@ -135,7 +146,12 @@ export default function NotificationBell({
   }, [showToast]);
 
   const refresh = useCallback(async () => {
-    const [list, count] = await Promise.all([fetchNotifications(30), getUnreadCount()]);
+    const [list, count, nextPreferences] = await Promise.all([
+      fetchNotifications(30), getUnreadCount(), fetchNotificationPreferences(),
+    ]);
+    preferencesRef.current = nextPreferences;
+    preferencesLoadedRef.current = true;
+    setPreferences(nextPreferences);
     setNotifications(list);
     setUnreadCount(count);
     setAppBadge(count);
@@ -171,6 +187,19 @@ export default function NotificationBell({
     refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    const onPreferencesChanged = (event: Event) => {
+      const next = (event as CustomEvent<NotificationPreferences>).detail;
+      if (next) {
+        preferencesRef.current = next;
+        setPreferences(next);
+      }
+      void refresh();
+    };
+    window.addEventListener("chflow:notification-preferences-changed", onPreferencesChanged);
+    return () => window.removeEventListener("chflow:notification-preferences-changed", onPreferencesChanged);
+  }, [refresh]);
+
   // === Realtime 구독 (즉시) + 폴링 백업 (10초마다) ===
   useEffect(() => {
     if (!userId) return;
@@ -196,8 +225,11 @@ export default function NotificationBell({
     // 2. 폴링 백업 (10초마다 새 알림 확인 - Realtime이 안 작동할 때 대비)
     const pollInterval = setInterval(async () => {
       try {
-        const list = await fetchNotifications(30);
-        const newCount = await getUnreadCount();
+        const [list, newCount, nextPreferences] = await Promise.all([
+          fetchNotifications(30), getUnreadCount(), fetchNotificationPreferences(),
+        ]);
+        preferencesRef.current = nextPreferences;
+        setPreferences(nextPreferences);
         // 새 알림 감지: 기존에 보지 못한 ID
         const newNotifs = list.filter((n) => !seenIdsRef.current.has(n.id) && !n.is_read);
         for (const n of newNotifs) {
@@ -284,6 +316,8 @@ export default function NotificationBell({
     clearAppBadge();
     await deleteAllNotifications();
   };
+
+  if (!preferences.enabled || !preferences.in_app_enabled) return null;
 
   return (
     <>
@@ -388,6 +422,15 @@ export default function NotificationBell({
                   )}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setOpen(false); router.push("/myinfo#notification-settings"); }}
+                    aria-label="알림 설정"
+                    title="알림 설정"
+                    style={{ width: 26, height: 26, borderRadius: 7, background: "none", border: "none", cursor: "pointer", color: "var(--ink-soft)", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                  >
+                    <Settings size={15} strokeWidth={2} />
+                  </button>
                   {notifications.length > 0 && (
                     <button
                       onClick={handleDeleteAll}

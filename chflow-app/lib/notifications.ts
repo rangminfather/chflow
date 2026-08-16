@@ -1,4 +1,8 @@
 import { supabase } from "./supabase";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  type NotificationPreferences,
+} from "./notificationPreferences";
 
 export interface Notification {
   id: string;
@@ -46,6 +50,29 @@ export async function getUnreadCount(): Promise<number> {
   const { data, error } = await supabase.rpc("get_unread_count");
   if (error) return 0;
   return (data as number) || 0;
+}
+
+export async function fetchNotificationPreferences(): Promise<NotificationPreferences> {
+  const { data, error } = await supabase.rpc("get_my_notification_preferences");
+  if (error || !data?.[0]) return DEFAULT_NOTIFICATION_PREFERENCES;
+  return data[0] as NotificationPreferences;
+}
+
+export async function saveNotificationPreferences(preferences: NotificationPreferences): Promise<void> {
+  const { error } = await supabase.rpc("set_my_notification_preferences", {
+    p_enabled: preferences.enabled,
+    p_push_enabled: preferences.push_enabled,
+    p_in_app_enabled: preferences.in_app_enabled,
+    p_message_enabled: preferences.message_enabled,
+    p_worship_enabled: preferences.worship_enabled,
+    p_notice_enabled: preferences.notice_enabled,
+    p_department_enabled: preferences.department_enabled,
+    p_education_enabled: preferences.education_enabled,
+    p_feedback_enabled: preferences.feedback_enabled,
+    p_account_enabled: preferences.account_enabled,
+    p_system_enabled: preferences.system_enabled,
+  });
+  if (error) throw error;
 }
 
 export async function markRead(id: string): Promise<void> {

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  notificationAllowed,
+  type NotificationPreferences,
+} from "@/lib/notificationPreferences";
 
 export const runtime = "nodejs";
 
@@ -154,6 +159,34 @@ async function dispatchPush(req: NextRequest, requestedDeliveryId: string | null
     return NextResponse.json({ ok: true, picked: 0, sent: 0, failed: 0 });
   }
 
+  const userIds = Array.from(new Set(rows.map((row) => row.user_id)));
+  const { data: preferenceRows, error: preferenceError } = await admin
+    .from("notification_preferences")
+    .select("user_id, enabled, push_enabled, in_app_enabled, message_enabled, worship_enabled, notice_enabled, department_enabled, education_enabled, feedback_enabled, account_enabled, system_enabled")
+    .in("user_id", userIds);
+  if (preferenceError) {
+    return NextResponse.json({ ok: false, error: preferenceError.message }, { status: 500 });
+  }
+  const preferenceMap = new Map(
+    (preferenceRows || []).map((row) => [row.user_id, row as NotificationPreferences & { user_id: string }] as const),
+  );
+  const allowedRows = rows.filter((row) => notificationAllowed(
+    preferenceMap.get(row.user_id) || DEFAULT_NOTIFICATION_PREFERENCES,
+    row.notifications?.type || "notification",
+    "push",
+  ));
+  const skippedRows = rows.filter((row) => !allowedRows.some((allowed) => allowed.id === row.id));
+  if (skippedRows.length > 0) {
+    await admin
+      .from("notification_push_deliveries")
+      .update({ status: "skipped", error_message: "Disabled by notification preferences", updated_at: now })
+      .in("id", skippedRows.map((row) => row.id))
+      .in("status", ["queued", "failed"]);
+  }
+  if (allowedRows.length === 0) {
+    return NextResponse.json({ ok: true, picked: rows.length, skipped: skippedRows.length, sent: 0, failed: 0 });
+  }
+
   // A notification INSERT creates one database webhook per delivery row. Those
   // webhooks can reach this route concurrently, so claim every row with a
   // conditional update before sending. Only the request that changes queued or
@@ -161,7 +194,7 @@ async function dispatchPush(req: NextRequest, requestedDeliveryId: string | null
   const { data: claimedRows, error: claimError } = await admin
     .from("notification_push_deliveries")
     .update({ status: "sending", updated_at: now })
-    .in("id", rows.map((row) => row.id))
+    .in("id", allowedRows.map((row) => row.id))
     .in("status", ["queued", "failed"])
     .select("id, attempts")
     .returns<Array<{ id: string; attempts: number }>>();
@@ -173,12 +206,12 @@ async function dispatchPush(req: NextRequest, requestedDeliveryId: string | null
   const claimedAttempts = new Map(
     (claimedRows || []).map((row) => [row.id, row.attempts] as const)
   );
-  const claimed = rows
+  const claimed = allowedRows
     .filter((row) => claimedAttempts.has(row.id))
     .map((row) => ({ ...row, attempts: claimedAttempts.get(row.id)! }));
 
   if (claimed.length === 0) {
-    return NextResponse.json({ ok: true, picked: rows.length, claimed: 0, sent: 0, failed: 0 });
+    return NextResponse.json({ ok: true, picked: rows.length, skipped: skippedRows.length, claimed: 0, sent: 0, failed: 0 });
   }
 
   let sent = 0;
@@ -248,6 +281,7 @@ async function dispatchPush(req: NextRequest, requestedDeliveryId: string | null
   return NextResponse.json({
     ok: true,
     picked: rows.length,
+    skipped: skippedRows.length,
     claimed: claimed.length,
     sent,
     failed,

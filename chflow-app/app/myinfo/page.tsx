@@ -8,6 +8,7 @@ import HeaderLogo from "@/components/HeaderLogo";
 import PhotoAvatar from "@/components/PhotoAvatar";
 import { LoadingView } from "@/components/StatusViews";
 import { MapPin } from "lucide-react";
+import NotificationSettingsCard from "@/components/NotificationSettingsCard";
 
 interface Profile {
   user_id: string;
@@ -323,6 +324,8 @@ export default function MyInfoPage() {
             </button>
           </div>
         </div>
+
+        <NotificationSettingsCard onSaved={showToast} />
 
         {/* 3. 등록 정보 */}
         <div style={card}>
