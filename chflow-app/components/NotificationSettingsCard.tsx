@@ -14,10 +14,11 @@ import {
   type NotificationPreferences,
 } from "@/lib/notificationPreferences";
 
-export default function NotificationSettingsCard({ onSaved }: { onSaved?: (message: string) => void }) {
+export default function NotificationSettingsCard({ onSaved, embedded = false }: { onSaved?: (message: string) => void; embedded?: boolean }) {
   const [preferences, setPreferences] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState("");
 
   useEffect(() => {
     fetchNotificationPreferences().then((value) => {
@@ -38,9 +39,11 @@ export default function NotificationSettingsCard({ onSaved }: { onSaved?: (messa
       }
       await saveNotificationPreferences(preferences);
       window.dispatchEvent(new CustomEvent("chflow:notification-preferences-changed", { detail: preferences }));
+      setStatus("알림 설정이 저장되었습니다");
       onSaved?.("알림 설정이 저장되었습니다");
     } catch (error) {
       const message = error instanceof Error ? error.message : "알림 설정을 저장하지 못했습니다";
+      setStatus(message);
       onSaved?.(message);
     } finally {
       setSaving(false);
@@ -48,13 +51,13 @@ export default function NotificationSettingsCard({ onSaved }: { onSaved?: (messa
   };
 
   if (loading) {
-    return <div id="notification-settings" style={cardStyle}>알림 설정을 불러오는 중...</div>;
+    return <div style={embedded ? embeddedStyle : cardStyle}>알림 설정을 불러오는 중...</div>;
   }
 
   const detailDisabled = !preferences.enabled;
 
   return (
-    <div id="notification-settings" style={{ ...cardStyle, scrollMarginTop: 20 }}>
+    <div style={embedded ? embeddedStyle : cardStyle}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
         <BellRing size={18} color="var(--accent)" />
         <strong style={{ fontSize: 14, color: "var(--ink)" }}>알림 설정</strong>
@@ -114,6 +117,7 @@ export default function NotificationSettingsCard({ onSaved }: { onSaved?: (messa
       <button type="button" onClick={save} disabled={saving} style={saveButtonStyle}>
         {saving ? "저장 중..." : "알림 설정 저장"}
       </button>
+      {status && <div role="status" style={{ marginTop: 9, fontSize: 11, fontWeight: 700, color: "var(--accent)", textAlign: "center" }}>{status}</div>}
     </div>
   );
 }
@@ -181,6 +185,10 @@ function Toggle({ checked, disabled, onChange }: { checked: boolean; disabled?: 
 const cardStyle: React.CSSProperties = {
   background: "var(--card)", borderRadius: 14, padding: 18, border: "1px solid var(--hairline)",
   boxShadow: "0 1px 4px rgba(43,39,34,0.04)", color: "var(--ink-soft)", fontSize: 12,
+};
+
+const embeddedStyle: React.CSSProperties = {
+  padding: "14px 16px 18px", color: "var(--ink-soft)", fontSize: 12, background: "var(--surface)",
 };
 
 const saveButtonStyle: React.CSSProperties = {
