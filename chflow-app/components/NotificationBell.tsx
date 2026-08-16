@@ -379,7 +379,10 @@ export default function NotificationBell({
                 bottom: placement === "dock" ? 44 : undefined,
                 right: 0,
                 width: placement === "dock" ? 392 : 360,
-                maxHeight: placement === "dock" ? 560 : 480,
+                // dock(알림 센터)은 탭마다 내용 길이가 달라도 창 크기가 바뀌지 않도록 높이 고정
+                // (짧은 화면에서만 뷰포트에 맞춰 줄어듦 — 탭 간에는 항상 동일)
+                height: placement === "dock" ? "min(560px, calc(100dvh - 140px))" : undefined,
+                maxHeight: placement === "dock" ? undefined : 480,
                 background: "var(--surface)",
                 borderRadius: 14,
                 boxShadow: "0 20px 60px rgba(43,39,34,0.12)",
