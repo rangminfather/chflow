@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
+import DeptMasterClassPicker from "@/components/DeptMasterClassPicker";
 import { supabase } from "@/lib/supabase";
 import { photoThumb } from "@/lib/photo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { Check, ChevronDown, Medal, PiggyBank, Star } from "lucide-react";
 import { kidDefaultFace, kidFaceTransform, isKidDefaultFace } from "@/lib/kidAvatar";
+import { fetchDeptClassScope, type DeptClassOption } from "@/lib/deptClassScope";
 import {
   type TalentReset,
   fetchTalentResets,
@@ -109,6 +111,8 @@ export default function TalentPage() {
   const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
   const [myClassNos, setMyClassNos] = useState<string[]>([]);
   const [myClassName, setMyClassName] = useState("");
+  const [isMaster, setIsMaster] = useState(false);
+  const [masterClasses, setMasterClasses] = useState<DeptClassOption[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<AttendRow[]>([]);
   const [rules, setRules] = useState<TalentRule[]>([]);
@@ -136,31 +140,31 @@ export default function TalentPage() {
         return;
       }
 
-      const { data: teacher } = await supabase
-        .from("edu_teachers")
-        .select("id")
-        .eq("department_id", deptId)
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
-
-      const { data: classRows } = await supabase.rpc("edu_list_my_homeroom_classes", { p_dept_id: deptId });
-      setMyClassNos(((classRows || []) as { class_no: string }[]).map((row) => row.class_no));
-      setMyTeacherId(teacher?.id || null);
+      const scope = await fetchDeptClassScope(deptId, user.id);
+      const selectedClassNo = scope.isMaster ? scope.classes[0]?.classNo || "" : "";
+      setMyClassNos(scope.isMaster ? (selectedClassNo ? [selectedClassNo] : []) : scope.ownClassNos);
+      setMyTeacherId(scope.teacherId);
+      setIsMaster(scope.isMaster);
+      setMasterClasses(scope.classes);
+      if (selectedClassNo) setMyClassName(selectedClassNo);
       setAuthChecked(true);
     })();
   }, [deptId, router]);
 
   useEffect(() => {
     if (!authChecked) return;
-    if (!myTeacherId) {
+    if (!myTeacherId && !isMaster) {
       setStudents([]);
       setLoading(false);
       return;
     }
-    loadAll(myTeacherId, myClassNos);
+    if (myTeacherId || myClassNos.length > 0) loadAll(isMaster ? null : myTeacherId, myClassNos);
+    else {
+      setStudents([]);
+      setLoading(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, myTeacherId, myClassNos, year, month]);
+  }, [authChecked, isMaster, myTeacherId, myClassNos, year, month]);
 
   useEffect(() => {
     if (loading || todayWeekIndex < 0) return;
@@ -173,7 +177,7 @@ export default function TalentPage() {
     return () => window.clearTimeout(timer);
   }, [loading, students.length, sundays, todayWeekIndex]);
 
-  async function loadAll(teacherId: string, classNos: string[]) {
+  async function loadAll(teacherId: string | null, classNos: string[]) {
     setLoading(true);
 
     const classStudents = await loadStudents(teacherId, classNos);
@@ -260,11 +264,11 @@ export default function TalentPage() {
     setCumulative(map);
   }
 
-  async function loadStudents(teacherId: string, classNos: string[]) {
+  async function loadStudents(teacherId: string | null, classNos: string[]) {
     const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
     const all = (data || []) as Student[];
     const mine = all
-      .filter((student) => student.teacher_id === teacherId || Boolean(student.class_no && classNos.includes(student.class_no)))
+      .filter((student) => (Boolean(teacherId) && student.teacher_id === teacherId) || Boolean(student.class_no && classNos.includes(student.class_no)))
       .sort((a, b) => (a.order_no || 0) - (b.order_no || 0) || (a.student_no || 0) - (b.student_no || 0));
     const memberIds = mine.map((student) => student.member_id).filter(Boolean) as string[];
     const memberInfo: Record<string, { gender: string | null; photo_url: string | null }> = {};
@@ -538,9 +542,14 @@ export default function TalentPage() {
     window.setTimeout(() => setToast(""), 2400);
   }
 
+  function selectMasterClass(classNo: string) {
+    setMyClassName(classNo);
+    setMyClassNos(classNo ? [classNo] : []);
+  }
+
   if (!authChecked) return <LoadingView full />;
 
-  if (!myTeacherId) {
+  if (!myTeacherId && !isMaster) {
     return (
       <div style={pageStyle}>
         <div className="app-subpage-header" style={headerStyle}>
@@ -583,6 +592,13 @@ export default function TalentPage() {
       </div>
 
       <main className="mx-auto w-full max-w-6xl px-0 py-4 md:px-4">
+        {isMaster && (
+          <DeptMasterClassPicker
+            classes={masterClasses}
+            value={myClassNos[0] || ""}
+            onChange={selectMasterClass}
+          />
+        )}
         {/* 파스텔 일러스트 배너 */}
         <section className="mx-4 mb-4 md:mx-0">
           <div

@@ -11,7 +11,7 @@ import {
   Megaphone, CalendarDays, Newspaper, GraduationCap, ClipboardCheck, ClipboardList,
   Medal, Users, Inbox, BookText, CalendarPlus, BookOpen, FileText, BarChart3,
   TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks,
-  Settings, Award, Lock, CircleHelp, Construction, Cog, X, Pencil, MessageSquareText,
+  Settings, Award, Lock, CircleHelp, Construction, Cog, X, Pencil, MessageSquareText, ShieldCheck,
   ChevronUp, ChevronDown, User, GripVertical, PartyPopper,
 } from "lucide-react";
 import ModalBackdrop from "@/components/ModalBackdrop";
@@ -597,7 +597,7 @@ export default function DepartmentDetailPage() {
 
   // 카테고리별 표시 여부 결정
   const visibleCategories = MENU_CATEGORIES.filter((cat) => {
-    if (cat.requiresHomeroom && !hasHomeroom) return false;
+    if (cat.requiresHomeroom && !hasHomeroom && !dept.is_admin) return false;
     // 담임메뉴는 실제 담임 배정(requiresHomeroom) 기준 — 등급 0(전도사·관리자)이어도
     // 반 학생이 배정돼 있으면 표시 (관리자 grade 0 우선 정책과 충돌 방지)
     return cat.items.some((item) => {
@@ -623,7 +623,15 @@ export default function DepartmentDetailPage() {
               <div style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 600 }}>{dept.category}</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 7 }}>
                 <DeptIcon name={dept.name} category={dept.category} size={18} /> {dept.name}
-                {grade <= 4 && (
+                {dept.is_admin ? (
+                  <span style={{
+                    marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 800,
+                    background: "var(--accent-soft)", color: "var(--accent-strong)",
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                  }}>
+                    <ShieldCheck size={11} strokeWidth={2.2} /> 관리자 마스터
+                  </span>
+                ) : grade <= 4 && (
                   <span style={{
                     marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700,
                     background: GRADE_BADGE[grade]?.bg || "var(--bg-soft)",
@@ -680,6 +688,20 @@ export default function DepartmentDetailPage() {
           </div>
         )}
 
+        {dept.is_admin && isEduDept && (
+          <div style={{
+            display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 20, padding: "13px 15px",
+            borderRadius: 14, border: "1px solid color-mix(in srgb, var(--accent) 28%, var(--hairline))",
+            background: "var(--accent-soft)", color: "var(--ink-mid)", fontSize: 12.5, lineHeight: 1.6,
+          }}>
+            <ShieldCheck size={18} strokeWidth={2} style={{ color: "var(--accent-strong)", flexShrink: 0, marginTop: 1 }} />
+            <div>
+              <strong style={{ color: "var(--accent-strong)" }}>관리자 마스터 화면</strong>
+              <br />부서에서 배정받은 직책과 관계없이 모든 관리 메뉴와 각 반의 담임 화면을 점검할 수 있습니다.
+            </div>
+          </div>
+        )}
+
         {/* 메뉴 그리드 — 행정관리(grade 0~2) · 부서관리(grade 0~1) 는 모든 부서 표시 */}
         {visibleCategories.map((cat) => (
           <div key={cat.id} style={{ marginBottom: 24 }}>
@@ -688,7 +710,7 @@ export default function DepartmentDetailPage() {
             }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 }}>
                 <cat.icon size={17} strokeWidth={1.8} style={{ color: "var(--accent)" }} />
-                {cat.label}
+                {dept.is_admin && cat.id === "students" ? "마스터 담임메뉴" : cat.label}
               </div>
               {canEditCat(cat.id) && (
                 <button

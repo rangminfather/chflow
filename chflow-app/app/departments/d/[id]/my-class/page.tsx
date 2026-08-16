@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
+import DeptMasterClassPicker from "@/components/DeptMasterClassPicker";
 import { supabase, formatPhone } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
@@ -12,6 +13,7 @@ import PendingStudentPhotoPicker from "@/components/PendingStudentPhotoPicker";
 import { saveStudentPendingPhoto } from "@/lib/studentPhotoUpload";
 import { Baby, Cog, MoonStar, Plus, Save, UserPlus, X } from "lucide-react";
 import { isAgeBasedDept, ageOptionsFor, birthYearForGrade as birthYearForDeptGrade, gradeFieldLabel, gradeText, schoolFieldLabel, schoolFieldPlaceholder } from "@/lib/eduAge";
+import { fetchDeptClassScope, type DeptClassOption } from "@/lib/deptClassScope";
 
 interface StudentRow {
   id: string;
@@ -164,6 +166,8 @@ export default function MyClassPage() {
   const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
   const [myClassNos, setMyClassNos] = useState<string[]>([]);
   const [myClassName, setMyClassName] = useState("");
+  const [isMaster, setIsMaster] = useState(false);
+  const [masterClasses, setMasterClasses] = useState<DeptClassOption[]>([]);
   const [myGradeYear, setMyGradeYear] = useState<number | null>(null);
   const [students, setStudents] = useState<EditableStudent[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -192,24 +196,19 @@ export default function MyClassPage() {
         return;
       }
 
-      const { data: teacher } = await supabase
-        .from("edu_teachers")
-        .select("id")
-        .eq("department_id", deptId)
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
-
-      const { data: classRows } = await supabase.rpc("edu_list_my_homeroom_classes", { p_dept_id: deptId });
-      const classNos = ((classRows || []) as { class_no: string }[]).map((row) => row.class_no);
+      const scope = await fetchDeptClassScope(deptId, user.id);
+      const selectedClassNo = scope.isMaster ? scope.classes[0]?.classNo || "" : "";
+      const classNos = scope.isMaster ? (selectedClassNo ? [selectedClassNo] : []) : scope.ownClassNos;
       setMyClassNos(classNos);
-
-      setMyTeacherId(teacher?.id || null);
+      setMyTeacherId(scope.teacherId);
+      setIsMaster(scope.isMaster);
+      setMasterClasses(scope.classes);
+      if (selectedClassNo) setMyClassName(selectedClassNo);
       setAuthChecked(true);
       supabase.rpc("get_department_info", { p_dept_id: deptId }).then(({ data }) => {
         if (data?.[0]?.name) setDeptName(data[0].name as string);
       });
-      if (teacher?.id) await loadStudents(teacher.id, classNos);
+      if (scope.teacherId || classNos.length > 0) await loadStudents(scope.isMaster ? null : scope.teacherId, classNos);
       else setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -224,7 +223,7 @@ export default function MyClassPage() {
     if (selectedStudent && !editMode) setDraft({ ...selectedStudent });
   }, [selectedStudent, editMode]);
 
-  async function loadStudents(teacherId: string, classNos?: string[]) {
+  async function loadStudents(teacherId: string | null, classNos?: string[]) {
     setLoading(true);
 
     const { data: studentRows, error: studentErr } = await supabase
@@ -243,7 +242,7 @@ export default function MyClassPage() {
     }
 
     const rows = ((studentRows || []) as StudentRow[]).filter(
-      (row) => row.teacher_id === teacherId || Boolean(row.class_no && classNos?.includes(row.class_no)),
+      (row) => (Boolean(teacherId) && row.teacher_id === teacherId) || Boolean(row.class_no && classNos?.includes(row.class_no)),
     );
     const memberIds = rows.map((row) => row.member_id).filter(Boolean) as string[];
     const memberMap: Record<string, MemberRow & { photo_url?: string | null }> = {};
@@ -316,7 +315,7 @@ export default function MyClassPage() {
   }
 
   async function refreshSavedFamily(studentId: string) {
-    if (myTeacherId) await loadStudents(myTeacherId, myClassNos);
+    if (myTeacherId || isMaster) await loadStudents(isMaster ? null : myTeacherId, myClassNos);
     await reloadFamilyByStudentId(studentId);
     setDetailFamilyDraft([]);
     setFamilyEditDrafts({});
@@ -585,7 +584,7 @@ export default function MyClassPage() {
 
     setShowNewFriend(false);
     showToast("새친구가 등록되었습니다");
-    if (myTeacherId) await loadStudents(myTeacherId, myClassNos);
+    if (myTeacherId || isMaster) await loadStudents(isMaster ? null : myTeacherId, myClassNos);
   }
 
   async function openNewFriendFamilyReview() {
@@ -659,9 +658,21 @@ export default function MyClassPage() {
     window.setTimeout(() => setToast(""), 2400);
   }
 
+  async function selectMasterClass(classNo: string) {
+    const classNos = classNo ? [classNo] : [];
+    setMyClassName(classNo);
+    setMyClassNos(classNos);
+    setShowNewFriend(false);
+    if (classNos.length > 0) await loadStudents(null, classNos);
+    else {
+      setStudents([]);
+      setLoading(false);
+    }
+  }
+
   if (!authChecked) return <LoadingView full />;
 
-  if (!myTeacherId) {
+  if (!myTeacherId && !isMaster) {
     return (
       <div style={pageStyle}>
         <PageHeader deptId={deptId} router={router} myClassName="" />
@@ -678,7 +689,17 @@ export default function MyClassPage() {
     <div style={pageStyle}>
       <PageHeader deptId={deptId} router={router} myClassName={myClassName} />
 
-      <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-4 lg:grid-cols-[360px_1fr]">
+      {isMaster && (
+        <div className="mx-auto w-full max-w-6xl pt-4">
+          <DeptMasterClassPicker
+            classes={masterClasses}
+            value={myClassNos[0] || ""}
+            onChange={(classNo) => void selectMasterClass(classNo)}
+          />
+        </div>
+      )}
+
+      <main className={`mx-auto grid w-full max-w-6xl gap-4 px-4 ${isMaster ? "pb-4" : "py-4"} lg:grid-cols-[360px_1fr]`}>
         <section className="min-w-0 overflow-hidden rounded-lg border border-hairline bg-card">
           <div className="flex items-center justify-between gap-3 border-b border-hairline px-4 py-3">
             <div>

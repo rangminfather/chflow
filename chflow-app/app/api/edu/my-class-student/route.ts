@@ -285,15 +285,19 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  const { data: teacher, error: teacherErr } = await admin
-    .from("edu_teachers")
-    .select("id")
-    .eq("department_id", body.dept_id)
-    .eq("user_id", authData.user.id)
-    .eq("is_active", true)
-    .maybeSingle();
+  const [{ data: callerProfile }, { data: teacher, error: teacherErr }] = await Promise.all([
+    admin.from("profiles").select("role").eq("id", authData.user.id).maybeSingle(),
+    admin
+      .from("edu_teachers")
+      .select("id")
+      .eq("department_id", body.dept_id)
+      .eq("user_id", authData.user.id)
+      .eq("is_active", true)
+      .maybeSingle(),
+  ]);
+  const isMaster = ["admin", "office", "pastor"].includes(callerProfile?.role || "");
 
-  if (teacherErr || !teacher) {
+  if (teacherErr || (!isMaster && !teacher)) {
     return NextResponse.json({ ok: false, error: "담임 권한이 없습니다" }, { status: 403 });
   }
 
@@ -307,7 +311,7 @@ export async function POST(req: NextRequest) {
   if (studentErr || !student) {
     return NextResponse.json({ ok: false, error: "학생을 찾을 수 없습니다" }, { status: 404 });
   }
-  const { data: assistantClass } = student.class_no
+  const { data: assistantClass } = !isMaster && student.class_no && teacher?.id
     ? await admin
       .from("edu_classes")
       .select("class_no")
@@ -316,7 +320,7 @@ export async function POST(req: NextRequest) {
       .eq("assistant_teacher_id", teacher.id)
       .maybeSingle()
     : { data: null };
-  if (student.teacher_id !== teacher.id && !assistantClass) {
+  if (!isMaster && student.teacher_id !== teacher?.id && !assistantClass) {
     return NextResponse.json({ ok: false, error: "담당 반 학생만 수정할 수 있습니다" }, { status: 403 });
   }
 

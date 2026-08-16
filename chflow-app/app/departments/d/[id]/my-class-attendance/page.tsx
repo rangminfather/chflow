@@ -10,8 +10,10 @@ import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import StudentPhotoEditor from "@/components/StudentPhotoEditor";
+import DeptMasterClassPicker from "@/components/DeptMasterClassPicker";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { type LucideIcon, BadgeCheck, CheckCircle2, ClipboardCheck, XCircle } from "lucide-react";
+import { fetchDeptClassScope, type DeptClassOption } from "@/lib/deptClassScope";
 
 interface PromoRow {
   new_friend_id: string;
@@ -89,6 +91,8 @@ export default function MyClassAttendancePage() {
   const [myTeacherId, setMyTeacherId] = useState<string | null>(null);
   const [myClassNos, setMyClassNos] = useState<string[]>([]);
   const [myClassName, setMyClassName] = useState<string>("");
+  const [isMaster, setIsMaster] = useState(false);
+  const [masterClasses, setMasterClasses] = useState<DeptClassOption[]>([]);
   const [saving, setSaving] = useState<string>("");
   const [board, setBoard] = useState<PromoRow[]>([]);
   const [promoting, setPromoting] = useState<string>("");
@@ -99,22 +103,20 @@ export default function MyClassAttendancePage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/login"); return; }
 
-      // 본인이 담임으로 등록된 edu_teachers row 찾기
-      const { data: t } = await supabase
-        .from("edu_teachers")
-        .select("id, teacher_role")
-        .eq("department_id", deptId)
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
-      const { data: classRows } = await supabase.rpc("edu_list_my_homeroom_classes", { p_dept_id: deptId });
-      const classNos = ((classRows || []) as { class_no: string }[]).map((row) => row.class_no);
-      setMyTeacherId(t?.id || null);
+      const scope = await fetchDeptClassScope(deptId, user.id);
+      const selectedClassNo = scope.isMaster ? scope.classes[0]?.classNo || "" : "";
+      const classNos = scope.isMaster ? (selectedClassNo ? [selectedClassNo] : []) : scope.ownClassNos;
+      setMyTeacherId(scope.teacherId);
+      setIsMaster(scope.isMaster);
+      setMasterClasses(scope.classes);
       setMyClassNos(classNos);
+      if (selectedClassNo) setMyClassName(selectedClassNo);
 
       setAuthChecked(true);
-      await loadAll(t?.id || null, classNos);
+      await loadAll(scope.isMaster ? null : scope.teacherId, classNos);
     })();
+    // 초기 인증·권한 범위가 확정된 뒤 한 번만 로드한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, deptId]);
 
   useEffect(() => {
@@ -124,10 +126,19 @@ export default function MyClassAttendancePage() {
 
   const loadAll = async (teacherId: string | null, classNos: string[]) => {
     setLoading(true);
-    if (teacherId) {
+    if (teacherId || classNos.length > 0) {
       await Promise.all([loadStudents(teacherId, classNos), loadAttendance(), loadPromotion(classNos)]);
+    } else {
+      setStudents([]);
+      setBoard([]);
     }
     setLoading(false);
+  };
+
+  const selectMasterClass = async (classNo: string) => {
+    setMyClassNos(classNo ? [classNo] : []);
+    setMyClassName(classNo);
+    await loadAll(null, classNo ? [classNo] : []);
   };
 
   // 내 반 등반 대상/예정 ('출' 4회 이상 ready / 3회 upcoming, 정상·미등반)
@@ -148,14 +159,18 @@ export default function MyClassAttendancePage() {
     if (error) { setPromoToast(`등반 확정 실패: ${error.message}`); setTimeout(() => setPromoToast(""), 2500); return; }
     setPromoToast(`${row.name} 학생 등반 확정 완료`);
     setTimeout(() => setPromoToast(""), 2500);
-    if (myTeacherId) await Promise.all([loadStudents(myTeacherId, myClassNos), loadPromotion(myClassNos)]);
+    if (myTeacherId || isMaster) {
+      await Promise.all([loadStudents(isMaster ? null : myTeacherId, myClassNos), loadPromotion(myClassNos)]);
+    }
   };
 
-  const loadStudents = async (teacherId: string, classNos: string[]) => {
+  const loadStudents = async (teacherId: string | null, classNos: string[]) => {
     const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
     const all = (data || []) as Student[];
     // 장기결석 처리 학생은 출석체크 명단에서 제외 (기록은 보존 — 해제 시 복귀)
-    const mine = all.filter((s) => (s.teacher_id === teacherId || Boolean(s.class_no && classNos.includes(s.class_no))) && s.mgmt_status !== "장기결석");
+    const mine = all.filter((s) => (
+      (Boolean(teacherId) && s.teacher_id === teacherId) || Boolean(s.class_no && classNos.includes(s.class_no))
+    ) && s.mgmt_status !== "장기결석");
     const memberIds = mine.map((s) => s.member_id).filter(Boolean) as string[];
     const memberInfo: Record<string, { gender: string | null; photo_url: string | null; school_name: string | null }> = {};
 
@@ -260,7 +275,7 @@ export default function MyClassAttendancePage() {
   if (!authChecked) return <LoadingView full />;
 
   // 담임 아닌 경우
-  if (!myTeacherId) {
+  if (!myTeacherId && !isMaster) {
     return (
       <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
         <div className="app-subpage-header" style={headerStyle}>
@@ -303,6 +318,13 @@ export default function MyClassAttendancePage() {
       </div>
 
       <main className="mx-auto w-full max-w-6xl px-0 py-4 md:px-4">
+        {isMaster && (
+          <DeptMasterClassPicker
+            classes={masterClasses}
+            value={myClassNos[0] || ""}
+            onChange={(classNo) => void selectMasterClass(classNo)}
+          />
+        )}
         {/* 월 선택 */}
         <div className="mx-4 mb-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-hairline bg-card px-4 py-3 md:mx-0">
           <button onClick={() => prevMonth(year, month, setYear, setMonth)} style={navBtnStyle}>◀</button>
