@@ -429,10 +429,11 @@ export default function SermonArchive() {
               onError={() => setPlayState("error")}
               style={{ width: "100%", maxHeight: "70vh", background: "var(--ink)", borderRadius: 10 }}
             />
-            {playState === "ready" && (
+            {playState !== "error" && (
               <div
                 aria-label="영상 재생 조작"
                 style={{
+                  position: "relative", zIndex: 2,
                   display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap",
                   gap: 7, padding: "10px 8px 11px", color: "var(--paper)",
                   background: "color-mix(in srgb, var(--ink) 94%, var(--paper))",
@@ -444,7 +445,12 @@ export default function SermonArchive() {
                   onClick={() => seekBy(-10)}
                   aria-label="10초 되돌리기"
                   title="10초 되돌리기"
-                  style={playerButtonStyle}
+                  disabled={duration <= 0}
+                  style={{
+                    ...playerButtonStyle,
+                    opacity: duration > 0 ? 1 : 0.45,
+                    cursor: duration > 0 ? "pointer" : "not-allowed",
+                  }}
                 >
                   <RotateCcw size={18} strokeWidth={2.1} />
                   <span>10초</span>
@@ -463,7 +469,12 @@ export default function SermonArchive() {
                   onClick={() => seekBy(10)}
                   aria-label="10초 빨리감기"
                   title="10초 빨리감기"
-                  style={playerButtonStyle}
+                  disabled={duration <= 0}
+                  style={{
+                    ...playerButtonStyle,
+                    opacity: duration > 0 ? 1 : 0.45,
+                    cursor: duration > 0 ? "pointer" : "not-allowed",
+                  }}
                 >
                   <RotateCw size={18} strokeWidth={2.1} />
                   <span>10초</span>
@@ -472,7 +483,9 @@ export default function SermonArchive() {
                   aria-label={`재생 시간 ${fmtPlaybackTime(currentTime)} / ${fmtPlaybackTime(duration)}`}
                   style={{ minWidth: 94, textAlign: "center", fontSize: 11.5, fontVariantNumeric: "tabular-nums", opacity: 0.86 }}
                 >
-                  {fmtPlaybackTime(currentTime)} / {fmtPlaybackTime(duration)}
+                  {duration > 0
+                    ? `${fmtPlaybackTime(currentTime)} / ${fmtPlaybackTime(duration)}`
+                    : "영상 준비 중"}
                 </span>
                 <button
                   type="button"
