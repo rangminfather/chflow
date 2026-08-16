@@ -9,7 +9,17 @@
 // 설교 영상은 한 편에 수백 MB다. 재생 전에 용량을 반드시 보여준다(모바일 데이터).
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Play, ExternalLink, X, Maximize } from "lucide-react";
+import {
+  Play,
+  Pause,
+  ExternalLink,
+  X,
+  Maximize,
+  RotateCcw,
+  RotateCw,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Spinner } from "@/components/StatusViews";
 
@@ -41,6 +51,34 @@ function fmtSize(bytes: number | null) {
   const mb = bytes / 1024 / 1024;
   return mb >= 1024 ? `${(mb / 1024).toFixed(1)}GB` : `${Math.round(mb)}MB`;
 }
+
+function fmtPlaybackTime(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const rest = total % 60;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`
+    : `${minutes}:${String(rest).padStart(2, "0")}`;
+}
+
+const playerButtonStyle: React.CSSProperties = {
+  height: 40,
+  padding: "0 11px",
+  border: "1px solid color-mix(in srgb, var(--paper) 22%, transparent)",
+  borderRadius: 11,
+  background: "color-mix(in srgb, var(--paper) 12%, transparent)",
+  color: "var(--paper)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 4,
+  fontFamily: "inherit",
+  fontSize: 11.5,
+  fontWeight: 750,
+  cursor: "pointer",
+};
 
 
 /**
@@ -91,6 +129,11 @@ export default function SermonArchive() {
   const [playing, setPlaying] = useState<Sermon | null>(null);
   // 첫 재생 준비가 오래 걸리는 파일이 있어 상태를 표시한다
   const [playState, setPlayState] = useState<"loading" | "ready" | "error">("loading");
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const isIosDevice = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -118,6 +161,48 @@ export default function SermonArchive() {
   }, []);
 
   useEffect(() => { load(board); }, [board, load]);
+
+  useEffect(() => {
+    setIsPlaying(false);
+    setIsMuted(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setPlaybackRate(1);
+  }, [playing]);
+
+  const seekBy = (seconds: number) => {
+    const video = videoRef.current;
+    if (!video || !Number.isFinite(video.currentTime)) return;
+    const end = Number.isFinite(video.duration) ? video.duration : Number.POSITIVE_INFINITY;
+    video.currentTime = Math.max(0, Math.min(end, video.currentTime + seconds));
+    setCurrentTime(video.currentTime);
+  };
+
+  const togglePlayback = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      void video.play().catch(() => setPlayState("error"));
+    } else {
+      video.pause();
+    }
+  };
+
+  const toggleMute = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = !video.muted;
+    setIsMuted(video.muted);
+  };
+
+  const cyclePlaybackRate = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const rates = [1, 1.25, 1.5, 2];
+    const nextRate = rates[(rates.indexOf(video.playbackRate) + 1) % rates.length];
+    video.playbackRate = nextRate;
+    setPlaybackRate(nextRate);
+  };
 
   // 전체화면을 벗어나면 가로 고정을 풀어 준다
   useEffect(() => {
@@ -327,12 +412,88 @@ export default function SermonArchive() {
               autoPlay
               playsInline
               preload="metadata"
+              onLoadedMetadata={(event) => {
+                setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0);
+              }}
+              onDurationChange={(event) => {
+                setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0);
+              }}
+              onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onVolumeChange={(event) => setIsMuted(event.currentTarget.muted)}
+              onRateChange={(event) => setPlaybackRate(event.currentTarget.playbackRate)}
               onCanPlay={() => {
                 setPlayState("ready");
               }}
               onError={() => setPlayState("error")}
               style={{ width: "100%", maxHeight: "70vh", background: "var(--ink)", borderRadius: 10 }}
             />
+            {playState === "ready" && (
+              <div
+                aria-label="영상 재생 조작"
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap",
+                  gap: 7, padding: "10px 8px 11px", color: "var(--paper)",
+                  background: "color-mix(in srgb, var(--ink) 94%, var(--paper))",
+                  borderRadius: "0 0 10px 10px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => seekBy(-10)}
+                  aria-label="10초 되돌리기"
+                  title="10초 되돌리기"
+                  style={playerButtonStyle}
+                >
+                  <RotateCcw size={18} strokeWidth={2.1} />
+                  <span>10초</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={togglePlayback}
+                  aria-label={isPlaying ? "일시정지" : "재생"}
+                  title={isPlaying ? "일시정지" : "재생"}
+                  style={{ ...playerButtonStyle, width: 44, padding: 0 }}
+                >
+                  {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => seekBy(10)}
+                  aria-label="10초 빨리감기"
+                  title="10초 빨리감기"
+                  style={playerButtonStyle}
+                >
+                  <RotateCw size={18} strokeWidth={2.1} />
+                  <span>10초</span>
+                </button>
+                <span
+                  aria-label={`재생 시간 ${fmtPlaybackTime(currentTime)} / ${fmtPlaybackTime(duration)}`}
+                  style={{ minWidth: 94, textAlign: "center", fontSize: 11.5, fontVariantNumeric: "tabular-nums", opacity: 0.86 }}
+                >
+                  {fmtPlaybackTime(currentTime)} / {fmtPlaybackTime(duration)}
+                </span>
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  aria-label={isMuted ? "소리 켜기" : "음소거"}
+                  title={isMuted ? "소리 켜기" : "음소거"}
+                  style={{ ...playerButtonStyle, width: 40, padding: 0 }}
+                >
+                  {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                </button>
+                <button
+                  type="button"
+                  onClick={cyclePlaybackRate}
+                  aria-label={`재생 속도 ${playbackRate}배. 눌러서 변경`}
+                  title="재생 속도 변경"
+                  style={{ ...playerButtonStyle, minWidth: 48, padding: "0 9px", fontVariantNumeric: "tabular-nums" }}
+                >
+                  {playbackRate}×
+                </button>
+              </div>
+            )}
             {playState !== "ready" && (
               <div
                 style={{
