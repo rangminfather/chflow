@@ -30,6 +30,7 @@ interface MemberProfile {
   has_app_account?: boolean | null;
   app_status?: string | null;
   app_username?: string | null;
+  app_user_id?: string | null;
 }
 
 interface RelationItem {
@@ -42,6 +43,8 @@ interface RelationItem {
   photo_url: string | null;
   plain_name: string | null;
   pasture_name: string | null;
+  is_child?: boolean;
+  has_account?: boolean;
 }
 
 interface MemberCandidate {
@@ -110,6 +113,27 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   const [showChildren, setShowChildren] = useState(true);  // 자녀보기 (기본 on)
   const fileRef = useRef<HTMLInputElement>(null);
   const editAfterNavigateRef = useRef<string | null>(null);
+
+  // 자녀 관리 권한: 관리자 이거나, 지금 보고 있는 카드가 로그인한 본인 카드일 때만
+  const [viewerUid, setViewerUid] = useState<string | null>(null);
+  const [viewerIsAdmin, setViewerIsAdmin] = useState(false);
+  const [addingChild, setAddingChild] = useState(false);
+  const [newChildName, setNewChildName] = useState("");
+  const [newChildGender, setNewChildGender] = useState("");
+  const [newChildBirth, setNewChildBirth] = useState("");
+  const [savingChild, setSavingChild] = useState(false);
+  const [editingChildId, setEditingChildId] = useState<string | null>(null);
+  const [childEdit, setChildEdit] = useState({ name: "", gender: "", birth_date: "" });
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      setViewerUid(user.id);
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+      setViewerIsAdmin(profile?.role === "admin");
+    })();
+  }, []);
 
   const navigateTo = async (targetId: string, candidateName?: string, isChildDummy?: boolean) => {
     // 자녀 더미(= is_child=true, 본인 카드가 아님) 클릭 시 동명 성인 있으면 그쪽으로 우선
@@ -228,6 +252,57 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
     onChanged?.();
   };
 
+  const handleAddChild = async () => {
+    if (!newChildName.trim()) { alert("이름을 입력하세요"); return; }
+    setSavingChild(true);
+    try {
+      const { error } = await supabase.rpc("member_add_child", {
+        p_parent_id: currentId,
+        p_name: newChildName.trim(),
+        p_gender: newChildGender || null,
+        p_birth_date: newChildBirth || null,
+      });
+      if (error) { alert(`추가 실패: ${error.message}`); return; }
+      setAddingChild(false);
+      setNewChildName(""); setNewChildGender(""); setNewChildBirth("");
+      await load();
+      onChanged?.();
+    } finally {
+      setSavingChild(false);
+    }
+  };
+
+  const startEditChild = (r: RelationItem) => {
+    setEditingChildId(r.relative_id);
+    setChildEdit({ name: r.name, gender: "", birth_date: "" });
+  };
+
+  const handleSaveChildEdit = async (childId: string) => {
+    setSavingChild(true);
+    try {
+      const { error } = await supabase.rpc("member_update_child", {
+        p_child_id: childId,
+        p_name: childEdit.name.trim() || null,
+        p_gender: childEdit.gender || null,
+        p_birth_date: childEdit.birth_date || null,
+      });
+      if (error) { alert(`수정 실패: ${error.message}`); return; }
+      setEditingChildId(null);
+      await load();
+      onChanged?.();
+    } finally {
+      setSavingChild(false);
+    }
+  };
+
+  const handleDeleteChild = async (childId: string) => {
+    if (!confirm("이 자녀를 삭제하시겠습니까?\n등록된 자녀 정보가 완전히 삭제됩니다.")) return;
+    const { error } = await supabase.rpc("member_delete_child", { p_child_id: childId });
+    if (error) { alert(`삭제 실패: ${error.message}`); return; }
+    await load();
+    onChanged?.();
+  };
+
   if (loading || !data) {
     return (
       <ModalBackdrop onClose={onClose} style={bgStyle}>
@@ -237,6 +312,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   }
 
   const m = data.member;
+  const canManageChildren = viewerIsAdmin || (!!viewerUid && m.app_user_id === viewerUid);
   const photoUrl = m.photo_url;
   const genderColor = m.gender === "M" ? "var(--male)" : m.gender === "F" ? "var(--female)" : "var(--ink-soft)";
   const actionPhone = normalizeDialNumber(m.phone);
@@ -443,15 +519,50 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
               ["parent", "grandparent", "great_grandparent"].includes(r.kind));
             return (
               <Section title={<><Baby size={15} strokeWidth={1.8} /> 자녀·손주</>} action={
-                <button onClick={() => setShowRelAdd("child")} style={btnMiniPrimary}>+ 추가</button>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {canManageChildren && (
+                    <button onClick={() => setAddingChild(v => !v)} style={btnMiniPrimary}>+ 자녀 등록</button>
+                  )}
+                  <button onClick={() => setShowRelAdd("child")} style={btnMiniGhost}>기존 회원 연결</button>
+                </div>
               }>
+                {addingChild && (
+                  <div style={{ padding: 10, background: "var(--surface)", borderRadius: 10, border: "1px solid var(--hairline-strong)", marginBottom: 8 }}>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                      <input value={newChildName} onChange={(e) => setNewChildName(e.target.value)}
+                        placeholder="자녀 이름" style={{ ...editInput, flex: 2, marginBottom: 0 }} />
+                      <select value={newChildGender} onChange={(e) => setNewChildGender(e.target.value)}
+                        style={{ ...editInput, flex: 1, marginBottom: 0 }}>
+                        <option value="">성별</option><option value="M">남</option><option value="F">여</option>
+                      </select>
+                      <input type="date" value={newChildBirth} onChange={(e) => setNewChildBirth(e.target.value)}
+                        style={{ ...editInput, flex: 1, marginBottom: 0 }} />
+                    </div>
+                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                      <button onClick={() => { setAddingChild(false); setNewChildName(""); setNewChildGender(""); setNewChildBirth(""); }} style={btnGhost}>취소</button>
+                      <button onClick={handleAddChild} disabled={savingChild} style={btnPrimary}>{savingChild ? "저장 중..." : "저장"}</button>
+                    </div>
+                  </div>
+                )}
                 {desc.length > 0 ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {desc.map((r, i: number) => (
-                      <RelationRow key={i} relation={r} reversed
-                        onClick={() => navigateTo(r.relative_id)}
-                        onEdit={() => editRelatedMember(r.relative_id)}
-                        onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "descendant")} />
+                      r.kind === "parent" && r.is_child && canManageChildren ? (
+                        <ChildRow key={i} relation={r}
+                          editing={editingChildId === r.relative_id}
+                          edit={childEdit} setEdit={setChildEdit}
+                          saving={savingChild}
+                          onClick={() => navigateTo(r.relative_id)}
+                          onStartEdit={() => startEditChild(r)}
+                          onCancelEdit={() => setEditingChildId(null)}
+                          onSave={() => handleSaveChildEdit(r.relative_id)}
+                          onDelete={() => handleDeleteChild(r.relative_id)} />
+                      ) : (
+                        <RelationRow key={i} relation={r} reversed
+                          onClick={() => navigateTo(r.relative_id)}
+                          onEdit={() => editRelatedMember(r.relative_id)}
+                          onRemove={() => handleRemoveRelation(r.relative_id, r.kind, "descendant")} />
+                      )
                     ))}
                   </div>
                 ) : (
@@ -543,6 +654,69 @@ function RelationRow({ relation, reversed, onRemove, onClick, onEdit }: { relati
         )}
         <button onClick={(e) => { e.stopPropagation(); onRemove(); }}
           style={{ padding: "4px 8px", background: "var(--danger-soft)", color: "var(--danger)", border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>제거</button>
+      </div>
+    </div>
+  );
+}
+
+function ChildRow({ relation, editing, edit, setEdit, saving, onClick, onStartEdit, onCancelEdit, onSave, onDelete }: {
+  relation: RelationItem;
+  editing: boolean;
+  edit: { name: string; gender: string; birth_date: string };
+  setEdit: (v: { name: string; gender: string; birth_date: string }) => void;
+  saving: boolean;
+  onClick: () => void;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSave: () => void;
+  onDelete: () => void;
+}) {
+  if (editing) {
+    return (
+      <div style={{ padding: 10, background: "var(--surface)", borderRadius: 10, border: "1px solid var(--hairline-strong)" }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })}
+            placeholder="이름" style={{ ...editInput, flex: 2, marginBottom: 0 }} />
+          <select value={edit.gender} onChange={(e) => setEdit({ ...edit, gender: e.target.value })}
+            style={{ ...editInput, flex: 1, marginBottom: 0 }}>
+            <option value="">성별</option><option value="M">남</option><option value="F">여</option>
+          </select>
+          <input type="date" value={edit.birth_date} onChange={(e) => setEdit({ ...edit, birth_date: e.target.value })}
+            style={{ ...editInput, flex: 1, marginBottom: 0 }} />
+        </div>
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+          <button onClick={onCancelEdit} style={btnGhost}>취소</button>
+          <button onClick={onSave} disabled={saving} style={btnPrimary}>{saving ? "저장 중..." : "저장"}</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+        background: "var(--card)", borderRadius: 10, border: "1px solid var(--hairline)",
+        cursor: "pointer", transition: "all 0.15s",
+      }}
+      onMouseOver={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.background = "var(--accent-soft)"; }}
+      onMouseOut={(e) => { e.currentTarget.style.borderColor = "var(--hairline)"; e.currentTarget.style.background = "var(--card)"; }}>
+      <div style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", background: "var(--hairline)", flexShrink: 0 }}>
+        {relation.photo_url && <img src={relation.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
+          {relation.name}
+          <span style={{ fontSize: 10, marginLeft: 6, padding: "1px 6px", background: "var(--warning-soft)", color: "var(--warning)", borderRadius: 4 }}>자녀</span>
+        </div>
+        <div style={{ fontSize: 10, color: "var(--ink-soft)", marginTop: 2 }}>
+          {relation.phone || "연락처 없음"}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+        <button onClick={(e) => { e.stopPropagation(); onStartEdit(); }}
+          style={{ padding: "4px 8px", background: "var(--accent-soft)", color: "var(--accent-strong)", border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>수정</button>
+        <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          style={{ padding: "4px 8px", background: "var(--danger-soft)", color: "var(--danger)", border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>삭제</button>
       </div>
     </div>
   );
@@ -784,6 +958,11 @@ const btnGhost: React.CSSProperties = {
 const btnMiniPrimary: React.CSSProperties = {
   padding: "4px 10px", background: "var(--accent)", color: "#fff",
   border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700,
+  cursor: "pointer", fontFamily: "inherit",
+};
+const btnMiniGhost: React.CSSProperties = {
+  padding: "4px 10px", background: "var(--bg-soft)", color: "var(--ink-mid)",
+  border: "1px solid var(--hairline)", borderRadius: 6, fontSize: 11, fontWeight: 600,
   cursor: "pointer", fontFamily: "inherit",
 };
 const toggleStyle: React.CSSProperties = {
