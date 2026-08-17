@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
       const { data: recent } = await admin
         .from("notifications")
         .select("id")
-        .eq("type", "usage_r2_capacity")
+        .eq("type", "ops_usage_r2_capacity")
         .gt("created_at", since)
         .limit(1);
       if (recent && recent.length > 0) {
@@ -137,7 +137,7 @@ export async function GET(req: NextRequest) {
           .eq("status", "active");
         const rows = (admins ?? []).map((a: { id: string }) => ({
           user_id: a.id,
-          type: "usage_r2_capacity",
+          type: "ops_usage_r2_capacity",
           title: "R2 저장용량 경고",
           body: `R2 저장 ${pct}% — 무료플랜 10GB의 80% 초과. 사진 원본·버킷 정리 확인 필요`,
           link_url: "/admin/usage-status",
@@ -181,7 +181,7 @@ export async function GET(req: NextRequest) {
           const { data: recent } = await admin
             .from("notifications")
             .select("id")
-            .eq("type", "usage_db_capacity")
+            .eq("type", "ops_usage_db_capacity")
             .gt("created_at", since)
             .limit(1);
           if (recent && recent.length > 0) {
@@ -194,7 +194,7 @@ export async function GET(req: NextRequest) {
               .eq("status", "active");
             const rows = (admins ?? []).map((a: { id: string }) => ({
               user_id: a.id,
-              type: "usage_db_capacity",
+              type: "ops_usage_db_capacity",
               title: "DB 저장용량 경고",
               body: `DB ${pct}% — 설정된 quota의 ${DB_CAPACITY_THRESHOLDS.warn}% 초과. 테이블 증가·보존기간 확인 필요`,
               link_url: "/admin/usage-status",

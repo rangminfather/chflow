@@ -9,12 +9,22 @@ import {
 } from "@/lib/notifications";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
-  NOTIFICATION_CATEGORIES,
-  type NotificationCategory,
+  OPS_NOTIFICATION_CATEGORIES,
+  USER_NOTIFICATION_CATEGORIES,
+  type ToggleableNotificationCategory,
   type NotificationPreferences,
 } from "@/lib/notificationPreferences";
 
-export default function NotificationSettingsCard({ onSaved, embedded = false }: { onSaved?: (message: string) => void; embedded?: boolean }) {
+export default function NotificationSettingsCard({
+  onSaved,
+  embedded = false,
+  opsViewer = false,
+}: {
+  onSaved?: (message: string) => void;
+  embedded?: boolean;
+  /** 전역 운영 권한(admin/office/pastor)일 때만 운영 알림 설정을 노출한다. */
+  opsViewer?: boolean;
+}) {
   const [preferences, setPreferences] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -70,7 +80,7 @@ export default function NotificationSettingsCard({ onSaved, embedded = false }: 
   const allOn = preferences.enabled
     && preferences.push_enabled
     && preferences.in_app_enabled
-    && NOTIFICATION_CATEGORIES.every((category) => preferences[`${category.key}_enabled`]);
+    && USER_NOTIFICATION_CATEGORIES.every((category) => preferences[`${category.key}_enabled`]);
 
   return (
     <div style={embedded ? embeddedStyle : cardStyle}>
@@ -123,8 +133,8 @@ export default function NotificationSettingsCard({ onSaved, embedded = false }: 
 
       <div style={{ fontSize: 12, fontWeight: 800, color: "var(--ink)", margin: "18px 0 6px" }}>알림 유형</div>
       <div>
-        {NOTIFICATION_CATEGORIES.map((category) => {
-          const key = `${category.key}_enabled` as `${NotificationCategory}_enabled`;
+        {USER_NOTIFICATION_CATEGORIES.map((category) => {
+          const key = `${category.key}_enabled` as `${ToggleableNotificationCategory}_enabled`;
           return (
             <SwitchRow
               key={category.key}
@@ -136,6 +146,29 @@ export default function NotificationSettingsCard({ onSaved, embedded = false }: 
           );
         })}
       </div>
+
+      {opsViewer && (
+        <>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--ink)", margin: "18px 0 6px" }}>운영 알림</div>
+          <div style={{ fontSize: 10.5, color: "var(--ink-faint)", lineHeight: 1.55, marginBottom: 6 }}>
+            위의 전체 알림 설정과 별개로 동작합니다. 신고 접수와 장애·용량 경보는 끌 수 없습니다.
+          </div>
+          <div>
+            {OPS_NOTIFICATION_CATEGORIES.map((category) => {
+              const key = `${category.key}_enabled` as `${ToggleableNotificationCategory}_enabled`;
+              return (
+                <SwitchRow
+                  key={category.key}
+                  label={category.label}
+                  description={category.description}
+                  checked={preferences[key]}
+                  onChange={(value) => set(key, value)}
+                />
+              );
+            })}
+          </div>
+        </>
+      )}
 
       <div style={{ fontSize: 10.5, color: "var(--ink-faint)", lineHeight: 1.55, marginTop: 12 }}>
         휴대폰 자체 설정에서 스마트명성 알림 권한을 차단한 경우에는 푸시를 켜도 표시되지 않을 수 있습니다.

@@ -6,8 +6,9 @@ import { Bell, MessagesSquare, X, Trash2, ChevronLeft, ChevronRight } from "luci
 import NotificationSettingsCard from "@/components/NotificationSettingsCard";
 import { supabase } from "@/lib/supabase";
 import {
+  EMPTY_NOTIFICATION_COUNTS,
+  fetchNotificationCounts,
   fetchNotifications,
-  getUnreadCount,
   markRead,
   markAllRead,
   deleteNotification,
@@ -16,10 +17,12 @@ import {
   clearAppBadge,
   fetchNotificationPreferences,
   type Notification,
+  type NotificationCounts,
 } from "@/lib/notifications";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   notificationAllowed,
+  type NotificationAudience,
   type NotificationPreferences,
 } from "@/lib/notificationPreferences";
 import {
@@ -35,7 +38,8 @@ interface ToastNotification {
   type: string;
 }
 
-type PanelTab = "all" | "message" | "notice" | "settings";
+// "all" = 내 알림(audience 'user'), "ops" = 운영 알림. 두 탭 모두 한 번의 조회 결과를 나눠 쓴다.
+type PanelTab = "all" | "message" | "notice" | "ops" | "settings";
 
 // 이미 토스트로 띄운 알림 ID를 사용자별로 localStorage 에 보관한다.
 // 벨 컴포넌트가 재마운트(화면 이동)·새로고침으로 초기화돼도 같은 알림이
@@ -77,6 +81,7 @@ export default function NotificationBell({
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [counts, setCounts] = useState<NotificationCounts>(EMPTY_NOTIFICATION_COUNTS);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [activeTab, setActiveTab] = useState<PanelTab>("all");
   const preferencesRef = useRef<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
@@ -91,17 +96,29 @@ export default function NotificationBell({
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const dragRef = useRef({ startX: 0, startY: 0, baseX: 0, baseY: 0, dragging: false });
 
+  // 서버가 audience 를 이미 채워주므로 여기서는 나누기만 한다 (추가 조회 없음).
+  const mine = useMemo(() => notifications.filter((n) => n.audience !== "ops"), [notifications]);
+  const opsNotifications = useMemo(() => notifications.filter((n) => n.audience === "ops"), [notifications]);
+  const opsViewer = counts.opsViewer || opsNotifications.length > 0;
+
   const tabCounts = useMemo(() => ({
-    all: notifications.length,
-    message: notifications.filter((n) => getNotificationGroup(n.type) === "message").length,
-    notice: notifications.filter((n) => getNotificationGroup(n.type) === "notice").length,
-  }), [notifications]);
+    all: mine.length,
+    message: mine.filter((n) => getNotificationGroup(n.type) === "message").length,
+    notice: mine.filter((n) => getNotificationGroup(n.type) === "notice").length,
+    ops: opsNotifications.length,
+  }), [mine, opsNotifications]);
 
   const visibleNotifications = useMemo(() => {
     if (activeTab === "settings") return [];
-    if (activeTab === "all") return notifications;
-    return notifications.filter((n) => getNotificationGroup(n.type) === activeTab);
-  }, [activeTab, notifications]);
+    if (activeTab === "ops") return opsNotifications;
+    if (activeTab === "all") return mine;
+    return mine.filter((n) => getNotificationGroup(n.type) === activeTab);
+  }, [activeTab, mine, opsNotifications]);
+
+  // 운영 권한이 사라지면(강등) 열려 있던 운영 탭에서 내려온다.
+  useEffect(() => {
+    if (activeTab === "ops" && !opsViewer) setActiveTab("all");
+  }, [activeTab, opsViewer]);
 
   // 알림 ID를 '이미 표시함'으로 기록 (메모리 + localStorage 동시).
   const markSeen = useCallback((id: string) => {
@@ -157,9 +174,11 @@ export default function NotificationBell({
     if (syncInFlightRef.current) return syncInFlightRef.current;
 
     const request = (async () => {
+      // 조회 개수는 탭 추가 전과 같다: 목록 1 + 카운트 1 (설정은 최초 1회만).
+      // 카운트 RPC 하나가 user/ops 미읽음과 운영 탭 노출 여부까지 함께 돌려준다.
       const [listResult, countResult, preferencesResult] = await Promise.allSettled([
         fetchNotifications(30, false, { throwOnError: true }),
-        getUnreadCount({ throwOnError: true }),
+        fetchNotificationCounts({ throwOnError: true }),
         includePreferences
           ? fetchNotificationPreferences({ throwOnError: true })
           : Promise.resolve(null),
@@ -180,7 +199,9 @@ export default function NotificationBell({
 
         if (listResult.status === "rejected" || countResult.status === "rejected") return false;
         const list = listResult.value;
-        const count = countResult.value;
+        const nextCounts = countResult.value;
+        const count = nextCounts.total;
+        setCounts(nextCounts);
 
         if (initLoadedRef.current) {
           const newNotifs = list.filter((n) => !seenIdsRef.current.has(n.id) && !n.is_read);
@@ -341,18 +362,39 @@ export default function NotificationBell({
     };
   }, [handleNewNotification, syncNotifications, userId]);
 
+  // 모두 읽음은 audience 범위별로 처리한다. 운영 탭을 실제로 보지 않았는데
+  // 「내 알림」을 열었다는 이유로 운영 미읽음이 사라지면 안 된다.
+  // 이미 받아둔 카운트로 상태를 갱신하므로 재조회(추가 RPC)는 하지 않는다.
+  const markScopeRead = useCallback(async (audience: NotificationAudience) => {
+    const isOps = audience === "ops";
+    const pending = isOps ? counts.ops : counts.user;
+    if (pending <= 0) return;
+    const remaining = isOps ? counts.user : counts.ops;
+
+    setNotifications((prev) => prev.map((n) => (
+      (n.audience === "ops") === isOps ? { ...n, is_read: true } : n
+    )));
+    setCounts((prev) => (isOps
+      ? { ...prev, ops: 0, total: prev.user }
+      : { ...prev, user: 0, total: prev.ops }));
+    setUnreadCount(remaining);
+    if (remaining === 0) clearAppBadge(); else setAppBadge(remaining);
+    await markAllRead(audience);
+  }, [counts]);
+
+  // 탭 전환은 상태 변경만 한다. 운영 탭을 실제로 열었을 때만 운영 알림을 읽음 처리한다.
+  const handleTabChange = useCallback((tab: PanelTab) => {
+    setActiveTab(tab);
+    if (tab === "ops") void markScopeRead("ops");
+  }, [markScopeRead]);
+
   const handleBellClick = async () => {
     const willOpen = !open;
     setOpen(willOpen);
     // 다시 켤 때마다 위치 초기화 (상단 화면 가운데 = 기본 위치)
     if (willOpen) setDragOffset({ x: 0, y: 0 });
-    // 종을 누르면 모두 읽음 처리 + 배지 제거
-    if (willOpen && unreadCount > 0) {
-      await markAllRead();
-      setUnreadCount(0);
-      clearAppBadge();
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    }
+    // 종을 누르면 내 알림만 모두 읽음 처리한다. 운영 미읽음은 그대로 남는다.
+    if (willOpen) await markScopeRead("user");
   };
 
   // === 패널 드래그 핸들러 (헤더 바를 잡고 이동) ===
@@ -396,15 +438,18 @@ export default function NotificationBell({
     e.stopPropagation();
     setNotifications((prev) => prev.filter((n) => n.id !== id));
     await deleteNotification(id);
-    const newCount = await getUnreadCount();
-    setUnreadCount(newCount);
-    if (newCount === 0) clearAppBadge(); else setAppBadge(newCount);
+    const nextCounts = await fetchNotificationCounts();
+    setCounts(nextCounts);
+    setUnreadCount(nextCounts.total);
+    if (nextCounts.total === 0) clearAppBadge(); else setAppBadge(nextCounts.total);
   };
 
+  // 전체삭제는 내 알림만 지운다. 운영 알림(장애·신고 이력)은 남긴다.
   const handleDeleteAll = async () => {
-    setNotifications([]);
-    setUnreadCount(0);
-    clearAppBadge();
+    setNotifications((prev) => prev.filter((n) => n.audience === "ops"));
+    setUnreadCount(counts.ops);
+    setCounts((prev) => ({ ...prev, user: 0, total: prev.ops }));
+    if (counts.ops === 0) clearAppBadge(); else setAppBadge(counts.ops);
     await deleteAllNotifications();
   };
 
@@ -514,7 +559,7 @@ export default function NotificationBell({
                   )}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {activeTab !== "settings" && notifications.length > 0 && (
+                  {activeTab !== "settings" && activeTab !== "ops" && mine.length > 0 && (
                     <button
                       onClick={handleDeleteAll}
                       style={{ fontSize: 11, color: "var(--ink-faint)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 4, fontFamily: "inherit" }}
@@ -541,34 +586,42 @@ export default function NotificationBell({
               {placement === "dock" && (
                 <div style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                  gridTemplateColumns: `repeat(${opsViewer ? 5 : 4}, minmax(0, 1fr))`,
                   gap: 6,
                   padding: "10px 12px",
                   borderBottom: "1px solid var(--hairline)",
                   background: "color-mix(in srgb, var(--surface) 86%, transparent)",
                 }}>
                   <PanelTabButton
-                    label="알림"
+                    label="내 알림"
                     count={tabCounts.all}
                     active={activeTab === "all"}
-                    onClick={() => setActiveTab("all")}
+                    onClick={() => handleTabChange("all")}
                   />
                   <PanelTabButton
                     label="메시지"
                     count={tabCounts.message}
                     active={activeTab === "message"}
-                    onClick={() => setActiveTab("message")}
+                    onClick={() => handleTabChange("message")}
                   />
                   <PanelTabButton
                     label="공지"
                     count={tabCounts.notice}
                     active={activeTab === "notice"}
-                    onClick={() => setActiveTab("notice")}
+                    onClick={() => handleTabChange("notice")}
                   />
+                  {opsViewer && (
+                    <PanelTabButton
+                      label="운영"
+                      count={tabCounts.ops}
+                      active={activeTab === "ops"}
+                      onClick={() => handleTabChange("ops")}
+                    />
+                  )}
                   <PanelTabButton
                     label="설정"
                     active={activeTab === "settings"}
-                    onClick={() => setActiveTab("settings")}
+                    onClick={() => handleTabChange("settings")}
                   />
                 </div>
               )}
@@ -607,7 +660,7 @@ export default function NotificationBell({
               )}
               <div style={{ overflowY: "auto", flex: 1 }}>
                 {activeTab === "settings" ? (
-                  <NotificationSettingsCard embedded />
+                  <NotificationSettingsCard embedded opsViewer={opsViewer} />
                 ) : visibleNotifications.length === 0 ? (
                   <div
                     style={{
@@ -1026,6 +1079,7 @@ function getNotificationGroup(type: string): PanelTab | "alert" {
 function getEmptyLabel(tab: PanelTab): string {
   if (tab === "message") return "메시지가 없습니다";
   if (tab === "notice") return "공지가 없습니다";
+  if (tab === "ops") return "운영 알림이 없습니다";
   if (tab === "settings") return "";
   return "알림이 없습니다";
 }

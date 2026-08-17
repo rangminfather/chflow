@@ -8,8 +8,21 @@ const migrationPath = resolve(here, "../../MS_AX/chflow-project/supabase/migrati
 const sql = readFileSync(migrationPath, "utf8");
 const anomalyFixPath = resolve(here, "../../MS_AX/chflow-project/supabase/migrations/20260817223700_usage_diagnostics_v2_anomaly_monitoring_fix.sql");
 const anomalyFixSql = readFileSync(anomalyFixPath, "utf8");
-const appliedMigrationSha256 = createHash("sha256").update(sql.replace(/\r\n/g, "\n")).digest("hex");
+// 알림 user/ops 분리 마이그레이션이 anomaly 함수를 다시 CREATE OR REPLACE 하므로
+// 감시 퇴행 검사는 "가장 마지막 정의"를 대상으로 해야 한다.
+const audiencePath = resolve(here, "../../MS_AX/chflow-project/supabase/migrations/20260818093000_notification_user_ops_audience.sql");
+const audienceSql = readFileSync(audiencePath, "utf8");
+const sha256 = (value) => createHash("sha256").update(value.replace(/\r\n/g, "\n")).digest("hex");
+const appliedMigrationSha256 = sha256(sql);
 const expectedAppliedMigrationSha256 = "073729a674673d29475a8454705a324b0a645d9cc8ea6c14672dcc49f232b397";
+// 20260817223700 도 운영 DB 에 적용됐다. 두 파일 모두 불변으로 고정한다.
+const appliedAnomalyFixSha256 = sha256(anomalyFixSql);
+const expectedAppliedAnomalyFixSha256 = "5701d48d3d685aee13ce8c4689a901fe2c7281ee1744289d515ef75e7569beba";
+
+// admin_usage_check_anomalies() 의 최신 정의를 고른다.
+const latestAnomalySql = audienceSql.includes("function public.admin_usage_check_anomalies")
+  ? audienceSql
+  : anomalyFixSql;
 
 // QUERY_SPIKE 기준은 TS 가 단일 출처다. 여기서 그 값을 읽어와 SQL 과 대조해 drift 를 잡는다.
 const tsSource = readFileSync(resolve(here, "../lib/usageDiagnostics.ts"), "utf8");
@@ -20,13 +33,14 @@ function tsThreshold(key) {
 }
 // 숫자 뒤에 자릿수가 더 붙은 경우(100 vs 1000)를 구분한다.
 function sqlHasNumber(value) {
-  return new RegExp(`>=\\s*${value}(?![0-9])`).test(anomalyFixSql);
+  return new RegExp(`>=\\s*${value}(?![0-9])`).test(latestAnomalySql);
 }
 
-const anomalyFn = anomalyFixSql.slice(anomalyFixSql.indexOf("function public.admin_usage_check_anomalies"));
+const anomalyFn = latestAnomalySql.slice(latestAnomalySql.indexOf("function public.admin_usage_check_anomalies"));
 
 const assertions = [
   [appliedMigrationSha256 === expectedAppliedMigrationSha256, "keeps the applied v2 migration content immutable"],
+  [appliedAnomalyFixSha256 === expectedAppliedAnomalyFixSha256, "keeps the applied anomaly fix migration content immutable"],
   [!/\bdrop\s+table\b/i.test(sql), "must not drop tables"],
   [!/\bdrop\s+column\b/i.test(sql), "must not drop columns"],
   [!/\btruncate\b/i.test(sql), "must not truncate production data"],
@@ -88,10 +102,57 @@ const assertions = [
 
   // ── dedupe 와 알림 타입 ──
   [
-    /type = 'usage_anomaly' and created_at > now\(\) - interval '1 day'/.test(anomalyFn),
+    /type = 'ops_usage_anomaly' and created_at > now\(\) - interval '1 day'/.test(anomalyFn),
     "keeps the one-day notification dedupe",
   ],
-  [!/'ops_[a-z_]+'/.test(anomalyFixSql), "does not rename notification types to ops_* yet"],
+  [
+    /'ops_usage_anomaly'/.test(anomalyFn) && !/'usage_anomaly'/.test(anomalyFn),
+    "emits ops_usage_anomaly only (no leftover pre-rename type)",
+  ],
+
+  // ── 알림 user/ops 분리 마이그레이션이 감시를 다시 퇴행시키지 않았는지 ──
+  [
+    !/\b(drop\s+table|drop\s+column|truncate)\b/i.test(audienceSql),
+    "audience migration is additive and non-destructive",
+  ],
+  [
+    audienceSql.includes("add column if not exists audience text not null default 'user'"),
+    "audience column keeps existing rows working",
+  ],
+  [
+    /check\s*\(audience in \('user', 'ops'\)\)/.test(audienceSql),
+    "audience values are constrained in the database",
+  ],
+  [
+    !/set\s+audience\s*=\s*'ops'\s+where\s+true/i.test(audienceSql)
+      && !/else\s+'ops'/.test(audienceSql),
+    "backfill uses explicit type mapping (no else -> ops)",
+  ],
+  [
+    /audience = 'user' or public\.can_view_ops_notifications\(\)/.test(audienceSql),
+    "ops rows stay hidden from non-ops roles in RLS and RPCs",
+  ],
+  [
+    (audienceSql.match(/notification_audience_of/g) || []).length >= 4,
+    "audience is derived from the notification type, not set per insert site",
+  ],
+  [
+    // 감사 로그의 action 값 messenger_log_action('message_report', ...) 은 알림 타입이 아니라 그대로 둔다.
+    !/'usage_r2_capacity'|'usage_db_capacity'|'bulletin_sync_error'|'signup_pending'|'feedback_new'/.test(
+      audienceSql.slice(audienceSql.indexOf("-- 7)")),
+    ),
+    "producers emit only ops_* types after the rename",
+  ],
+  [
+    ["ops_signup_pending", "ops_feedback_new", "ops_message_report", "ops_bulletin_sync_error"].every(
+      (type) => audienceSql.includes(`'${type}'`),
+    ),
+    "every renamed producer emits its ops_* type",
+  ],
+  [
+    /messenger_log_action\(\s*\n?\s*'message_report'/.test(audienceSql),
+    "keeps the messenger audit log action value unchanged",
+  ],
 ];
 
 const failed = assertions.filter(([ok]) => !ok);

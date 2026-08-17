@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
+  OPS_NOTIFICATION_ROLES,
   notificationAllowed,
   type NotificationPreferences,
 } from "@/lib/notificationPreferences";
@@ -77,17 +78,33 @@ async function disablePushToken(admin: SupabaseClient, row: DeliveryRow, now: st
     .eq("expo_push_token", row.expo_push_token);
 }
 
+// 휴대폰 배지 숫자는 알림벨이 보여주는 개수와 같아야 한다.
+// service role 은 RLS 를 우회하므로 audience 조건을 여기서 직접 맞춘다.
+// (운영 권한이 없는 사용자는 자신의 과거 ops 알림까지 배지에 세지 않는다)
 async function getUnreadCounts(
   admin: SupabaseClient,
   userIds: string[]
 ): Promise<Map<string, number>> {
   const uniqueUserIds = Array.from(new Set(userIds));
+  const { data: roleRows } = await admin
+    .from("profiles")
+    .select("id, role")
+    .in("id", uniqueUserIds);
+  const opsRoles = OPS_NOTIFICATION_ROLES as readonly string[];
+  const opsViewers = new Set(
+    ((roleRows ?? []) as Array<{ id: string; role: string | null }>)
+      .filter((row) => opsRoles.includes(row.role ?? ""))
+      .map((row) => row.id),
+  );
+
   const entries = await Promise.all(uniqueUserIds.map(async (userId) => {
-    const { count } = await admin
+    let query = admin
       .from("notifications")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .eq("is_read", false);
+    if (!opsViewers.has(userId)) query = query.eq("audience", "user");
+    const { count } = await query;
 
     return [userId, count || 0] as const;
   }));
@@ -162,7 +179,7 @@ async function dispatchPush(req: NextRequest, requestedDeliveryId: string | null
   const userIds = Array.from(new Set(rows.map((row) => row.user_id)));
   const { data: preferenceRows, error: preferenceError } = await admin
     .from("notification_preferences")
-    .select("user_id, enabled, push_enabled, in_app_enabled, message_enabled, worship_enabled, notice_enabled, department_enabled, education_enabled, feedback_enabled, account_enabled, system_enabled")
+    .select("user_id, enabled, push_enabled, in_app_enabled, message_enabled, worship_enabled, notice_enabled, department_enabled, education_enabled, feedback_enabled, account_enabled, system_enabled, ops_signup_enabled, ops_feedback_enabled")
     .in("user_id", userIds);
   if (preferenceError) {
     return NextResponse.json({ ok: false, error: preferenceError.message }, { status: 500 });
