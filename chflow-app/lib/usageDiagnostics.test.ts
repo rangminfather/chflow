@@ -22,6 +22,13 @@ const migrationSql = readFileSync(
   ),
   "utf8",
 );
+const anomalyFixSql = readFileSync(
+  resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../MS_AX/chflow-project/supabase/migrations/20260817223700_usage_diagnostics_v2_anomaly_monitoring_fix.sql",
+  ),
+  "utf8",
+);
 
 const query = (overrides: Partial<UsageTopQuery>): UsageTopQuery => ({
   query_key: "q1",
@@ -120,7 +127,7 @@ describe("spike evaluation", () => {
 });
 
 describe("QUERY_SPIKE SQL/TS 기준 일치", () => {
-  const anomalyFn = migrationSql.slice(migrationSql.indexOf("function public.admin_usage_check_anomalies"));
+  const anomalyFn = anomalyFixSql.slice(anomalyFixSql.indexOf("function public.admin_usage_check_anomalies"));
 
   it("SQL 이상감지 함수가 TS 와 같은 임계값을 쓴다", () => {
     for (const value of [
@@ -160,7 +167,7 @@ describe("QUERY_SPIKE SQL/TS 기준 일치", () => {
 });
 
 describe("v1 감시 6종 보존", () => {
-  const anomalyFn = migrationSql.slice(migrationSql.indexOf("function public.admin_usage_check_anomalies"));
+  const anomalyFn = anomalyFixSql.slice(anomalyFixSql.indexOf("function public.admin_usage_check_anomalies"));
 
   it("스냅샷 기반 4종이 SQL 에 남아 있다", () => {
     expect(anomalyFn).toContain("방문자 %s명 (30일 중앙값");
@@ -171,11 +178,11 @@ describe("v1 감시 6종 보존", () => {
 
   it("하루 단위 dedupe 를 유지하고 하드코딩 quota 를 되살리지 않는다", () => {
     expect(anomalyFn).toContain("type = 'usage_anomaly' and created_at > now() - interval '1 day'");
-    expect(migrationSql).not.toContain("500 * 1024 * 1024");
+    expect(anomalyFixSql).not.toContain("500 * 1024 * 1024");
   });
 
   it("아직 ops_* 로 rename 하지 않았다", () => {
-    expect(migrationSql).not.toMatch(/'ops_[a-z_]+'/);
+    expect(anomalyFixSql).not.toMatch(/'ops_[a-z_]+'/);
   });
 });
 

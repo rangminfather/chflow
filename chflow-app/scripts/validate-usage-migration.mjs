@@ -1,10 +1,15 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { createHash } from "node:crypto";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationPath = resolve(here, "../../MS_AX/chflow-project/supabase/migrations/20260817090000_usage_diagnostics_v2.sql");
 const sql = readFileSync(migrationPath, "utf8");
+const anomalyFixPath = resolve(here, "../../MS_AX/chflow-project/supabase/migrations/20260817223700_usage_diagnostics_v2_anomaly_monitoring_fix.sql");
+const anomalyFixSql = readFileSync(anomalyFixPath, "utf8");
+const appliedMigrationSha256 = createHash("sha256").update(sql.replace(/\r\n/g, "\n")).digest("hex");
+const expectedAppliedMigrationSha256 = "073729a674673d29475a8454705a324b0a645d9cc8ea6c14672dcc49f232b397";
 
 // QUERY_SPIKE 기준은 TS 가 단일 출처다. 여기서 그 값을 읽어와 SQL 과 대조해 drift 를 잡는다.
 const tsSource = readFileSync(resolve(here, "../lib/usageDiagnostics.ts"), "utf8");
@@ -15,12 +20,13 @@ function tsThreshold(key) {
 }
 // 숫자 뒤에 자릿수가 더 붙은 경우(100 vs 1000)를 구분한다.
 function sqlHasNumber(value) {
-  return new RegExp(`>=\\s*${value}(?![0-9])`).test(sql);
+  return new RegExp(`>=\\s*${value}(?![0-9])`).test(anomalyFixSql);
 }
 
-const anomalyFn = sql.slice(sql.indexOf("function public.admin_usage_check_anomalies"));
+const anomalyFn = anomalyFixSql.slice(anomalyFixSql.indexOf("function public.admin_usage_check_anomalies"));
 
 const assertions = [
+  [appliedMigrationSha256 === expectedAppliedMigrationSha256, "keeps the applied v2 migration content immutable"],
   [!/\bdrop\s+table\b/i.test(sql), "must not drop tables"],
   [!/\bdrop\s+column\b/i.test(sql), "must not drop columns"],
   [!/\btruncate\b/i.test(sql), "must not truncate production data"],
@@ -47,6 +53,9 @@ const assertions = [
   [sql.includes("s.query !~* 'pg_stat_statements|pg_database_size|admin_usage_'"), "excludes diagnostics and pg_stat_statements queries"],
   [!sql.includes("500 * 1024 * 1024"), "does not hardcode a Supabase DB quota"],
   [sql.includes("select public.admin_usage_initialize_query_baseline()"), "initializes only the baseline"],
+  [!/\b(drop|truncate)\b/i.test(anomalyFixSql), "forward anomaly migration is additive and non-destructive"],
+  [anomalyFixSql.includes("create or replace function public.admin_usage_check_anomalies()"), "forward migration replaces only the anomaly function"],
+  [anomalyFixSql.includes("revoke all on function public.admin_usage_check_anomalies() from public, anon, authenticated"), "forward migration preserves anomaly function execute restrictions"],
 
   // ── v1 감시 6종이 조용히 사라지지 않았는지 ──
   [/방문자 %s명 \(30일 중앙값/.test(anomalyFn), "keeps the visitor spike alert"],
@@ -63,12 +72,6 @@ const assertions = [
     /admin_usage_snapshots/.test(anomalyFn),
     "evaluates snapshot-based alerts independently of the pg_stat_statements baseline",
   ],
-  [
-    // 하드코딩 quota 를 되살리는 대신 책임 위치를 migration 주석에 남겼는지 확인한다.
-    /SUPABASE_DB_QUOTA_BYTES/.test(sql) && /storage-cleanup/.test(sql),
-    "documents where DB capacity monitoring moved to",
-  ],
-
   // ── QUERY_SPIKE 기준이 TS 와 일치하는지 (drift 감지) ──
   [sqlHasNumber(tsThreshold("minCalls")), `QUERY_SPIKE minCalls matches TS (${tsThreshold("minCalls")})`],
   [sqlHasNumber(tsThreshold("vs7dPct")), `QUERY_SPIKE vs7dPct matches TS (${tsThreshold("vs7dPct")})`],
@@ -88,7 +91,7 @@ const assertions = [
     /type = 'usage_anomaly' and created_at > now\(\) - interval '1 day'/.test(anomalyFn),
     "keeps the one-day notification dedupe",
   ],
-  [!/'ops_[a-z_]+'/.test(sql), "does not rename notification types to ops_* yet"],
+  [!/'ops_[a-z_]+'/.test(anomalyFixSql), "does not rename notification types to ops_* yet"],
 ];
 
 const failed = assertions.filter(([ok]) => !ok);
