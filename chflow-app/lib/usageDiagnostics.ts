@@ -95,6 +95,30 @@ const SEVERITY_RANK: Record<UsageSeverity, number> = {
   CRITICAL: 3,
 };
 
+// QUERY_SPIKE 판정 기준 — DB 쪽 admin_usage_check_anomalies() 와 같은 값을 써야 한다.
+// 두 구현이 어긋나면 scripts/validate-usage-migration.mjs 가 실패한다.
+export const QUERY_SPIKE_THRESHOLDS = {
+  minCalls: 1000,
+  vs7dPct: 100,
+  vsPreviousDayPct: 150,
+  perVisitorPct: 25,
+  minPriorDays: 3,
+} as const;
+
+// 원인 candidate 의 설명력(share) 구간 — collect_daily() 의 10/25/40 과 같은 값이다.
+export const CANDIDATE_SHARE_THRESHOLDS = {
+  candidate: 10,
+  medium: 25,
+  high: 40,
+} as const;
+
+// DB 용량 구간. warn(80%)은 /api/cron/storage-cleanup 의 알림 발송 기준과 공유한다.
+export const DB_CAPACITY_THRESHOLDS = {
+  info: 60,
+  warn: 80,
+  critical: 95,
+} as const;
+
 export function classifyUsageQuery(query: string): {
   identifier: string;
   displayName: string;
@@ -130,10 +154,14 @@ export function deriveUsageCause(topQueries: UsageTopQuery[], totalCalls: number
   }
   const best = [...grouped.entries()].sort((a, b) => b[1] - a[1])[0];
   const sharePct = best && totalCalls > 0 ? (best[1] / totalCalls) * 100 : 0;
-  if (!best || sharePct < 10) return { candidate: "UNKNOWN_QUERY_SPIKE", confidence: "low", sharePct };
+  if (!best || sharePct < CANDIDATE_SHARE_THRESHOLDS.candidate) {
+    return { candidate: "UNKNOWN_QUERY_SPIKE", confidence: "low", sharePct };
+  }
   return {
     candidate: best[0],
-    confidence: sharePct >= 40 ? "high" : sharePct >= 25 ? "medium" : "low",
+    confidence: sharePct >= CANDIDATE_SHARE_THRESHOLDS.high
+      ? "high"
+      : sharePct >= CANDIDATE_SHARE_THRESHOLDS.medium ? "medium" : "low",
     sharePct,
   };
 }
@@ -181,7 +209,7 @@ export function evaluateUsageDiagnostics(payload: UsageDiagnosticsPayload): {
   const comparison = payload.comparison;
 
   if (latest && comparison) {
-    if (comparison.prior_days < 3) {
+    if (comparison.prior_days < QUERY_SPIKE_THRESHOLDS.minPriorDays) {
       findings.push({
         code: "USAGE_DATA_INSUFFICIENT",
         severity: "INFO",
@@ -189,11 +217,11 @@ export function evaluateUsageDiagnostics(payload: UsageDiagnosticsPayload): {
         detail: `완료된 이전 데이터가 ${comparison.prior_days}일뿐이어서 spike를 판정하지 않았습니다.`,
       });
     } else {
-      const volumeSpike = totalCalls >= 1000
-        && ((comparison.vs_7d_avg_pct ?? -Infinity) >= 100
-          || (comparison.previous_day_pct ?? -Infinity) >= 150);
+      const volumeSpike = totalCalls >= QUERY_SPIKE_THRESHOLDS.minCalls
+        && ((comparison.vs_7d_avg_pct ?? -Infinity) >= QUERY_SPIKE_THRESHOLDS.vs7dPct
+          || (comparison.previous_day_pct ?? -Infinity) >= QUERY_SPIKE_THRESHOLDS.vsPreviousDayPct);
       const perVisitorIncrease = comparison.per_visitor_vs_7d_pct ?? 0;
-      if (volumeSpike && perVisitorIncrease >= 25) {
+      if (volumeSpike && perVisitorIncrease >= QUERY_SPIKE_THRESHOLDS.perVisitorPct) {
         findings.push({
           code: "QUERY_SPIKE",
           severity: "WARN",
@@ -207,7 +235,7 @@ export function evaluateUsageDiagnostics(payload: UsageDiagnosticsPayload): {
           code: "TRAFFIC_GROWTH",
           severity: "INFO",
           title: "방문자 증가에 비례한 DB 호출 증가",
-          detail: "총 호출은 증가했지만 방문자당 호출 증가는 25% 미만입니다.",
+          detail: `총 호출은 증가했지만 방문자당 호출 증가는 ${QUERY_SPIKE_THRESHOLDS.perVisitorPct}% 미만입니다.`,
         });
       }
     }
@@ -215,13 +243,22 @@ export function evaluateUsageDiagnostics(payload: UsageDiagnosticsPayload): {
 
   if (latest && payload.db_quota_bytes) {
     const quotaPct = latest.db_size_bytes / payload.db_quota_bytes * 100;
-    if (quotaPct >= 95) {
-      findings.push({ code: "DB_CAPACITY", severity: "CRITICAL", title: `DB quota ${quotaPct.toFixed(1)}%`, detail: "명시적으로 설정된 DB quota의 95% 이상입니다." });
-    } else if (quotaPct >= 80) {
-      findings.push({ code: "DB_CAPACITY", severity: "WARN", title: `DB quota ${quotaPct.toFixed(1)}%`, detail: "명시적으로 설정된 DB quota의 80% 이상입니다." });
-    } else if (quotaPct >= 60) {
+    if (quotaPct >= DB_CAPACITY_THRESHOLDS.critical) {
+      findings.push({ code: "DB_CAPACITY", severity: "CRITICAL", title: `DB quota ${quotaPct.toFixed(1)}%`, detail: `명시적으로 설정된 DB quota의 ${DB_CAPACITY_THRESHOLDS.critical}% 이상입니다.` });
+    } else if (quotaPct >= DB_CAPACITY_THRESHOLDS.warn) {
+      findings.push({ code: "DB_CAPACITY", severity: "WARN", title: `DB quota ${quotaPct.toFixed(1)}%`, detail: `명시적으로 설정된 DB quota의 ${DB_CAPACITY_THRESHOLDS.warn}% 이상입니다.` });
+    } else if (quotaPct >= DB_CAPACITY_THRESHOLDS.info) {
       findings.push({ code: "DB_CAPACITY", severity: "INFO", title: `DB quota ${quotaPct.toFixed(1)}%`, detail: "DB 증가 추이를 확인하세요." });
     }
+  } else if (latest) {
+    // quota 미설정을 "정상"으로 흘려보내지 않는다. 용량 감시가 꺼져 있음을 명시한다.
+    findings.push({
+      code: "DB_QUOTA_UNSET",
+      severity: "INFO",
+      title: "DB quota 미설정 — 용량 판정 불가",
+      detail: "SUPABASE_DB_QUOTA_BYTES 가 없어 DB 용량 임계치를 판정하지 않았습니다. "
+        + `설정하면 ${DB_CAPACITY_THRESHOLDS.warn}% 초과 시 관리자 알림도 함께 동작합니다.`,
+    });
   }
 
   const severity = findings.reduce<UsageSeverity>(

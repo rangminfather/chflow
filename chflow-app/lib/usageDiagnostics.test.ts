@@ -1,5 +1,11 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  CANDIDATE_SHARE_THRESHOLDS,
+  DB_CAPACITY_THRESHOLDS,
+  QUERY_SPIKE_THRESHOLDS,
   buildUsageReportV2,
   classifyUsageQuery,
   cumulativeDelta,
@@ -8,6 +14,14 @@ import {
   type UsageDiagnosticsPayload,
   type UsageTopQuery,
 } from "./usageDiagnostics";
+
+const migrationSql = readFileSync(
+  resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../MS_AX/chflow-project/supabase/migrations/20260817090000_usage_diagnostics_v2.sql",
+  ),
+  "utf8",
+);
 
 const query = (overrides: Partial<UsageTopQuery>): UsageTopQuery => ({
   query_key: "q1",
@@ -102,6 +116,93 @@ describe("spike evaluation", () => {
     expect(evaluateUsageDiagnostics(payload({ latest_collection: { ...complete, data_quality: "baseline_pending" } })).findings[0].code).toBe("USAGE_DATA_INCOMPLETE");
     const insufficient = evaluateUsageDiagnostics(payload({ latest_complete: complete, comparison: { previous_date: null, previous_calls: null, previous_day_pct: null, prior_days: 2, prior_7d_avg_calls: 600, prior_7d_median_calls: 600, vs_7d_avg_pct: 330, prior_7d_weighted_per_visitor: 100, per_visitor_vs_7d_pct: 158 } }));
     expect(insufficient.findings.some((finding) => finding.code === "USAGE_DATA_INSUFFICIENT")).toBe(true);
+  });
+});
+
+describe("QUERY_SPIKE SQL/TS 기준 일치", () => {
+  const anomalyFn = migrationSql.slice(migrationSql.indexOf("function public.admin_usage_check_anomalies"));
+
+  it("SQL 이상감지 함수가 TS 와 같은 임계값을 쓴다", () => {
+    for (const value of [
+      QUERY_SPIKE_THRESHOLDS.minCalls,
+      QUERY_SPIKE_THRESHOLDS.vs7dPct,
+      QUERY_SPIKE_THRESHOLDS.vsPreviousDayPct,
+      QUERY_SPIKE_THRESHOLDS.perVisitorPct,
+    ]) {
+      expect(anomalyFn).toMatch(new RegExp(`>=\\s*${value}(?![0-9])`));
+    }
+    expect(anomalyFn).toContain(`coalesce(v_base.days, 0) >= ${QUERY_SPIKE_THRESHOLDS.minPriorDays}`);
+  });
+
+  it("전일 대비 기준을 OR 분기로 둔다 (UI 만 민감해지는 drift 방지)", () => {
+    expect(anomalyFn).toMatch(/v_calls_pct >= 100\)\s*\n?\s*or \(v_prev_day_pct is not null and v_prev_day_pct >= 150\)/);
+  });
+
+  it("candidate share 구간이 collect_daily 와 같다", () => {
+    expect(CANDIDATE_SHARE_THRESHOLDS).toEqual({ candidate: 10, medium: 25, high: 40 });
+    for (const value of Object.values(CANDIDATE_SHARE_THRESHOLDS)) {
+      expect(migrationSql).toMatch(new RegExp(`>= ${value}\\b`));
+    }
+  });
+
+  it("전일 대비만 급증해도 spike 로 잡는다 (7일 평균 대비는 미달)", () => {
+    const complete = payload().latest_collection!;
+    const result = evaluateUsageDiagnostics(payload({
+      latest_complete: complete,
+      comparison: {
+        previous_date: "2026-08-15", previous_calls: 900, previous_day_pct: 187,
+        prior_days: 7, prior_7d_avg_calls: 2000, prior_7d_median_calls: 2000,
+        vs_7d_avg_pct: 29, prior_7d_weighted_per_visitor: 150, per_visitor_vs_7d_pct: 72,
+      },
+    }));
+    expect(result.findings.some((finding) => finding.code === "QUERY_SPIKE")).toBe(true);
+  });
+});
+
+describe("v1 감시 6종 보존", () => {
+  const anomalyFn = migrationSql.slice(migrationSql.indexOf("function public.admin_usage_check_anomalies"));
+
+  it("스냅샷 기반 4종이 SQL 에 남아 있다", () => {
+    expect(anomalyFn).toContain("방문자 %s명 (30일 중앙값");
+    expect(anomalyFn).toContain("DB 하루 증가 %sMB (30일 중앙값");
+    expect(anomalyFn).toContain("행 과다 쿼리 +%s회");
+    expect(anomalyFn).toContain("테이블 주간 +%sMB");
+  });
+
+  it("하루 단위 dedupe 를 유지하고 하드코딩 quota 를 되살리지 않는다", () => {
+    expect(anomalyFn).toContain("type = 'usage_anomaly' and created_at > now() - interval '1 day'");
+    expect(migrationSql).not.toContain("500 * 1024 * 1024");
+  });
+
+  it("아직 ops_* 로 rename 하지 않았다", () => {
+    expect(migrationSql).not.toMatch(/'ops_[a-z_]+'/);
+  });
+});
+
+describe("DB quota 미설정 처리", () => {
+  it("quota 가 없으면 정상이 아니라 판정 불가로 보고한다", () => {
+    const complete = payload().latest_collection!;
+    const result = evaluateUsageDiagnostics(payload({ latest_complete: complete, db_quota_bytes: null }));
+    const finding = result.findings.find((item) => item.code === "DB_QUOTA_UNSET");
+    expect(finding).toBeDefined();
+    expect(result.severity).not.toBe("OK");
+    expect(result.findings.some((item) => item.code === "DB_CAPACITY")).toBe(false);
+  });
+
+  it("quota 가 있으면 임계 구간대로 판정한다", () => {
+    const complete = payload().latest_collection!;
+    const at = (pct: number) => evaluateUsageDiagnostics(payload({
+      latest_complete: { ...complete, db_size_bytes: pct },
+      db_quota_bytes: 100,
+    })).findings.find((item) => item.code === "DB_CAPACITY");
+
+    expect(at(DB_CAPACITY_THRESHOLDS.critical)?.severity).toBe("CRITICAL");
+    expect(at(DB_CAPACITY_THRESHOLDS.warn)?.severity).toBe("WARN");
+    expect(at(DB_CAPACITY_THRESHOLDS.info)?.severity).toBe("INFO");
+    expect(at(DB_CAPACITY_THRESHOLDS.info - 1)).toBeUndefined();
+    expect(evaluateUsageDiagnostics(payload({
+      latest_complete: complete, db_quota_bytes: 100,
+    })).findings.some((item) => item.code === "DB_QUOTA_UNSET")).toBe(false);
   });
 });
 

@@ -2,10 +2,12 @@
 // 1. messenger-attachments 30일 초과 → R2 + DB 삭제
 // 2. bulletins 52개 초과 (jubo/dept 각각) → R2 삭제 + pdf_url null
 // 5. R2 용량 80% 초과 시 관리자 알림 (DB 스냅샷 cron 은 R2 를 못 보므로 여기서)
+// 6. DB 용량 임계치 초과 시 관리자 알림 (quota 가 Vercel 환경변수라 pg_cron 이 못 보므로 여기서)
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { r2, r2Usage } from "@/lib/r2";
+import { DB_CAPACITY_THRESHOLDS } from "@/lib/usageDiagnostics";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -148,6 +150,63 @@ export async function GET(req: NextRequest) {
     }
   } catch (e) {
     results.r2_watch_error = (e as Error).message;
+  }
+
+  // ── 6. DB 용량 감시 — quota 대비 임계치 초과 시 관리자 알림 (3일 dedupe) ──
+  // quota 는 SUPABASE_DB_QUOTA_BYTES(Vercel 환경변수)라 pg_cron 이 볼 수 없다.
+  // 그래서 DB 이상감지(admin_usage_check_anomalies)가 아니라 여기서 판정한다.
+  // 임계치는 lib/usageDiagnostics 의 DB_CAPACITY_THRESHOLDS.warn 과 공유한다.
+  try {
+    const configured = Number(process.env.SUPABASE_DB_QUOTA_BYTES);
+    const quota = Number.isSafeInteger(configured) && configured > 0 ? configured : null;
+    if (!quota) {
+      // 조용히 "정상"으로 넘기지 않는다. 관리자 이용현황 화면에도 DB_QUOTA_UNSET 으로 표시된다.
+      results.db_watch = "quota 미설정 — 판정 불가 (SUPABASE_DB_QUOTA_BYTES)";
+    } else {
+      const { data: snap } = await admin
+        .from("admin_usage_snapshots")
+        .select("snap_date, db_size_bytes")
+        .order("snap_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const dbBytes = (snap as { db_size_bytes: number } | null)?.db_size_bytes ?? null;
+      if (dbBytes === null) {
+        results.db_watch = "스냅샷 없음 — 판정 불가";
+      } else {
+        const pct = Math.round((dbBytes / quota) * 100);
+        if (pct < DB_CAPACITY_THRESHOLDS.warn) {
+          results.db_watch = `정상 (${pct}%)`;
+        } else {
+          const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+          const { data: recent } = await admin
+            .from("notifications")
+            .select("id")
+            .eq("type", "usage_db_capacity")
+            .gt("created_at", since)
+            .limit(1);
+          if (recent && recent.length > 0) {
+            results.db_watch = `중복 스킵 (${pct}%)`;
+          } else {
+            const { data: admins } = await admin
+              .from("profiles")
+              .select("id")
+              .in("role", ["admin", "office", "pastor"])
+              .eq("status", "active");
+            const rows = (admins ?? []).map((a: { id: string }) => ({
+              user_id: a.id,
+              type: "usage_db_capacity",
+              title: "DB 저장용량 경고",
+              body: `DB ${pct}% — 설정된 quota의 ${DB_CAPACITY_THRESHOLDS.warn}% 초과. 테이블 증가·보존기간 확인 필요`,
+              link_url: "/admin/usage-status",
+            }));
+            if (rows.length > 0) await admin.from("notifications").insert(rows);
+            results.db_watch = `알림 발송 (${pct}%)`;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    results.db_watch_error = (e as Error).message;
   }
 
   return NextResponse.json({ ok: true, ...results });

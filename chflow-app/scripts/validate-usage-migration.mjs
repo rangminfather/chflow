@@ -6,6 +6,20 @@ const here = dirname(fileURLToPath(import.meta.url));
 const migrationPath = resolve(here, "../../MS_AX/chflow-project/supabase/migrations/20260817090000_usage_diagnostics_v2.sql");
 const sql = readFileSync(migrationPath, "utf8");
 
+// QUERY_SPIKE 기준은 TS 가 단일 출처다. 여기서 그 값을 읽어와 SQL 과 대조해 drift 를 잡는다.
+const tsSource = readFileSync(resolve(here, "../lib/usageDiagnostics.ts"), "utf8");
+function tsThreshold(key) {
+  const match = tsSource.match(new RegExp(`\\b${key}:\\s*(\\d+)`));
+  if (!match) throw new Error(`lib/usageDiagnostics.ts 에서 ${key} 를 찾지 못했습니다`);
+  return match[1];
+}
+// 숫자 뒤에 자릿수가 더 붙은 경우(100 vs 1000)를 구분한다.
+function sqlHasNumber(value) {
+  return new RegExp(`>=\\s*${value}(?![0-9])`).test(sql);
+}
+
+const anomalyFn = sql.slice(sql.indexOf("function public.admin_usage_check_anomalies"));
+
 const assertions = [
   [!/\bdrop\s+table\b/i.test(sql), "must not drop tables"],
   [!/\bdrop\s+column\b/i.test(sql), "must not drop columns"],
@@ -33,6 +47,48 @@ const assertions = [
   [sql.includes("s.query !~* 'pg_stat_statements|pg_database_size|admin_usage_'"), "excludes diagnostics and pg_stat_statements queries"],
   [!sql.includes("500 * 1024 * 1024"), "does not hardcode a Supabase DB quota"],
   [sql.includes("select public.admin_usage_initialize_query_baseline()"), "initializes only the baseline"],
+
+  // ── v1 감시 6종이 조용히 사라지지 않았는지 ──
+  [/방문자 %s명 \(30일 중앙값/.test(anomalyFn), "keeps the visitor spike alert"],
+  [/DB 하루 증가 %sMB \(30일 중앙값/.test(anomalyFn), "keeps the daily DB growth alert"],
+  [/행 과다 쿼리 \+%s회/.test(anomalyFn), "keeps the row-heavy query alert"],
+  [/테이블 주간 \+%sMB/.test(anomalyFn), "keeps the weekly table growth alert"],
+  [/DB statements %s건/.test(anomalyFn), "keeps the query volume spike alert"],
+  [
+    /calls_delta is not null and calls_delta >= 0/.test(anomalyFn)
+      && /coalesce\(v_snap\.n, 0\) >= 7/.test(anomalyFn),
+    "keeps the v1 30-day median baseline gate",
+  ],
+  [
+    /admin_usage_snapshots/.test(anomalyFn),
+    "evaluates snapshot-based alerts independently of the pg_stat_statements baseline",
+  ],
+  [
+    // 하드코딩 quota 를 되살리는 대신 책임 위치를 migration 주석에 남겼는지 확인한다.
+    /SUPABASE_DB_QUOTA_BYTES/.test(sql) && /storage-cleanup/.test(sql),
+    "documents where DB capacity monitoring moved to",
+  ],
+
+  // ── QUERY_SPIKE 기준이 TS 와 일치하는지 (drift 감지) ──
+  [sqlHasNumber(tsThreshold("minCalls")), `QUERY_SPIKE minCalls matches TS (${tsThreshold("minCalls")})`],
+  [sqlHasNumber(tsThreshold("vs7dPct")), `QUERY_SPIKE vs7dPct matches TS (${tsThreshold("vs7dPct")})`],
+  [sqlHasNumber(tsThreshold("vsPreviousDayPct")), `QUERY_SPIKE vsPreviousDayPct matches TS (${tsThreshold("vsPreviousDayPct")})`],
+  [sqlHasNumber(tsThreshold("perVisitorPct")), `QUERY_SPIKE perVisitorPct matches TS (${tsThreshold("perVisitorPct")})`],
+  [
+    new RegExp(`coalesce\\(v_base\\.days, 0\\) >= ${tsThreshold("minPriorDays")}`).test(anomalyFn),
+    `keeps the prior_days >= ${tsThreshold("minPriorDays")} guard`,
+  ],
+  [
+    /v_prev_day_pct is not null and v_prev_day_pct >= 150/.test(anomalyFn),
+    "uses the previous-day branch the UI already had (OR, not AND)",
+  ],
+
+  // ── dedupe 와 알림 타입 ──
+  [
+    /type = 'usage_anomaly' and created_at > now\(\) - interval '1 day'/.test(anomalyFn),
+    "keeps the one-day notification dedupe",
+  ],
+  [!/'ops_[a-z_]+'/.test(sql), "does not rename notification types to ops_* yet"],
 ];
 
 const failed = assertions.filter(([ok]) => !ok);
