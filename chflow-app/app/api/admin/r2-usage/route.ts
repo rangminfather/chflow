@@ -1,6 +1,6 @@
 // R2 스토리지 사용량 집계 — 관리자 이용현황 페이지 전용
 // GET /api/admin/r2-usage
-// 무료플랜 R2: 저장 10GB / Class B(읽기) 월 1,000만 — 이 스캔은 목록 호출 몇 번 수준
+// 이 스캔은 목록 호출 몇 번 수준이다. quota는 명시적 환경설정이 있을 때만 반환한다.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
@@ -49,7 +49,11 @@ export async function GET(req: NextRequest) {
       .map(([bucket, u]) => ({ bucket, ...u }))
       .sort((a, b) => b.bytes - a.bytes);
     const totalBytes = buckets.reduce((s, b) => s + b.bytes, 0);
-    return NextResponse.json({ totalBytes, buckets });
+    const configuredQuota = Number(process.env.R2_STORAGE_QUOTA_BYTES);
+    const quotaBytes = Number.isSafeInteger(configuredQuota) && configuredQuota > 0
+      ? configuredQuota
+      : null;
+    return NextResponse.json({ totalBytes, buckets, quotaBytes });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
