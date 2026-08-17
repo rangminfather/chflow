@@ -419,6 +419,19 @@ describe('세션 상태 전이', () => {
   });
 });
 
+describe('출석 확인 중복 실행 방지', () => {
+  it('진행 중인 maybeConfirmAttendance 호출은 같은 Promise를 재사용한다', async () => {
+    seedSession();
+
+    const first = maybeConfirmAttendance('token-1');
+    const second = maybeConfirmAttendance('token-1');
+
+    expect(second).toBe(first);
+    await first;
+    expect(calls.filter((url) => url.endsWith('/api/mobile/attendance-status'))).toHaveLength(1);
+  });
+});
+
 describe('전송 실패 복구', () => {
   it('9. pendingSubmit 재전송 성공', async () => {
     seedSession();

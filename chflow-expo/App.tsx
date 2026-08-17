@@ -158,7 +158,15 @@ function AppWebView() {
   const locationAckTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const locationRequestSeqRef = useRef(0);
   const locationRequestInFlightRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
   const updateBannerAnim = useRef(new Animated.Value(0)).current;
+
+  const runAttendanceConfirmation = useCallback((accessToken: string) => {
+    // 주기적인 WebView 세션 확인과 active 복귀 확인만 제한한다.
+    // attendanceGeofence의 background TaskManager 이벤트 처리는 이 경로를 사용하지 않는다.
+    if (appStateRef.current !== "active") return;
+    maybeConfirmAttendance(accessToken).catch(() => {});
+  }, []);
 
   // 화면이 사라질 때 남은 ACK 대기 타이머를 정리해 뒤늦은 Alert 가 뜨지 않게 한다.
   useEffect(() => {
@@ -526,8 +534,9 @@ function AppWebView() {
   // 덮개(exitReloading)로 마지막 화면을 가려서 "옛 화면 → 민들레" 깜빡임 방지
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
+      appStateRef.current = state;
       if (state === 'active' && pendingAccessTokenRef.current) {
-        maybeConfirmAttendance(pendingAccessTokenRef.current).catch(() => {});
+        runAttendanceConfirmation(pendingAccessTokenRef.current);
       }
       if (state === 'active' && exitedRef.current) {
         exitedRef.current = false;
@@ -538,7 +547,7 @@ function AppWebView() {
       }
     });
     return () => sub.remove();
-  }, []);
+  }, [runAttendanceConfirmation]);
 
   // 덮개 안전장치: 로드가 끝나지 않아도 4초 후엔 걷어냄
   useEffect(() => {
@@ -761,7 +770,7 @@ function AppWebView() {
 
     if (message.type !== 'CHFLOW_AUTH_TOKEN' || !message.accessToken) return;
     pendingAccessTokenRef.current = message.accessToken;
-    maybeConfirmAttendance(message.accessToken).catch(() => {});
+    runAttendanceConfirmation(message.accessToken);
     if (!attendanceDisclosureShownRef.current) {
       attendanceDisclosureShownRef.current = true;
       showAttendanceDisclosure(message.accessToken).catch(() => {});

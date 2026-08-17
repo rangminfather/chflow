@@ -796,7 +796,10 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
 
   useEffect(() => {
     let alive = true;
+    let inFlight = false;
     const read = async () => {
+      if (inFlight || document.visibilityState !== "visible") return;
+      inFlight = true;
       try {
         const { data: sess } = await supabase.auth.getSession();
         const token = sess.session?.access_token;
@@ -810,21 +813,39 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
         if (alive) setLiveOn(!!json.is_live);
       } catch {
         // 실패 시 배지를 켜지 않는다
+      } finally {
+        inFlight = false;
       }
     };
     read();
-    const timer = setInterval(read, 120_000);
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const stopPolling = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+    };
+    const startPolling = () => {
+      stopPolling();
+      if (document.visibilityState === "visible") timer = setInterval(read, 120_000);
+    };
     const readWhenVisible = () => {
+      if (document.visibilityState !== "visible") {
+        stopPolling();
+        return;
+      }
+      read();
+      startPolling();
+    };
+    const readWhenActive = () => {
       if (document.visibilityState === "visible") read();
     };
-    const readWhenActive = () => read();
+    startPolling();
     document.addEventListener("visibilitychange", readWhenVisible);
     window.addEventListener("focus", readWhenActive);
     window.addEventListener("pageshow", readWhenActive);
     window.addEventListener("chflow:app-active", readWhenActive);
     return () => {
       alive = false;
-      clearInterval(timer);
+      stopPolling();
       document.removeEventListener("visibilitychange", readWhenVisible);
       window.removeEventListener("focus", readWhenActive);
       window.removeEventListener("pageshow", readWhenActive);

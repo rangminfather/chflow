@@ -22,6 +22,11 @@ import {
   notificationAllowed,
   type NotificationPreferences,
 } from "@/lib/notificationPreferences";
+import {
+  NOTIFICATION_FALLBACK_INITIAL_MS,
+  NOTIFICATION_SAFETY_SYNC_MS,
+  nextNotificationFallbackDelay,
+} from "@/lib/pollingPolicies";
 
 interface ToastNotification {
   id: string;
@@ -78,6 +83,8 @@ export default function NotificationBell({
   const preferencesLoadedRef = useRef(false);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const initLoadedRef = useRef(false);
+  const mountedRef = useRef(false);
+  const syncInFlightRef = useRef<Promise<boolean> | null>(null);
 
   // 패널 손으로 끌어 옮기기 (dock 모드 전용) — 위치는 transform 으로만 이동시켜
   // 가로/세로 스크롤바를 만들지 않는다. 종을 다시 켜면 0,0(기본 상단 가운데)으로 초기화.
@@ -146,35 +153,71 @@ export default function NotificationBell({
     });
   }, [showToast]);
 
-  const refresh = useCallback(async () => {
-    const [list, count, nextPreferences] = await Promise.all([
-      fetchNotifications(30), getUnreadCount(), fetchNotificationPreferences(),
-    ]);
-    preferencesRef.current = nextPreferences;
-    preferencesLoadedRef.current = true;
-    if (!nextPreferences.enabled || !nextPreferences.in_app_enabled) setToasts([]);
-    setNotifications(list);
-    setUnreadCount(count);
-    setAppBadge(count);
+  const syncNotifications = useCallback((includePreferences = false): Promise<boolean> => {
+    if (syncInFlightRef.current) return syncInFlightRef.current;
 
-    // 첫 로드 시: 안 읽은 알림이 있으면 최신 1건만 토스트로 안내한다.
-    // 나머지 미읽음은 배지 숫자로만 표시하고, 현재 미읽음 전체를 '표시함'으로
-    // 기록해 재마운트·폴링에서 같은 알림이 반복해서 뜨는 것을 막는다.
-    if (!initLoadedRef.current) {
-      initLoadedRef.current = true;
-      const unread = list.filter((n) => !n.is_read);
-      const latest = unread[0];
-      if (latest && !seenIdsRef.current.has(latest.id)) {
-        showToast({
-          id: latest.id,
-          title: latest.title,
-          body: latest.body || "",
-          type: latest.type,
-        });
+    const request = (async () => {
+      const [listResult, countResult, preferencesResult] = await Promise.allSettled([
+        fetchNotifications(30, false, { throwOnError: true }),
+        getUnreadCount({ throwOnError: true }),
+        includePreferences
+          ? fetchNotificationPreferences({ throwOnError: true })
+          : Promise.resolve(null),
+      ]);
+      try {
+        if (!mountedRef.current) {
+          return listResult.status === "fulfilled" && countResult.status === "fulfilled";
+        }
+
+        const nextPreferences = preferencesResult.status === "fulfilled"
+          ? preferencesResult.value
+          : null;
+        if (nextPreferences) {
+          preferencesRef.current = nextPreferences;
+          preferencesLoadedRef.current = true;
+          if (!nextPreferences.enabled || !nextPreferences.in_app_enabled) setToasts([]);
+        }
+
+        if (listResult.status === "rejected" || countResult.status === "rejected") return false;
+        const list = listResult.value;
+        const count = countResult.value;
+
+        if (initLoadedRef.current) {
+          const newNotifs = list.filter((n) => !seenIdsRef.current.has(n.id) && !n.is_read);
+          newNotifs.forEach(handleNewNotification);
+        }
+
+        setNotifications(list);
+        setUnreadCount(count);
+        setAppBadge(count);
+
+        // 첫 로드 시 최신 미읽음 한 건만 안내하고 나머지는 중복 방지용으로 기록한다.
+        if (!initLoadedRef.current) {
+          initLoadedRef.current = true;
+          const unread = list.filter((n) => !n.is_read);
+          const latest = unread[0];
+          if (latest && !seenIdsRef.current.has(latest.id)) {
+            showToast({
+              id: latest.id,
+              title: latest.title,
+              body: latest.body || "",
+              type: latest.type,
+            });
+          }
+          unread.forEach((n) => markSeen(n.id));
+        }
+        return true;
+      } catch {
+        // 기존 정상 상태를 빈 목록/0/기본 설정으로 덮어쓰지 않는다.
+        return false;
+      } finally {
+        syncInFlightRef.current = null;
       }
-      unread.forEach((n) => markSeen(n.id));
-    }
-  }, [showToast, markSeen]);
+    })();
+
+    syncInFlightRef.current = request;
+    return request;
+  }, [handleNewNotification, markSeen, showToast]);
 
   // 표시 이력 복원 — refresh(첫 로드 토스트) 보다 먼저 실행돼야
   // 재마운트 시 이전에 띄운 알림을 다시 토스트로 올리지 않는다.
@@ -183,28 +226,76 @@ export default function NotificationBell({
     loadSeenToastIds(userId).forEach((id) => seenIdsRef.current.add(id));
   }, [userId]);
 
-  // 초기 로드
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // 최초 로드: 목록, 미읽음 수, 알림 설정을 각각 한 번 조회한다.
+  useEffect(() => {
+    void syncNotifications(true);
+  }, [syncNotifications]);
 
   useEffect(() => {
     const onPreferencesChanged = (event: Event) => {
       const next = (event as CustomEvent<NotificationPreferences>).detail;
       if (next) {
         preferencesRef.current = next;
+        preferencesLoadedRef.current = true;
+        if (!next.enabled || !next.in_app_enabled) setToasts([]);
+      } else {
+        void fetchNotificationPreferences({ throwOnError: true })
+          .then((preferences) => {
+            if (!mountedRef.current) return;
+            preferencesRef.current = preferences;
+            preferencesLoadedRef.current = true;
+            if (!preferences.enabled || !preferences.in_app_enabled) setToasts([]);
+          })
+          .catch(() => {});
       }
-      void refresh();
     };
     window.addEventListener("chflow:notification-preferences-changed", onPreferencesChanged);
     return () => window.removeEventListener("chflow:notification-preferences-changed", onPreferencesChanged);
-  }, [refresh]);
+  }, []);
 
-  // === Realtime 구독 (즉시) + 폴링 백업 (10초마다) ===
+  // Realtime 정상 시 5분 안전 동기화, 단절 시 10~60초 fallback polling.
   useEffect(() => {
     if (!userId) return;
 
-    // 1. Realtime
+    let realtimeSubscribed = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let fallbackDelay = NOTIFICATION_FALLBACK_INITIAL_MS;
+
+    const clearTimer = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+    };
+
+    const schedule = () => {
+      clearTimer();
+      if (!mountedRef.current || document.visibilityState !== "visible") return;
+      const delay = realtimeSubscribed ? NOTIFICATION_SAFETY_SYNC_MS : fallbackDelay;
+      timer = setTimeout(async () => {
+        const succeeded = await syncNotifications();
+        if (!realtimeSubscribed) {
+          fallbackDelay = nextNotificationFallbackDelay(fallbackDelay, succeeded);
+        }
+        schedule();
+      }, delay);
+    };
+
+    const syncNowAndSchedule = async () => {
+      clearTimer();
+      if (document.visibilityState !== "visible") return;
+      const succeeded = await syncNotifications();
+      if (!realtimeSubscribed) {
+        fallbackDelay = nextNotificationFallbackDelay(fallbackDelay, succeeded);
+      }
+      schedule();
+    };
+
     const channel = supabase
       .channel(`notif:${userId}`)
       .on(
@@ -220,34 +311,35 @@ export default function NotificationBell({
           handleNewNotification(newNotif);
         }
       )
-      .subscribe();
-
-    // 2. 폴링 백업 (10초마다 새 알림 확인 - Realtime이 안 작동할 때 대비)
-    const pollInterval = setInterval(async () => {
-      try {
-        const [list, newCount, nextPreferences] = await Promise.all([
-          fetchNotifications(30), getUnreadCount(), fetchNotificationPreferences(),
-        ]);
-        preferencesRef.current = nextPreferences;
-        // 새 알림 감지: 기존에 보지 못한 ID
-        const newNotifs = list.filter((n) => !seenIdsRef.current.has(n.id) && !n.is_read);
-        for (const n of newNotifs) {
-          handleNewNotification(n);
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          realtimeSubscribed = true;
+          fallbackDelay = NOTIFICATION_FALLBACK_INITIAL_MS;
+          void syncNowAndSchedule();
+          return;
         }
-        // 카운트와 목록 업데이트
-        setNotifications(list);
-        setUnreadCount(newCount);
-        setAppBadge(newCount);
-      } catch (e) {
-        // ignore
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          realtimeSubscribed = false;
+          fallbackDelay = NOTIFICATION_FALLBACK_INITIAL_MS;
+          schedule();
+        }
+      });
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        clearTimer();
+        return;
       }
-    }, 10000);
+      void syncNowAndSchedule();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
+      clearTimer();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       supabase.removeChannel(channel);
-      clearInterval(pollInterval);
     };
-  }, [handleNewNotification, userId]);
+  }, [handleNewNotification, syncNotifications, userId]);
 
   const handleBellClick = async () => {
     const willOpen = !open;

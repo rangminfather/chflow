@@ -5,7 +5,7 @@
 // 푸시가 안 왔을 때 어디가 막혔는지 한 화면에서 보게 하는 것이 목적이다.
 // 확인 순서: ① 폴러가 도는지(마지막 확인 시각) ② 조회 오류 여부 ③ 감지·발송 이력
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, RefreshCw, CheckCircle2, AlertTriangle, Radio } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -84,26 +84,33 @@ export default function AdminLiveStatusPage() {
   const [refreshing, setRefreshing] = useState(false);
   // 렌더 중 Date.now() 를 부르지 않기 위해 조회 시각을 상태로 들고 간다
   const [nowMs, setNowMs] = useState(0);
+  const loadInFlightRef = useRef(false);
 
   const load = useCallback(async (isRefresh = false) => {
+    if (loadInFlightRef.current || document.visibilityState !== "visible") return;
+    loadInFlightRef.current = true;
     if (isRefresh) setRefreshing(true);
-    const [{ data: s }, { data: e }] = await Promise.all([
-      supabase
-        .from("youtube_live_status")
-        .select("is_live, video_id, title, started_at, checked_at, last_error, notified_video_id, notified_at")
-        .eq("id", "main")
-        .maybeSingle(),
-      supabase
-        .from("youtube_live_events")
-        .select("id, event, video_id, session_key, title, detail, recipients, created_at")
-        .order("created_at", { ascending: false })
-        .limit(50),
-    ]);
-    setNowMs(Date.now());
-    setStatus((s as StatusRow) ?? null);
-    setEvents((e as EventRow[]) ?? []);
-    setLoading(false);
-    setRefreshing(false);
+    try {
+      const [{ data: s }, { data: e }] = await Promise.all([
+        supabase
+          .from("youtube_live_status")
+          .select("is_live, video_id, title, started_at, checked_at, last_error, notified_video_id, notified_at")
+          .eq("id", "main")
+          .maybeSingle(),
+        supabase
+          .from("youtube_live_events")
+          .select("id, event, video_id, session_key, title, detail, recipients, created_at")
+          .order("created_at", { ascending: false })
+          .limit(50),
+      ]);
+      setNowMs(Date.now());
+      setStatus((s as StatusRow) ?? null);
+      setEvents((e as EventRow[]) ?? []);
+    } finally {
+      loadInFlightRef.current = false;
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -122,8 +129,31 @@ export default function AdminLiveStatusPage() {
       }
       await load();
     })();
-    const timer = setInterval(() => load(), 60_000);
-    return () => clearInterval(timer);
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const stopPolling = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+    };
+    const startPolling = () => {
+      stopPolling();
+      if (document.visibilityState === "visible") {
+        timer = setInterval(() => load(), 60_000);
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        stopPolling();
+        return;
+      }
+      void load();
+      startPolling();
+    };
+    startPolling();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [router, load]);
 
   if (loading) return <LoadingView />;

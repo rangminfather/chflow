@@ -32,7 +32,15 @@ function isTransientFetchError(error: unknown): boolean {
   );
 }
 
-export async function fetchNotifications(limit = 30, onlyUnread = false): Promise<Notification[]> {
+type NotificationFetchOptions = {
+  throwOnError?: boolean;
+};
+
+export async function fetchNotifications(
+  limit = 30,
+  onlyUnread = false,
+  options: NotificationFetchOptions = {},
+): Promise<Notification[]> {
   const { data, error } = await supabase.rpc("get_my_notifications", {
     p_limit: limit,
     p_only_unread: onlyUnread,
@@ -41,20 +49,30 @@ export async function fetchNotifications(limit = 30, onlyUnread = false): Promis
     if (!isTransientFetchError(error)) {
       console.error("fetchNotifications error", error);
     }
+    if (options.throwOnError) throw error;
     return [];
   }
   return data || [];
 }
 
-export async function getUnreadCount(): Promise<number> {
+export async function getUnreadCount(options: NotificationFetchOptions = {}): Promise<number> {
   const { data, error } = await supabase.rpc("get_unread_count");
-  if (error) return 0;
+  if (error) {
+    if (options.throwOnError) throw error;
+    return 0;
+  }
   return (data as number) || 0;
 }
 
-export async function fetchNotificationPreferences(): Promise<NotificationPreferences> {
+export async function fetchNotificationPreferences(
+  options: NotificationFetchOptions = {},
+): Promise<NotificationPreferences> {
   const { data, error } = await supabase.rpc("get_my_notification_preferences");
-  if (error || !data?.[0]) return DEFAULT_NOTIFICATION_PREFERENCES;
+  if (error) {
+    if (options.throwOnError) throw error;
+    return DEFAULT_NOTIFICATION_PREFERENCES;
+  }
+  if (!data?.[0]) return DEFAULT_NOTIFICATION_PREFERENCES;
   return data[0] as NotificationPreferences;
 }
 
