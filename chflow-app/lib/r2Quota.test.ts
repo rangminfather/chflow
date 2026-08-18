@@ -9,10 +9,14 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  DB_CAPACITY_THRESHOLDS,
   R2_CAPACITY_THRESHOLDS,
+  dbQuotaBytes,
   evaluateR2Usage,
+  evaluateUsageDiagnostics,
   parseQuotaBytes,
   r2QuotaBytes,
+  type UsageDiagnosticsPayload,
 } from "./usageDiagnostics";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -195,11 +199,93 @@ describe("하드코딩 quota 재유입 방지", () => {
     expect(block).not.toContain("10GB");
   });
 
-  it("DB quota 경로는 이번 변경에서 그대로 남아 있다", () => {
+  it("DB quota 경로도 같은 공통 파싱을 쓴다", () => {
     const diag = readFileSync(resolve(here, "../app/api/admin/usage-diagnostics/route.ts"), "utf8");
-    expect(diag).toContain("SUPABASE_DB_QUOTA_BYTES");
     const cron = readFileSync(resolve(here, "../app/api/cron/storage-cleanup/route.ts"), "utf8");
+    for (const [label, source] of [["usage-diagnostics", diag], ["storage-cleanup", cron]] as const) {
+      expect(source, label).toContain("dbQuotaBytes");
+      // 각자 env 를 다시 파싱하지 않는다
+      expect(source, label).not.toMatch(/process\.env\.SUPABASE_DB_QUOTA_BYTES/);
+      expect(source, label).not.toContain("positiveInteger");
+      expect(source, label).toMatch(/usageDiagnostics"/);
+    }
+    // DB 경보 정책·타입은 그대로
     expect(cron).toContain("DB_CAPACITY_THRESHOLDS.warn");
     expect(cron).toContain('type: "ops_usage_db_capacity"');
+    expect(cron).toContain('.eq("type", "ops_usage_db_capacity")');
+  });
+
+  it("SUPABASE_DB_QUOTA_BYTES 를 읽는 곳은 dbQuotaBytes 하나뿐이다", () => {
+    for (const file of files) {
+      const source = readFileSync(file, "utf8");
+      if (!source.includes("SUPABASE_DB_QUOTA_BYTES")) continue;
+      if (file.endsWith("usageDiagnostics.ts")) continue;
+      expect(source, `${file} 은 dbQuotaBytes() 를 써야 한다`)
+        .not.toMatch(/process\.env\.SUPABASE_DB_QUOTA_BYTES/);
+    }
+  });
+});
+
+describe("DB quota 판정 (parser 공통화 후 회귀 확인)", () => {
+  const QUOTA = 524288000;
+  const payload = (dbBytes: number, quota: number | null): UsageDiagnosticsPayload => ({
+    latest_collection: null,
+    latest_complete: {
+      usage_date: "2026-08-18", interval_started_at: null, interval_ended_at: "2026-08-18T15:10:00Z",
+      data_quality: "complete", visitors: 5, statement_calls: 100, statement_rows: 100,
+      exec_time_ms: 10, statements_per_visitor: 20, db_size_bytes: dbBytes,
+      db_growth_bytes: 0, candidate: null, confidence: null, candidate_share_pct: null,
+      primary_identifier: null, primary_display_name: null, primary_share_pct: null,
+    },
+    comparison: null, top_queries: [], trend: [], collection: null, db_quota_bytes: quota,
+  });
+  const findings = (dbBytes: number, quota: number | null) =>
+    evaluateUsageDiagnostics(payload(dbBytes, quota)).findings;
+
+  it("dbQuotaBytes 는 SUPABASE_DB_QUOTA_BYTES 만 읽고 invalid 는 null", () => {
+    expect(dbQuotaBytes({ SUPABASE_DB_QUOTA_BYTES: "524288000" })).toBe(524288000);
+    expect(dbQuotaBytes({ SUPABASE_DB_QUOTA_BYTES: "8589934592" })).toBe(8589934592);
+    expect(dbQuotaBytes({ R2_STORAGE_QUOTA_BYTES: "10737418240" })).toBeNull();
+    for (const raw of [undefined, "", "   ", "abc", "0", "-1", "1.5", "NaN", "Infinity"]) {
+      expect(dbQuotaBytes({ SUPABASE_DB_QUOTA_BYTES: raw }), `raw=${JSON.stringify(raw)}`).toBeNull();
+    }
+  });
+
+  it("정상 quota 면 사용률을 계산한다", () => {
+    const at50 = findings(QUOTA * 0.5, QUOTA);
+    expect(at50.some((f) => f.code === "DB_QUOTA_UNSET")).toBe(false);
+    expect(at50.some((f) => f.code === "DB_CAPACITY")).toBe(false);
+  });
+
+  // DB 는 R2 와 달리 60/80/95 3단 구간이다. 알림(ops_usage_db_capacity)은 warn(80%)부터다.
+  it("59.9% 무표시, 60% INFO, 79.9% 는 아직 INFO, 80% WARN, 95% CRITICAL", () => {
+    expect(findings(Math.floor(QUOTA * 0.599), QUOTA).find((f) => f.code === "DB_CAPACITY")).toBeUndefined();
+    expect(findings(QUOTA * 0.6, QUOTA).find((f) => f.code === "DB_CAPACITY")?.severity).toBe("INFO");
+    // 79.9% 는 경보(WARN) 기준 미만 — 알림은 발생하지 않는다
+    expect(findings(Math.floor(QUOTA * 0.799), QUOTA).find((f) => f.code === "DB_CAPACITY")?.severity).toBe("INFO");
+    expect(findings(QUOTA * 0.8, QUOTA).find((f) => f.code === "DB_CAPACITY")?.severity).toBe("WARN");
+    expect(findings(QUOTA * 0.95, QUOTA).find((f) => f.code === "DB_CAPACITY")?.severity).toBe("CRITICAL");
+  });
+
+  it("알림 발송은 warn(80%) 기준이며 그 미만에서는 만들지 않는다", () => {
+    const cron = readFileSync(resolve(here, "../app/api/cron/storage-cleanup/route.ts"), "utf8");
+    const block = cron.slice(cron.indexOf("const quota = dbQuotaBytes()"), cron.indexOf("results.db_watch_error"));
+    expect(block).toContain("pct < DB_CAPACITY_THRESHOLDS.warn");
+    expect(block).toContain('results.db_watch = `정상');
+    expect(block).toContain('type: "ops_usage_db_capacity"');
+  });
+
+  it("invalid quota 는 DB_QUOTA_UNSET 이고 용량 판정을 하지 않는다", () => {
+    for (const raw of [undefined, "", "abc", "0", "-1"]) {
+      const quota = dbQuotaBytes({ SUPABASE_DB_QUOTA_BYTES: raw });
+      const result = findings(QUOTA * 2, quota);
+      expect(result.some((f) => f.code === "DB_QUOTA_UNSET"), `raw=${JSON.stringify(raw)}`).toBe(true);
+      expect(result.some((f) => f.code === "DB_CAPACITY")).toBe(false);
+    }
+  });
+
+  it("80% 기준값이 유지된다", () => {
+    expect(DB_CAPACITY_THRESHOLDS.warn).toBe(80);
+    expect(DB_CAPACITY_THRESHOLDS.critical).toBe(95);
   });
 });

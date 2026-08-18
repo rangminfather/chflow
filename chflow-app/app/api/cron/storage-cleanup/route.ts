@@ -11,6 +11,7 @@ import { r2, r2Usage } from "@/lib/r2";
 import {
   DB_CAPACITY_THRESHOLDS,
   R2_CAPACITY_THRESHOLDS,
+  dbQuotaBytes,
   evaluateR2Usage,
   r2QuotaBytes,
 } from "@/lib/usageDiagnostics";
@@ -171,8 +172,8 @@ export async function GET(req: NextRequest) {
   // 그래서 DB 이상감지(admin_usage_check_anomalies)가 아니라 여기서 판정한다.
   // 임계치는 lib/usageDiagnostics 의 DB_CAPACITY_THRESHOLDS.warn 과 공유한다.
   try {
-    const configured = Number(process.env.SUPABASE_DB_QUOTA_BYTES);
-    const quota = Number.isSafeInteger(configured) && configured > 0 ? configured : null;
+    // quota 는 R2 와 같은 단일 파싱 정책을 쓴다 (lib/usageDiagnostics)
+    const quota = dbQuotaBytes();
     if (!quota) {
       // 조용히 "정상"으로 넘기지 않는다. 관리자 이용현황 화면에도 DB_QUOTA_UNSET 으로 표시된다.
       results.db_watch = "quota 미설정 — 판정 불가 (SUPABASE_DB_QUOTA_BYTES)";

@@ -147,6 +147,15 @@ export function r2QuotaBytes(env: Record<string, string | undefined> = process.e
   return parseQuotaBytes(env.R2_STORAGE_QUOTA_BYTES);
 }
 
+/**
+ * DB 용량 quota 의 단일 출처. 관리자 diagnostics(/api/admin/usage-diagnostics)와
+ * 실제 경보(/api/cron/storage-cleanup)가 반드시 이 함수만 사용한다.
+ * quota 는 Supabase plan 한도이며 Vercel 환경변수라 pg_cron 은 볼 수 없다.
+ */
+export function dbQuotaBytes(env: Record<string, string | undefined> = process.env): number | null {
+  return parseQuotaBytes(env.SUPABASE_DB_QUOTA_BYTES);
+}
+
 export interface R2Evaluation {
   quotaBytes: number | null;
   /** quota 미설정이면 null — 사용률을 계산하지 않는다. */
