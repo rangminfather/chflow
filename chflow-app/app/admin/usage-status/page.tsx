@@ -10,6 +10,7 @@ import { Activity, AlertTriangle, BarChart3, CalendarDays, CheckCircle2, Clipboa
 import {
   buildUsageReportV2,
   dataQualityLabel,
+  evaluateR2Usage,
   evaluateUsageDiagnostics,
   type UsageDiagnosticsPayload,
   type UsageFinding,
@@ -156,6 +157,13 @@ export default function AdminUsageStatusPage() {
     () => Math.max(1, ...visits.map((v) => v.visitors)),
     [visits],
   );
+
+  // R2 판정은 storage-cleanup cron 과 같은 함수를 쓴다 (표시 기준 = 경보 기준)
+  const r2Evaluation = useMemo(() => (
+    r2Usage && r2Usage !== "error"
+      ? evaluateR2Usage({ totalBytes: r2Usage.totalBytes, quotaBytes: r2Usage.quotaBytes })
+      : null
+  ), [r2Usage]);
 
   const evaluation = useMemo(() => diagnostics
     ? evaluateUsageDiagnostics(diagnostics)
@@ -386,26 +394,36 @@ export default function AdminUsageStatusPage() {
                 <div className="text-[12px] font-bold text-ink-faint">조회 실패 — 잠시 후 새로고침 해주세요</div>
               ) : (
                 <>
+                  {/* 사용률·초과 판정은 cron 경보와 같은 evaluateR2Usage 결과를 쓴다 */}
                   <div className="mb-1 flex items-center justify-between text-[12px] font-bold text-ink-soft">
-                    <span>저장 용량</span>
+                    <span>저장 용량 <span className="font-bold text-ink-faint">/ 운영 감시 기준</span></span>
                     <span>
                       {formatBytes(r2Usage.totalBytes)}
-                      {r2Usage.quotaBytes
-                        ? ` / ${formatBytes(r2Usage.quotaBytes)} (${(r2Usage.totalBytes / r2Usage.quotaBytes * 100).toFixed(1)}%)`
-                        : " · 한도 미설정"}
+                      {r2Evaluation && r2Evaluation.quotaBytes && r2Evaluation.usagePct !== null
+                        ? ` / ${formatBytes(r2Evaluation.quotaBytes)} (${r2Evaluation.usagePct.toFixed(1)}%)`
+                        : " · 임계값 미설정"}
                     </span>
                   </div>
-                  {r2Usage.quotaBytes && (
+                  {r2Evaluation && r2Evaluation.quotaBytes && r2Evaluation.usagePct !== null ? (
                     <div className="h-4 overflow-hidden rounded bg-bg-soft">
                       <div
                         className="h-full rounded"
                         style={{
-                          width: `${Math.max(1, Math.min(100, Math.round((r2Usage.totalBytes / r2Usage.quotaBytes) * 100)))}%`,
-                          background: r2Usage.totalBytes / r2Usage.quotaBytes >= 0.95 ? "var(--danger)" : "var(--accent)",
+                          width: `${Math.max(1, Math.min(100, Math.round(r2Evaluation.usagePct)))}%`,
+                          background: r2Evaluation.overThreshold ? "var(--danger)" : "var(--accent)",
                         }}
                       />
                     </div>
+                  ) : (
+                    <div className="rounded border border-hairline bg-bg-soft px-2.5 py-2 text-[11px] font-bold leading-relaxed text-ink-faint">
+                      {r2Evaluation?.finding?.detail}
+                    </div>
                   )}
+                  <div className="mt-1.5 text-[10.5px] font-bold leading-relaxed text-ink-faint">
+                    기준값은 환경변수 <span className="font-mono">R2_STORAGE_QUOTA_BYTES</span> 로 운영자가 정하는 감시 기준입니다.
+                    Cloudflare 가 강제하는 저장 한도가 아니며, 넘겨도 저장이 중단되지 않고 비용·보관 정책 문제가 됩니다.
+                    (참고: Cloudflare R2 무료 사용량은 저장 10GB/월이고 초과분은 과금됩니다)
+                  </div>
                   <div className="mt-3 grid gap-1.5 md:grid-cols-2">
                     {r2Usage.buckets.map((b) => (
                       <div key={b.bucket} className="flex items-center justify-between rounded-md border border-hairline bg-surface px-3 py-1.5 text-[12px]">

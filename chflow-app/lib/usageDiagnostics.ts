@@ -119,6 +119,82 @@ export const DB_CAPACITY_THRESHOLDS = {
   critical: 95,
 } as const;
 
+// R2 저장 임계값 구간.
+// R2_STORAGE_QUOTA_BYTES 는 Cloudflare 가 강제하는 저장 한도가 아니라
+// 운영자가 정하는 감시 기준값이다. 초과해도 저장이 중단되지 않고 비용·보관 정책 문제가 된다.
+export const R2_CAPACITY_THRESHOLDS = {
+  warn: 80,
+} as const;
+
+/**
+ * quota 환경변수 파싱의 단일 구현.
+ * 미설정·빈 문자열·숫자 아님·0 이하·비정수는 모두 null(판정 불가)로 취급한다.
+ * 임의의 기본 quota 로 대체해 "정상"으로 판정하지 않는다.
+ */
+export function parseQuotaBytes(raw: string | null | undefined): number | null {
+  if (raw === null || raw === undefined) return null;
+  const trimmed = String(raw).trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+/**
+ * R2 저장 임계값의 단일 출처. 관리자 표시(/api/admin/r2-usage)와
+ * 실제 경보(/api/cron/storage-cleanup)가 반드시 이 함수만 사용한다.
+ */
+export function r2QuotaBytes(env: Record<string, string | undefined> = process.env): number | null {
+  return parseQuotaBytes(env.R2_STORAGE_QUOTA_BYTES);
+}
+
+export interface R2Evaluation {
+  quotaBytes: number | null;
+  /** quota 미설정이면 null — 사용률을 계산하지 않는다. */
+  usagePct: number | null;
+  /** quota 미설정이면 항상 false — 초과 판정을 하지 않는다. */
+  overThreshold: boolean;
+  /** 알릴 것이 없으면 null */
+  finding: UsageFinding | null;
+}
+
+/** R2 저장 사용량 판정. 표시와 경보가 같은 결과를 보도록 한 곳에서 계산한다. */
+export function evaluateR2Usage(input: { totalBytes: number; quotaBytes: number | null }): R2Evaluation {
+  const { totalBytes, quotaBytes } = input;
+  if (!quotaBytes) {
+    return {
+      quotaBytes: null,
+      usagePct: null,
+      overThreshold: false,
+      finding: {
+        code: "R2_QUOTA_UNSET",
+        severity: "INFO",
+        title: "R2 저장 임계값 미설정 — 판정 불가",
+        detail: "R2_STORAGE_QUOTA_BYTES 가 없어 사용률과 임계값 초과를 판정하지 않았습니다. "
+          + "이 값은 Cloudflare 가 강제하는 저장 한도가 아니라 운영자가 정하는 감시 기준입니다. "
+          + "R2 는 임계값을 넘겨도 저장이 중단되지 않고 비용·보관 정책 문제가 되므로, "
+          + "원하는 운영 임계값을 직접 설정하세요.",
+      },
+    };
+  }
+
+  const usagePct = totalBytes / quotaBytes * 100;
+  const overThreshold = usagePct >= R2_CAPACITY_THRESHOLDS.warn;
+  return {
+    quotaBytes,
+    usagePct,
+    overThreshold,
+    finding: overThreshold
+      ? {
+        code: "R2_CAPACITY",
+        severity: "WARN",
+        title: `R2 저장 임계값 접근 (${usagePct.toFixed(1)}%)`,
+        detail: `R2 저장 사용량이 설정된 운영 임계값의 ${R2_CAPACITY_THRESHOLDS.warn}% 이상입니다. `
+          + "비용 및 보관 정책을 확인하고 필요하면 사진 원본·버킷을 정리하세요.",
+      }
+      : null,
+  };
+}
+
 export function classifyUsageQuery(query: string): {
   identifier: string;
   displayName: string;
