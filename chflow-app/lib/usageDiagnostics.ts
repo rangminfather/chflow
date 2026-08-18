@@ -8,9 +8,26 @@ export type UsageConfidence = "high" | "medium" | "low";
 export type UsageDataQuality =
   | "baseline_pending"
   | "complete"
+  /** 일부 query entry 가 pg_stat_statements 에서 축출됐지만 살아남은 query 통계는 사용 가능 */
+  | "partial_evicted"
   | "reset_detected"
+  /** 20260819010000 이전에 기록된 값. 그때는 하루 전체를 폐기했다. */
   | "stats_evicted"
   | "interval_misaligned";
+
+/** query delta 를 신뢰할 수 있는 품질 — 조회·분석에 쓸 수 있다. */
+export const ANALYZABLE_QUALITIES: readonly UsageDataQuality[] = ["complete", "partial_evicted"];
+
+/** 자동 anomaly 판정(QUERY_SPIKE)에 쓸 수 있는 품질 — complete 뿐이다. */
+export const SPIKE_ELIGIBLE_QUALITIES: readonly UsageDataQuality[] = ["complete"];
+
+export function isAnalyzableQuality(quality: UsageDataQuality | null | undefined): boolean {
+  return !!quality && ANALYZABLE_QUALITIES.includes(quality);
+}
+
+export function isSpikeEligibleQuality(quality: UsageDataQuality | null | undefined): boolean {
+  return !!quality && SPIKE_ELIGIBLE_QUALITIES.includes(quality);
+}
 
 export interface UsageDailyRow {
   usage_date: string;
@@ -30,6 +47,26 @@ export interface UsageDailyRow {
   primary_identifier: string | null;
   primary_display_name: string | null;
   primary_share_pct: number | null;
+  /** pg_stat_statements 축출 증가량. 0=축출 없음, null=관측 불가 (20260819010000 이후) */
+  dealloc_delta?: number | null;
+  /** 안전하게 delta 를 계산해 저장한 query 수 */
+  tracked_query_count?: number | null;
+  /** baseline 에 있었지만 소실·역행으로 제외한 query 수 */
+  excluded_query_count?: number | null;
+}
+
+/** top_queries 가 어느 날짜·품질에서 왔는지. partial 이면 UI 가 부분 통계임을 표시한다. */
+export interface UsageTopQuerySource {
+  usage_date: string;
+  data_quality: UsageDataQuality;
+  tracked_query_count: number | null;
+  excluded_query_count: number | null;
+  dealloc_delta: number | null;
+  known_statement_calls: number | null;
+  known_statement_rows: number | null;
+  known_exec_time_ms: number | null;
+  lower_bound: boolean;
+  share_basis: "known_calls" | "total_calls";
 }
 
 export interface UsageTopQuery {
@@ -61,9 +98,13 @@ export interface UsageComparison {
 
 export interface UsageDiagnosticsPayload {
   latest_collection: UsageDailyRow | null;
+  /** summary/TOP query와 동일한 날짜의 최신 분석 가능 행. */
+  latest_analysis?: UsageDailyRow | null;
   latest_complete: UsageDailyRow | null;
   comparison: UsageComparison | null;
   top_queries: UsageTopQuery[];
+  /** 20260819010000 이후에만 채워진다. 없으면 top_queries 는 complete 출처로 본다. */
+  top_queries_source?: UsageTopQuerySource | null;
   trend: UsageDailyRow[];
   collection: {
     last_captured_at?: string | null;
@@ -77,6 +118,17 @@ export interface UsageDiagnosticsPayload {
     scope: string;
   } | null;
   db_quota_bytes: number | null;
+}
+
+/**
+ * summary/TOP/candidate가 반드시 같은 날짜를 쓰게 하는 단일 선택 함수.
+ * migration 전 응답과의 짧은 배포 순서 호환을 위해 latest_analysis가 없으면
+ * 분석 가능한 latest_collection, 그다음 latest_complete 순서로 물러난다.
+ */
+export function latestAnalysisRow(payload: UsageDiagnosticsPayload): UsageDailyRow | null {
+  if (payload.latest_analysis !== undefined) return payload.latest_analysis;
+  if (isAnalyzableQuality(payload.latest_collection?.data_quality)) return payload.latest_collection;
+  return payload.latest_complete;
 }
 
 export interface UsageFinding {
@@ -271,7 +323,8 @@ export function evaluateUsageDiagnostics(payload: UsageDiagnosticsPayload): {
 } {
   const findings: UsageFinding[] = [];
   const latestCollection = payload.latest_collection;
-  const latest = payload.latest_complete;
+  const analysis = latestAnalysisRow(payload);
+  const latestComplete = payload.latest_complete;
 
   if (!latestCollection) {
     findings.push({
@@ -279,6 +332,17 @@ export function evaluateUsageDiagnostics(payload: UsageDiagnosticsPayload): {
       severity: "INFO",
       title: "일별 query baseline 초기화 전",
       detail: "migration 적용 후 첫 수집이 완료되면 baseline 상태가 표시됩니다.",
+    });
+  } else if (latestCollection.data_quality === "partial_evicted") {
+    const tracked = latestCollection.tracked_query_count ?? null;
+    const excluded = latestCollection.excluded_query_count ?? null;
+    findings.push({
+      code: "USAGE_DATA_PARTIAL",
+      severity: "INFO",
+      title: dataQualityLabel("partial_evicted"),
+      detail: "pg_stat_statements 에서 일부 query 가 축출돼 그 항목만 제외했습니다"
+        + (tracked === null && excluded === null ? "" : ` (집계 ${tracked ?? "?"}건 / 제외 ${excluded ?? "?"}건)`)
+        + ". 살아남은 query 통계는 조회·분석에 쓸 수 있지만 호출량 급증 자동판정에서는 제외됩니다.",
     });
   } else if (latestCollection.data_quality !== "complete") {
     findings.push({
@@ -289,11 +353,24 @@ export function evaluateUsageDiagnostics(payload: UsageDiagnosticsPayload): {
     });
   }
 
-  const totalCalls = latest?.statement_calls || 0;
-  const cause = deriveUsageCause(payload.top_queries, totalCalls);
-  const comparison = payload.comparison;
+  const source = payload.top_queries_source ?? null;
+  const sourceMatchesAnalysis = !!analysis && (!source
+    || (source.usage_date === analysis.usage_date && source.data_quality === analysis.data_quality));
+  const spikeEligible = !!analysis
+    && analysis.data_quality === "complete"
+    && latestComplete?.usage_date === analysis.usage_date
+    && sourceMatchesAnalysis;
+  const totalCalls = analysis?.statement_calls || 0;
+  // partial TOP 또는 날짜가 다른 TOP은 complete 원인 판정에 절대 섞지 않는다.
+  const cause = spikeEligible
+    ? deriveUsageCause(payload.top_queries, totalCalls)
+    : { candidate: "UNKNOWN_QUERY_SPIKE" as const, confidence: "low" as const, sharePct: 0 };
+  const comparison = spikeEligible ? payload.comparison : null;
 
-  if (latest && comparison) {
+  // 자동 급증 판정은 complete 에서만 한다. partial 합계는 실제 총량보다 작을 수 있어
+  // baseline 비교에 쓰면 왜곡된다. latest_complete 는 이미 complete 전용이지만
+  // 품질을 한 번 더 확인해 파이프라인 어디서든 partial 이 새어들지 않게 한다.
+  if (analysis && comparison && isSpikeEligibleQuality(analysis.data_quality)) {
     if (comparison.prior_days < QUERY_SPIKE_THRESHOLDS.minPriorDays) {
       findings.push({
         code: "USAGE_DATA_INSUFFICIENT",
@@ -326,8 +403,9 @@ export function evaluateUsageDiagnostics(payload: UsageDiagnosticsPayload): {
     }
   }
 
-  if (latest && payload.db_quota_bytes) {
-    const quotaPct = latest.db_size_bytes / payload.db_quota_bytes * 100;
+  const resourceRow = latestCollection ?? analysis;
+  if (resourceRow && payload.db_quota_bytes) {
+    const quotaPct = resourceRow.db_size_bytes / payload.db_quota_bytes * 100;
     if (quotaPct >= DB_CAPACITY_THRESHOLDS.critical) {
       findings.push({ code: "DB_CAPACITY", severity: "CRITICAL", title: `DB quota ${quotaPct.toFixed(1)}%`, detail: `명시적으로 설정된 DB quota의 ${DB_CAPACITY_THRESHOLDS.critical}% 이상입니다.` });
     } else if (quotaPct >= DB_CAPACITY_THRESHOLDS.warn) {
@@ -335,7 +413,7 @@ export function evaluateUsageDiagnostics(payload: UsageDiagnosticsPayload): {
     } else if (quotaPct >= DB_CAPACITY_THRESHOLDS.info) {
       findings.push({ code: "DB_CAPACITY", severity: "INFO", title: `DB quota ${quotaPct.toFixed(1)}%`, detail: "DB 증가 추이를 확인하세요." });
     }
-  } else if (latest) {
+  } else if (resourceRow) {
     // quota 미설정을 "정상"으로 흘려보내지 않는다. 용량 감시가 꺼져 있음을 명시한다.
     findings.push({
       code: "DB_QUOTA_UNSET",
@@ -355,37 +433,82 @@ export function evaluateUsageDiagnostics(payload: UsageDiagnosticsPayload): {
 
 export function buildUsageReportV2(payload: UsageDiagnosticsPayload): string {
   const result = evaluateUsageDiagnostics(payload);
-  const latest = payload.latest_complete;
-  const comparison = payload.comparison;
+  const analysis = latestAnalysisRow(payload);
+  const source = payload.top_queries_source ?? null;
+  const sourceMatchesAnalysis = !!analysis && (!source
+    || (source.usage_date === analysis.usage_date && source.data_quality === analysis.data_quality));
+  const analysisQueries = sourceMatchesAnalysis ? payload.top_queries : [];
+  const analysisSource = sourceMatchesAnalysis ? source : null;
+  const partial = analysis?.data_quality === "partial_evicted";
+  const comparison = analysis?.data_quality === "complete"
+    && payload.latest_complete?.usage_date === analysis.usage_date
+    ? payload.comparison
+    : null;
   const lines = [
     "[chflow-usage-report v2]",
-    `date=${latest?.usage_date || "unavailable"}`,
+    `date=${analysis?.usage_date || "unavailable"}`,
     `status=${result.severity.toLowerCase()}`,
+    `data_quality=${analysis?.data_quality || payload.latest_collection?.data_quality || "baseline_pending"}`,
     "",
   ];
 
-  if (latest) {
-    lines.push(`db=${formatMegabytes(latest.db_size_bytes)}`);
+  if (analysis) {
+    lines.push(`db=${formatMegabytes(analysis.db_size_bytes)}`);
     lines.push(`db_quota=${payload.db_quota_bytes ? formatMegabytes(payload.db_quota_bytes) : "unset"}`);
-    lines.push(`visitors=${latest.visitors}`);
-    lines.push(`db_statements=${latest.statement_calls ?? "unavailable"}`);
-    lines.push(`statements_per_visitor=${formatNumber(latest.statements_per_visitor)}`);
-    lines.push(`db_exec_time=${latest.exec_time_ms === null ? "unavailable" : `${(latest.exec_time_ms / 1000).toFixed(1)}s`}`);
+    lines.push(`visitors=${analysis.visitors}`);
+    lines.push("", "statement_metrics:");
+    if (partial) {
+      lines.push(`- known_calls=${analysis.statement_calls ?? "unavailable"}`);
+      lines.push(`- known_rows=${analysis.statement_rows ?? "unavailable"}`);
+      lines.push(`- known_exec_time=${analysis.exec_time_ms === null ? "unavailable" : `${(analysis.exec_time_ms / 1000).toFixed(1)}s`}`);
+      lines.push(`- known_calls_per_visitor=${formatNumber(analysis.statements_per_visitor)}`);
+      lines.push("- lower_bound=true");
+      lines.push(`- dealloc_delta=${analysis.dealloc_delta ?? analysisSource?.dealloc_delta ?? "unavailable"}`);
+      lines.push(`- tracked_queries=${analysis.tracked_query_count ?? analysisSource?.tracked_query_count ?? "unavailable"}`);
+      lines.push(`- excluded_queries=${analysis.excluded_query_count ?? analysisSource?.excluded_query_count ?? "unavailable"}`);
+    } else {
+      lines.push(`- total_calls=${analysis.statement_calls ?? "unavailable"}`);
+      lines.push(`- total_rows=${analysis.statement_rows ?? "unavailable"}`);
+      lines.push(`- exec_time=${analysis.exec_time_ms === null ? "unavailable" : `${(analysis.exec_time_ms / 1000).toFixed(1)}s`}`);
+      lines.push(`- calls_per_visitor=${formatNumber(analysis.statements_per_visitor)}`);
+      lines.push("- lower_bound=false");
+      // 기존 report consumer 호환용 complete 전용 필드.
+      lines.push(`db_statements=${analysis.statement_calls ?? "unavailable"}`);
+      lines.push(`statements_per_visitor=${formatNumber(analysis.statements_per_visitor)}`);
+      lines.push(`db_exec_time=${analysis.exec_time_ms === null ? "unavailable" : `${(analysis.exec_time_ms / 1000).toFixed(1)}s`}`);
+    }
     if (payload.db_connections) {
       lines.push(`db_connections=${payload.db_connections.current}/${payload.db_connections.max_configured} active=${payload.db_connections.active}`);
     }
-  } else {
-    lines.push("data_quality=baseline_pending");
   }
 
   lines.push("", "comparison:");
   lines.push(`- vs_previous_day=${formatPercent(comparison?.previous_day_pct)}`);
   lines.push(`- vs_7d_average=${formatPercent(comparison?.vs_7d_avg_pct)}`);
   lines.push(`- per_visitor_vs_7d=${formatPercent(comparison?.per_visitor_vs_7d_pct)}`);
+  lines.push("", "query_spike:");
+  if (partial) {
+    lines.push("- not_evaluated");
+    lines.push("- reason=partial_evicted");
+  } else {
+    lines.push(`- evaluated=${analysis?.data_quality === "complete"}`);
+  }
   lines.push("", "top_queries:");
-  if (payload.top_queries.length === 0) lines.push("- none");
-  payload.top_queries.forEach((query, index) => {
-    lines.push(`${index + 1}. ${query.identifier} ${query.calls_delta} (${query.share_pct.toFixed(1)}%) exec=${(query.exec_time_delta_ms / 1000).toFixed(2)}s`);
+  if (analysisSource) {
+    lines.push(`- source=${analysisSource.usage_date} quality=${analysisSource.data_quality}`
+      + ` tracked=${analysisSource.tracked_query_count ?? "n/a"} excluded=${analysisSource.excluded_query_count ?? "n/a"}`
+      + ` dealloc_delta=${analysisSource.dealloc_delta ?? "n/a"}`);
+    if (analysisSource.data_quality === "partial_evicted") {
+      lines.push("- note=partial data; evicted query entries are excluded and totals are a lower bound");
+    }
+  }
+  if (analysisQueries.length === 0) lines.push("- none");
+  analysisQueries.forEach((query, index) => {
+    if (analysisSource?.share_basis === "known_calls") {
+      lines.push(`${index + 1}. ${query.identifier} ${query.calls_delta} known_share=${query.share_pct.toFixed(1)}% exec=${(query.exec_time_delta_ms / 1000).toFixed(2)}s`);
+    } else {
+      lines.push(`${index + 1}. ${query.identifier} ${query.calls_delta} (${query.share_pct.toFixed(1)}%) exec=${(query.exec_time_delta_ms / 1000).toFixed(2)}s`);
+    }
   });
   lines.push("", "findings:");
   if (result.findings.length === 0) lines.push("- none");
@@ -393,8 +516,10 @@ export function buildUsageReportV2(payload: UsageDiagnosticsPayload): string {
     lines.push(`- ${finding.code} [${finding.severity.toLowerCase()}]`);
     if (finding.candidate) lines.push(`  candidate=${finding.candidate}`);
     if (finding.confidence) lines.push(`  confidence=${finding.confidence}`);
-    if (latest?.primary_identifier) lines.push(`  primary=${latest.primary_identifier}`);
-    if (latest?.primary_share_pct !== null && latest?.primary_share_pct !== undefined) lines.push(`  share=${latest.primary_share_pct.toFixed(1)}%`);
+    if (analysis?.data_quality === "complete" && analysis.primary_identifier) lines.push(`  primary=${analysis.primary_identifier}`);
+    if (analysis?.data_quality === "complete" && analysis.primary_share_pct !== null && analysis?.primary_share_pct !== undefined) {
+      lines.push(`  share=${analysis.primary_share_pct.toFixed(1)}%`);
+    }
     lines.push(`  detail=${finding.detail}`);
   }
   return lines.join("\n");
@@ -404,8 +529,9 @@ export function dataQualityLabel(quality: UsageDataQuality): string {
   const labels: Record<UsageDataQuality, string> = {
     baseline_pending: "Query baseline 초기화 중",
     complete: "완료",
+    partial_evicted: "부분 데이터 — 일부 query 축출",
     reset_detected: "pg_stat_statements reset 감지",
-    stats_evicted: "pg_stat_statements 항목 교체 감지",
+    stats_evicted: "pg_stat_statements 항목 교체 감지 (구 방식: 전체 폐기)",
     interval_misaligned: "일일 수집 interval 불일치",
   };
   return labels[quality];

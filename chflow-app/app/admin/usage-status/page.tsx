@@ -12,6 +12,7 @@ import {
   dataQualityLabel,
   evaluateR2Usage,
   evaluateUsageDiagnostics,
+  latestAnalysisRow,
   type UsageDiagnosticsPayload,
   type UsageFinding,
   type UsageSeverity,
@@ -545,10 +546,20 @@ function UsageDiagnosticsCard({
   copied: boolean;
   onCopy: () => void;
 }) {
-  const latest = diagnostics?.latest_complete;
+  const analysis = diagnostics ? latestAnalysisRow(diagnostics) : null;
+  const partial = analysis?.data_quality === "partial_evicted";
   const collection = diagnostics?.latest_collection;
-  const comparison = diagnostics?.comparison;
-  const topQueries = diagnostics?.top_queries || [];
+  const comparison = analysis?.data_quality === "complete"
+    && diagnostics?.latest_complete?.usage_date === analysis.usage_date
+    ? diagnostics.comparison
+    : null;
+  const rawTopQueries = diagnostics?.top_queries || [];
+  // top_queries 가 complete 에서 왔는지 partial_evicted 에서 왔는지 (20260819010000 이후)
+  const topSource = diagnostics?.top_queries_source ?? null;
+  const topSourceMatchesAnalysis = !!analysis && (!topSource
+    || (topSource.usage_date === analysis.usage_date && topSource.data_quality === analysis.data_quality));
+  const topQueries = topSourceMatchesAnalysis ? rawTopQueries : [];
+  const displayedTopSource = topSourceMatchesAnalysis ? topSource : null;
   const trend = (diagnostics?.trend || []).slice(-7);
   const tone = severityTone(overall);
 
@@ -570,27 +581,50 @@ function UsageDiagnosticsCard({
       {collection && collection.data_quality !== "complete" && (
         <div className="mb-3 rounded-md border border-hairline bg-bg-soft px-3 py-2 text-[12px] leading-5 text-ink-soft">
           <strong>{collection.usage_date} 수집 상태: {dataQualityLabel(collection.data_quality)}</strong><br />
-          이 interval은 spike 비교에서 제외되며 음수 또는 lifetime 누적값으로 대체되지 않습니다.
+          {collection.data_quality === "partial_evicted"
+            ? "일부 SQL 통계가 pg_stat_statements eviction으로 누락됐습니다. statement 수치는 확인 가능한 최소값이며 spike 비교에서 제외됩니다."
+            : "이 interval은 spike 비교에서 제외되며 음수 또는 lifetime 누적값으로 대체되지 않습니다."}
         </div>
       )}
 
-      {latest ? (
+      {analysis ? (
         <>
-          <div className="mb-2 text-[12px] font-extrabold text-ink-soft">최근 완료일 · {latest.usage_date}</div>
+          <div className="mb-2 text-[12px] font-extrabold text-ink-soft">
+            최근 분석일 · {analysis.usage_date}{partial ? " · 부분 통계" : " · 완전 통계"}
+          </div>
           <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
-            <Metric label="방문자" value={`${latest.visitors.toLocaleString("ko-KR")}명`} />
-            <Metric label="DB statements" value={(latest.statement_calls || 0).toLocaleString("ko-KR")} />
-            <Metric label="방문자당" value={latest.statements_per_visitor?.toFixed(1) || "측정 불가"} />
-            <Metric label="DB 실행시간" value={latest.exec_time_ms === null ? "측정 불가" : `${(latest.exec_time_ms / 1000).toFixed(1)}초`} />
-            <Metric label="DB 용량" value={formatBytes(latest.db_size_bytes)} />
-            <Metric label="DB 하루 증가" value={latest.db_growth_bytes === null ? "기준 없음" : signedBytes(latest.db_growth_bytes)} />
+            <Metric label="방문자" value={`${analysis.visitors.toLocaleString("ko-KR")}명`} />
+            <Metric
+              label={partial ? "확인된 DB statements" : "DB statements"}
+              value={analysis.statement_calls === null
+                ? "측정 불가"
+                : partial ? `최소 ${analysis.statement_calls.toLocaleString("ko-KR")}건` : analysis.statement_calls.toLocaleString("ko-KR")}
+            />
+            <Metric
+              label={partial ? "확인된 호출/방문자" : "방문자당"}
+              value={analysis.statements_per_visitor === null
+                ? "측정 불가"
+                : `${analysis.statements_per_visitor.toFixed(1)}${partial ? "+" : ""}`}
+            />
+            <Metric
+              label={partial ? "확인된 실행시간" : "DB 실행시간"}
+              value={analysis.exec_time_ms === null ? "측정 불가" : `${(analysis.exec_time_ms / 1000).toFixed(1)}초${partial ? "+" : ""}`}
+            />
+            <Metric label="DB 용량" value={formatBytes(analysis.db_size_bytes)} />
+            <Metric label="DB 하루 증가" value={analysis.db_growth_bytes === null ? "기준 없음" : signedBytes(analysis.db_growth_bytes)} />
           </div>
 
-          <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <Comparison label="전일 대비" value={signedPercent(comparison?.previous_day_pct)} />
-            <Comparison label="이전 7일 평균 대비" value={signedPercent(comparison?.vs_7d_avg_pct)} sub={`완료일 ${comparison?.prior_days || 0}일 기준`} />
-            <Comparison label="방문자당 7일 기준 대비" value={signedPercent(comparison?.per_visitor_vs_7d_pct)} sub="방문자 가중 평균" />
-          </div>
+          {partial ? (
+            <div className="mb-3 rounded-md border border-hairline bg-bg-soft px-3 py-2 text-[12px] font-bold text-ink-soft">
+              QUERY_SPIKE 판정 보류 — 부분 통계는 전일·7일 평균과 비교하지 않습니다.
+            </div>
+          ) : (
+            <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <Comparison label="전일 대비" value={signedPercent(comparison?.previous_day_pct)} />
+              <Comparison label="이전 7일 평균 대비" value={signedPercent(comparison?.vs_7d_avg_pct)} sub={`완료일 ${comparison?.prior_days || 0}일 기준`} />
+              <Comparison label="방문자당 7일 기준 대비" value={signedPercent(comparison?.per_visitor_vs_7d_pct)} sub="방문자 가중 평균" />
+            </div>
+          )}
         </>
       ) : (
         <div className="mb-3 rounded-md bg-bg-soft px-3 py-3 text-[12px] font-bold text-ink-soft">
@@ -620,16 +654,39 @@ function UsageDiagnosticsCard({
       </div>
 
       <div className="mb-3 rounded-md border border-hairline bg-surface p-3">
-        <div className="mb-2 flex items-center gap-2 text-[13px] font-extrabold text-ink"><AlertTriangle size={14} /> 호출 TOP {Math.min(10, topQueries.length)}</div>
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-[13px] font-extrabold text-ink">
+          <AlertTriangle size={14} /> 호출 TOP {Math.min(10, topQueries.length)}
+          {displayedTopSource && (
+            <span className="rounded-full px-2 py-0.5 text-[10.5px] font-extrabold"
+              style={displayedTopSource.data_quality === "complete"
+                ? { background: "var(--bg-soft)", color: "var(--ink-soft)" }
+                : { background: "color-mix(in srgb, var(--warning) 16%, transparent)", color: "var(--warning)" }}>
+              {displayedTopSource.usage_date} · {displayedTopSource.data_quality === "complete" ? "완전 통계" : "부분 통계"}
+            </span>
+          )}
+        </div>
+        {displayedTopSource?.data_quality === "partial_evicted" && (
+          <div className="mb-2 rounded-md border border-hairline bg-bg-soft px-3 py-2 text-[11px] leading-5 text-ink-soft">
+            <strong>부분 통계입니다.</strong> 일부 저빈도 query가 pg_stat_statements 축출로 누락될 수 있습니다
+            {displayedTopSource.tracked_query_count !== null && ` (집계 ${displayedTopSource.tracked_query_count.toLocaleString("ko-KR")}건`}
+            {displayedTopSource.excluded_query_count !== null && ` / 제외 ${displayedTopSource.excluded_query_count.toLocaleString("ko-KR")}건`}
+            {displayedTopSource.tracked_query_count !== null && ")"}.
+            아래 수치는 <strong>최소 확인량</strong>이며 전체 호출 수가 아닙니다. 호출량 급증 자동판정에는 쓰이지 않습니다.
+          </div>
+        )}
         {topQueries.length === 0 ? (
-          <div className="text-[12px] text-ink-faint">완료된 query delta가 아직 없습니다.</div>
+          <div className="text-[12px] text-ink-faint">분석 가능한 query delta가 아직 없습니다.</div>
         ) : (
           <div className="flex flex-col gap-1.5">
             {topQueries.map((query) => (
               <div key={query.query_key} className="rounded-md bg-bg-soft px-3 py-2">
                 <div className="flex flex-wrap items-center justify-between gap-1 text-[12px]">
                   <span className="font-extrabold text-ink">{query.display_name} <span className="font-mono font-medium text-ink-faint">{query.identifier}</span></span>
-                  <span className="font-extrabold text-ink">{query.calls_delta.toLocaleString("ko-KR")} · {query.share_pct.toFixed(1)}% · {(query.exec_time_delta_ms / 1000).toFixed(2)}초</span>
+                  <span className="font-extrabold text-ink">
+                    {partial ? `${query.calls_delta.toLocaleString("ko-KR")} known calls` : query.calls_delta.toLocaleString("ko-KR")}
+                    {" · "}{partial ? "Known share" : "비율"} {query.share_pct.toFixed(1)}%
+                    {" · "}{(query.exec_time_delta_ms / 1000).toFixed(2)}초
+                  </span>
                 </div>
                 <details className="mt-1 text-[10px] text-ink-faint">
                   <summary className="cursor-pointer">정규화 SQL 보기</summary>
@@ -651,8 +708,8 @@ function UsageDiagnosticsCard({
                 <tr key={row.usage_date} className="border-t border-hairline text-ink-soft">
                   <td className="py-1.5 font-bold">{row.usage_date}</td>
                   <td className="py-1.5 text-right">{row.visitors}</td>
-                  <td className="py-1.5 text-right">{row.statement_calls?.toLocaleString("ko-KR") || "—"}</td>
-                  <td className="py-1.5 text-right">{row.statements_per_visitor?.toFixed(1) || "—"}</td>
+                  <td className="py-1.5 text-right">{row.statement_calls === null ? "—" : `${row.data_quality === "partial_evicted" ? "≥" : ""}${row.statement_calls.toLocaleString("ko-KR")}`}</td>
+                  <td className="py-1.5 text-right">{row.statements_per_visitor === null ? "—" : `${row.data_quality === "partial_evicted" ? "≥" : ""}${row.statements_per_visitor.toFixed(1)}`}</td>
                   <td className="py-1.5 text-right font-bold">{dataQualityLabel(row.data_quality)}</td>
                 </tr>
               ))}</tbody>

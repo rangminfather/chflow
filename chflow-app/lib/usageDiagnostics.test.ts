@@ -199,6 +199,7 @@ describe("DB quota 미설정 처리", () => {
   it("quota 가 있으면 임계 구간대로 판정한다", () => {
     const complete = payload().latest_collection!;
     const at = (pct: number) => evaluateUsageDiagnostics(payload({
+      latest_collection: { ...complete, db_size_bytes: pct },
       latest_complete: { ...complete, db_size_bytes: pct },
       db_quota_bytes: 100,
     })).findings.find((item) => item.code === "DB_CAPACITY");

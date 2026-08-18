@@ -38,12 +38,29 @@ function functionBody(source, signature) {
   const end = source.indexOf("\n$$;", start);
   return end < 0 ? source.slice(start) : source.slice(start, end + 4);
 }
+// 축출 내성 수집기 + partial_evicted 도입 마이그레이션.
+const partialPath = resolve(here, "../../MS_AX/chflow-project/supabase/migrations/20260819010000_usage_partial_evicted_stats.sql");
+const partialSql = readFileSync(partialPath, "utf8");
+// 20260818220000 도 운영 DB 에 적용됐다. 불변으로 고정한다.
+const appliedPriorFixSha256 = sha256(priorFixSql);
+const expectedAppliedPriorFixSha256 = "4c0fc32995444030f9b24ef0390f69688a7b1df64a4ddaeb63b0db99a443a135";
+
 const DIAG_SIGNATURE = "create or replace function public.admin_usage_diagnostics";
 const diagOriginal = functionBody(sql, DIAG_SIGNATURE);
-const diagLatest = functionBody(priorFixSql, DIAG_SIGNATURE) || diagOriginal;
+// admin_usage_diagnostics 의 최신 정의를 고른다 (partial 지원 마이그레이션이 다시 교체한다).
+const diagLatest = functionBody(partialSql, DIAG_SIGNATURE)
+  || functionBody(priorFixSql, DIAG_SIGNATURE)
+  || diagOriginal;
+// admin_usage_collect_daily 의 최신 정의
+const COLLECT_SIGNATURE = "create or replace function public.admin_usage_collect_daily";
+const collectLatest = functionBody(partialSql, COLLECT_SIGNATURE) || functionBody(sql, COLLECT_SIGNATURE);
 const diagDeclare = diagLatest.slice(diagLatest.indexOf("declare"), diagLatest.indexOf("begin"));
-/** jsonb_build_object 의 키 집합 — 응답 contract 비교용 */
-const jsonKeys = (body) => [...body.matchAll(/'([a-z0-9_]+)',/g)].map((m) => m[1]).sort().join(",");
+/**
+ * 반환 jsonb 의 **최상위** 키만 뽑는다 (응답 contract 비교용).
+ * 최상위 키는 4칸 들여쓰기로 쓰여 있고, 중첩 객체 키(6칸 이상)나
+ * `data_quality in ('complete', ...)` 같은 SQL 리터럴은 제외된다.
+ */
+const jsonKeys = (body) => [...body.matchAll(/\n {4}'([a-z0-9_]+)',/g)].map((m) => m[1]).sort().join(",");
 
 // QUERY_SPIKE 기준은 TS 가 단일 출처다. 여기서 그 값을 읽어와 SQL 과 대조해 drift 를 잡는다.
 const tsSource = readFileSync(resolve(here, "../lib/usageDiagnostics.ts"), "utf8");
@@ -203,9 +220,21 @@ const assertions = [
     "prior aggregates are scalars with safe initial values",
   ],
   [
-    // 응답 contract 는 그대로여야 한다 (키 추가/삭제/이름변경 금지)
-    jsonKeys(diagLatest) === jsonKeys(diagOriginal),
-    "diagnostics JSON contract is unchanged",
+    // 응답 contract: 기존 키는 하나도 사라지거나 이름이 바뀌지 않아야 한다.
+    // 추가는 아래 명시한 키만 허용한다 (암묵적 확장 금지).
+    (() => {
+      const ALLOWED_ADDITIONS = [
+        "latest_analysis", "top_queries_source",
+        "known_statement_calls", "known_statement_rows", "known_exec_time_ms",
+        "lower_bound", "share_basis",
+      ];
+      const original = new Set(jsonKeys(diagOriginal).split(","));
+      const latest = new Set(jsonKeys(diagLatest).split(","));
+      const removed = [...original].filter((k) => !latest.has(k));
+      const added = [...latest].filter((k) => !original.has(k));
+      return removed.length === 0 && added.every((k) => ALLOWED_ADDITIONS.includes(k));
+    })(),
+    "diagnostics JSON contract keeps every original key and only adds partial-analysis metadata",
   ],
   [
     // 계산식·가드는 원본과 동일하게 유지
@@ -224,6 +253,101 @@ const assertions = [
     /revoke all on function public\.admin_usage_diagnostics\(int\) from public, anon, authenticated/.test(priorFixSql)
       && /grant execute on function public\.admin_usage_diagnostics\(int\) to authenticated/.test(priorFixSql),
     "prior-fix migration restates diagnostics execute privileges",
+  ],
+  [appliedPriorFixSha256 === expectedAppliedPriorFixSha256, "keeps the applied prior-fix migration content immutable"],
+
+  // ── 축출 내성: 하루 전체 통계를 버리지 않는다 ──
+  [
+    !/\b(drop\s+table|drop\s+column|truncate)\b/i.test(partialSql),
+    "partial-evicted migration is additive and non-destructive",
+  ],
+  [
+    collectLatest.includes("if v_quality in ('complete', 'partial_evicted') then")
+      && !/if v_quality = 'complete' then\s*\n\s*insert into public\.admin_usage_query_daily/.test(collectLatest),
+    "query deltas are stored for partial intervals, not only complete ones",
+  ],
+  [
+    collectLatest.includes("coalesce(v_dealloc_delta, 0) <> 0 or v_missing"),
+    "eviction is detected from the dealloc counter or missing baseline keys",
+  ],
+  [
+    /b\.query_key is not null\s*\n\s*and c\.cumulative_calls >= b\.cumulative_calls/.test(collectLatest),
+    "partial deltas only count keys present in both baseline and current with non-regressing counters",
+  ],
+  [
+    /elsif v_regressed then[\s\S]{0,300}v_quality := 'reset_detected';/.test(collectLatest),
+    "a regressed counter remains fail-closed as reset_detected",
+  ],
+  [
+    collectLatest.indexOf("v_quality := 'reset_detected'") > -1
+      && collectLatest.indexOf("v_quality := 'partial_evicted'") > collectLatest.indexOf("v_quality := 'reset_detected'"),
+    "global stats_reset is still classified before partial (never mistaken for partial)",
+  ],
+  [
+    ["dealloc_delta", "tracked_query_count", "excluded_query_count"]
+      .every((c) => partialSql.includes(`add column if not exists ${c}`))
+      && partialSql.includes("v_excluded_count := v_excluded_count + v_new_excluded_count")
+      && /if v_quality = 'partial_evicted' then[\s\S]*not exists \([\s\S]*admin_usage_query_baselines b[\s\S]*b\.query_key = c\.query_key/.test(collectLatest),
+    "partial intervals record how much was tracked and excluded",
+  ],
+  [
+    partialSql.includes("'baseline_pending', 'complete', 'partial_evicted',")
+      && partialSql.includes("'stats_evicted'"),
+    "data_quality allows partial_evicted while keeping the legacy stats_evicted value",
+  ],
+  [
+    // 자동 anomaly 는 계속 기존 함수(complete 전용)에 맡긴다.
+    !/create or replace function public\.admin_usage_check_anomalies/.test(partialSql)
+      && !/insert into public\.notifications/i.test(partialSql),
+    "partial-evicted migration does not touch anomaly notifications",
+  ],
+  [
+    // 조회는 partial 도 허용하되 comparison 은 complete 전용 유지
+    diagLatest.includes("where data_quality in ('complete', 'partial_evicted') order by usage_date desc limit 1")
+      && diagLatest.includes("'comparison', case when v_complete.usage_date is null then null"),
+    "diagnostics exposes partial top_queries while keeping comparison complete-only",
+  ],
+  [
+    diagLatest.includes("'latest_analysis'")
+      && diagLatest.includes("'top_queries_source'")
+      && diagLatest.includes("'known_statement_calls'")
+      && diagLatest.includes("'lower_bound'")
+      && diagLatest.includes("'share_basis'"),
+    "diagnostics reports a same-date analysis row and explicit lower-bound TOP source",
+  ],
+  [
+    /candidate = case\s+when v_quality = 'complete'[\s\S]*else null/.test(collectLatest)
+      && /confidence = case\s+when v_quality <> 'complete' then null/.test(collectLatest)
+      && /candidate_share_pct = case when v_quality = 'complete'/.test(collectLatest),
+    "partial intervals do not publish complete-style candidate or confidence",
+  ],
+  [
+    /drop constraint admin_usage_daily_data_quality_check,/.test(partialSql)
+      && /drop constraint admin_usage_query_daily_data_quality_check,/.test(partialSql)
+      && !/drop constraint if exists admin_usage_(daily|query_daily)_data_quality_check/.test(partialSql),
+    "partial migration replaces only the two exact data-quality constraints",
+  ],
+  [
+    /language plpgsql security definer\s+set search_path = public, extensions/.test(collectLatest)
+      && /revoke all on function public\.admin_usage_collect_daily\(\) from public, anon, authenticated/.test(partialSql)
+      && /if coalesce\(public\.get_user_role\(\), ''\) not in \('admin', 'office', 'pastor'\)/.test(diagLatest)
+      && /revoke all on function public\.admin_usage_diagnostics\(int\) from public, anon, authenticated/.test(partialSql),
+    "partial functions retain fixed search_path, fail-closed role checks, and execute restrictions",
+  ],
+  [
+    !/cron\.(schedule|unschedule)|perform\s+cron\./i.test(partialSql)
+      && !/select\s+public\.admin_usage_collect_daily\s*\(\s*\)\s*;/i.test(partialSql),
+    "partial migration neither changes cron nor immediately runs the collector",
+  ],
+  [
+    // 기존 Production 행을 재구성하지 않는다
+    !/update public\.admin_usage_daily\s+set data_quality/i.test(partialSql),
+    "does not backfill or rewrite existing usage rows",
+  ],
+  [
+    ["SUPABASE_DB_QUOTA_BYTES", "R2_STORAGE_QUOTA_BYTES", "ops_usage_db_capacity", "ops_usage_r2_capacity", "audience"]
+      .every((t) => !partialSql.includes(t)),
+    "partial-evicted migration does not touch quota or notification paths",
   ],
 ];
 
