@@ -213,6 +213,78 @@ describe("DB quota 미설정 처리", () => {
   });
 });
 
+// admin_usage_diagnostics 가 complete 행 없이도 200 을 주도록 고쳤다(20260818220000).
+// 그때 오는 응답 모양(comparison=null, latest_complete=null)을 TS 쪽이 안전하게 다루는지 고정한다.
+describe("baseline 데이터가 없을 때의 응답 처리", () => {
+  const pendingOnly = (): UsageDiagnosticsPayload => ({
+    latest_collection: {
+      ...payload().latest_collection!,
+      data_quality: "baseline_pending",
+      statement_calls: null,
+      statements_per_visitor: null,
+      candidate: null,
+      confidence: null,
+      candidate_share_pct: null,
+    },
+    latest_complete: null,
+    comparison: null,
+    top_queries: [],
+    trend: [],
+    collection: { ready_for_daily: false },
+    db_quota_bytes: null,
+  });
+
+  it("complete 행이 0건이어도 예외 없이 판정한다", () => {
+    const result = evaluateUsageDiagnostics(pendingOnly());
+    expect(result.severity).toBe("INFO");
+    expect(result.findings.some((f) => f.code === "USAGE_DATA_INCOMPLETE")).toBe(true);
+    // 비교 데이터가 없으니 spike 판정은 하지 않는다
+    expect(result.findings.some((f) => f.code === "QUERY_SPIKE")).toBe(false);
+    expect(result.findings.some((f) => f.code === "TRAFFIC_GROWTH")).toBe(false);
+  });
+
+  it("수집 자체가 처음이면 baseline_pending 안내를 준다", () => {
+    const fresh = { ...pendingOnly(), latest_collection: null };
+    const result = evaluateUsageDiagnostics(fresh);
+    expect(result.findings.some((f) => f.code === "USAGE_BASELINE_PENDING")).toBe(true);
+  });
+
+  it("quota 가 설정돼 있으면 complete 행이 없어도 용량 판정은 별개로 동작한다", () => {
+    const withQuota: UsageDiagnosticsPayload = {
+      ...pendingOnly(),
+      latest_complete: { ...payload().latest_collection!, db_size_bytes: 88042643 },
+      db_quota_bytes: 524288000,
+    };
+    const result = evaluateUsageDiagnostics(withQuota);
+    // 16.79% → 60% 미만이라 DB_CAPACITY 없음, quota 는 설정돼 있으므로 UNSET 도 없음
+    expect(result.findings.some((f) => f.code === "DB_QUOTA_UNSET")).toBe(false);
+    expect(result.findings.some((f) => f.code === "DB_CAPACITY")).toBe(false);
+  });
+
+  it("prior_days 가 3 미만이면 비교 부족으로 처리한다", () => {
+    for (const priorDays of [0, 1, 2]) {
+      const result = evaluateUsageDiagnostics(payload({
+        latest_complete: payload().latest_collection!,
+        comparison: {
+          previous_date: null, previous_calls: null, previous_day_pct: null,
+          prior_days: priorDays, prior_7d_avg_calls: null, prior_7d_median_calls: null,
+          vs_7d_avg_pct: null, prior_7d_weighted_per_visitor: null, per_visitor_vs_7d_pct: null,
+        },
+      }));
+      expect(result.findings.some((f) => f.code === "USAGE_DATA_INSUFFICIENT"), `prior_days=${priorDays}`).toBe(true);
+      expect(result.findings.some((f) => f.code === "QUERY_SPIKE")).toBe(false);
+    }
+  });
+
+  it("리포트도 comparison 없이 렌더된다", () => {
+    const text = buildUsageReportV2(pendingOnly());
+    expect(text).toContain("[chflow-usage-report v2]");
+    expect(text).toContain("data_quality=baseline_pending");
+    expect(text).toContain("- vs_previous_day=unavailable");
+    expect(text).toContain("- vs_7d_average=unavailable");
+  });
+});
+
 describe("usage report v2", () => {
   it("renders an AI-readable report with measured values and cause", () => {
     const complete = payload().latest_collection!;

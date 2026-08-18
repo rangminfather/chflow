@@ -24,6 +24,27 @@ const latestAnomalySql = audienceSql.includes("function public.admin_usage_check
   ? audienceSql
   : anomalyFixSql;
 
+// admin_usage_diagnostics() 의 미할당 record 버그를 고친 forward migration.
+const priorFixPath = resolve(here, "../../MS_AX/chflow-project/supabase/migrations/20260818220000_fix_admin_usage_diagnostics_unassigned_prior.sql");
+const priorFixSql = readFileSync(priorFixPath, "utf8");
+// 20260818093000 도 운영 DB 에 적용됐다. 불변으로 고정한다.
+const appliedAudienceSha256 = sha256(audienceSql);
+const expectedAppliedAudienceSha256 = "668fd5f2f2fe0cff024e38ed08e88617db0d0566af83084b4da72b0fe9827140";
+
+/** 지정 파일에서 함수 정의 본문만 잘라낸다. */
+function functionBody(source, signature) {
+  const start = source.indexOf(signature);
+  if (start < 0) return "";
+  const end = source.indexOf("\n$$;", start);
+  return end < 0 ? source.slice(start) : source.slice(start, end + 4);
+}
+const DIAG_SIGNATURE = "create or replace function public.admin_usage_diagnostics";
+const diagOriginal = functionBody(sql, DIAG_SIGNATURE);
+const diagLatest = functionBody(priorFixSql, DIAG_SIGNATURE) || diagOriginal;
+const diagDeclare = diagLatest.slice(diagLatest.indexOf("declare"), diagLatest.indexOf("begin"));
+/** jsonb_build_object 의 키 집합 — 응답 contract 비교용 */
+const jsonKeys = (body) => [...body.matchAll(/'([a-z0-9_]+)',/g)].map((m) => m[1]).sort().join(",");
+
 // QUERY_SPIKE 기준은 TS 가 단일 출처다. 여기서 그 값을 읽어와 SQL 과 대조해 drift 를 잡는다.
 const tsSource = readFileSync(resolve(here, "../lib/usageDiagnostics.ts"), "utf8");
 function tsThreshold(key) {
@@ -152,6 +173,57 @@ const assertions = [
   [
     /messenger_log_action\(\s*\n?\s*'message_report'/.test(audienceSql),
     "keeps the messenger audit log action value unchanged",
+  ],
+  [appliedAudienceSha256 === expectedAppliedAudienceSha256, "keeps the applied audience migration content immutable"],
+
+  // ── admin_usage_diagnostics: 데이터가 없을 때도 안전해야 한다 ──
+  [
+    !/\b(drop\s+table|drop\s+column|truncate)\b/i.test(priorFixSql),
+    "prior-fix migration is additive and non-destructive",
+  ],
+  [
+    priorFixSql.includes(DIAG_SIGNATURE)
+      && !priorFixSql.includes("admin_usage_check_anomalies")
+      && !priorFixSql.includes("admin_usage_collect_daily"),
+    "prior-fix migration replaces only the diagnostics read RPC",
+  ],
+  [
+    // 핵심: 조건부로만 할당되는 bare record 를 참조하지 않는 구조여야 한다.
+    !/^\s*v_\w+\s+record\s*;/m.test(diagDeclare),
+    "admin_usage_diagnostics declares no conditionally-assigned record variable",
+  ],
+  [
+    !/v_prior\./.test(diagLatest),
+    "admin_usage_diagnostics never dereferences an unassigned v_prior record",
+  ],
+  [
+    ["v_prior_days int := 0", "v_prior_avg_calls numeric := null",
+      "v_prior_median_calls numeric := null", "v_prior_weighted_per_visitor numeric := null"]
+      .every((decl) => diagDeclare.includes(decl)),
+    "prior aggregates are scalars with safe initial values",
+  ],
+  [
+    // 응답 contract 는 그대로여야 한다 (키 추가/삭제/이름변경 금지)
+    jsonKeys(diagLatest) === jsonKeys(diagOriginal),
+    "diagnostics JSON contract is unchanged",
+  ],
+  [
+    // 계산식·가드는 원본과 동일하게 유지
+    diagLatest.includes("case when v_complete.usage_date is null then null else jsonb_build_object(")
+      && diagLatest.includes("least(greatest(coalesce(p_days, 30), 7), 30)")
+      && diagLatest.includes("percentile_cont(0.5) within group (order by statement_calls)")
+      && diagLatest.includes("order by usage_date desc\n      limit 7"),
+    "diagnostics calculations and guards are preserved",
+  ],
+  [
+    /if coalesce\(public\.get_user_role\(\), ''\) not in \('admin', 'office', 'pastor'\)/.test(diagLatest)
+      && diagLatest.includes("'usage_diagnostics_forbidden'"),
+    "diagnostics still fails closed on role",
+  ],
+  [
+    /revoke all on function public\.admin_usage_diagnostics\(int\) from public, anon, authenticated/.test(priorFixSql)
+      && /grant execute on function public\.admin_usage_diagnostics\(int\) to authenticated/.test(priorFixSql),
+    "prior-fix migration restates diagnostics execute privileges",
   ],
 ];
 
