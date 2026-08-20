@@ -8,7 +8,11 @@ export type UsageConfidence = "high" | "medium" | "low";
 export type UsageDataQuality =
   | "baseline_pending"
   | "complete"
-  /** 일부 query entry 가 pg_stat_statements 에서 축출됐지만 살아남은 query 통계는 사용 가능 */
+  /**
+   * partial pg_stat_statements data caused by eviction, missing baseline entries,
+   * or per-entry counter regression. 원인을 축출 하나로 단정하지 않는다.
+   * 살아남은 query 통계는 사용 가능하며 합계는 lower bound 다.
+   */
   | "partial_evicted"
   | "reset_detected"
   /** 20260819010000 이전에 기록된 값. 그때는 하루 전체를 폐기했다. */
@@ -340,7 +344,7 @@ export function evaluateUsageDiagnostics(payload: UsageDiagnosticsPayload): {
       code: "USAGE_DATA_PARTIAL",
       severity: "INFO",
       title: dataQualityLabel("partial_evicted"),
-      detail: "pg_stat_statements 에서 일부 query 가 축출돼 그 항목만 제외했습니다"
+      detail: "pg_stat_statements 일부 항목이 유실되거나 재초기화되어 그 항목만 제외했습니다"
         + (tracked === null && excluded === null ? "" : ` (집계 ${tracked ?? "?"}건 / 제외 ${excluded ?? "?"}건)`)
         + ". 살아남은 query 통계는 조회·분석에 쓸 수 있지만 호출량 급증 자동판정에서는 제외됩니다.",
     });
@@ -499,7 +503,7 @@ export function buildUsageReportV2(payload: UsageDiagnosticsPayload): string {
       + ` tracked=${analysisSource.tracked_query_count ?? "n/a"} excluded=${analysisSource.excluded_query_count ?? "n/a"}`
       + ` dealloc_delta=${analysisSource.dealloc_delta ?? "n/a"}`);
     if (analysisSource.data_quality === "partial_evicted") {
-      lines.push("- note=partial data; evicted query entries are excluded and totals are a lower bound");
+      lines.push("- note=partial data; lost or reinitialised query entries are excluded and totals are a lower bound");
     }
   }
   if (analysisQueries.length === 0) lines.push("- none");
@@ -529,7 +533,7 @@ export function dataQualityLabel(quality: UsageDataQuality): string {
   const labels: Record<UsageDataQuality, string> = {
     baseline_pending: "Query baseline 초기화 중",
     complete: "완료",
-    partial_evicted: "부분 데이터 — 일부 query 축출",
+    partial_evicted: "부분 데이터 — 일부 query 통계 누락",
     reset_detected: "pg_stat_statements reset 감지",
     stats_evicted: "pg_stat_statements 항목 교체 감지 (구 방식: 전체 폐기)",
     interval_misaligned: "일일 수집 interval 불일치",

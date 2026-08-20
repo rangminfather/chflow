@@ -667,7 +667,7 @@ function UsageDiagnosticsCard({
         </div>
         {displayedTopSource?.data_quality === "partial_evicted" && (
           <div className="mb-2 rounded-md border border-hairline bg-bg-soft px-3 py-2 text-[11px] leading-5 text-ink-soft">
-            <strong>부분 통계입니다.</strong> 일부 저빈도 query가 pg_stat_statements 축출로 누락될 수 있습니다
+            <strong>부분 통계입니다.</strong> 일부 query 통계가 pg_stat_statements 항목 유실·재초기화로 누락될 수 있습니다
             {displayedTopSource.tracked_query_count !== null && ` (집계 ${displayedTopSource.tracked_query_count.toLocaleString("ko-KR")}건`}
             {displayedTopSource.excluded_query_count !== null && ` / 제외 ${displayedTopSource.excluded_query_count.toLocaleString("ko-KR")}건`}
             {displayedTopSource.tracked_query_count !== null && ")"}.

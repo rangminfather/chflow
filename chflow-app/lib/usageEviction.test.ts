@@ -341,6 +341,33 @@ describe("G. RPC / UI contract", () => {
     expect(page).toContain("최소 확인량");
     expect(page).toContain('partial_evicted');
   });
+
+  // partial_evicted 는 축출뿐 아니라 baseline 항목 소실·개별 재초기화로도 생길 수 있다.
+  // 사용자에게 원인을 축출 하나로 단정하지 않는다.
+  it("사용자 문구가 원인을 축출 하나로 단정하지 않는다", () => {
+    const page = readFileSync(resolve(here, "../app/admin/usage-status/page.tsx"), "utf8");
+    const lib = readFileSync(resolve(here, "./usageDiagnostics.ts"), "utf8");
+
+    // 화면 경고 문구
+    expect(page).toContain("유실·재초기화");
+    expect(page).not.toContain("축출로 누락");
+
+    // finding detail
+    const result = evaluateUsageDiagnostics(payload({
+      latest_collection: row({ data_quality: "partial_evicted", tracked_query_count: 5, excluded_query_count: 7 }),
+    }));
+    const detail = result.findings.find((f) => f.code === "USAGE_DATA_PARTIAL")?.detail ?? "";
+    expect(detail).toContain("유실되거나 재초기화");
+    expect(detail).not.toContain("축출돼");
+
+    // 품질 라벨
+    expect(dataQualityLabel("partial_evicted")).not.toContain("축출");
+    expect(dataQualityLabel("partial_evicted")).toContain("누락");
+
+    // 타입 주석에 실제 의미가 남아 있다
+    expect(lib).toContain("eviction, missing baseline entries");
+    expect(lib).toContain("per-entry counter regression");
+  });
 });
 
 // ── 스키마/불변 원칙 ──────────────────────────────────────────────────
