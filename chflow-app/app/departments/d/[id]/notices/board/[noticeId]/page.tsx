@@ -216,6 +216,66 @@ export default function DeptNoticeDetailPage() {
 
   if (!authChecked) return <LoadingView full />;
 
+  const allComments = notice?.comments ?? [];
+  const topLevelComments = allComments.filter((c) => !c.parent_comment_id);
+  const childrenOf = (parentId: string) => allComments.filter((c) => c.parent_comment_id === parentId);
+  const canReply = notice?.can_reply ?? false;
+
+  // 댓글 트리 재귀 렌더링 — 모든 깊이에서 답글 가능, 들여쓰기는 4단계까지만
+  function renderComment(c: Comment, depth: number): React.ReactNode {
+    const isChild = depth > 0;
+    return (
+      <div key={c.id} style={{ marginTop: isChild ? 8 : 0, marginLeft: isChild && depth <= 4 ? 20 : 0 }}>
+        <div className={isChild
+          ? "rounded-lg border border-hairline border-l-[3px] border-l-accent-line bg-surface p-4"
+          : "rounded-lg border border-hairline bg-card p-4"}>
+          <div className="flex flex-wrap items-center gap-x-2 text-[13px] font-semibold text-ink-soft">
+            {isChild && <span className="text-ink-faint">↳</span>}
+            <span className="text-ink-mid">{c.author.name || "멤버"}</span>
+            {c.author.sub_role && <span className="text-ink-faint">· {c.author.sub_role}</span>}
+            <span className="text-ink-faint">· {fmtDateTime(c.created_at)}</span>
+            {c.is_mine && <span className="rounded px-1.5 py-0.5 text-[11px] font-bold text-accent" style={{ background: "var(--accent-soft)" }}>{isChild ? "내 대댓글" : "내 답글"}</span>}
+          </div>
+          <div className={`mt-1.5 whitespace-pre-wrap break-words leading-7 text-ink ${isChild ? "text-[14px]" : "text-[15px]"}`}>{c.body}</div>
+          {c.attachments.length > 0 && (
+            <div className="mt-3"><AttachmentList atts={c.attachments} signed={signed} /></div>
+          )}
+          <div className="mt-2 flex justify-end gap-1.5">
+            {canReply && (
+              <button type="button" onClick={() => {
+                setReplyingToId(replyingToId === c.id ? null : c.id);
+                setNestedReply("");
+              }} className="rounded-md border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-ink-soft hover:bg-surface">
+                ↳ 답글
+              </button>
+            )}
+            {c.can_delete && (
+              <button type="button" disabled={deletingCommentId === c.id} onClick={() => removeComment(c.id)}
+                className="inline-flex items-center gap-1 rounded-md border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-danger hover:bg-danger-soft">
+                <Trash2 size={13} strokeWidth={1.8} /> {deletingCommentId === c.id ? "삭제 중" : "삭제"}
+              </button>
+            )}
+          </div>
+          {replyingToId === c.id && (
+            <form onSubmit={(e) => submitNestedReply(e, c.id)} className="mt-3 border-t border-hairline pt-3">
+              <textarea value={nestedReply} onChange={(e) => setNestedReply(e.target.value)} rows={2}
+                placeholder={`${c.author.name || "작성자"}님에게 답글`} style={inputStyle} />
+              <div className="mt-2 flex justify-end gap-2">
+                <button type="button" onClick={() => { setReplyingToId(null); setNestedReply(""); }}
+                  className="rounded-md border border-hairline px-3 py-2 text-[12px] font-bold text-ink-soft">취소</button>
+                <button type="submit" disabled={postingNestedReply}
+                  className="rounded-md px-3 py-2 text-[12px] font-bold text-white" style={{ background: "var(--accent)", opacity: postingNestedReply ? 0.6 : 1 }}>
+                  {postingNestedReply ? "등록 중" : "답글 등록"}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+        {childrenOf(c.id).map((child) => renderComment(child, depth + 1))}
+      </div>
+    );
+  }
+
   return (
     <div style={pageStyle}>
       <div className="app-subpage-header" style={headerStyle}>
@@ -283,72 +343,7 @@ export default function DeptNoticeDetailPage() {
               <div className="flex flex-col gap-2">
                 {notice.comments.length === 0 ? (
                   <div className="rounded-lg border border-hairline bg-card px-4 py-6 text-center text-[14px] text-ink-faint">첫 답글을 남겨보세요.</div>
-                ) : notice.comments.filter((comment) => !comment.parent_comment_id).map((c) => (
-                  <div key={c.id}>
-                  <div className="rounded-lg border border-hairline bg-card p-4">
-                    <div className="flex flex-wrap items-center gap-x-2 text-[13px] font-semibold text-ink-soft">
-                      <span className="text-ink-mid">{c.author.name || "멤버"}</span>
-                      {c.author.sub_role && <span className="text-ink-faint">· {c.author.sub_role}</span>}
-                      <span className="text-ink-faint">· {fmtDateTime(c.created_at)}</span>
-                      {c.is_mine && <span className="rounded px-1.5 py-0.5 text-[11px] font-bold text-accent" style={{ background: "var(--accent-soft)" }}>내 답글</span>}
-                    </div>
-                    <div className="mt-1.5 whitespace-pre-wrap break-words text-[15px] leading-7 text-ink">{c.body}</div>
-                    {c.attachments.length > 0 && (
-                      <div className="mt-3"><AttachmentList atts={c.attachments} signed={signed} /></div>
-                    )}
-                    <div className="mt-2 flex justify-end gap-1.5">
-                      {notice.can_reply && (
-                        <button type="button" onClick={() => {
-                          setReplyingToId(replyingToId === c.id ? null : c.id);
-                          setNestedReply("");
-                        }} className="rounded-md border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-ink-soft hover:bg-surface">
-                          ↳ 답글
-                        </button>
-                      )}
-                      {c.can_delete && (
-                        <button type="button" disabled={deletingCommentId === c.id} onClick={() => removeComment(c.id)}
-                          className="inline-flex items-center gap-1 rounded-md border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-danger hover:bg-danger-soft">
-                          <Trash2 size={13} strokeWidth={1.8} /> {deletingCommentId === c.id ? "삭제 중" : "삭제"}
-                        </button>
-                      )}
-                    </div>
-                    {replyingToId === c.id && (
-                      <form onSubmit={(e) => submitNestedReply(e, c.id)} className="mt-3 border-t border-hairline pt-3">
-                        <textarea value={nestedReply} onChange={(e) => setNestedReply(e.target.value)} rows={2}
-                          placeholder={`${c.author.name || "작성자"}님에게 답글`} style={inputStyle} />
-                        <div className="mt-2 flex justify-end gap-2">
-                          <button type="button" onClick={() => { setReplyingToId(null); setNestedReply(""); }}
-                            className="rounded-md border border-hairline px-3 py-2 text-[12px] font-bold text-ink-soft">취소</button>
-                          <button type="submit" disabled={postingNestedReply}
-                            className="rounded-md px-3 py-2 text-[12px] font-bold text-white" style={{ background: "var(--accent)", opacity: postingNestedReply ? 0.6 : 1 }}>
-                            {postingNestedReply ? "등록 중" : "대댓글 등록"}
-                          </button>
-                        </div>
-                      </form>
-                    )}
-                  </div>
-                  {notice.comments.filter((child) => child.parent_comment_id === c.id).map((child) => (
-                    <div key={child.id} className="ml-5 mt-2 rounded-lg border border-hairline border-l-[3px] border-l-accent-line bg-surface p-4">
-                      <div className="flex flex-wrap items-center gap-x-2 text-[13px] font-semibold text-ink-soft">
-                        <span className="text-ink-faint">↳</span>
-                        <span className="text-ink-mid">{child.author.name || "멤버"}</span>
-                        {child.author.sub_role && <span className="text-ink-faint">· {child.author.sub_role}</span>}
-                        <span className="text-ink-faint">· {fmtDateTime(child.created_at)}</span>
-                        {child.is_mine && <span className="rounded px-1.5 py-0.5 text-[11px] font-bold text-accent" style={{ background: "var(--accent-soft)" }}>내 대댓글</span>}
-                      </div>
-                      <div className="mt-1.5 whitespace-pre-wrap break-words text-[14px] leading-7 text-ink">{child.body}</div>
-                      {child.can_delete && (
-                        <div className="mt-2 flex justify-end">
-                          <button type="button" disabled={deletingCommentId === child.id} onClick={() => removeComment(child.id)}
-                            className="inline-flex items-center gap-1 rounded-md border border-hairline px-2.5 py-1.5 text-[12px] font-bold text-danger hover:bg-danger-soft">
-                            <Trash2 size={13} strokeWidth={1.8} /> {deletingCommentId === child.id ? "삭제 중" : "삭제"}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  </div>
-                ))}
+                ) : topLevelComments.map((c) => renderComment(c, 0))}
               </div>
             </section>
 
