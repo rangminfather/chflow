@@ -195,6 +195,7 @@ export default function DepartmentDetailPage() {
   const [editing, setEditing] = useState<{ catId: string; itemId: string } | null>(null);
   const [sectionOrder, setSectionOrder] = useState<string[]>(ADMIN_SECTIONS.map((s) => s.id));
   const [activeAdminSection, setActiveAdminSection] = useState(ADMIN_SECTIONS[0].id);
+  const [activeMenuCategory, setActiveMenuCategory] = useState(MENU_CATEGORIES[0].id);
   const [sectionLabels, setSectionLabels] = useState<SectionLabels>({});
   const [itemOrder, setItemOrder] = useState<Record<string, string[]>>({});
   // 드래그 정렬 (편집모드) — Pointer Events 라 마우스·터치 모두 동작
@@ -632,12 +633,19 @@ export default function DepartmentDetailPage() {
       return grade <= (resolved.maxGrade ?? cat.maxGrade);
     });
   });
+  const selectedMenuCategory = visibleCategories.some((cat) => cat.id === activeMenuCategory)
+    ? activeMenuCategory
+    : visibleCategories[0]?.id;
+  const categoryLabelOf = (cat: MenuCategory) => (
+    dept.is_admin && cat.id === "students" ? "마스터담임" : cat.label
+  );
 
   return (
     <div style={pageStyle}>
 
       <style>{`
-        .admin-section-tabs { display: none; }
+        .admin-section-tabs,
+        .menu-category-tabs { display: none; }
 
         .dept-page-container {
           max-width: 960px;
@@ -706,6 +714,42 @@ export default function DepartmentDetailPage() {
 
           .dept-page-home-button {
             padding-inline: 11px !important;
+          }
+
+          .menu-category-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 14px;
+            padding: 4px;
+            border: 1px solid var(--hairline);
+            border-radius: 12px;
+            background: var(--card);
+          }
+
+          .menu-category-tab {
+            flex: 1 1 0;
+            min-width: 0;
+            padding: 9px 3px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--ink-faint);
+            font-family: inherit;
+            font-size: 10.5px;
+            font-weight: 800;
+            line-height: 1.25;
+            white-space: nowrap;
+            word-break: keep-all;
+            cursor: pointer;
+          }
+
+          .menu-category-tab[aria-selected="true"] {
+            background: var(--accent-soft);
+            color: var(--accent-strong);
+          }
+
+          .menu-category-panel[data-mobile-active="false"] {
+            display: none;
           }
 
           .admin-section-tabs {
@@ -872,20 +916,51 @@ export default function DepartmentDetailPage() {
           </div>
         )}
 
+        {/* 모바일 대분류 탭 — PC에서는 기존처럼 모든 카테고리를 세로로 표시 */}
+        {visibleCategories.length > 0 && (
+          <div className="menu-category-tabs" role="tablist" aria-label="부서 메뉴 카테고리">
+            {visibleCategories.map((cat) => {
+              const selected = selectedMenuCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  role="tab"
+                  className="menu-category-tab"
+                  id={`menu-category-tab-${cat.id}`}
+                  aria-selected={selected}
+                  aria-controls={`menu-category-panel-${cat.id}`}
+                  onClick={() => setActiveMenuCategory(cat.id)}
+                >
+                  {categoryLabelOf(cat)}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* 메뉴 그리드 — 행정관리(grade 0~2) · 부서관리(grade 0~1) 는 모든 부서 표시 */}
         {visibleCategories.map((cat) => (
-          <div key={cat.id} style={{ marginBottom: 24 }}>
+          <div
+            key={cat.id}
+            id={`menu-category-panel-${cat.id}`}
+            role="tabpanel"
+            aria-labelledby={`menu-category-tab-${cat.id}`}
+            className="menu-category-panel"
+            data-mobile-active={selectedMenuCategory === cat.id}
+            style={{ marginBottom: 24 }}
+          >
             <div style={{
               display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12,
             }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 }}>
                 <cat.icon size={17} strokeWidth={1.8} style={{ color: "var(--accent)" }} />
-                {dept.is_admin && cat.id === "students" ? "마스터 담임메뉴" : cat.label}
+                {categoryLabelOf(cat)}
               </div>
               {canEditCat(cat.id) && (
                 <button
                   onClick={() => setEditCatId((v) => (v === cat.id ? null : cat.id))}
-                  title={editCatId === cat.id ? "편집 종료" : `${cat.label} 편집`}
+                  title={editCatId === cat.id ? "편집 종료" : `${categoryLabelOf(cat)} 편집`}
                   style={{
                     display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 8, cursor: "pointer",
                     border: `1px solid ${editCatId === cat.id ? "var(--accent)" : "var(--hairline)"}`,
