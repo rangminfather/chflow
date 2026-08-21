@@ -639,7 +639,75 @@ export default function DepartmentDetailPage() {
       <style>{`
         .admin-section-tabs { display: none; }
 
+        .dept-page-container {
+          max-width: 960px;
+          margin: 0 auto;
+          padding: 24px;
+        }
+
+        .dept-page-header-main {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+
+        .dept-page-header-identity {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+
+        .dept-page-title-row {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          column-gap: 7px;
+          row-gap: 5px;
+        }
+
+        .dept-page-name,
+        .dept-page-badge,
+        .dept-page-home-button {
+          white-space: nowrap;
+          word-break: keep-all;
+          overflow-wrap: normal;
+        }
+
+        .dept-page-name {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          flex: 0 0 auto;
+        }
+
+        .dept-page-badge,
+        .dept-page-home-button {
+          flex: 0 0 auto;
+        }
+
         @media (max-width: 640px) {
+          .dept-page-container {
+            padding: 16px clamp(12px, 4vw, 18px) 24px;
+          }
+
+          .dept-page-header {
+            gap: 10px;
+            padding: 14px 12px !important;
+          }
+
+          .dept-page-header-main {
+            gap: 10px;
+          }
+
+          .dept-page-badge {
+            margin-left: 0 !important;
+          }
+
+          .dept-page-home-button {
+            padding-inline: 11px !important;
+          }
+
           .admin-section-tabs {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -688,32 +756,54 @@ export default function DepartmentDetailPage() {
             scroll-snap-stop: always;
           }
         }
+
+        @media (max-width: 360px) {
+          .dept-page-container {
+            padding-inline: 10px;
+          }
+
+          .dept-page-header {
+            padding-inline: 10px !important;
+          }
+
+          .dept-page-header .app-home-logo img {
+            width: 44px !important;
+            height: 44px !important;
+          }
+
+          .dept-page-home-button {
+            padding-inline: 9px !important;
+          }
+        }
       `}</style>
 
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: 24 }}>
+      <div className="dept-page-container">
         {/* Header */}
-        <div style={{
+        <div className="dept-page-header" style={{
           background: "var(--card)", borderRadius: 12, padding: "16px 20px", marginBottom: 20,
-          display: "flex", justifyContent: "space-between", alignItems: "center",
+          display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
           boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div className="dept-page-header-main">
             <HeaderLogo />
-            <div>
+            <div className="dept-page-header-identity">
               <div style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 600 }}>{dept.category}</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 7 }}>
-                <DeptIcon name={dept.name} category={dept.category} size={18} /> {dept.name}
+              <div className="dept-page-title-row" style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>
+                <span className="dept-page-name">
+                  <DeptIcon name={dept.name} category={dept.category} size={18} />
+                  <span>{dept.name}</span>
+                </span>
                 {dept.is_admin ? (
-                  <span style={{
-                    marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 800,
+                  <span className="dept-page-badge" style={{
+                    fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 800,
                     background: "var(--accent-soft)", color: "var(--accent-strong)",
                     display: "inline-flex", alignItems: "center", gap: 4,
                   }}>
                     <ShieldCheck size={11} strokeWidth={2.2} /> 관리자 마스터
                   </span>
                 ) : grade <= 4 && (
-                  <span style={{
-                    marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700,
+                  <span className="dept-page-badge" style={{
+                    fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700,
                     background: GRADE_BADGE[grade]?.bg || "var(--bg-soft)",
                     color: GRADE_BADGE[grade]?.color || "var(--ink-soft)",
                   }}>
@@ -723,7 +813,7 @@ export default function DepartmentDetailPage() {
               </div>
             </div>
           </div>
-          <button onClick={() => router.push("/home")} style={backBtnStyle}>← 홈</button>
+          <button className="dept-page-home-button" onClick={() => router.push("/home")} style={backBtnStyle}>← 홈</button>
         </div>
 
         {/* Welcome Card */}

@@ -1236,11 +1236,11 @@ const modalCardStyle: CSSProperties = {
   padding: 18,
 };
 
-// 모달은 #app-zoom-root 밖(document.body)으로 portal되므로 글자확대(zoom)가 적용되지 않는다.
-// 스크롤 컨테이너(카드)는 기본 크기로 두어 화면에 맞추고, '내용'에만 zoom을 다시 걸어
-// 노안 대응 글자확대를 살린다. position:fixed 자식(확인 오버레이)은 이 래퍼 밖에 둬야 한다.
+// 모달은 #app-zoom-root 밖(document.body)으로 portal된다.
+// 모바일은 html의 text-size-adjust를 상속하고, PC에서만 내용에 화면 확대를 다시 적용한다.
+// position:fixed 자식(확인 오버레이)은 이 래퍼 밖에 둬야 한다.
 const modalZoomContentStyle: CSSProperties = {
-  zoom: "var(--app-zoom, 1)" as CSSProperties["zoom"],
+  zoom: "var(--app-surface-zoom, 1)" as CSSProperties["zoom"],
 };
 
 const modalHeaderStyle: CSSProperties = {
