@@ -14,7 +14,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   notifyIfNewlyLive,
-  pruneLiveEvents,
   readStatus,
   refreshIfStale,
   serviceClient,
@@ -45,10 +44,6 @@ export async function GET(req: NextRequest) {
   const refreshed = await refreshIfStale(admin, true);
   const notify = await notifyIfNewlyLive(admin, { dryRun });
   const status = await readStatus(admin);
-
-  // 오래된 이벤트 정리는 매분 할 필요가 없다 — KST 새벽 4시대 한 번만.
-  const kstHour = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCHours();
-  if (!dryRun && kstHour === 4) await pruneLiveEvents(admin);
 
   const res = NextResponse.json({
     ok: true,

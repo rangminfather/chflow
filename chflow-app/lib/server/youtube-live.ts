@@ -52,9 +52,6 @@ type VideosResponse = {
   }>;
 };
 
-/** 이벤트 로그 보관 기간 */
-const EVENT_RETENTION_DAYS = 30;
-
 type LiveEvent = {
   event: "live_started" | "live_ended" | "notified" | "notify_skipped" | "error";
   videoId?: string | null;
@@ -130,16 +127,6 @@ export async function notifyIfLiveEnded(
     recipients: recipients.length,
   });
   return { sent: true, recipients: recipients.length };
-}
-
-/** 오래된 이벤트 정리 — 폴러가 가끔만 수행한다(매분 DELETE 를 날릴 이유가 없다) */
-export async function pruneLiveEvents(admin: SupabaseClient): Promise<void> {
-  try {
-    const cutoff = new Date(Date.now() - EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
-    await admin.from("youtube_live_events").delete().lt("created_at", cutoff);
-  } catch {
-    // 정리 실패는 무해하다
-  }
 }
 
 export function serviceClient(): SupabaseClient {
