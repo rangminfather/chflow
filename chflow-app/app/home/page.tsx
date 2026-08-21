@@ -95,6 +95,26 @@ const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "booking",  label: "예약 캘린더", icon: CalendarClock, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
 ];
 
+const ADMIN_SYSTEM_MENU_IDS = new Set(["messenger-diagnostics", "usage-status", "live-status"]);
+const ADMIN_MENU_GROUPS = [
+  {
+    id: "implemented",
+    label: "구현된 메뉴",
+    menus: ADMIN_EXTRA_MENUS.filter((menu) => menu.href && !ADMIN_SYSTEM_MENU_IDS.has(menu.id)),
+  },
+  {
+    id: "unimplemented",
+    label: "미구현된 메뉴",
+    menus: ADMIN_EXTRA_MENUS.filter((menu) => !menu.href),
+  },
+  {
+    id: "system",
+    label: "시스템점검",
+    menus: ADMIN_EXTRA_MENUS.filter((menu) => ADMIN_SYSTEM_MENU_IDS.has(menu.id)),
+  },
+] as const;
+type AdminMenuGroupId = (typeof ADMIN_MENU_GROUPS)[number]["id"];
+
 // =============================================================
 // 메인
 // =============================================================
@@ -218,6 +238,38 @@ export default function HomePage() {
           .home-summary-grid { grid-template-columns: 1fr !important; }
           .home-menu-grid { grid-template-columns: 1fr !important; }
           .admin-menu-grid { grid-template-columns: 1fr !important; }
+          .admin-menu-tabs {
+            display: flex !important;
+            gap: 4px;
+            margin-bottom: 10px;
+            padding: 4px;
+            border: 1px solid var(--hairline);
+            border-radius: 12px;
+            background: var(--card);
+          }
+          .admin-menu-tab {
+            flex: 1 1 0;
+            min-width: 0;
+            padding: 9px 3px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--ink-faint);
+            font-family: inherit;
+            font-size: 10.5px;
+            font-weight: 800;
+            line-height: 1.25;
+            white-space: nowrap;
+            word-break: keep-all;
+            cursor: pointer;
+          }
+          .admin-menu-tab[aria-selected="true"] {
+            background: color-mix(in srgb, var(--brass) 15%, transparent);
+            color: var(--brass);
+          }
+          .admin-menu-group-heading { display: none !important; }
+          .admin-menu-group { margin-top: 0 !important; }
+          .admin-menu-group[data-mobile-active="false"] { display: none; }
           .compact-action { width: 100% !important; justify-content: center !important; }
           .command-center { grid-template-columns: 1fr !important; padding: 18px !important; }
           .command-actions { justify-content: stretch !important; }
@@ -793,6 +845,7 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
   // 생방송 여부는 서버가 스로틀링하는 /api/live/status 에서 받는다 (YouTube 직접 호출 아님)
   // null = 아직 모름 → 표시등을 아예 띄우지 않는다 (모르는 상태를 OFF AIR 로 단정하지 않기)
   const [liveOn, setLiveOn] = useState<boolean | null>(null);
+  const [activeAdminMenuGroup, setActiveAdminMenuGroup] = useState<AdminMenuGroupId>(ADMIN_MENU_GROUPS[0].id);
 
   useEffect(() => {
     let alive = true;
@@ -879,9 +932,43 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
               textTransform: "uppercase",
             }}>ADMIN</span>
           </div>
-          <SafeGrid cols={2} gap={9} className="admin-menu-grid">
-            {ADMIN_EXTRA_MENUS.map((m) => <MenuCard key={m.id} menu={m} router={router} compact />)}
-          </SafeGrid>
+          <div className="admin-menu-tabs" role="tablist" aria-label="관리자 메뉴 분류" style={{ display: "none" }}>
+            {ADMIN_MENU_GROUPS.map((group) => (
+              <button
+                key={group.id}
+                type="button"
+                role="tab"
+                className="admin-menu-tab"
+                id={`admin-menu-tab-${group.id}`}
+                aria-selected={activeAdminMenuGroup === group.id}
+                aria-controls={`admin-menu-panel-${group.id}`}
+                onClick={() => setActiveAdminMenuGroup(group.id)}
+              >
+                {group.label}
+              </button>
+            ))}
+          </div>
+          {ADMIN_MENU_GROUPS.map((group, index) => (
+            <div
+              key={group.id}
+              id={`admin-menu-panel-${group.id}`}
+              role="tabpanel"
+              aria-labelledby={`admin-menu-tab-${group.id}`}
+              className="admin-menu-group"
+              data-mobile-active={activeAdminMenuGroup === group.id}
+              style={{ marginTop: index === 0 ? 0 : 16 }}
+            >
+              <div
+                className="admin-menu-group-heading"
+                style={{ marginBottom: 8, fontSize: 11, fontWeight: 800, color: "var(--ink-faint)" }}
+              >
+                {group.label}
+              </div>
+              <SafeGrid cols={2} gap={9} className="admin-menu-grid">
+                {group.menus.map((m) => <MenuCard key={m.id} menu={m} router={router} compact />)}
+              </SafeGrid>
+            </div>
+          ))}
         </>
       )}
     </Section>
