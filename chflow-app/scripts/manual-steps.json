@@ -33,7 +33,7 @@
         { "id": "login-02", "title": "홈 화면 구성 확인", "desc": "상단 프로필 카드에서 이름·직분·소속을 확인합니다. '내 사역·부서'에는 승인된 부서가 표시되고 '+ 가입'으로 다른 부서에 신청할 수 있습니다. 목자·목녀에게는 '나의 목장'의 목장일지가 표시되며, 아래 '공통 메뉴'에는 모든 성도가 사용하는 기능이 모여 있습니다.", "url": "/home", "highlight": null, "requireLogin": true },
         { "id": "login-03", "title": "내 정보와 자동출석 관리", "desc": "홈의 프로필 영역에서 '내 정보'를 열면 프로필 사진, 직분, 등록 정보, 연락처, 주소, 비밀번호를 확인하거나 허용된 항목을 수정할 수 있습니다. '내 자동출석'에서는 위치 사용 동의와 오늘 출석 상태를 확인합니다. 교회 등록 정보 자체가 다르면 사무실 또는 관리자에게 요청하세요.", "url": "/myinfo", "highlight": null, "requireLogin": true },
         { "id": "login-04", "title": "메신저 열기", "desc": "화면 아래 말풍선 모양 '메신저'를 누르면 개인·그룹 대화 목록이 열립니다. 새 대화에서 성도를 검색해 1:1 대화 또는 그룹 대화를 만들고, 메시지·사진·파일을 보낼 수 있습니다. 메시지를 길게 누르거나 작업 버튼을 사용하면 답장, 전달, 반응, 복사, 본인 메시지 수정·삭제를 할 수 있습니다.", "url": "/messenger", "highlight": null, "requireLogin": true },
-        { "id": "login-05", "title": "알림 확인과 로그아웃", "desc": "화면 아래 종 모양 알림에서 공지, 승인, 메신저 알림을 확인합니다. 알림을 누르면 관련 화면으로 이동하며 읽지 않은 알림은 배지 숫자로 표시됩니다. 공용 기기에서는 홈 메뉴의 '로그아웃'을 눌러 계정을 안전하게 종료하세요.", "url": "/home", "highlight": null, "requireLogin": true }
+        { "id": "login-05", "title": "알림 확인과 로그아웃", "desc": "화면 아래 종 모양 알림에서 공지, 승인, 메신저 알림을 확인합니다. 알림 센터는 '내 알림·메시지·공지·설정' 탭으로 나뉘며, '설정' 탭에서 받고 싶은 알림 채널과 유형을 직접 켜고 끌 수 있습니다(전에 '내 정보'에 있던 알림 설정이 이곳으로 옮겨졌습니다). 관리자에게는 '운영' 탭이 추가로 보입니다. 알림을 누르면 관련 화면으로 이동하며 읽지 않은 알림은 배지 숫자로 표시됩니다. 공용 기기에서는 홈 메뉴의 '로그아웃'을 눌러 계정을 안전하게 종료하세요.", "url": "/home", "highlight": null, "requireLogin": true }
       ]
     },
     {
@@ -52,7 +52,7 @@
       "steps": [
         { "id": "common-live", "title": "예배 — 실시간·지난 말씀", "desc": "예배 시간에는 현재 방송 중인 YouTube 예배를 앱 안에서 시청합니다. 방송 전·후에는 예배 일정과 교회 채널 연결을 확인할 수 있고, '지난 말씀'에서 부서·예배별 최근 설교를 선택해 재생합니다. 전체 화면 버튼을 누르면 가로 화면으로 크게 볼 수 있습니다.", "url": "/live", "highlight": null, "requireLogin": true },
         { "id": "common-bulletin", "title": "주보 보기", "desc": "최신 교회 주보를 화면에서 바로 읽습니다. 저장된 PDF가 있으면 페이지별로 확대해 보고, 원문만 제공되는 주보는 교회 홈페이지 링크로 이동합니다. 이전 주보가 표시되면 날짜를 확인한 뒤 원하는 주를 선택하세요.", "url": "/bulletin", "highlight": null, "requireLogin": true },
-        { "id": "common-directory", "title": "성도 요람", "desc": "이름, 직분, 소속 등으로 성도를 검색합니다. 검색 결과의 성도 카드를 누르면 공개된 연락처·소속·가족 정보를 확인할 수 있고, 휴대폰에서는 전화·문자 버튼을 바로 사용할 수 있습니다. 개인정보는 사역 목적 안에서만 사용하세요.", "url": "/directory", "highlight": null, "requireLogin": true },
+        { "id": "common-directory", "title": "성도 요람", "desc": "이름, 직분, 소속 등으로 성도를 검색합니다. 검색 결과의 성도 카드를 누르면 공개된 연락처·소속·가족 정보를 확인할 수 있고, 휴대폰에서는 전화·문자 버튼을 바로 사용할 수 있습니다. 본인 카드와 관리자에게는 가족 정보 아래 '+ 자녀 등록'이 표시되어 자녀를 등록·수정·삭제할 수 있습니다. 개인정보는 사역 목적 안에서만 사용하세요.", "url": "/directory", "highlight": null, "requireLogin": true },
         { "id": "common-education", "title": "삶공부·교육이력", "desc": "승인되어 공개된 삶공부, 제자훈련, 선교훈련, LMTC 등 교육 이력을 조회합니다. 이름으로 개인 이력을 찾거나 과정·기수별 이수자와 LMTC 현황을 확인합니다. 관리자에게는 자료 가져오기·검수·과정 관리 기능이 추가로 표시됩니다.", "url": "/education-history", "highlight": null, "requireLogin": true },
         { "id": "common-feedback", "title": "불편신고/건의", "desc": "앱 오류, 정보 수정 요청, 기능 제안을 등록합니다. '글쓰기'에서 제목과 내용을 작성하고 필요한 경우 비공개로 제출하세요. 목록에서 본인이 작성한 글의 처리 상태와 관리자 답변을 확인할 수 있습니다.", "url": "/feedback", "highlight": null, "requireLogin": true },
         { "id": "common-manual", "title": "사용 매뉴얼", "desc": "지금 보고 있는 안내서입니다. 왼쪽 또는 상단의 장 제목으로 이동하고, 이미지를 누르면 크게 볼 수 있습니다. 상단 '인쇄'로 종이에 출력하거나 'PDF'로 저장해 다른 분에게 전달할 수 있습니다.", "url": "/manual", "highlight": null, "requireLogin": true }
@@ -76,7 +76,7 @@
       "id": "ch07",
       "title": "7장. 담임교사 메뉴",
       "account": "manual_teacher",
-      "intro": "담임메뉴는 실제 반과 담임으로 지정된 교사에게 표시됩니다. 매주 내 반 출결을 먼저 입력하고 달란트 항목을 확인한 뒤, 우리 반 아이 정보에서 연락과 학생 정보를 조회합니다.",
+      "intro": "담임메뉴는 실제 반과 담임으로 지정된 교사에게 표시됩니다. 반 담임은 '정'·'부' 두 자리로 지정되며 어느 쪽이든 담임메뉴가 열립니다. 매주 내 반 출결을 먼저 입력하고 달란트 항목을 확인한 뒤, 우리 반 아이 정보에서 연락과 학생 정보를 조회합니다. 교회 관리자에게는 같은 자리가 '마스터 담임메뉴'로 표시되어 부서 전체 반을 골라 볼 수 있습니다.",
       "steps": [
         { "id": "teacher-01", "title": "내 반 출결", "desc": "현재 주 카드에서 학생별 상태를 '출석·결석·출석인정' 중 하나로 기록합니다. 모바일은 주차 카드를 좌우로 넘기고 PC는 주차별 표를 봅니다. 이번 주만 수정할 수 있으며 지난 주는 '수정 마감', 다음 주는 '예정'으로 잠깁니다. 출석인정은 부득이한 사유로 현장 출석을 대체한 경우 사용합니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/my-class-attendance", "highlight": null, "requireLogin": true },
         { "id": "teacher-02", "title": "달란트통장", "desc": "학생별 성경책 지참, 요절암송, 주보 가져오기, 전도 등 현재 설정된 항목을 체크합니다. 내 반 출결에서 기록한 출석은 자동 연결됩니다. 기타 달란트는 사유와 수량을 직접 입력하며, 화면의 누적 합계로 학생별 잔액을 확인합니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/talent", "highlight": null, "requireLogin": true },
@@ -94,16 +94,17 @@
         { "id": "admin-02", "title": "교육일지작성", "desc": "주일 날짜를 선택해 예배 인원, 반별 출결, 헌금, 교육 내용과 특이사항을 기록합니다. 출결 자료가 연동되면 먼저 자동 집계값을 확인하고 누락된 항목만 보완한 뒤 저장합니다. 과거 일지는 날짜별로 다시 열어 조회합니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/journal", "highlight": null, "requireLogin": true },
         { "id": "admin-03", "title": "월간교육등록", "desc": "월을 선택하고 교육계획 파일을 업로드합니다. 등록 전 대상 월과 파일 내용을 확인하고, 교체할 때는 구성원이 보게 될 최종 파일인지 다시 확인합니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/monthly-plan-upload", "highlight": null, "requireLogin": true },
         { "id": "admin-04", "title": "복습문제 관리", "desc": "공과 복습문제 PPTX를 주차·제목과 함께 업로드하거나 더 이상 쓰지 않는 파일을 삭제합니다. 업로드 후 '복습문제 보기'에서 실제로 열리는지 확인하세요.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/review-upload", "highlight": null, "requireLogin": true },
-        { "id": "admin-05", "title": "출결 통합 조회", "desc": "전체 반의 주차별 출결을 한 화면에서 확인하고 필요한 학생의 출결·달란트 현황·개인별 이력을 조회합니다. 반·기간·학생 필터를 사용해 누락이나 이상 기록을 찾습니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/attendance", "highlight": null, "requireLogin": true },
+        { "id": "admin-05", "title": "출결 통합 조회", "desc": "전체 반의 주차별 출결을 한 화면에서 확인하고 필요한 학생의 출결과 개인별 이력을 조회합니다. 반·기간·학생 필터를 사용해 누락이나 이상 기록을 찾습니다. 달란트 현황은 이 화면에서 분리되어 '달란트 통합체크'에서 봅니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/attendance", "highlight": null, "requireLogin": true },
         { "id": "admin-06", "title": "출결통계", "desc": "선생님과 학생의 기간별 출석률과 출석 횟수를 확인합니다. 기간과 대상을 선택해 부서 운영 참고자료로 사용하며, 원본 출결이 잘못되었으면 먼저 출결 기록을 바로잡습니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/attendance-stats", "highlight": null, "requireLogin": true },
         { "id": "admin-07", "title": "선생님 등록 / 출석", "desc": "부서 교사를 등록하고 월별 교사 출석부를 관리합니다. 날짜별 출석 상태를 입력한 뒤 저장 여부를 확인하고, 명단에 없는 교사는 먼저 부서 가입·역할 상태를 점검합니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/teacher-attendance", "highlight": null, "requireLogin": true },
+        { "id": "admin-08a", "title": "달란트 통합체크", "desc": "전체 반의 달란트를 한 화면에서 체크하고 월별 현황을 확인합니다. 담임이 입력하지 못한 반을 임원진이 대신 채우거나 누락을 점검할 때 사용합니다. 체크 항목과 점수는 '달란트 항목설정'에서 정한 값을 따릅니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/talent-check", "highlight": null, "requireLogin": true },
         { "id": "admin-08", "title": "달란트 항목설정", "desc": "달란트통장에 보일 항목명, 점수, 입력 방식을 설정합니다. 출석 연동 항목과 교사가 직접 체크할 항목을 구분하고, 운영 중 점수를 바꾸기 전 기존 기록에 미칠 영향을 확인하세요.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/talent-rules", "highlight": null, "requireLogin": true },
         { "id": "admin-09", "title": "달란트통계", "desc": "학생별 누적 달란트, 반별 현황과 순위를 확인합니다. 기간·반 필터로 대상을 좁혀 누락을 점검하고 달란트잔치 준비 자료로 활용합니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/talent-stats", "highlight": null, "requireLogin": true },
         { "id": "admin-10", "title": "달란트잔치", "desc": "학생별 달란트 통장을 출력하고 잔치 후 반기 데이터를 정리합니다. 출력 대상과 잔액을 먼저 검토하세요. 반기 리셋은 되돌리기 어려운 작업이므로 잔치가 끝난 뒤 대상 기간을 재확인하고 실행합니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/talent-feast", "highlight": null, "requireLogin": true },
         { "id": "admin-11", "title": "공과퀴즈 달란트", "desc": "교육부서의 월별 공과시험 결과에 따라 학생별 퀴즈 달란트를 입력합니다. 시험 월과 학생을 확인하고 점수를 저장한 뒤 달란트통장 반영값을 점검합니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/quiz-talent", "highlight": null, "requireLogin": true },
         { "id": "admin-12", "title": "학생정보관리", "desc": "부서 학생 명부와 인적사항, 학교·학년, 보호자·가족 관계를 조회하고 수정합니다. 검색과 반 필터로 학생을 찾고 저장 전 동일인 여부를 반드시 확인하세요.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/students-info", "highlight": null, "requireLogin": true },
         { "id": "admin-13", "title": "새친구등록", "desc": "처음 방문한 학생의 이름, 생년·학교, 연락처, 보호자와 방문 정보를 등록합니다. 이미 등록된 학생인지 먼저 검색하고, 이후 정착 정보와 생활기록을 이어서 관리합니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/new-friend", "highlight": null, "requireLogin": true },
-        { "id": "admin-14", "title": "반 관리", "desc": "반을 추가·삭제하고 교사를 담임으로 지정합니다. 교사가 담임메뉴를 보려면 부서 교사 승인뿐 아니라 실제 반의 담임으로 연결되어야 합니다. 학기 변경 때 학생·교사 배정을 함께 점검하세요.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/teacher-assign", "highlight": null, "requireLogin": true },
+        { "id": "admin-14", "title": "반 관리", "desc": "반을 추가·삭제하고 반마다 담임을 '정'·'부' 두 자리로 지정합니다. 각 자리를 눌러 교사를 선택하며, 계정이 연결되지 않은 교사는 '계정 미연결'로 표시됩니다. 교사가 담임메뉴를 보려면 부서 교사 승인뿐 아니라 실제 반의 정 또는 부 담임으로 연결되어야 합니다. 학기 변경 때 학생·교사 배정을 함께 점검하세요.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/teacher-assign", "highlight": null, "requireLogin": true },
         { "id": "admin-15", "title": "사역 가입 승인", "desc": "본 부서에 들어온 가입 신청을 확인해 승인하거나 거절하고 역할 등급을 부여합니다. 신청자의 이름, 자녀 연결, 선택한 역할을 확인한 뒤 처리하세요. 승인 즉시 신청자의 홈과 부서 메뉴 권한에 반영됩니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/dept-approval", "highlight": null, "requireLogin": true }
       ]
     },
@@ -114,7 +115,7 @@
       "intro": "부서관리는 부장·전도사 등 상위 권한에게 표시됩니다. 부서원 권한, 연간 진급, 초등1부 예배안내처럼 부서 전체 운영에 영향을 주는 기능을 관리합니다.",
       "steps": [
         { "id": "department-01", "title": "예배안내", "desc": "초등1부 주일 예배 안내 문구를 일정과 주보 자료에서 불러와 생성합니다. 날짜, 본문, 준비물과 안내 내용을 검토한 뒤 복사하거나 카카오톡으로 공유합니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/worship-guide", "highlight": null, "requireLogin": true },
-        { "id": "department-02", "title": "부서원관리", "desc": "승인된 부서원의 등급을 전도사·부장·총무/서기·교사·학부모 범위에서 변경합니다. 등급은 보이는 메뉴와 수정 권한을 결정하므로 실제 직책을 확인한 뒤 저장하세요.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/members-grade", "highlight": null, "requireLogin": true },
+        { "id": "department-02", "title": "부서원관리", "desc": "승인된 부서원의 등급을 전도사·부장·총무/서기·교사·학부모 범위에서 변경합니다. 등급은 보이는 메뉴와 수정 권한을 결정하므로 실제 직책을 확인한 뒤 저장하세요. '임명'으로 등록 성도를 검색해 부서원으로 직접 추가하고, 각 줄의 제외 버튼으로 부서에서 내보낼 수 있습니다. 제외해도 출석·담임 이력은 남아 다시 임명하면 복구되며, 본인은 제외할 수 없습니다.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/members-grade", "highlight": null, "requireLogin": true },
         { "id": "department-03", "title": "진급 마법사", "desc": "연말·연초에 학생 학년 진급, 새 반 편성, 담임 배정을 단계별로 처리합니다. 미리보기에서 이동 대상과 새 배정을 검토하고, 백업·확인 절차를 마친 뒤 최종 적용하세요.", "url": "/departments/d/882ee0b6-af49-46bb-a077-682a9536cb76/promote", "highlight": null, "requireLogin": true }
       ]
     },
