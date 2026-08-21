@@ -77,8 +77,30 @@ const FILTERS: { key: string; label: string; events: string[] | null }[] = [
   { key: "error", label: "오류", events: ["error"] },
 ];
 
+/** 기간 필터 — days 가 있으면 '지금부터 N일 전까지', custom 은 날짜 직접 입력 */
+const PERIODS: { key: string; label: string; days: number | null; custom?: boolean }[] = [
+  { key: "all", label: "전체", days: null },
+  { key: "7d", label: "7일", days: 7 },
+  { key: "30d", label: "30일", days: 30 },
+  { key: "custom", label: "직접", days: null, custom: true },
+];
+
 /** 한 번에 보여주는 이력 건수 */
 const PAGE = 50;
+
+/** yyyy-mm-dd 입력값을 그 날의 시작(로컬)으로. 비면 null */
+function dayStartISO(value: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0).toISOString();
+}
+
+/** 종료일은 그 날을 포함해야 하므로 다음 날 0시 직전까지 본다 */
+function dayEndISO(value: string): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59, 999).toISOString();
+}
 
 /** 폴러는 1분 간격이다. 이보다 한참 지났으면 폴러가 멈춘 것으로 본다. */
 const POLLER_STALL_MS = 5 * 60 * 1000;
@@ -120,6 +142,9 @@ export default function AdminLiveStatusPage() {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [total, setTotal] = useState(0);
   const [filterKey, setFilterKey] = useState("all");
+  const [periodKey, setPeriodKey] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [limit, setLimit] = useState(PAGE);
   const [loading, setLoading] = useState(true);
   const [denied, setDenied] = useState(false);
@@ -129,9 +154,9 @@ export default function AdminLiveStatusPage() {
   // 렌더 중 Date.now() 를 부르지 않기 위해 조회 시각을 상태로 들고 간다
   const [nowMs, setNowMs] = useState(0);
   const loadInFlightRef = useRef(false);
-  // 자동 새로고침이 '더 보기'로 펼쳐 둔 범위를 되돌리지 않도록 최신 값을 참조로 읽는다
-  const viewRef = useRef({ filterKey, limit });
-  viewRef.current = { filterKey, limit };
+  // 자동 새로고침이 '더 보기'로 펼쳐 둔 범위·필터를 되돌리지 않도록 최신 값을 참조로 읽는다
+  const viewRef = useRef({ filterKey, limit, periodKey, fromDate, toDate });
+  viewRef.current = { filterKey, limit, periodKey, fromDate, toDate };
 
   const load = useCallback(async (isRefresh = false) => {
     if (loadInFlightRef.current || document.visibilityState !== "visible") return;
@@ -146,6 +171,17 @@ export default function AdminLiveStatusPage() {
         .order("created_at", { ascending: false })
         .range(0, Math.max(PAGE, view.limit) - 1);
       if (filterEvents) eventQuery = eventQuery.in("event", filterEvents);
+
+      const period = PERIODS.find((p) => p.key === view.periodKey);
+      if (period?.days) {
+        const since = new Date(Date.now() - period.days * 24 * 60 * 60 * 1000).toISOString();
+        eventQuery = eventQuery.gte("created_at", since);
+      } else if (period?.custom) {
+        const from = dayStartISO(view.fromDate);
+        const to = dayEndISO(view.toDate);
+        if (from) eventQuery = eventQuery.gte("created_at", from);
+        if (to) eventQuery = eventQuery.lte("created_at", to);
+      }
 
       const [{ data: s }, { data: e, count }] = await Promise.all([
         supabase
@@ -210,18 +246,21 @@ export default function AdminLiveStatusPage() {
   }, [router, load]);
 
   /** 필터를 바꾸면 처음 50건부터 다시 본다 */
-  function changeFilter(key: string) {
-    if (key === filterKey) return;
-    setFilterKey(key);
-    setLimit(PAGE);
-    viewRef.current = { filterKey: key, limit: PAGE };
+  /** 조건을 바꾸면 항상 처음 PAGE 건부터 다시 본다 */
+  function applyView(next: Partial<typeof viewRef.current>) {
+    viewRef.current = { ...viewRef.current, limit: PAGE, ...next };
+    setLimit(viewRef.current.limit);
+    if (next.filterKey !== undefined) setFilterKey(next.filterKey);
+    if (next.periodKey !== undefined) setPeriodKey(next.periodKey);
+    if (next.fromDate !== undefined) setFromDate(next.fromDate);
+    if (next.toDate !== undefined) setToDate(next.toDate);
     void load(true);
   }
 
   function loadMore() {
     const next = limit + PAGE;
     setLimit(next);
-    viewRef.current = { filterKey, limit: next };
+    viewRef.current = { ...viewRef.current, limit: next };
     void load(true);
   }
 
@@ -340,27 +379,49 @@ export default function AdminLiveStatusPage() {
             </span>
           </div>
 
-          <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
-            {FILTERS.map((f) => {
-              const active = f.key === filterKey;
-              return (
-                <button
-                  key={f.key}
-                  type="button"
-                  onClick={() => changeFilter(f.key)}
-                  aria-pressed={active}
-                  style={{
-                    flex: "1 1 0", minWidth: 0, padding: "7px 4px",
-                    border: 0, borderRadius: 8, cursor: "pointer",
-                    fontFamily: "inherit", fontSize: 11.5,
-                    fontWeight: active ? 800 : 600,
-                    background: active ? "var(--accent-soft)" : "var(--bg-soft)",
-                    color: active ? "var(--accent-strong)" : "var(--ink-soft)",
-                  }}
-                >{f.label}</button>
-              );
-            })}
+          <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+            {FILTERS.map((f) => (
+              <SegButton
+                key={f.key}
+                label={f.label}
+                active={f.key === filterKey}
+                onClick={() => applyView({ filterKey: f.key })}
+              />
+            ))}
           </div>
+
+          <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+            {PERIODS.map((p) => (
+              <SegButton
+                key={p.key}
+                label={p.label}
+                active={p.key === periodKey}
+                onClick={() => applyView({ periodKey: p.key })}
+              />
+            ))}
+          </div>
+
+          {periodKey === "custom" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <input
+                type="date"
+                value={fromDate}
+                max={toDate || undefined}
+                onChange={(e) => applyView({ fromDate: e.currentTarget.value })}
+                aria-label="조회 시작일"
+                style={dateInputStyle}
+              />
+              <span style={{ fontSize: 12, color: "var(--ink-faint)", flexShrink: 0 }}>~</span>
+              <input
+                type="date"
+                value={toDate}
+                min={fromDate || undefined}
+                onChange={(e) => applyView({ toDate: e.currentTarget.value })}
+                aria-label="조회 종료일"
+                style={dateInputStyle}
+              />
+            </div>
+          )}
 
           {events.length === 0 ? (
             <div style={{
@@ -368,9 +429,9 @@ export default function AdminLiveStatusPage() {
               padding: "26px 2px", color: "var(--ink-soft)", fontSize: 13,
             }}>
               <Inbox size={22} strokeWidth={1.6} color="var(--ink-faint)" />
-              {filterKey === "all"
+              {filterKey === "all" && periodKey === "all"
                 ? "아직 기록이 없습니다. 첫 방송이 감지되면 여기에 남습니다."
-                : "이 유형의 기록이 없습니다."}
+                : "이 조건에 맞는 기록이 없습니다. 유형이나 기간을 넓혀 보세요."}
             </div>
           ) : (
             <>
@@ -478,6 +539,32 @@ const btnStyle: React.CSSProperties = {
   fontSize: 12, fontWeight: 600, cursor: "pointer",
   fontFamily: "inherit",
 };
+
+const dateInputStyle: React.CSSProperties = {
+  flex: "1 1 0", minWidth: 0, padding: "6px 8px",
+  border: "1px solid var(--hairline-strong)", borderRadius: 8,
+  background: "var(--card)", color: "var(--ink)",
+  fontFamily: "inherit", fontSize: 12, fontWeight: 500,
+};
+
+/** 유형·기간 필터에 함께 쓰는 세그먼트 버튼 */
+function SegButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      style={{
+        flex: "1 1 0", minWidth: 0, padding: "7px 4px",
+        border: 0, borderRadius: 8, cursor: "pointer",
+        fontFamily: "inherit", fontSize: 11.5,
+        fontWeight: active ? 800 : 600,
+        background: active ? "var(--accent-soft)" : "var(--bg-soft)",
+        color: active ? "var(--accent-strong)" : "var(--ink-soft)",
+      }}
+    >{label}</button>
+  );
+}
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
