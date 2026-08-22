@@ -287,6 +287,11 @@ export default function AdminLiveStatusPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "'Noto Sans KR', sans-serif", paddingBottom: 40 }}>
+      {/* 행마다 가로 스크롤이라 스크롤바가 50줄 보이면 지저분하다 — 막대만 숨기고 동작은 남긴다 */}
+      <style>{`
+        .live-evt-row { scrollbar-width: none; -ms-overflow-style: none; }
+        .live-evt-row::-webkit-scrollbar { display: none; }
+      `}</style>
       <header style={{
         display: "flex", alignItems: "center", gap: 10, padding: "12px 14px",
         background: "var(--card)", borderBottom: "1px solid var(--hairline)",
@@ -436,41 +441,51 @@ export default function AdminLiveStatusPage() {
           ) : (
             <>
               <div style={{
-                maxHeight: 372, overflow: "auto",
+                maxHeight: 372, overflowY: "auto",
                 overscrollBehavior: "contain",
                 WebkitOverflowScrolling: "touch",
                 border: "1px solid var(--hairline)", borderRadius: 10,
                 background: "var(--bg-soft)",
               }}>
-                {/* 내용이 잘리지 않도록 한 줄을 그대로 두고, 트랙째 좌우로 밀어서 읽는다.
-                    min-width:max-content 로 트랙을 가장 긴 줄에 맞추면 각 행의 구분선이
-                    스크롤 폭 전체에 이어진다. */}
-                <div style={{ minWidth: "max-content" }}>
+                {/* 가로 스크롤은 '행마다' 따로 둔다. 목록 전체를 한 트랙으로 밀면
+                    짧은 메시지가 고정된 시각 칸 뒤로 숨어 버린다 — 행별이면 각 행이
+                    자기 길이만큼만 밀리므로 어떤 줄도 가려지지 않는다. */}
+                <div>
                 {events.map((ev, i) => {
                   const meta = EVENT_LABEL[ev.event] ?? { text: ev.event, tone: "mute" as const };
                   const tone = TONE_COLOR[meta.tone];
                   const note = (ev.detail && DETAIL_LABEL[ev.detail]) || ev.title || ev.detail;
                   const showNote = !!note && meta.tone === "bad";
                   return (
-                    <div key={ev.id} style={{
-                      display: "flex", gap: 9, alignItems: "baseline",
-                      // 오른쪽 여백은 끝까지 밀었을 때 글자가 플로팅 버튼에 가리지 않게 두는 공간
-                      padding: "8px 52px 8px 11px",
-                      width: "100%",
+                    <div key={ev.id} className="live-evt-row" style={{
+                      display: "flex", alignItems: "stretch",
+                      overflowX: "auto",
+                      overscrollBehaviorInline: "contain",
+                      WebkitOverflowScrolling: "touch",
                       borderTop: i === 0 ? undefined : "1px solid var(--hairline)",
                     }}>
-                      <span style={{
-                        width: 6, height: 6, borderRadius: "50%", background: tone,
-                        flexShrink: 0, transform: "translateY(-1px)",
-                      }} />
-                      <span style={{
-                        fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 500,
-                        flexShrink: 0, fontVariantNumeric: "tabular-nums",
-                      }}>{fmtShort(ev.created_at)}</span>
-                      <div style={{ flexShrink: 0 }}>
+                      {/* 시각은 좌측 고정 — 옆으로 밀어 메시지를 읽는 동안에도 언제 것인지 보여야 한다.
+                          배경을 목록과 같은 색으로 깔아 흘러오는 글자를 가린다. */}
+                      <div style={{
+                        position: "sticky", left: 0, zIndex: 1, flexShrink: 0,
+                        display: "flex", alignItems: "flex-start", gap: 9,
+                        padding: "8px 9px 8px 11px",
+                        background: "var(--bg-soft)",
+                      }}>
+                        <span style={{
+                          width: 6, height: 6, borderRadius: "50%", background: tone,
+                          flexShrink: 0, marginTop: 6,
+                        }} />
+                        <span style={{
+                          fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 500,
+                          flexShrink: 0, fontVariantNumeric: "tabular-nums", lineHeight: "18px",
+                        }}>{fmtShort(ev.created_at)}</span>
+                      </div>
+                      {/* 오른쪽 여백은 끝까지 밀었을 때 글자가 플로팅 버튼에 가리지 않게 두는 공간 */}
+                      <div style={{ flexShrink: 0, padding: "8px 52px 8px 0" }}>
                         <div style={{
                           fontSize: 12.5, fontWeight: 600, color: "var(--ink)",
-                          whiteSpace: "nowrap",
+                          whiteSpace: "nowrap", lineHeight: "18px",
                         }} title={note || undefined}>
                           {meta.text}
                           {ev.session_key && (
@@ -510,7 +525,7 @@ export default function AdminLiveStatusPage() {
                 </button>
               )}
               <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.6 }}>
-메시지가 길면 목록을 옆으로 밀어 보세요 · 자동 삭제 없이 계속 보관 · {PAGE}건씩 표시
+메시지가 길면 그 줄을 옆으로 밀어 보세요 · 자동 삭제 없이 계속 보관 · {PAGE}건씩 표시
               </div>
             </>
           )}
