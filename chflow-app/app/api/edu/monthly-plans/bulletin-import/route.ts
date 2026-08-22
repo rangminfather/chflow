@@ -80,17 +80,35 @@ function cleanCell(value: unknown) {
   return String(value ?? "").replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function parseMonthDay(value: string) {
-  const match = value.match(/(\d{1,2})\s*[./-]\s*(\d{1,2})/);
-  if (!match) return null;
-  const month = Number(match[1]);
-  const day = Number(match[2]);
-  if (!month || !day) return null;
-  return { month, day };
+function validIsoDate(year: number, month: number, day: number) {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCDate() !== day
+  ) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-function isoFromMonthDay(year: number, month: number, day: number) {
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+/** Excel 날짜 셀은 Date/ISO/M-D/일련번호 중 어느 형태로도 들어올 수 있다. */
+function parsePlanDate(value: string, fallbackYear: number) {
+  const normalized = cleanCell(value);
+  const full = normalized.match(/^(\d{4})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{1,2})(?:\D.*)?$/);
+  if (full) return validIsoDate(Number(full[1]), Number(full[2]), Number(full[3]));
+
+  const monthDay = normalized.match(/^(\d{1,2})\s*(?:[./-]|월)\s*(\d{1,2})(?:\s*일)?(?:\D.*)?$/);
+  if (monthDay) return validIsoDate(fallbackYear, Number(monthDay[1]), Number(monthDay[2]));
+
+  // Excel 1900 날짜 체계의 일련번호. 일반적인 날짜 범위만 허용한다.
+  if (/^\d{5}(?:\.\d+)?$/.test(normalized)) {
+    const serial = Number(normalized);
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.floor(serial) * 86_400_000);
+    const year = date.getUTCFullYear();
+    if (year >= 2000 && year <= 2100) {
+      return validIsoDate(year, date.getUTCMonth() + 1, date.getUTCDate());
+    }
+  }
+  return null;
 }
 
 function nextSunday(date: string) {
@@ -184,7 +202,9 @@ function sortEntriesForDate(entries: PlanEntry[], date: string) {
 
 function xlCellToStr(v: unknown): string {
   if (v === null || v === undefined) return "";
-  if (v instanceof Date) return v.toISOString().split("T")[0];
+  if (v instanceof Date) {
+    return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
+  }
   if (typeof v === "object") {
     if ("richText" in v) return (v as { richText: { text: string }[] }).richText.map(r => r.text).join("");
     if ("formula" in v) return String((v as { result?: unknown }).result ?? "");
@@ -209,15 +229,15 @@ async function readEntriesFromWorkbook(buffer: Buffer, sourceFile: string, fileO
 
     for (const rawRow of rows) {
       const row = Array.from({ length: 12 }, (_, index) => cleanCell(rawRow[index]));
-      const parsedDate = parseMonthDay(row[0]);
+      const parsedDate = parsePlanDate(row[0], year);
       if (!parsedDate) continue;
 
       entries.push({
-        date: isoFromMonthDay(year, parsedDate.month, parsedDate.day),
+        date: parsedDate,
         sourceFile,
         sheetName,
         fileOrder,
-        sheetScore: scoreSheetForMonth(sheetName, parsedDate.month),
+        sheetScore: scoreSheetForMonth(sheetName, Number(parsedDate.slice(5, 7))),
         fields: fieldsFromRow(row),
         raw: {
           sunday: row[0],

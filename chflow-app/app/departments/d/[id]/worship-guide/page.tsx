@@ -43,6 +43,15 @@ type PlanFields = {
 
 type PlanInfo = { fields: PlanFields; sourceFile: string; sheetName: string } | null;
 
+type BulletinFields = {
+  guide?: string; praise?: string; leader?: string; prayer?: string;
+  scripture?: string; sermonTitle?: string; preacher?: string; twoPartActivity?: string;
+};
+type BulletinFieldKey = keyof BulletinFields;
+type ComparisonRow = {
+  key: BulletinFieldKey; label: string; draft: string; bulletin: string; matches: boolean;
+};
+
 type GuideFields = {
   guideClass?: string; guideNext?: string;
   prayerClass?: string; prayerNext?: string; prayerFixed?: boolean;
@@ -58,7 +67,7 @@ type BulletinFetch =
   | { status: "idle" | "checking" | "missing" }
   | { status: "notext"; url: string }
   | { status: "error"; detail: string }
-  | { status: "ready"; text: string; url: string };
+  | { status: "ready"; text: string; fields: BulletinFields; url: string };
 
 // ───────────────────────── 상수 ─────────────────────────
 
@@ -181,6 +190,79 @@ function preacherHonorific(name: string, teachers: TeacherRow[]): string {
 // ───────────────────────── PDF 텍스트 추출 ─────────────────────────
 
 const normText = (s: string) => s.replace(/\s+/g, "");
+
+function cleanBulletinValue(value: string) {
+  return value.replace(/[─━_]+/g, "").replace(/^[✿*:\-：]+|[✿*:\-：]+$/g, "").trim();
+}
+
+function between(text: string, start: string, end: string) {
+  const from = text.indexOf(start);
+  if (from < 0) return "";
+  const valueStart = from + start.length;
+  const to = text.indexOf(end, valueStart);
+  if (to < 0) return "";
+  return cleanBulletinValue(text.slice(valueStart, to));
+}
+
+/** 초등1부 주보 2쪽의 고정된 예배순서 라벨 사이에서 실제 값을 추출한다. */
+function parseDeptBulletinFields(text: string): BulletinFields {
+  const start = text.indexOf("주일예배순서");
+  const scope = start >= 0 ? text.slice(start) : text;
+  const sermon = between(scope, "강론", "주기도문");
+  const preacherMatch = sermon.match(/([가-힣]{2,4}(?:전도사|목사|장로|선교사|권사|집사|교육사)(?:님)?)$/);
+  const preacher = preacherMatch?.[1] || "";
+  const sermonTitle = preacher ? sermon.slice(0, -preacher.length) : sermon;
+
+  return {
+    guide: between(scope, "안내:", "찬양") || between(scope, "안내", "찬양"),
+    praise: between(scope, "찬양", "예배인도"),
+    leader: between(scope, "예배인도", "십계명"),
+    prayer: between(scope, "기도", "성경봉독"),
+    scripture: between(scope, "성경봉독", "강론").replace(/인도자$/, ""),
+    sermonTitle: cleanBulletinValue(sermonTitle),
+    preacher: cleanBulletinValue(preacher),
+    twoPartActivity: between(scope, "2부행사:", "다음주기도") || between(scope, "2부행사", "다음주기도"),
+  };
+}
+
+function comparisonText(value: string) {
+  return normText(value)
+    .replace(/[(),·/\-:：]/g, "")
+    .replace(/(선생님|전도사님|목사님|장로님|선교사님|권사님|집사님|교육사님|어린이)/g, "")
+    .replace(/(전도사|목사|장로|선교사|권사|집사|교육사|부장|부감)/g, "");
+}
+
+function readableBulletinValue(key: BulletinFieldKey, value: string) {
+  let result = value.trim();
+  if (key === "praise") {
+    result = result.replace(/선생님$/, "");
+    if (/^[가-힣]{6}$/.test(result)) result = `${result.slice(0, 3)}, ${result.slice(3)}`;
+    return `${result} 선생님`;
+  }
+  if (key === "guide") {
+    result = result.replace(/선생님$/, "");
+    return `${result} 선생님`;
+  }
+  if (key === "prayer" && /반$/.test(result)) return `${result} 어린이`;
+  result = result
+    .replace(/^([가-힣]{2,4})(부장|부감)(선생님)?$/, "$1 $2선생님")
+    .replace(/^([가-힣]{2,4})(전도사|목사|장로|선교사|권사|집사|교육사)(님)?$/, "$1 $2님");
+  return result;
+}
+
+async function fetchWithFreshAuth(input: RequestInfo | URL, token: string, init: RequestInit = {}) {
+  const request = (accessToken: string) => {
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    return fetch(input, { ...init, headers });
+  };
+  let response = await request(token);
+  if (response.status !== 401) return response;
+  const { data } = await supabase.auth.refreshSession();
+  if (!data.session) return response;
+  response = await request(data.session.access_token);
+  return response;
+}
 
 // ───────────────────────── 네이티브(안드로이드 앱) 공유 브릿지 ─────────────────────────
 // 앱(WebView)에는 navigator.share 가 없어 셸의 postMessage 브릿지로 공유 시트를 연다.
@@ -361,9 +443,8 @@ export default function WorshipGuidePage() {
   // ── 주보 텍스트 수집 (초등1부 주보 / 교회주보) ──
   const fetchDeptBulletin = useCallback(async (token: string, date: string): Promise<BulletinFetch> => {
     try {
-      const res = await fetch(`/api/dept-bulletin/latest?dept=${encodeURIComponent("초등1부")}`, {
+      const res = await fetchWithFreshAuth(`/api/dept-bulletin/latest?dept=${encodeURIComponent("초등1부")}`, token, {
         cache: "no-store",
-        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "초등1부 주보 조회 실패");
@@ -371,7 +452,9 @@ export default function WorshipGuidePage() {
       const item = ((data.items || []) as Item[]).find((i) => i.issue_date === date && i.pdf_url);
       if (!item?.pdf_url) return { status: "missing" };
       const text = await extractPdfText(item.pdf_url, 1, 3);
-      return text ? { status: "ready", text, url: item.pdf_url } : { status: "notext", url: item.pdf_url };
+      return text
+        ? { status: "ready", text, fields: parseDeptBulletinFields(text), url: item.pdf_url }
+        : { status: "notext", url: item.pdf_url };
     } catch {
       return { status: "error", detail: "초등1부 주보 확인 중 오류" };
     }
@@ -379,9 +462,8 @@ export default function WorshipGuidePage() {
 
   const fetchChurchBulletin = useCallback(async (token: string, date: string): Promise<BulletinFetch> => {
     try {
-      const res = await fetch("/api/bulletin/latest", {
+      const res = await fetchWithFreshAuth("/api/bulletin/latest", token, {
         cache: "no-store",
-        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "교회주보 조회 실패");
@@ -390,7 +472,7 @@ export default function WorshipGuidePage() {
       if (!item?.pdf_url) return { status: "missing" };
       // 교회주보는 스캔 이미지 PDF라 텍스트 자동 대조가 불가 — 미리보기(눈 대조) 전용.
       // PDF 다운로드는 미리보기를 열 때만 일어난다.
-      return { status: "ready", text: "", url: item.pdf_url };
+      return { status: "ready", text: "", fields: {}, url: item.pdf_url };
     } catch {
       return { status: "error", detail: "교회주보 확인 중 오류" };
     }
@@ -415,9 +497,9 @@ export default function WorshipGuidePage() {
       autoRefreshedRef.current = true;
       setRefreshingBulletins(true);
       try {
-        await fetch("/api/worship-guide/bulletin-refresh", {
+        await fetchWithFreshAuth("/api/worship-guide/bulletin-refresh", token, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ dept_id: deptId, targets: missingTargets }),
         });
         if (dept.status === "missing") {
@@ -446,9 +528,9 @@ export default function WorshipGuidePage() {
         ...(deptBul.status === "missing" ? ["dept"] : []),
         ...(churchBul.status === "missing" ? ["church"] : []),
       ];
-      const res = await fetch("/api/worship-guide/bulletin-refresh", {
+      const res = await fetchWithFreshAuth("/api/worship-guide/bulletin-refresh", session.access_token, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dept_id: deptId, targets: targets.length ? targets : ["dept", "church"] }),
       });
       const data = await res.json();
@@ -483,9 +565,9 @@ export default function WorshipGuidePage() {
       supabase.rpc("list_dept_classes_full", { p_dept_id: deptId }),
       supabase.from("edu_teachers").select("name,teacher_role").eq("department_id", deptId).eq("is_active", true),
       supabase.rpc("bulletin_get_yearly_theme", { p_dept_id: deptId, p_year: Number(date.slice(0, 4)) }),
-      fetch(`/api/edu/monthly-plans/bulletin-import?dept_id=${deptId}&date=${date}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((r) => r.json()).catch(() => null),
+      fetchWithFreshAuth(`/api/edu/monthly-plans/bulletin-import?dept_id=${deptId}&date=${date}`, token)
+        .then(async (r) => ({ ...(await r.json()), httpStatus: r.status }))
+        .catch(() => null),
     ]);
 
     if (guideResp.error) {
@@ -670,21 +752,53 @@ export default function WorshipGuidePage() {
     }
   };
 
-  // ── 대조 결과 (파생) ──
-  const preacherName = (plan?.fields.preacher || "").trim().split(/\s+/)[0] || "";
+  // ── 교육계획·로테이션 초안 ↔ 초등1부 주보 항목별 대조 ──
+  const comparisonRows = useMemo<ComparisonRow[]>(() => {
+    if (deptBul.status !== "ready") return [];
+    const expected: Array<[BulletinFieldKey, string, string]> = [
+      ["guide", "안내", [guideClass && `${guideClass}반`, teacherOf(guideClass)].filter(Boolean).join(" ")],
+      ["praise", "찬양율동", [plan?.fields.praise1, plan?.fields.praise2].filter(Boolean).join(", ")],
+      ["leader", "예배인도", plan?.fields.leader || ""],
+      ["prayer", "봉헌기도", prayerFixed ? PRAYER_FIXED_LABEL : (prayerClass ? `${prayerClass}반` : "")],
+      ["preacher", "말씀강론", plan?.fields.preacher || ""],
+      ["sermonTitle", "설교제목", plan?.fields.sermonTitle || ""],
+      ["scripture", "성경본문", plan?.fields.scripture || ""],
+      ["twoPartActivity", "2부 활동", plan?.fields.twoPartActivity || ""],
+    ];
+    return expected.map(([key, label, draft]) => {
+      const bulletin = deptBul.fields[key] || "";
+      const a = comparisonText(draft);
+      const b = comparisonText(bulletin);
+      return { key, label, draft, bulletin, matches: !!a && !!b && (a.includes(b) || b.includes(a)) };
+    });
+  }, [deptBul, guideClass, prayerClass, prayerFixed, teacherOf, plan]);
 
   const deptChecks = useMemo(() => {
     if (deptBul.status !== "ready") return null;
-    const whole = deptBul.text;
-    const has = (v?: string) => { const n = normText(v || ""); return !!n && whole.includes(n); };
-    return {
-      안내: guideClass ? (has(teacherOf(guideClass)) || has(`${guideClass}반`) || has(guideClass)) : false,
-      기도: prayerFixed ? has("김정권") : (prayerClass ? has(prayerClass) : false),
-      설교자: has(preacherName),
-      제목: has(plan?.fields.sermonTitle),
-      성경: has(plan?.fields.scripture),
+    return Object.fromEntries(comparisonRows.map((row) => [row.label, row.matches]));
+  }, [comparisonRows, deptBul.status]);
+
+  const applyBulletinValue = (row: ComparisonRow) => {
+    if (!row.bulletin) return;
+    const value = readableBulletinValue(row.key, row.bulletin);
+    const patterns: Record<BulletinFieldKey, RegExp> = {
+      guide: /^(1\.\s*안내\s*:\s*).*$/m,
+      praise: /^(2\.\s*찬양율동\s*:\s*).*$/m,
+      leader: /^(3\.\s*예배인도\s*:\s*).*$/m,
+      prayer: /^(4\.\s*봉헌기도\s*:\s*).*$/m,
+      preacher: /^(5\.\s*말씀강론\s*:\s*).*$/m,
+      sermonTitle: /^(\s*가\.\s*제목\s*:\s*).*$/m,
+      scripture: /^(\s*나\.\s*성경\s*:\s*).*$/m,
+      twoPartActivity: /^(\s*-\s*).*$/m,
     };
-  }, [deptBul, guideClass, prayerClass, prayerFixed, teacherOf, plan, preacherName]);
+    const pattern = patterns[row.key];
+    if (!pattern.test(message)) {
+      showToast("메시지에서 적용할 줄을 찾지 못했습니다");
+      return;
+    }
+    setMessage((current) => current.replace(pattern, (_match, prefix: string) => `${prefix}${value}`));
+    showToast(`${row.label} 항목만 주보 값으로 바꿨습니다`);
+  };
 
   const anyBulletinMissing = deptBul.status === "missing" || churchBul.status === "missing";
   const churchPdfUrl =
@@ -1007,7 +1121,7 @@ export default function WorshipGuidePage() {
               <div style={chipRowStyle}>
                 {plan ? (
                   <span style={{ ...chipStyle, background: "color-mix(in srgb, var(--success) 12%, transparent)", color: "var(--success)" }}>
-                    <CalendarDays size={13} strokeWidth={2} /> 월간계획서 반영됨 ({plan.sourceFile})
+                    <CalendarDays size={13} strokeWidth={2} /> 교육계획안 불러옴 ({plan.sourceFile}) · {record ? "기존 저장본은 그대로 보존" : "초안에 반영"}
                   </span>
                 ) : (
                   <span style={{ ...chipStyle, background: "color-mix(in srgb, var(--warning) 14%, transparent)", color: "var(--warning)" }}>
@@ -1036,6 +1150,42 @@ export default function WorshipGuidePage() {
                   </button>
                 )}
               </div>
+
+              {deptBul.status === "ready" && comparisonRows.length > 0 && (
+                <div style={comparisonCardStyle}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800 }}>교육계획안·로테이션 ↔ 초등1부 주보</div>
+                      <div style={{ marginTop: 3, fontSize: 11.5, lineHeight: 1.5, color: "var(--ink-soft)" }}>
+                        서로 다른 항목은 자동으로 덮어쓰지 않습니다. 필요한 값만 선택하면 현재 메시지의 해당 줄만 바뀝니다.
+                      </div>
+                    </div>
+                    <a href={deptBul.url} target="_blank" rel="noreferrer" style={{ ...secondaryButtonStyle, minHeight: 32, padding: "0 10px", fontSize: 11.5, textDecoration: "none" }}>
+                      <Newspaper size={13} strokeWidth={2} /> 주보 원문
+                    </a>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 10 }}>
+                    {comparisonRows.map((row) => (
+                      <div key={row.key} style={comparisonRowStyle}>
+                        <div style={{ minWidth: 78, fontSize: 12, fontWeight: 800 }}>{row.label}</div>
+                        <div style={{ flex: "1 1 170px", minWidth: 0, fontSize: 11.5, lineHeight: 1.5 }}>
+                          <div><span style={{ color: "var(--ink-faint)" }}>초안</span> {row.draft || "(값 없음)"}</div>
+                          <div><span style={{ color: "var(--ink-faint)" }}>주보</span> {row.bulletin ? readableBulletinValue(row.key, row.bulletin) : "(추출 못함)"}</div>
+                        </div>
+                        {row.matches ? (
+                          <span style={{ fontSize: 11.5, fontWeight: 800, color: "var(--success)", whiteSpace: "nowrap" }}>일치</span>
+                        ) : row.bulletin ? (
+                          <button type="button" onClick={() => applyBulletinValue(row)} style={{ ...secondaryButtonStyle, minHeight: 30, padding: "0 9px", fontSize: 11.5 }}>
+                            주보 값 적용
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: 11, color: "var(--warning)", whiteSpace: "nowrap" }}>직접 확인</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* 교회주보 페이지 미리보기 — 생성된 메시지와 나란히 놓고 눈으로 대조 */}
               {previewOpen && churchPdfUrl && (
@@ -1273,6 +1423,24 @@ const chipStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
   lineHeight: 1.45,
+};
+
+const comparisonCardStyle: React.CSSProperties = {
+  padding: 12,
+  border: "1px solid var(--hairline)",
+  borderRadius: 12,
+  background: "var(--surface)",
+  marginBottom: 12,
+};
+
+const comparisonRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 9,
+  flexWrap: "wrap",
+  padding: "8px 9px",
+  borderRadius: 9,
+  background: "var(--bg-soft)",
 };
 
 const controlCardStyle: React.CSSProperties = {
