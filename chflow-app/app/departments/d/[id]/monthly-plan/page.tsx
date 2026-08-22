@@ -38,6 +38,27 @@ function isPdf(url: string) { return /\.pdf(\?|$)/i.test(url); }
 function isXlsx(url: string) { return /\.xlsx(\?|$)/i.test(url); }
 function pad2(n: number) { return String(n).padStart(2, "0"); }
 
+async function fetchWithMonthlyPlanAuth(url: string, init: RequestInit = {}, token?: string) {
+  let accessToken = token || (await supabase.auth.getSession()).data.session?.access_token;
+  if (!accessToken) return null;
+
+  const run = (nextToken: string) => {
+    const headers = new Headers(init.headers);
+    headers.set("Authorization", `Bearer ${nextToken}`);
+    return fetch(url, { ...init, headers });
+  };
+
+  let response = await run(accessToken);
+  if (response.status !== 401) return { response, token: accessToken };
+
+  const { data, error } = await supabase.auth.refreshSession();
+  if (error || !data.session) return { response, token: accessToken };
+
+  accessToken = data.session.access_token;
+  response = await run(accessToken);
+  return { response, token: accessToken };
+}
+
 // 양식 불일치 xlsx 폴백 — 서버에서 표(HTML)로 파싱해 인라인 표출
 function XlsxTableView({ path }: { path: string }) {
   const [html, setHtml] = useState<string | null>(null);
@@ -45,14 +66,18 @@ function XlsxTableView({ path }: { path: string }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const res = await fetch(`/api/edu/monthly-plans/render?path=${encodeURIComponent(path)}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
+      const request = await fetchWithMonthlyPlanAuth(`/api/edu/monthly-plans/render?path=${encodeURIComponent(path)}`);
+      if (!request) {
+        if (!cancelled) setErr("로그인이 만료되었습니다. 다시 로그인해주세요.");
+        return;
+      }
+      const { response: res } = request;
       const json = await res.json().catch(() => ({}));
       if (cancelled) return;
-      if (!res.ok || !json.ok) { setErr(json.error || "표 변환 실패"); return; }
+      if (!res.ok || !json.ok) {
+        setErr(res.status === 401 ? "로그인이 만료되었습니다. 다시 로그인해주세요." : json.error || "표 변환 실패");
+        return;
+      }
       setHtml(json.html || "");
     })();
     return () => { cancelled = true; };
@@ -110,11 +135,15 @@ export default function MonthlyPlanPage() {
   async function loadFiles(token: string) {
     setLoading(true);
     setError("");
-    const res = await fetch(`/api/edu/monthly-plans?dept_id=${deptId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const request = await fetchWithMonthlyPlanAuth(`/api/edu/monthly-plans?dept_id=${deptId}`, {}, token);
+    if (!request) { setLoading(false); router.replace("/login"); return; }
+    const { response: res, token: activeToken } = request;
     const result = await res.json();
-    if (!res.ok || !result.ok) { setLoading(false); setError(result.error || "조회 실패"); return; }
+    if (!res.ok || !result.ok) {
+      setLoading(false);
+      setError(res.status === 401 ? "로그인이 만료되었습니다. 다시 로그인해주세요." : result.error || "조회 실패");
+      return;
+    }
     const list: PlanFile[] = result.files || [];
     setFiles(list);
 
@@ -122,9 +151,13 @@ export default function MonthlyPlanPage() {
     const xlsxFiles = list.filter((f) => isXlsx(f.url)); // list는 created_at desc
     const parsed = await Promise.all(
       xlsxFiles.map(async (f) => {
-        const r = await fetch(`/api/edu/monthly-plans/render?path=${encodeURIComponent(f.path)}&format=cards`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const parsedRequest = await fetchWithMonthlyPlanAuth(
+          `/api/edu/monthly-plans/render?path=${encodeURIComponent(f.path)}&format=cards`,
+          {},
+          activeToken
+        );
+        if (!parsedRequest) return { file: f, json: {} };
+        const { response: r } = parsedRequest;
         const j = await r.json().catch(() => ({}));
         return { file: f, json: j as { ok?: boolean; template?: boolean; year?: number; common?: string[]; months?: Array<{ month: number; weeks: PlanWeek[]; notes: string[] }> } };
       })
@@ -156,15 +189,19 @@ export default function MonthlyPlanPage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.replace("/login"); return; }
     setBusyPath(f.path);
-    const res = await fetch(`/api/edu/monthly-plans?dept_id=${deptId}&path=${encodeURIComponent(f.path)}`, {
+    const request = await fetchWithMonthlyPlanAuth(`/api/edu/monthly-plans?dept_id=${deptId}&path=${encodeURIComponent(f.path)}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
+    }, session.access_token);
+    if (!request) { setBusyPath(null); router.replace("/login"); return; }
+    const { response: res, token: activeToken } = request;
     const j = await res.json().catch(() => ({}));
     setBusyPath(null);
-    if (!res.ok || !j.ok) { alert(j.error || "삭제에 실패했습니다."); return; }
+    if (!res.ok || !j.ok) {
+      alert(res.status === 401 ? "로그인이 만료되었습니다. 다시 로그인해주세요." : j.error || "삭제에 실패했습니다.");
+      return;
+    }
     setSelectedKey(null);
-    await loadFiles(session.access_token);
+    await loadFiles(activeToken);
   }
 
   // 월별 통합 그룹: 카드 월 + (비대상 파일: 이미지·PDF·양식불일치 xlsx).
