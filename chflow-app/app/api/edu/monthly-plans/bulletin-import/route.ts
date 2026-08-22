@@ -194,10 +194,31 @@ function fieldsFromRow(row: string[]): PlanFields {
 
 function sortEntriesForDate(entries: PlanEntry[], date: string) {
   const month = Number(date.slice(5, 7));
-  return entries
+  const matches = entries
     .filter((entry) => entry.date === date)
-    .map((entry) => ({ ...entry, sheetScore: scoreSheetForMonth(entry.sheetName, month) }))
-    .sort((a, b) => b.sheetScore - a.sheetScore || a.fileOrder - b.fileOrder);
+    .map((entry) => ({ ...entry, sheetScore: scoreSheetForMonth(entry.sheetName, month) }));
+  if (matches.length === 0) return [];
+
+  // 월간계획 화면과 동일하게 최신 파일 안의 같은 날짜 행을 셀 단위로 합친다.
+  // 실제 양식은 한 날짜의 역할/설교 값이 여러 시트 또는 중복 행에 나뉠 수 있다.
+  const latestFileOrder = Math.min(...matches.map((entry) => entry.fileOrder));
+  const sameFile = matches.filter((entry) => entry.fileOrder === latestFileOrder);
+  const merged = sameFile.slice(1).reduce<PlanEntry>((current, entry) => ({
+    ...current,
+    sheetName: current.sheetName === entry.sheetName
+      ? current.sheetName
+      : `${current.sheetName}, ${entry.sheetName}`,
+    sheetScore: Math.max(current.sheetScore, entry.sheetScore),
+    fields: { ...current.fields, ...entry.fields },
+    raw: Object.fromEntries(
+      Object.keys(current.raw).map((key) => {
+        const rawKey = key as keyof PlanEntry["raw"];
+        return [rawKey, entry.raw[rawKey] || current.raw[rawKey]];
+      }),
+    ) as PlanEntry["raw"],
+  }), sameFile[0]);
+
+  return [merged];
 }
 
 function xlCellToStr(v: unknown): string {
