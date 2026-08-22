@@ -436,10 +436,16 @@ export default function AdminLiveStatusPage() {
           ) : (
             <>
               <div style={{
-                maxHeight: 372, overflowY: "auto",
+                maxHeight: 372, overflow: "auto",
+                overscrollBehavior: "contain",
+                WebkitOverflowScrolling: "touch",
                 border: "1px solid var(--hairline)", borderRadius: 10,
                 background: "var(--bg-soft)",
               }}>
+                {/* 내용이 잘리지 않도록 한 줄을 그대로 두고, 트랙째 좌우로 밀어서 읽는다.
+                    min-width:max-content 로 트랙을 가장 긴 줄에 맞추면 각 행의 구분선이
+                    스크롤 폭 전체에 이어진다. */}
+                <div style={{ minWidth: "max-content" }}>
                 {events.map((ev, i) => {
                   const meta = EVENT_LABEL[ev.event] ?? { text: ev.event, tone: "mute" as const };
                   const tone = TONE_COLOR[meta.tone];
@@ -448,7 +454,9 @@ export default function AdminLiveStatusPage() {
                   return (
                     <div key={ev.id} style={{
                       display: "flex", gap: 9, alignItems: "baseline",
-                      padding: "8px 11px",
+                      // 오른쪽 여백은 끝까지 밀었을 때 글자가 플로팅 버튼에 가리지 않게 두는 공간
+                      padding: "8px 52px 8px 11px",
+                      width: "100%",
                       borderTop: i === 0 ? undefined : "1px solid var(--hairline)",
                     }}>
                       <span style={{
@@ -459,10 +467,10 @@ export default function AdminLiveStatusPage() {
                         fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 500,
                         flexShrink: 0, fontVariantNumeric: "tabular-nums",
                       }}>{fmtShort(ev.created_at)}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ flexShrink: 0 }}>
                         <div style={{
                           fontSize: 12.5, fontWeight: 600, color: "var(--ink)",
-                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          whiteSpace: "nowrap",
                         }} title={note || undefined}>
                           {meta.text}
                           {ev.session_key && (
@@ -485,7 +493,7 @@ export default function AdminLiveStatusPage() {
                           )}
                         </div>
                         {showNote && (
-                          <div style={{ fontSize: 11.5, color: "var(--danger)", marginTop: 2, lineHeight: 1.55, wordBreak: "break-all" }}>
+                          <div style={{ fontSize: 11.5, color: "var(--danger)", marginTop: 2, lineHeight: 1.55, whiteSpace: "nowrap" }}>
                             {note}
                           </div>
                         )}
@@ -493,6 +501,7 @@ export default function AdminLiveStatusPage() {
                     </div>
                   );
                 })}
+                </div>
               </div>
 
               {hasMore && (
@@ -501,7 +510,7 @@ export default function AdminLiveStatusPage() {
                 </button>
               )}
               <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.6 }}>
-자동 삭제 없이 계속 보관 · {PAGE}건씩 표시
+메시지가 길면 목록을 옆으로 밀어 보세요 · 자동 삭제 없이 계속 보관 · {PAGE}건씩 표시
               </div>
             </>
           )}
