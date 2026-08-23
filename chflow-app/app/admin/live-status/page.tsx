@@ -41,6 +41,8 @@ type EventRow = {
   created_at: string;
 };
 
+type HealthTone = "ok" | "warn" | "bad";
+
 const SESSION_LABEL: Record<string, string> = {
   sun_2: "주일 2부",
   sun_3: "주일 3부",
@@ -69,12 +71,47 @@ const TONE_COLOR: Record<string, string> = {
   mute: "var(--ink-faint)",
 };
 
+/** 다음 주기에서 정상 복구되는 YouTube 측 일시 장애는 설정 오류와 구분한다. */
+function isTransientLiveError(detail: string | null | undefined) {
+  const value = (detail || "").toLowerCase();
+  return [
+    "service is currently unavailable",
+    "internal_failure",
+    "backenderror",
+    "internal error",
+    "temporarily unavailable",
+    "timeout",
+    "timed out",
+    "econnreset",
+    "fetch failed",
+    "youtube api 500",
+    "youtube api 502",
+    "youtube api 503",
+    "youtube api 504",
+    "livebroadcasts 500",
+    "livebroadcasts 502",
+    "livebroadcasts 503",
+    "livebroadcasts 504",
+  ].some((pattern) => value.includes(pattern));
+}
+
+function liveErrorLabel(detail: string | null | undefined) {
+  const value = detail || "YouTube 조회 실패";
+  if (value.includes("internal_failure")) {
+    return "YouTube 인증 서버 일시 응답 없음 · 다음 점검에서 자동 재시도";
+  }
+  if (isTransientLiveError(value)) {
+    return "YouTube 일시 응답 없음 · 다음 점검에서 자동 재시도";
+  }
+  return value;
+}
+
 /** 이력 필터 — key 별로 조회할 event 값. null 이면 전체 */
 const FILTERS: { key: string; label: string; events: string[] | null }[] = [
   { key: "all", label: "전체", events: null },
   { key: "detect", label: "감지", events: ["live_started", "live_ended"] },
   { key: "notify", label: "발송", events: ["notified", "notify_skipped"] },
-  { key: "error", label: "오류", events: ["error"] },
+  { key: "error", label: "오류·재시도", events: ["error"] },
 ];
 
 /** 기간 필터 — days 가 있으면 '지금부터 N일 전까지', custom 은 날짜 직접 입력 */
@@ -282,7 +319,10 @@ export default function AdminLiveStatusPage() {
   const checkedMs = status?.checked_at ? new Date(status.checked_at).getTime() : NaN;
   const pollerStalled = !status || Number.isNaN(checkedMs) || nowMs - checkedMs > POLLER_STALL_MS;
   const hasError = !!status?.last_error;
-  const healthy = !pollerStalled && !hasError;
+  const transientError = hasError && isTransientLiveError(status?.last_error);
+  const needsAttention = pollerStalled || (hasError && !transientError);
+  const healthTone: HealthTone = needsAttention ? "bad" : transientError ? "warn" : "ok";
+  const healthLabel = needsAttention ? "점검 필요" : transientError ? "자동 재시도 중" : "정상";
   const hasMore = events.length < total;
 
   return (
@@ -338,27 +378,35 @@ export default function AdminLiveStatusPage() {
             <span style={{
               fontSize: 11, fontWeight: 700, flexShrink: 0,
               padding: "3px 8px", borderRadius: 999,
-              background: healthy
+              background: healthTone === "ok"
                 ? "color-mix(in srgb, var(--success) 15%, transparent)"
-                : "color-mix(in srgb, var(--danger) 15%, transparent)",
-              color: healthy ? "var(--success)" : "var(--danger)",
+                : healthTone === "warn"
+                  ? "color-mix(in srgb, var(--warning) 15%, transparent)"
+                  : "color-mix(in srgb, var(--danger) 15%, transparent)",
+              color: healthTone === "ok" ? "var(--success)" : healthTone === "warn" ? "var(--warning)" : "var(--danger)",
             }}>
-              {healthy ? "정상" : "점검 필요"}
+              {healthLabel}
             </span>
           </div>
 
           <div style={{ marginTop: 4 }}>
             <Check
-              ok={!pollerStalled}
-              okText={`감지기 정상 동작 중 · 마지막 확인 ${ago(status?.checked_at ?? null, nowMs)}`}
-              badText={`감지기가 멈춘 것 같습니다 · 마지막 확인 ${status?.checked_at ? ago(status.checked_at, nowMs) : "기록 없음"}`}
+              tone={pollerStalled ? "bad" : "ok"}
+              text={pollerStalled
+                ? `감지기가 멈춘 것 같습니다 · 마지막 확인 ${status?.checked_at ? ago(status.checked_at, nowMs) : "기록 없음"}`
+                : `감지기 정상 동작 중 · 마지막 확인 ${ago(status?.checked_at ?? null, nowMs)}`}
               hint="Cloudflare Worker 의 Cron Trigger(1분)와 LIVE_POLL_SECRET 을 확인하세요."
             />
             <Check
-              ok={!hasError}
-              okText="YouTube 조회 오류 없음"
-              badText={`YouTube 조회 오류: ${status?.last_error ?? ""}`}
-              hint="YOUTUBE_API_KEY 의 유효기간·쿼터·API 제한을 확인하세요."
+              tone={transientError ? "warn" : hasError ? "bad" : "ok"}
+              text={transientError
+                ? liveErrorLabel(status?.last_error)
+                : hasError
+                  ? `YouTube 조회 오류: ${status?.last_error ?? ""}`
+                  : "YouTube 조회 오류 없음"}
+              hint={transientError
+                ? "기존 방송 상태는 유지되며 다음 1분 점검에서 자동으로 다시 확인합니다."
+                : "YOUTUBE_API_KEY의 유효기간·쿼터·API 제한을 확인하세요."}
             />
           </div>
 
@@ -368,7 +416,7 @@ export default function AdminLiveStatusPage() {
             <Row label="방송 시작 시각" value={fmt(status?.started_at ?? null)} />
             <Row label="알림 보낸 영상" value={status?.notified_video_id ?? "-"} />
             <Row label="알림 발송 시각" value={`${fmt(status?.notified_at ?? null)}${status?.notified_at ? `  (${ago(status.notified_at, nowMs)})` : ""}`} />
-            <Row label="마지막 오류" value={status?.last_error ?? "없음"} />
+            <Row label="마지막 조회 문제" value={status?.last_error ? liveErrorLabel(status.last_error) : "없음"} />
           </Disclosure>
         </Card>
 
@@ -452,9 +500,14 @@ export default function AdminLiveStatusPage() {
                     자기 길이만큼만 밀리므로 어떤 줄도 가려지지 않는다. */}
                 <div>
                 {events.map((ev, i) => {
-                  const meta = EVENT_LABEL[ev.event] ?? { text: ev.event, tone: "mute" as const };
+                  const transient = ev.event === "error" && isTransientLiveError(ev.detail);
+                  const meta = transient
+                    ? { text: "일시적 조회 실패", tone: "warn" as const }
+                    : EVENT_LABEL[ev.event] ?? { text: ev.event, tone: "mute" as const };
                   const tone = TONE_COLOR[meta.tone];
-                  const note = (ev.detail && DETAIL_LABEL[ev.detail]) || ev.title || ev.detail;
+                  const note = transient
+                    ? liveErrorLabel(ev.detail)
+                    : (ev.detail && DETAIL_LABEL[ev.detail]) || ev.title || ev.detail;
                   const showNote = !!note && meta.tone === "bad";
                   return (
                     <div key={ev.id} className="live-evt-row" style={{
@@ -525,7 +578,8 @@ export default function AdminLiveStatusPage() {
                 </button>
               )}
               <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 8, lineHeight: 1.6 }}>
-메시지가 길면 그 줄을 옆으로 밀어 보세요 · 자동 삭제 없이 계속 보관 · {PAGE}건씩 표시
+                노란색은 자동 재시도되는 일시 문제 · 빨간색만 관리자 점검 필요<br />
+                메시지가 길면 그 줄을 옆으로 밀어 보세요 · 자동 삭제 없이 계속 보관 · {PAGE}건씩 표시
               </div>
             </>
           )}
@@ -642,17 +696,18 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Check({ ok, okText, badText, hint }: { ok: boolean; okText: string; badText: string; hint: string }) {
+function Check({ tone, text, hint }: { tone: HealthTone; text: string; hint: string }) {
+  const color = tone === "ok" ? "var(--success)" : tone === "warn" ? "var(--warning)" : "var(--danger)";
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "5px 0" }}>
-      {ok
+      {tone === "ok"
         ? <CheckCircle2 size={16} strokeWidth={2} color="var(--success)" style={{ flexShrink: 0, marginTop: 1 }} />
-        : <AlertTriangle size={16} strokeWidth={2} color="var(--danger)" style={{ flexShrink: 0, marginTop: 1 }} />}
+        : <AlertTriangle size={16} strokeWidth={2} color={color} style={{ flexShrink: 0, marginTop: 1 }} />}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, color: ok ? "var(--ink)" : "var(--danger)", fontWeight: ok ? 500 : 700, lineHeight: 1.55 }}>
-          {ok ? okText : badText}
+        <div style={{ fontSize: 13, color: tone === "ok" ? "var(--ink)" : color, fontWeight: tone === "ok" ? 500 : 700, lineHeight: 1.55 }}>
+          {text}
         </div>
-        {!ok && (
+        {tone !== "ok" && (
           <div style={{ fontSize: 11.5, color: "var(--ink-mid)", marginTop: 3, lineHeight: 1.6 }}>{hint}</div>
         )}
       </div>
