@@ -505,6 +505,7 @@ export default function DepartmentDetailPage() {
   };
 
   const updateActiveAdminSection = () => {
+    if (restoreAdminSectionRef.current) return;
     const carousel = adminCarouselRef.current;
     if (!carousel) return;
     let closestId = activeAdminSection;
@@ -525,14 +526,27 @@ export default function DepartmentDetailPage() {
 
   useEffect(() => {
     if (loading || activeMenuCategory !== "admin" || !restoreAdminSectionRef.current) return;
+    let releaseFrame: number | null = null;
+    let restoredCarousel: HTMLDivElement | null = null;
+    let previousScrollBehavior = "";
     const frame = window.requestAnimationFrame(() => {
       const carousel = adminCarouselRef.current;
       const panel = adminSectionRefs.current.get(activeAdminSection);
       if (!carousel || !panel) return;
+      restoredCarousel = carousel;
+      previousScrollBehavior = carousel.style.scrollBehavior;
+      carousel.style.scrollBehavior = "auto";
       carousel.scrollLeft = panel.offsetLeft;
-      restoreAdminSectionRef.current = false;
+      releaseFrame = window.requestAnimationFrame(() => {
+        carousel.style.scrollBehavior = previousScrollBehavior;
+        restoreAdminSectionRef.current = false;
+      });
     });
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (releaseFrame !== null) window.cancelAnimationFrame(releaseFrame);
+      if (restoredCarousel) restoredCarousel.style.scrollBehavior = previousScrollBehavior;
+    };
   }, [activeAdminSection, activeMenuCategory, loading]);
 
   const sectionLabelOf = (id: string, fallback: string) => {
