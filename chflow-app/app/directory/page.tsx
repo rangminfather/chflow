@@ -10,6 +10,7 @@ import { photoThumb } from "@/lib/photo";
 import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryChildText, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, getDirectoryFilterOptions, hasDirectorySearchCriteria, type QuickEditChange, type QuickEditDraft } from "@/lib/directory-utils";
 import { getAllSubRoleOptions, getRoleImageBySubRole } from "@/lib/roles";
 import { LoadingView } from "@/components/StatusViews";
+import BirthDateSelect from "@/components/BirthDateSelect";
 import { MessageCircle, PhoneCall } from "lucide-react";
 
 type UserInfo = {
@@ -747,8 +748,14 @@ function DirectoryProfileModal({
                   style={{ ...quickEditInputStyle, flex: 1 }}>
                   <option value="">성별</option><option value="M">남</option><option value="F">여</option>
                 </select>
-                <input type="date" value={newChildBirth} onChange={(e) => setNewChildBirth(e.target.value)}
-                  style={{ ...quickEditInputStyle, flex: 1 }} />
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <BirthDateSelect
+                  value={newChildBirth}
+                  onChange={setNewChildBirth}
+                  selectStyle={quickEditInputStyle}
+                  hint="생년월일은 연·월·일을 모두 선택해야 저장됩니다."
+                />
               </div>
               <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                 <button style={ghostButtonStyle} onClick={() => { setAddingChild(false); setNewChildName(""); setNewChildGender(""); setNewChildBirth(""); }}>취소</button>
@@ -1017,8 +1024,14 @@ function ChildRelationRow({
             style={{ ...quickEditInputStyle, flex: 1 }}>
             <option value="">성별</option><option value="M">남</option><option value="F">여</option>
           </select>
-          <input type="date" value={edit.birth_date} onChange={(e) => setEdit({ ...edit, birth_date: e.target.value })}
-            style={{ ...quickEditInputStyle, flex: 1 }} />
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <BirthDateSelect
+            value={edit.birth_date}
+            onChange={(next) => setEdit({ ...edit, birth_date: next })}
+            selectStyle={quickEditInputStyle}
+            hint="생년월일은 연·월·일을 모두 선택해야 저장됩니다."
+          />
         </div>
         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
           <button style={ghostButtonStyle} onClick={onCancelEdit}>취소</button>
