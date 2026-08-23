@@ -588,31 +588,15 @@ export async function notifyIfNewlyLive(
   // (성도 입장에서는 같은 예배가 계속되는 것이고, 종료 알림을 받았다면 재시작은 알려야 한다)
   if (session) {
     const since = new Date(Date.now() - SESSION_RENOTIFY_WINDOW_MS).toISOString();
-    // 알림 기록 구조: 시작 알림은 session_key=<예배>, detail=null / 종료 알림은 session_key=null,
-    // detail='live_ended' 로 남는다 (notifyIfLiveEnded 는 sessionKey 를 넘기지 않는다).
-    // 그래서 "가장 최근 1건"만 보면 다른 예배의 알림이 끼어들 때 판정이 틀어진다.
-    // 이 예배의 시작 알림과 종료 알림을 각각 찾아 시각으로 비교한다.
     const { data: recentNotices } = await admin
       .from("youtube_live_events")
       .select("detail, session_key, created_at")
       .eq("event", "notified")
       .gte("created_at", since)
       .order("created_at", { ascending: false })
-      .limit(50);
-    const notices = (recentNotices || []) as Array<{
-      detail?: string | null;
-      session_key?: string | null;
-      created_at?: string | null;
-    }>;
-    const at = (value?: string | null) => (value ? new Date(value).getTime() : 0);
-    const lastStartOfSession = notices
-      .filter((n) => n.session_key === session.key && n.detail !== "live_ended")
-      .reduce((acc: number, n) => Math.max(acc, at(n.created_at)), 0);
-    const lastEndNotice = notices
-      .filter((n) => n.detail === "live_ended")
-      .reduce((acc: number, n) => Math.max(acc, at(n.created_at)), 0);
-    // 시작을 이미 알렸고, 그 뒤로 종료 알림이 나가지 않았다면 재시작은 알리지 않는다.
-    const alreadyAnnouncedThisSession = lastStartOfSession > 0 && lastEndNotice <= lastStartOfSession;
+      .limit(1);
+    const last = recentNotices?.[0] as { detail?: string | null; session_key?: string | null } | undefined;
+    const alreadyAnnouncedThisSession = !!last && last.detail !== "live_ended" && last.session_key === session.key;
     if (alreadyAnnouncedThisSession) {
       await admin
         .from("youtube_live_status")
