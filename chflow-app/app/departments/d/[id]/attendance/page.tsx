@@ -553,8 +553,58 @@ export default function AttendancePage() {
     <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
 
       <style>{`
-        .att-table { border-collapse: collapse; }
-        .att-table th, .att-table td { border: 1px solid var(--hairline); }
+        .attendance-grid-scroll {
+          max-height: calc(100dvh - 110px);
+          overflow: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .att-table {
+          border-collapse: separate;
+          border-spacing: 0;
+          border-top: 1px solid var(--hairline);
+          border-left: 1px solid var(--hairline);
+        }
+        .att-table th, .att-table td {
+          border: 0;
+          border-right: 1px solid var(--hairline);
+          border-bottom: 1px solid var(--hairline);
+        }
+        .att-table thead th {
+          position: sticky;
+          top: 0;
+          z-index: 3;
+          background: var(--surface);
+        }
+        .att-table th:nth-child(1),
+        .att-table .att-student-row > td:nth-child(1) {
+          position: sticky;
+          left: 0;
+          width: 40px;
+          min-width: 40px;
+          max-width: 40px;
+        }
+        .att-table th:nth-child(2),
+        .att-table .att-student-row > td:nth-child(2) {
+          position: sticky;
+          left: 40px;
+          width: 80px;
+          min-width: 80px;
+          max-width: 80px;
+        }
+        .att-table th:nth-child(3),
+        .att-table .att-student-row > td:nth-child(3) {
+          position: sticky;
+          left: 120px;
+          width: 56px;
+          min-width: 56px;
+          max-width: 56px;
+          box-shadow: 3px 0 5px rgba(0, 0, 0, 0.07);
+        }
+        .att-table .att-student-row > td:nth-child(-n+3) {
+          z-index: 2;
+          background: var(--card);
+        }
+        .att-table thead th:nth-child(-n+3) { z-index: 4; }
         .status-btn { transition: all 0.1s; }
         .status-btn:hover { filter: brightness(0.92); }
         .name-btn:hover { text-decoration: underline; }
@@ -619,7 +669,7 @@ export default function AttendancePage() {
         )}
 
         {/* 그리드 */}
-        <div style={{ ...cardStyle, overflowX: "auto", padding: 0 }}>
+        <div className="attendance-grid-scroll" style={{ ...cardStyle, padding: 0 }}>
           {/* 범례 */}
           <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--hairline)", display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center", fontSize: 11 }}>
             <span style={{ fontWeight: 800, color: "var(--ink-soft)" }}>범례</span>
@@ -751,7 +801,7 @@ export default function AttendancePage() {
                       );
                     }
                     rows.push(
-                      <tr key={s.id} style={{ borderBottom: "1px solid var(--bg-soft)" }}>
+                      <tr key={s.id} className="att-student-row" style={{ borderBottom: "1px solid var(--bg-soft)" }}>
                         <td style={{ textAlign: "center", padding: 3, fontWeight: 700 }}>{s.student_no ?? ""}</td>
                         <td style={{ padding: "3px 6px", whiteSpace: "nowrap" }}>
                           <button
