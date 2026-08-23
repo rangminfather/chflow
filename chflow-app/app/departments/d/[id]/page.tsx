@@ -302,7 +302,6 @@ export default function DepartmentDetailPage() {
       }
       if (!sectionOrderResp.error && Array.isArray(sectionOrderResp.data) && sectionOrderResp.data.length === ADMIN_SECTIONS.length) {
         setSectionOrder(sectionOrderResp.data as string[]);
-        setActiveAdminSection(sectionOrderResp.data[0] as string);
       }
       if (!sectionLabelsResp.error && sectionLabelsResp.data && typeof sectionLabelsResp.data === "object") {
         setSectionLabels(sectionLabelsResp.data as SectionLabels);
