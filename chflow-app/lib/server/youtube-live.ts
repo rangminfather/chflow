@@ -207,9 +207,6 @@ type FoundLiveVideo = {
   startedAt: string | null;
 };
 
-/** 조회 자체는 성공했지만 알아둬야 할 문제(예: OAuth 만료)를 호출부로 전달하는 통로 */
-export type LiveLookupDiagnostics = { oauthError?: string };
-
 type LiveBroadcastsResponse = {
   items?: Array<{
     id?: string;
@@ -367,8 +364,7 @@ export async function findLiveVideo(
   channelId: string,
   apiKey: string | null,
   currentVideoId: string | null = null,
-  now = new Date(),
-  diag?: LiveLookupDiagnostics
+  now = new Date()
 ): Promise<FoundLiveVideo | null> {
   let oauthFailure: Error | null = null;
 
@@ -378,10 +374,6 @@ export async function findLiveVideo(
       if (oauthLive) return oauthLive;
     } catch (error) {
       oauthFailure = error instanceof Error ? error : new Error("YouTube OAuth discovery failed");
-      // 방송 중에는 아래 공개 경로가 방송을 찾아 곧바로 return 하므로 이 실패가 아무 흔적도
-      // 남기지 않는다. 그러면 OAuth 가 깨진 사실을 방송이 끝날 때까지 아무도 모른다.
-      // 호출부가 상태에 남길 수 있도록 여기서 바로 알려준다.
-      if (diag) diag.oauthError = oauthFailure.message;
     }
   }
 
@@ -422,11 +414,7 @@ export async function findLiveVideo(
     if (searchedLive) return searchedLive;
   }
 
-  // 공개 API 키 경로(현재 영상 재확인·UMS·업로드 목록·검색)를 오류 없이 통과했는데도 라이브가
-  // 없으면 "방송 종료"가 확정이다. 여기서 OAuth 실패를 그대로 던지면 조회 실패로 처리되어
-  // 종료 감지(종료 알림·is_live=false)가 영구히 막힌다 — 2026-08-23 주일 4부에서 실제로 발생했다.
-  // 확인 수단이 아예 없는 경우(API 키 미설정)에만 기존처럼 실패로 올린다.
-  if (oauthFailure && !apiKey) throw oauthFailure;
+  if (oauthFailure) throw oauthFailure;
   return null;
 }
 
@@ -448,24 +436,16 @@ export async function refreshIfStale(admin: SupabaseClient, force = false): Prom
     .eq("id", "main");
   if (!force) claim = claim.lt("checked_at", cutoff);
   // 이전 상태를 함께 받아 "방송 시작/종료" 전환만 로그로 남긴다
-  const { data: claimed, error: claimError } = await claim
-    .select("channel_id, is_live, video_id, title, started_at, last_error");
+  const { data: claimed, error: claimError } = await claim.select("channel_id, is_live, video_id, title");
 
   if (claimError || !claimed || claimed.length === 0) return false;
 
   const channelId = claimed[0].channel_id || DEFAULT_CHANNEL_ID;
-  const prev = claimed[0] as {
-    is_live?: boolean;
-    video_id?: string | null;
-    title?: string | null;
-    started_at?: string | null;
-    last_error?: string | null;
-  };
+  const prev = claimed[0] as { is_live?: boolean; video_id?: string | null; title?: string | null };
 
   try {
     const currentVideoId = prev.is_live ? prev.video_id ?? null : null;
-    const diag: LiveLookupDiagnostics = {};
-    const live = await findLiveVideo(channelId, apiKey, currentVideoId, new Date(), diag);
+    const live = await findLiveVideo(channelId, apiKey, currentVideoId);
     await admin
       .from("youtube_live_status")
       .update({
@@ -474,19 +454,10 @@ export async function refreshIfStale(admin: SupabaseClient, force = false): Prom
         title: live?.title ?? null,
         thumbnail_url: live?.thumbnailUrl ?? null,
         started_at: live?.startedAt ?? null,
-        // 공개 경로로 조회는 됐지만 OAuth 가 깨진 상태면 관리자 화면에 그대로 보여준다.
-        last_error: diag.oauthError ?? null,
+        last_error: null,
         updated_at: nowIso,
       })
       .eq("id", "main");
-
-    // 새로 생긴 문제만 이벤트로 남긴다 (매분 같은 오류를 쌓지 않기 위해)
-    if (diag.oauthError && prev.last_error !== diag.oauthError) {
-      await logLiveEvent(admin, {
-        event: "error",
-        detail: `${diag.oauthError} — 공개 API 키 경로로 계속 조회 중`,
-      });
-    }
 
     // 상태가 바뀐 순간만 기록한다 (매분 로그를 쌓지 않기 위해)
     if (live && (!prev.is_live || prev.video_id !== live.videoId)) {
@@ -500,19 +471,7 @@ export async function refreshIfStale(admin: SupabaseClient, force = false): Prom
     } else if (!live && prev.is_live) {
       const endedVideoId = prev.video_id ?? null;
       await logLiveEvent(admin, { event: "live_ended", videoId: endedVideoId, title: prev.title ?? null });
-      // 시작 직후 끊긴 방송은 대개 송출 재시작이다. 그때마다 전 성도에게 종료 알림이 가면
-      // "종료 → 시작" 푸시가 몇 분 사이에 연달아 울린다 (8/09·8/16·8/23 실제 발생).
-      const startedMs = prev.started_at ? new Date(prev.started_at).getTime() : NaN;
-      const shortRun = !Number.isNaN(startedMs) && Date.now() - startedMs < MIN_RUN_FOR_END_NOTICE_MS;
-      if (shortRun) {
-        await logLiveEvent(admin, {
-          event: "notify_skipped",
-          videoId: endedVideoId,
-          detail: "방송 시작 5분 이내 종료 — 송출 재시작으로 보고 종료 알림 생략",
-        });
-      } else {
-        await notifyIfLiveEnded(admin, { videoId: endedVideoId, title: prev.title ?? null });
-      }
+      await notifyIfLiveEnded(admin, { videoId: endedVideoId, title: prev.title ?? null });
     }
     return true;
   } catch (err) {
@@ -530,12 +489,6 @@ export async function refreshIfStale(admin: SupabaseClient, force = false): Prom
 /** 방송 시작 후 이 시간이 지난 뒤 처음 감지된 방송은 알림을 보내지 않는다.
  *  (폴러가 멈췄다 재개된 경우 한참 전에 시작한 예배로 "지금 시작" 알림이 가면 안 됨) */
 export const NOTIFY_WITHIN_MS = 30 * 60 * 1000;
-
-/** 이보다 짧게 끝난 방송은 송출 재시작으로 보고 종료 알림을 보내지 않는다 */
-export const MIN_RUN_FOR_END_NOTICE_MS = 5 * 60 * 1000;
-
-/** 같은 예배(session)에서 이 시간 안에 다시 시작한 방송은 시작 알림을 다시 보내지 않는다 */
-export const SESSION_RENOTIFY_WINDOW_MS = 30 * 60 * 1000;
 
 export type NotifyResult =
   | { sent: false; reason: string; wouldNotify?: number }
@@ -577,36 +530,6 @@ export async function notifyIfNewlyLive(
         event: "notify_skipped",
         videoId: row.video_id,
         sessionKey: session?.key ?? null,
-        detail: reason,
-      });
-      return { sent: false, reason };
-    }
-  }
-
-  // 같은 예배에서 송출이 끊겼다 다시 시작하면 영상 ID 가 바뀌므로 위 중복 방지가 통하지 않는다.
-  // 이미 이 예배 시작을 알렸고 그 뒤로 종료 알림도 나가지 않았다면 다시 알리지 않는다.
-  // (성도 입장에서는 같은 예배가 계속되는 것이고, 종료 알림을 받았다면 재시작은 알려야 한다)
-  if (session) {
-    const since = new Date(Date.now() - SESSION_RENOTIFY_WINDOW_MS).toISOString();
-    const { data: recentNotices } = await admin
-      .from("youtube_live_events")
-      .select("detail, session_key, created_at")
-      .eq("event", "notified")
-      .gte("created_at", since)
-      .order("created_at", { ascending: false })
-      .limit(1);
-    const last = recentNotices?.[0] as { detail?: string | null; session_key?: string | null } | undefined;
-    const alreadyAnnouncedThisSession = !!last && last.detail !== "live_ended" && last.session_key === session.key;
-    if (alreadyAnnouncedThisSession) {
-      await admin
-        .from("youtube_live_status")
-        .update({ notified_video_id: row.video_id, notified_at: new Date().toISOString() })
-        .eq("id", "main");
-      const reason = "같은 예배 시작을 이미 알림 — 송출 재시작으로 보고 생략";
-      await logLiveEvent(admin, {
-        event: "notify_skipped",
-        videoId: row.video_id,
-        sessionKey: session.key,
         detail: reason,
       });
       return { sent: false, reason };

@@ -140,63 +140,6 @@ describe("YouTube live detection", () => {
     }
   });
 
-  // 2026-08-23 주일 4부: OAuth 토큰이 무효(invalid_grant)가 되자 방송이 끝났는데도 조회 실패로
-  // 처리되어 종료 감지·종료 알림이 통째로 막혔다. 공개 API 키로 확인이 되면 종료로 판정해야 한다.
-  it("treats a finished broadcast as ended even when OAuth refresh is broken", async () => {
-    const previous = {
-      clientId: process.env.YOUTUBE_OAUTH_CLIENT_ID,
-      clientSecret: process.env.YOUTUBE_OAUTH_CLIENT_SECRET,
-      refreshToken: process.env.YOUTUBE_OAUTH_REFRESH_TOKEN,
-    };
-    process.env.YOUTUBE_OAUTH_CLIENT_ID = "oauth-client-id";
-    process.env.YOUTUBE_OAUTH_CLIENT_SECRET = "oauth-client-secret";
-    process.env.YOUTUBE_OAUTH_REFRESH_TOKEN = "revoked-refresh-token";
-
-    try {
-      vi.mocked(umsViaCf).mockResolvedValue(umsResult("실시간 링크 없음"));
-      vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
-        const url = String(input);
-        if (url === "https://oauth2.googleapis.com/token") {
-          return { ok: false, status: 400, json: async () => ({ error: "invalid_grant" }) } as Response;
-        }
-        // 공개 경로는 정상 응답하고 "라이브 없음"을 알려준다
-        return jsonResponse({ items: [] });
-      }));
-
-      const diag: { oauthError?: string } = {};
-      await expect(
-        findLiveVideo("channel", "api-key", "snjm2XZnecc", new Date(), diag)
-      ).resolves.toBeNull();
-      // OAuth 실패는 삼키지 않고 호출부(관리자 화면)로 전달한다
-      expect(diag.oauthError).toContain("invalid_grant");
-    } finally {
-      if (previous.clientId === undefined) delete process.env.YOUTUBE_OAUTH_CLIENT_ID;
-      else process.env.YOUTUBE_OAUTH_CLIENT_ID = previous.clientId;
-      if (previous.clientSecret === undefined) delete process.env.YOUTUBE_OAUTH_CLIENT_SECRET;
-      else process.env.YOUTUBE_OAUTH_CLIENT_SECRET = previous.clientSecret;
-      if (previous.refreshToken === undefined) delete process.env.YOUTUBE_OAUTH_REFRESH_TOKEN;
-      else process.env.YOUTUBE_OAUTH_REFRESH_TOKEN = previous.refreshToken;
-    }
-  });
-
-  // OAuth 도 깨졌고 공개 API 키도 없으면 "종료"라고 단정할 수 없다 — 기존대로 실패로 올린다.
-  it("still reports failure when neither OAuth nor an API key can confirm the state", async () => {
-    const previous = process.env.YOUTUBE_OAUTH_REFRESH_TOKEN;
-    process.env.YOUTUBE_OAUTH_CLIENT_ID = "oauth-client-id";
-    process.env.YOUTUBE_OAUTH_CLIENT_SECRET = "oauth-client-secret";
-    process.env.YOUTUBE_OAUTH_REFRESH_TOKEN = "revoked-refresh-token";
-    try {
-      vi.mocked(umsViaCf).mockResolvedValue(umsResult("실시간 링크 없음"));
-      vi.stubGlobal("fetch", vi.fn(async () => (
-        { ok: false, status: 400, json: async () => ({ error: "invalid_grant" }) } as Response
-      )));
-      await expect(findLiveVideo("channel", null)).rejects.toThrow("invalid_grant");
-    } finally {
-      if (previous === undefined) delete process.env.YOUTUBE_OAUTH_REFRESH_TOKEN;
-      else process.env.YOUTUBE_OAUTH_REFRESH_TOKEN = previous;
-    }
-  });
-
   it("creates a user notification when a live broadcast ends", async () => {
     const notifications: Array<Record<string, unknown>> = [];
     const events: Array<Record<string, unknown>> = [];

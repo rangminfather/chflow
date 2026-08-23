@@ -62,25 +62,6 @@ export async function POST(req: NextRequest) {
       .neq("expo_push_token", expoPushToken);
   }
 
-  // 기기 1대의 알림 수신자는 "지금 로그인한 사람" 한 명뿐이다.
-  // 로그아웃 해제(DELETE)는 그때 유효한 access token 이 있어야 하고 실패해도 조용히 넘어가므로,
-  // 남의 기기에 남은 이전 계정 토큰이 살아있을 수 있다. 그러면 그 계정의 알림(운영 알림 포함)이
-  // 현재 사용자의 폰으로 계속 배달된다. 등록 시점에 소유권을 확실히 이전한다.
-  await admin
-    .from("user_push_tokens")
-    .update({ enabled: false, updated_at: now })
-    .eq("expo_push_token", expoPushToken)
-    .neq("user_id", user.uid);
-
-  if (deviceId) {
-    await admin
-      .from("user_push_tokens")
-      .update({ enabled: false, updated_at: now })
-      .eq("device_id", deviceId)
-      .eq("app_id", appId)
-      .neq("user_id", user.uid);
-  }
-
   const { data, error } = await admin
     .from("user_push_tokens")
     .upsert(
