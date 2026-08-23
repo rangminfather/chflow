@@ -25,9 +25,10 @@ describe("알림벨 폴링 비용", () => {
 
   it("도움 메뉴 표시와 토스트 표시를 분리한다", () => {
     expect(source).toContain("controlsVisible = true");
-    expect(source).toContain("toastsVisible = true");
+    expect(source).toContain('toastMode = "all"');
     expect(source).toContain("{controlsVisible && <div");
-    expect(source).toContain("{toastsVisible && (");
+    expect(source).toContain('toastMode === "all" ? toasts');
+    expect(globalSource).toContain('toastMode={hidden ? "ops" : "all"}');
   });
 
   it("한 번의 동기화가 목록 1 + 카운트 1 만 호출한다", () => {

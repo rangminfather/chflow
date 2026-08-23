@@ -118,7 +118,7 @@ export default function GlobalNotifications() {
         userId={userId}
         placement="dock"
         controlsVisible={!hidden && !collapsed}
-        toastsVisible={!hidden}
+        toastMode={hidden ? "ops" : "all"}
       />
     </div>
   );

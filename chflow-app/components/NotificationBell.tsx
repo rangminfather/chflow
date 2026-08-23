@@ -36,6 +36,7 @@ interface ToastNotification {
   title: string;
   body: string;
   type: string;
+  audience: NotificationAudience;
 }
 
 // "all" = 내 알림(audience 'user'), "ops" = 운영 알림. 두 탭 모두 한 번의 조회 결과를 나눠 쓴다.
@@ -74,12 +75,12 @@ export default function NotificationBell({
   userId,
   placement = "inline",
   controlsVisible = true,
-  toastsVisible = true,
+  toastMode = "all",
 }: {
   userId: string;
   placement?: "inline" | "dock";
   controlsVisible?: boolean;
-  toastsVisible?: boolean;
+  toastMode?: "all" | "ops";
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -118,6 +119,10 @@ export default function NotificationBell({
     if (activeTab === "all") return mine;
     return mine.filter((n) => getNotificationGroup(n.type) === activeTab);
   }, [activeTab, mine, opsNotifications]);
+  const visibleToasts = useMemo(
+    () => toastMode === "all" ? toasts : toasts.filter((toast) => toast.audience === "ops"),
+    [toastMode, toasts],
+  );
 
   // 운영 권한이 사라지면(강등) 열려 있던 운영 탭에서 내려온다.
   useEffect(() => {
@@ -164,6 +169,7 @@ export default function NotificationBell({
       title: n.title,
       body: n.body || "",
       type: n.type,
+      audience: n.audience,
     });
 
     setNotifications((prev) => {
@@ -243,6 +249,7 @@ export default function NotificationBell({
               title: latest.title,
               body: latest.body || "",
               type: latest.type,
+              audience: latest.audience,
             });
           }
           unread.forEach((n) => markSeen(n.id));
@@ -765,20 +772,16 @@ export default function NotificationBell({
       </div>}
 
       {/* === 토스트 컨테이너 === */}
-      {toastsVisible && (
-        <>
-          <div className="toast-container-pc" style={pcToastContainerStyle}>
-            {toasts.map((t) => (
-              <ToastCard key={t.id} toast={t} onDismiss={() => dismissToast(t.id)} />
-            ))}
-          </div>
-          <div className="toast-container-mobile" style={mobileToastContainerStyle}>
-            {toasts.map((t) => (
-              <ToastCard key={t.id} toast={t} onDismiss={() => dismissToast(t.id)} mobile />
-            ))}
-          </div>
-        </>
-      )}
+      <div className="toast-container-pc" style={pcToastContainerStyle}>
+        {visibleToasts.map((t) => (
+          <ToastCard key={t.id} toast={t} onDismiss={() => dismissToast(t.id)} />
+        ))}
+      </div>
+      <div className="toast-container-mobile" style={mobileToastContainerStyle}>
+        {visibleToasts.map((t) => (
+          <ToastCard key={t.id} toast={t} onDismiss={() => dismissToast(t.id)} mobile />
+        ))}
+      </div>
 
     </>
   );
