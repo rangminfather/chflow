@@ -10,10 +10,26 @@ import { describe, expect, it } from "vitest";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(resolve(here, "../components/NotificationBell.tsx"), "utf8");
+const globalSource = readFileSync(resolve(here, "../components/GlobalNotifications.tsx"), "utf8");
 
 const count = (pattern: RegExp) => (source.match(pattern) || []).length;
 
 describe("알림벨 폴링 비용", () => {
+  it("도움 메뉴를 접어도 NotificationBell 인스턴스와 단일 구독을 유지한다", () => {
+    expect((globalSource.match(/<NotificationBell/g) || []).length).toBe(1);
+    expect(globalSource).toContain("controlsVisible={!hidden && !collapsed}");
+    expect(globalSource).not.toMatch(/if\s*\(collapsed\)\s*\{/);
+    expect(count(/\.channel\(`notif:\$\{userId\}`\)/g)).toBe(1);
+    expect(count(/supabase\.removeChannel\(channel\)/g)).toBe(1);
+  });
+
+  it("도움 메뉴 표시와 토스트 표시를 분리한다", () => {
+    expect(source).toContain("controlsVisible = true");
+    expect(source).toContain("toastsVisible = true");
+    expect(source).toContain("{controlsVisible && <div");
+    expect(source).toContain("{toastsVisible && (");
+  });
+
   it("한 번의 동기화가 목록 1 + 카운트 1 만 호출한다", () => {
     const syncStart = source.indexOf("const syncNotifications");
     const syncEnd = source.indexOf("// 표시 이력 복원");
@@ -59,6 +75,29 @@ describe("알림벨 폴링 비용", () => {
     expect(source).toContain("nextNotificationFallbackDelay");
     expect(source).toContain("NOTIFICATION_SAFETY_SYNC_MS");
     expect(source).toContain("document.visibilityState");
+  });
+
+  it("화면 복귀·네트워크 복구·realtime 재연결 때 즉시 동기화한다", () => {
+    expect(source).toContain('document.addEventListener("visibilitychange", onVisibilityChange)');
+    expect(source).toContain('window.addEventListener("online", onOnline)');
+    expect(source).toContain('window.removeEventListener("online", onOnline)');
+    expect(source).toMatch(/status === "SUBSCRIBED"[\s\S]{0,180}syncNowAndSchedule\(\)/);
+  });
+
+  it("실시간 알림이 audience별 미읽음과 전체 미읽음을 함께 갱신한다", () => {
+    const handlerStart = source.indexOf("const handleNewNotification");
+    const handlerEnd = source.indexOf("const syncNotifications");
+    const handlerBody = source.slice(handlerStart, handlerEnd);
+    expect(handlerBody).toContain('n.audience === "ops"');
+    expect(handlerBody).toContain("setCounts((prev)");
+    expect(handlerBody).toContain("total: user + ops");
+    expect(handlerBody).toContain("setUnreadCount((c)");
+  });
+
+  it("운영 탭 미확인 배지와 기본 탭 안내를 제공한다", () => {
+    expect(source).toContain("unreadCount={counts.ops}");
+    expect(source).toContain("운영 알림 {counts.ops > 99");
+    expect(source).toContain('onClick={() => handleTabChange("ops")}');
   });
 
   it("모두 읽음은 audience 범위를 명시하고 재조회를 유발하지 않는다", () => {

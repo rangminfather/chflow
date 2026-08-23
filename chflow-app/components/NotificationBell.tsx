@@ -73,9 +73,13 @@ function persistSeenToastIds(userId: string, ids: string[]) {
 export default function NotificationBell({
   userId,
   placement = "inline",
+  controlsVisible = true,
+  toastsVisible = true,
 }: {
   userId: string;
   placement?: "inline" | "dock";
+  controlsVisible?: boolean;
+  toastsVisible?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -120,6 +124,10 @@ export default function NotificationBell({
     if (activeTab === "ops" && !opsViewer) setActiveTab("all");
   }, [activeTab, opsViewer]);
 
+  useEffect(() => {
+    if (!controlsVisible) setOpen(false);
+  }, [controlsVisible]);
+
   // 알림 ID를 '이미 표시함'으로 기록 (메모리 + localStorage 동시).
   const markSeen = useCallback((id: string) => {
     if (seenIdsRef.current.has(id)) return;
@@ -162,6 +170,18 @@ export default function NotificationBell({
       // 중복 방지
       if (prev.find((p) => p.id === n.id)) return prev;
       return [n, ...prev];
+    });
+    setCounts((prev) => {
+      const isOps = n.audience === "ops";
+      const user = prev.user + (isOps ? 0 : 1);
+      const ops = prev.ops + (isOps ? 1 : 0);
+      return {
+        ...prev,
+        user,
+        ops,
+        total: user + ops,
+        opsViewer: prev.opsViewer || isOps,
+      };
     });
     setUnreadCount((c) => {
       const next = c + 1;
@@ -353,11 +373,16 @@ export default function NotificationBell({
       }
       void syncNowAndSchedule();
     };
+    const onOnline = () => {
+      void syncNowAndSchedule();
+    };
     document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("online", onOnline);
 
     return () => {
       clearTimer();
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("online", onOnline);
       supabase.removeChannel(channel);
     };
   }, [handleNewNotification, syncNotifications, userId]);
@@ -456,7 +481,7 @@ export default function NotificationBell({
   return (
     <>
       {/* === 종 버튼 === */}
-      <div style={{ position: "relative" }}>
+      {controlsVisible && <div style={{ position: "relative" }}>
         <button
           onClick={handleBellClick}
           title="알림"
@@ -614,6 +639,7 @@ export default function NotificationBell({
                     <PanelTabButton
                       label="운영"
                       count={tabCounts.ops}
+                      unreadCount={counts.ops}
                       active={activeTab === "ops"}
                       onClick={() => handleTabChange("ops")}
                     />
@@ -624,6 +650,27 @@ export default function NotificationBell({
                     onClick={() => handleTabChange("settings")}
                   />
                 </div>
+              )}
+              {placement === "dock" && activeTab !== "ops" && activeTab !== "settings" && counts.ops > 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleTabChange("ops")}
+                  style={{
+                    margin: "10px 12px 0",
+                    padding: "9px 11px",
+                    border: "1px solid color-mix(in srgb, var(--danger) 30%, transparent)",
+                    borderRadius: 9,
+                    background: "color-mix(in srgb, var(--danger) 8%, var(--surface))",
+                    color: "var(--ink)",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    textAlign: "left",
+                  }}
+                >
+                  운영 알림 {counts.ops > 99 ? "99+" : counts.ops}건이 있습니다. 운영 탭에서 확인해 주세요.
+                </button>
               )}
               {placement === "dock" && activeTab === "message" && (
                 <div style={{
@@ -715,19 +762,23 @@ export default function NotificationBell({
             </div>
           </>
         )}
-      </div>
+      </div>}
 
       {/* === 토스트 컨테이너 === */}
-      <div className="toast-container-pc" style={pcToastContainerStyle}>
-        {toasts.map((t) => (
-          <ToastCard key={t.id} toast={t} onDismiss={() => dismissToast(t.id)} />
-        ))}
-      </div>
-      <div className="toast-container-mobile" style={mobileToastContainerStyle}>
-        {toasts.map((t) => (
-          <ToastCard key={t.id} toast={t} onDismiss={() => dismissToast(t.id)} mobile />
-        ))}
-      </div>
+      {toastsVisible && (
+        <>
+          <div className="toast-container-pc" style={pcToastContainerStyle}>
+            {toasts.map((t) => (
+              <ToastCard key={t.id} toast={t} onDismiss={() => dismissToast(t.id)} />
+            ))}
+          </div>
+          <div className="toast-container-mobile" style={mobileToastContainerStyle}>
+            {toasts.map((t) => (
+              <ToastCard key={t.id} toast={t} onDismiss={() => dismissToast(t.id)} mobile />
+            ))}
+          </div>
+        </>
+      )}
 
     </>
   );
@@ -736,18 +787,23 @@ export default function NotificationBell({
 function PanelTabButton({
   label,
   count,
+  unreadCount = 0,
   active,
   onClick,
 }: {
   label: string;
   count?: number;
+  unreadCount?: number;
   active: boolean;
   onClick: () => void;
 }) {
+  const hasUnread = unreadCount > 0;
+  const displayedCount = hasUnread ? unreadCount : count;
   return (
     <button
       type="button"
       onClick={onClick}
+      title={hasUnread ? `미확인 ${unreadCount}건` : undefined}
       style={{
         minHeight: 34,
         border: active ? "1px solid rgba(62, 90, 74, 0.28)" : "1px solid transparent",
@@ -765,7 +821,7 @@ function PanelTabButton({
       }}
     >
       <span>{label}</span>
-      {count !== undefined && <span style={{
+      {displayedCount !== undefined && <span style={{
         minWidth: 18,
         height: 18,
         padding: "0 5px",
@@ -773,11 +829,14 @@ function PanelTabButton({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        background: active ? "rgba(62, 90, 74, 0.14)" : "rgba(43, 39, 34, 0.07)",
+        background: hasUnread
+          ? "var(--danger)"
+          : active ? "rgba(62, 90, 74, 0.14)" : "rgba(43, 39, 34, 0.07)",
+        color: hasUnread ? "#fff" : undefined,
         fontSize: 10,
         fontWeight: 800,
       }}>
-        {count > 99 ? "99+" : count}
+        {displayedCount > 99 ? "99+" : displayedCount}
       </span>}
     </button>
   );
