@@ -590,21 +590,13 @@ export default function AttendancePage() {
           width: 80px;
           min-width: 80px;
           max-width: 80px;
-        }
-        .att-table th:nth-child(3),
-        .att-table .att-student-row > td:nth-child(3) {
-          position: sticky;
-          left: 120px;
-          width: 56px;
-          min-width: 56px;
-          max-width: 56px;
           box-shadow: 3px 0 5px rgba(0, 0, 0, 0.07);
         }
-        .att-table .att-student-row > td:nth-child(-n+3) {
+        .att-table .att-student-row > td:nth-child(-n+2) {
           z-index: 2;
           background: var(--card);
         }
-        .att-table thead th:nth-child(-n+3) { z-index: 4; }
+        .att-table thead th:nth-child(-n+2) { z-index: 4; }
         .status-btn { transition: all 0.1s; }
         .status-btn:hover { filter: brightness(0.92); }
         .name-btn:hover { text-decoration: underline; }
@@ -743,7 +735,6 @@ export default function AttendancePage() {
                 <tr>
                   <th style={thStyle(36)}>번호</th>
                   <th style={thStyle(72)}>이름</th>
-                  <th style={thStyle(44)}>등반</th>
                   {sundays.map((d, i) => (
                     <th key={d} style={{ ...thStyle(viewMode === "attendance" ? 44 : 72), textAlign: "center" }}>
                       {i + 1}주<br />({formatMD(d)})
@@ -769,7 +760,7 @@ export default function AttendancePage() {
                   // 반복하지 않고 목장 번호 기준으로 한 번만 묶어 표시한다.
                   const groupByClassOnly = deptName.trim() === "유아부";
                   const sorted = [...students].sort((a, b) => compareStudents(a, b, groupByClassOnly));
-                  const colSpan = 3 + sundays.length + (viewMode === "attendance" ? 3 : 2);
+                  const colSpan = 2 + sundays.length + (viewMode === "attendance" ? 3 : 2);
                   let lastGroup = "__init__";
                   const rows: React.ReactNode[] = [];
                   const groupCounts = new Map<string, number>();
@@ -804,25 +795,25 @@ export default function AttendancePage() {
                       <tr key={s.id} className="att-student-row" style={{ borderBottom: "1px solid var(--bg-soft)" }}>
                         <td style={{ textAlign: "center", padding: 3, fontWeight: 700 }}>{s.student_no ?? ""}</td>
                         <td style={{ padding: "3px 6px", whiteSpace: "nowrap" }}>
-                          <button
-                            className="name-btn"
-                            onClick={() => openHistory(s)}
-                            style={{ background: "none", border: "none", padding: 0, fontWeight: 700, fontSize: 11, color: "var(--accent)", cursor: "pointer", fontFamily: "inherit" }}
-                          >
-                            {s.name}
-                          </button>
-                        </td>
-                        <td style={{ textAlign: "center", padding: 3 }}>
-                          {s.id in newFriendMap && (
-                            <span style={{
-                              fontSize: 10, padding: "1px 5px", borderRadius: 4,
-                              background: newFriendMap[s.id] ? "var(--accent-soft)" : "var(--warning-soft)",
-                              color: newFriendMap[s.id] ? "var(--accent)" : "var(--warning)",
-                              fontWeight: 700,
-                            }}>
-                              {newFriendMap[s.id] ? "등반" : "등반전"}
-                            </span>
-                          )}
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                            <button
+                              className="name-btn"
+                              onClick={() => openHistory(s)}
+                              style={{ background: "none", border: "none", padding: 0, fontWeight: 700, fontSize: 11, color: "var(--accent)", cursor: "pointer", fontFamily: "inherit" }}
+                            >
+                              {s.name}
+                            </button>
+                            {s.id in newFriendMap && (
+                              <span style={{
+                                fontSize: 9, padding: "1px 4px", borderRadius: 4,
+                                background: newFriendMap[s.id] ? "var(--accent-soft)" : "var(--warning-soft)",
+                                color: newFriendMap[s.id] ? "var(--accent)" : "var(--warning)",
+                                fontWeight: 700,
+                              }}>
+                                {newFriendMap[s.id] ? "등반" : "등반전"}
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {viewMode === "attendance" ? (
