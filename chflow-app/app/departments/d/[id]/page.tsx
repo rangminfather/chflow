@@ -656,7 +656,10 @@ export default function DepartmentDetailPage() {
     const sectionId = categoryId === "admin" ? (item.section ?? activeAdminSection) : activeAdminSection;
     navigatingToMenuRef.current = true;
     persistMenuLocation(categoryId, sectionId);
-    router.push(`/departments/d/${deptId}/${item.href || item.id}`);
+    // 현재 부서 메뉴 위치가 브라우저 이력에 확정된 뒤 이동한다.
+    // replaceState 직후 router.push를 호출하면 WebView에서 이전 이력의 검색 매개변수가
+    // 첫 탭 값으로 되돌아가는 경합이 있어, 문서 이동으로 이력 순서를 보장한다.
+    window.location.assign(`/departments/d/${deptId}/${item.href || item.id}`);
   };
 
   if (!authChecked || loading) return <LoadingView full />;
