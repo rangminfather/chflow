@@ -22,6 +22,7 @@ import PendingStudentPhotoPicker from "@/components/PendingStudentPhotoPicker";
 import { saveStudentPendingPhoto } from "@/lib/studentPhotoUpload";
 import { Sparkles, User, Plus, X } from "lucide-react";
 import { isAgeBasedDept, ageOptionsFor, birthYearForGrade as birthYearForDeptGrade, gradeFieldLabel, gradeText, schoolFieldLabel, schoolFieldPlaceholder } from "@/lib/eduAge";
+import BirthDateSelect, { STUDENT_BIRTH_MIN_YEAR, joinBirthDate, splitBirthDate } from "@/components/BirthDateSelect";
 
 interface FriendSummary {
   id: string;
@@ -635,11 +636,17 @@ export default function NewFriendPage() {
                 </FormField>
 
                 <FormField label={`생년월일 — ${gradeFieldLabel(deptName)} 선택 시 연도 자동`}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                    <input value={form.birthYear} onChange={(e) => set("birthYear", e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="년" inputMode="numeric" style={inputStyle} />
-                    <input value={form.birthMonth} onChange={(e) => set("birthMonth", e.target.value.replace(/\D/g, "").slice(0, 2))} placeholder="월" inputMode="numeric" style={inputStyle} />
-                    <input value={form.birthDay} onChange={(e) => set("birthDay", e.target.value.replace(/\D/g, "").slice(0, 2))} placeholder="일" inputMode="numeric" style={inputStyle} />
-                  </div>
+                  <BirthDateSelect
+                    value={joinBirthDate({ year: form.birthYear, month: form.birthMonth, day: form.birthDay }, true)}
+                    onChange={(next) => {
+                      const parts = splitBirthDate(next, true);
+                      setForm((p) => ({ ...p, birthYear: parts.year, birthMonth: parts.month, birthDay: parts.day }));
+                    }}
+                    minYear={STUDENT_BIRTH_MIN_YEAR}
+                    monthDayOptional
+                    selectStyle={inputStyle}
+                    hint="연도는 학년(나이) 선택 시 자동으로 채워집니다. 월·일은 모르면 비워둘 수 있습니다."
+                  />
                 </FormField>
 
                 <FormField label="주소" fullWidth>

@@ -18,6 +18,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
 import { WORSHIP_SCHEDULE_TEXT } from "@/lib/worshipSchedule";
+import YmdSelect from "@/components/YmdSelect";
 
 type StatusRow = {
   is_live: boolean;
@@ -141,6 +142,9 @@ function dayEndISO(value: string): string | null {
 
 /** 폴러는 1분 간격이다. 이보다 한참 지났으면 폴러가 멈춘 것으로 본다. */
 const POLLER_STALL_MS = 5 * 60 * 1000;
+
+/** 이력 기간 직접 지정에서 고를 수 있는 연도 범위 — 서비스 시작 이후만 보여준다 */
+const HISTORY_MIN_YEAR = new Date().getFullYear() - 2;
 
 function fmt(value: string | null) {
   if (!value) return "-";
@@ -455,24 +459,27 @@ export default function AdminLiveStatusPage() {
           </div>
 
           {periodKey === "custom" && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-              <input
-                type="date"
-                value={fromDate}
-                max={toDate || undefined}
-                onChange={(e) => applyView({ fromDate: e.currentTarget.value })}
-                aria-label="조회 시작일"
-                style={dateInputStyle}
-              />
-              <span style={{ fontSize: 12, color: "var(--ink-faint)", flexShrink: 0 }}>~</span>
-              <input
-                type="date"
-                value={toDate}
-                min={fromDate || undefined}
-                onChange={(e) => applyView({ toDate: e.currentTarget.value })}
-                aria-label="조회 종료일"
-                style={dateInputStyle}
-              />
+            <div style={{ display: "grid", gap: 8, marginBottom: 10 }}>
+              <div>
+                <div style={dateFieldLabelStyle}>시작일</div>
+                <YmdSelect
+                  groupLabel="조회 시작일"
+                  value={fromDate}
+                  onChange={(next) => applyView({ fromDate: next })}
+                  minYear={HISTORY_MIN_YEAR}
+                  selectStyle={dateInputStyle}
+                />
+              </div>
+              <div>
+                <div style={dateFieldLabelStyle}>종료일</div>
+                <YmdSelect
+                  groupLabel="조회 종료일"
+                  value={toDate}
+                  onChange={(next) => applyView({ toDate: next })}
+                  minYear={HISTORY_MIN_YEAR}
+                  selectStyle={dateInputStyle}
+                />
+              </div>
             </div>
           )}
 
@@ -619,10 +626,14 @@ const btnStyle: React.CSSProperties = {
 };
 
 const dateInputStyle: React.CSSProperties = {
-  flex: "1 1 0", minWidth: 0, padding: "6px 8px",
+  flex: "1 1 0", minWidth: 0, padding: "8px 8px",
   border: "1px solid var(--hairline-strong)", borderRadius: 8,
   background: "var(--card)", color: "var(--ink)",
-  fontFamily: "inherit", fontSize: 12, fontWeight: 500,
+  fontFamily: "inherit", fontSize: 14, fontWeight: 600,
+};
+
+const dateFieldLabelStyle: React.CSSProperties = {
+  fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 4,
 };
 
 /** 유형·기간 필터에 함께 쓰는 세그먼트 버튼 */

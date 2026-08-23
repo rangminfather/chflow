@@ -9,6 +9,7 @@ import { supabase, formatPhone } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import StudentPhotoEditor from "@/components/StudentPhotoEditor";
 import PendingStudentPhotoPicker from "@/components/PendingStudentPhotoPicker";
+import BirthDateSelect, { STUDENT_BIRTH_MIN_YEAR } from "@/components/BirthDateSelect";
 import { saveStudentPendingPhoto } from "@/lib/studentPhotoUpload";
 import { isAgeBasedDept, ageOptionsFor, birthYearForGrade as birthYearForDeptGrade, gradeFieldLabel, gradeText, schoolFieldLabel, schoolFieldPlaceholder } from "@/lib/eduAge";
 import {
@@ -1259,7 +1260,13 @@ function StudentDetailModal({
               </select>
             </InfoField>
             <InfoField label="생년월일" editMode={editMode} value={draft.birth_date || "미등록"}>
-              <input type="date" value={draft.birth_date} onChange={(event) => onChange("birth_date", event.target.value)} className={inputClass} />
+              <BirthDateSelect
+                value={draft.birth_date}
+                onChange={(next) => onChange("birth_date", next)}
+                minYear={STUDENT_BIRTH_MIN_YEAR}
+                monthDayOptional
+                className={inputClass}
+              />
             </InfoField>
             <InfoField label="본인연락처" editMode={editMode} value={draft.phone ? formatPhone(draft.phone) : "미등록"}>
               <input value={draft.phone} onChange={(event) => onChange("phone", event.target.value)} placeholder="010-0000-0000" className={inputClass} />
@@ -1386,26 +1393,6 @@ function NewStudentModal({
   const nursery = isAgeBasedDept(deptName);
   const gradeOptions = nursery ? ageOptionsFor(deptName) : gradeOptionsFromClasses(classes);
   const gradeUnit = gradeFieldLabel(deptName);
-  // 입력칸은 로컬 문자열 상태로 유지 — birth_date(YYYY-MM-DD)로 왕복 파싱하면
-  // 기본값 채움 규칙(빈 월·일 = 01) 때문에 "1"(1월·1일·10~19일)이 입력 즉시 지워진다
-  const [birth, setBirth] = useState(() => splitBirthDate(draft.birth_date));
-  const setBirthPart = (part: "year" | "month" | "day", value: string) => {
-    const clean = value.replace(/\D/g, "").slice(0, part === "year" ? 4 : 2);
-    const next = { ...birth, [part]: clean };
-    setBirth(next);
-    onChange("birth_date", birthDateFromParts(next.year, next.month, next.day));
-  };
-  // 학년(나이)·반 선택으로 부모가 birth_date의 연도를 바꾸면 로컬 상태에 동기화
-  useEffect(() => {
-    const match = draft.birth_date.match(/^(\d{4})-/);
-    const year = match ? match[1] : "";
-    if (year && year !== birth.year) {
-      const next = { ...birth, year };
-      setBirth(next);
-      onChange("birth_date", birthDateFromParts(year, next.month, next.day));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft.birth_date]);
   const setGrade = (value: string) => {
     const grade = numberOrNull(value);
     onChange("grade_year", grade);
@@ -1483,11 +1470,14 @@ function NewStudentModal({
             </select>
           </Field>
           <Field label={`생년월일 — ${gradeUnit} 선택 시 연도 자동`}>
-            <div className="grid grid-cols-3 gap-2">
-              <input value={birth.year} onChange={(event) => setBirthPart("year", event.target.value)} placeholder="년" inputMode="numeric" className={inputClass} />
-              <input value={birth.month} onChange={(event) => setBirthPart("month", event.target.value)} placeholder="월" inputMode="numeric" className={inputClass} />
-              <input value={birth.day} onChange={(event) => setBirthPart("day", event.target.value)} placeholder="일" inputMode="numeric" className={inputClass} />
-            </div>
+            <BirthDateSelect
+              value={draft.birth_date}
+              onChange={(next) => onChange("birth_date", next)}
+              minYear={STUDENT_BIRTH_MIN_YEAR}
+              monthDayOptional
+              className={inputClass}
+              hint="연도는 학년(나이) 선택 시 자동으로 채워집니다. 월·일은 모르면 비워둘 수 있습니다."
+            />
           </Field>
           <Field label={schoolFieldLabel(deptName)}>
             <input value={draft.school_name} onChange={(event) => onChange("school_name", event.target.value)} placeholder={schoolFieldPlaceholder(deptName)} className={inputClass} />

@@ -6,6 +6,10 @@ import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
 import { ClipboardCheck, Lock, Info, Save } from "lucide-react";
+import YmdSelect from "@/components/YmdSelect";
+
+/** 시험일에서 고를 수 있는 연도 범위 — 지난해 기록 수정까지 허용 */
+const QUIZ_MIN_YEAR = new Date().getFullYear() - 1;
 
 interface Student {
   id: string;
@@ -230,7 +234,7 @@ export default function QuizTalentPage() {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
             <div style={{ flex: "1 1 200px" }}>
               <label style={lbl}>시험일</label>
-              <input type="date" value={quizDate} onChange={(e) => setQuizDate(e.target.value)} style={input} />
+              <YmdSelect groupLabel="시험일" value={quizDate} onChange={setQuizDate} minYear={QUIZ_MIN_YEAR} selectStyle={input} />
             </div>
             <div style={{ flex: "1 1 120px" }}>
               <label style={lbl}>총 문항 수 (선택)</label>
