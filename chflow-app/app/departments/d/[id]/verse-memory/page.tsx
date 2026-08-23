@@ -240,10 +240,10 @@ export default function VerseMemoryPage() {
 
   return (
     <div style={pageStyle}>
-      {/* 헤더 — 전역 규칙: 로고 왼쪽 / 부서홈 오른쪽 상단 / 액션 오른쪽 하단 */}
+      {/* 헤더 — 전역 규칙: 로고 왼쪽 / 뒤로 버튼 오른쪽 상단 / 액션 오른쪽 하단 */}
       <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
-        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backButton}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.back()} style={backButton}>← 뒤로</button>
         <div style={headerTitle}><BookOpen size={18} strokeWidth={1.8} /> 요절암송</div>
         {(canWrite || groups.length > 1) && (
           <div className="app-header-actions">

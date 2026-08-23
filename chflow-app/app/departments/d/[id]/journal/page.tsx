@@ -440,7 +440,7 @@ export default function JournalPage() {
       {/* Header */}
       <div className="journal-header app-subpage-header" style={headerStyle}>
           <HeaderLogo />
-          <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+          <button className="app-header-back" onClick={() => router.back()} style={backBtnStyle}>← 뒤로</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><NotebookPen size={18} strokeWidth={1.8} /> 일지작성</div>
         <button className="app-header-actions" onClick={newJournal} style={addBtnStyle}>+ 새 일지</button>
       </div>

@@ -816,7 +816,7 @@ export default function WorshipGuidePage() {
             <Lock size={40} strokeWidth={1.6} style={{ color: "var(--ink-faint)" }} />
             <div style={emptyTitleStyle}>예배안내 접근 권한이 없습니다</div>
             <div style={emptyTextStyle}>전도사·부장(등급 0~1)만 이용할 수 있습니다.</div>
-            <button type="button" onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryButtonStyle}>부서홈으로</button>
+            <button type="button" onClick={() => router.back()} style={primaryButtonStyle}>뒤로</button>
           </div>
         </section>
       </main>
@@ -829,8 +829,8 @@ export default function WorshipGuidePage() {
     <main style={pageStyle}>
       <section style={{ ...shellStyle, maxWidth: isDesktop ? 1140 : 720 }}>
         <header className="app-subpage-header" style={headerStyle}>
-          <button className="app-header-back" type="button" onClick={() => router.push(`/departments/d/${deptId}`)} aria-label="부서홈으로" style={{ ...iconButtonStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}>
-            ← 부서홈
+          <button className="app-header-back" type="button" onClick={() => router.back()} aria-label="뒤로가기" style={{ ...iconButtonStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}>
+            ← 뒤로
           </button>
           <HeaderLogo />
           <div style={{ minWidth: 0, flex: 1 }}>

@@ -245,8 +245,8 @@ export default function MembersGradePage() {
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>
               부서원관리는 전도사·교육사·부장(설정에 따라 임원진까지)만 가능합니다.
             </div>
-            <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtnStyle}>
-              부서홈으로
+            <button onClick={() => router.back()} style={primaryBtnStyle}>
+              뒤로
             </button>
           </div>
         </div>
@@ -258,7 +258,7 @@ export default function MembersGradePage() {
     <div style={pageStyle}>
       <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
-        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.back()} style={backBtnStyle}>← 뒤로</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Medal size={18} strokeWidth={1.8} /> 부서원관리</div>
         <div style={{ width: 60 }} />
       </div>

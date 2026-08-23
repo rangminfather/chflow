@@ -1446,7 +1446,7 @@ export default function WeeklyBulletinPage() {
 
       <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
-        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.back()} style={backBtnStyle}>← 뒤로</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Newspaper size={18} strokeWidth={1.8} /> 주보 만들기</div>
         <div className="app-header-actions" style={{ display: "flex", gap: 6 }}>
           {!isDesktop && (

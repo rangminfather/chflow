@@ -199,7 +199,7 @@ export default function QuizTalentPage() {
       <div style={pageStyle}>
         <div className="app-subpage-header" style={headerStyle}>
           <HeaderLogo />
-          <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtn}>← 부서홈</button>
+          <button className="app-header-back" onClick={() => router.back()} style={backBtn}>← 뒤로</button>
           <div style={titleStyle}><ClipboardCheck size={18} strokeWidth={1.8} /> 공과퀴즈 달란트</div>
           <div style={{ width: 60 }} />
         </div>
@@ -218,7 +218,7 @@ export default function QuizTalentPage() {
     <div style={pageStyle}>
       <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
-        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtn}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.back()} style={backBtn}>← 뒤로</button>
         <div style={titleStyle}><ClipboardCheck size={18} strokeWidth={1.8} /> 공과퀴즈 달란트</div>
         <div style={{ width: 60 }} />
       </div>

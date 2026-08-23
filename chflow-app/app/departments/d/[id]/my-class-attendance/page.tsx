@@ -280,7 +280,7 @@ export default function MyClassAttendancePage() {
       <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
         <div className="app-subpage-header" style={headerStyle}>
           <HeaderLogo />
-          <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+          <button className="app-header-back" onClick={() => router.back()} style={backBtnStyle}>← 뒤로</button>
           <div style={headerTitleStyle}><ClipboardCheck size={18} strokeWidth={1.8} style={{ flexShrink: 0 }} /> 내 반 출결</div>
           <div style={{ width: 80 }} />
         </div>
@@ -310,7 +310,7 @@ export default function MyClassAttendancePage() {
 
       <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
-        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.back()} style={backBtnStyle}>← 뒤로</button>
         <div style={headerTitleStyle}>
           <ClipboardCheck size={18} strokeWidth={1.8} style={{ flexShrink: 0 }} /> 내 반 출결 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
         </div>

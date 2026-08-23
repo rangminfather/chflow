@@ -232,7 +232,7 @@ export default function TeacherAssignPage() {
           <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}><UserCog size={20} strokeWidth={1.8} /> 반 관리</h1>
           <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{deptName}</div>
         </div>
-        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={btnGhost}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.back()} style={btnGhost}>← 뒤로</button>
       </div>
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "16px" }}>
