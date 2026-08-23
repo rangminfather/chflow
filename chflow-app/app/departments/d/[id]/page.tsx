@@ -75,7 +75,10 @@ const readMenuLocation = (deptId: string) => {
 
   let stored: { categoryId?: string; sectionId?: string } = {};
   try {
-    stored = JSON.parse(window.sessionStorage.getItem(menuLocationStorageKey(deptId)) || "{}") as typeof stored;
+    const serialized = window.localStorage.getItem(menuLocationStorageKey(deptId))
+      || window.sessionStorage.getItem(menuLocationStorageKey(deptId))
+      || "{}";
+    stored = JSON.parse(serialized) as typeof stored;
   } catch {
     // 저장값이 손상되었거나 sessionStorage를 사용할 수 없으면 URL/기본값으로 복원한다.
   }
@@ -519,7 +522,9 @@ export default function DepartmentDetailPage() {
     url.searchParams.set("section", sectionId);
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
     try {
-      window.sessionStorage.setItem(menuLocationStorageKey(deptId), JSON.stringify({ categoryId, sectionId }));
+      const serialized = JSON.stringify({ categoryId, sectionId });
+      window.localStorage.setItem(menuLocationStorageKey(deptId), serialized);
+      window.sessionStorage.setItem(menuLocationStorageKey(deptId), serialized);
     } catch {
       // sessionStorage가 차단된 환경에서도 URL 기반 복원은 유지한다.
     }
@@ -659,7 +664,11 @@ export default function DepartmentDetailPage() {
     // 현재 부서 메뉴 위치가 브라우저 이력에 확정된 뒤 이동한다.
     // replaceState 직후 router.push를 호출하면 WebView에서 이전 이력의 검색 매개변수가
     // 첫 탭 값으로 되돌아가는 경합이 있어, 문서 이동으로 이력 순서를 보장한다.
-    window.location.assign(`/departments/d/${deptId}/${item.href || item.id}`);
+    const destination = new URL(`/departments/d/${deptId}/${item.href || item.id}`, window.location.origin);
+    destination.searchParams.set("backDept", deptId);
+    destination.searchParams.set("backMenu", categoryId);
+    destination.searchParams.set("backSection", sectionId);
+    window.location.assign(`${destination.pathname}${destination.search}`);
   };
 
   if (!authChecked || loading) return <LoadingView full />;
