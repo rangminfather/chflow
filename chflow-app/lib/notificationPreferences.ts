@@ -17,6 +17,7 @@ export type NotificationCategory =
   // 사용자 알림
   | "message"
   | "worship"
+  | "worship_end"
   | "notice"
   | "department"
   | "education"
@@ -38,8 +39,9 @@ export interface NotificationTypeSpec {
 
 export const NOTIFICATION_TYPES = {
   // ── 사용자: 예배 생방송 (전 성도) ──
+  // 시작과 종료는 성격이 달라 카테고리를 나눈다 (시작만 받고 종료는 끄는 선택이 가능해야 한다).
   notice_worship_live: { audience: "user", category: "worship" },
-  notice_worship_live_ended: { audience: "user", category: "worship" },
+  notice_worship_live_ended: { audience: "user", category: "worship_end" },
 
   // ── 사용자: 메신저 ──
   message_new: { audience: "user", category: "message" },
@@ -133,6 +135,7 @@ export interface NotificationPreferences {
   in_app_enabled: boolean;
   message_enabled: boolean;
   worship_enabled: boolean;
+  worship_end_enabled: boolean;
   notice_enabled: boolean;
   department_enabled: boolean;
   education_enabled: boolean;
@@ -149,6 +152,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   in_app_enabled: true,
   message_enabled: true,
   worship_enabled: true,
+  worship_end_enabled: true,
   notice_enabled: true,
   department_enabled: true,
   education_enabled: true,
@@ -175,7 +179,8 @@ type CategoryDisplay = {
 /** 사용자가 직접 끌 수 있는 카테고리만 담는다. 필수 운영 알림은 스위치를 만들지 않는다. */
 export const NOTIFICATION_CATEGORIES: CategoryDisplay[] = [
   { key: "message", label: "메신저", description: "새 메시지와 대화 알림", audience: "user" },
-  { key: "worship", label: "예배 생방송", description: "예배 방송 시작·종료 알림", audience: "user" },
+  { key: "worship", label: "예배 생방송 시작", description: "예배 방송이 시작될 때", audience: "user" },
+  { key: "worship_end", label: "예배 생방송 종료", description: "예배 방송이 끝났을 때", audience: "user" },
   { key: "notice", label: "공지·게시판", description: "공지, 게시글과 댓글 알림", audience: "user" },
   { key: "department", label: "사역·부서", description: "부서 가입, 승인과 역할 변경 알림", audience: "user" },
   { key: "education", label: "교육부서", description: "등반 예정·완료와 장기 미출석 알림", audience: "user" },

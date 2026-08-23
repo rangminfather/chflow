@@ -155,6 +155,8 @@ export async function saveNotificationPreferences(preferences: NotificationPrefe
     p_message_enabled: preferences.message_enabled,
     p_worship_enabled: preferences.worship_enabled,
     p_notice_enabled: preferences.notice_enabled,
+    // 생방송 종료 알림. 시작(worship)과 따로 끌 수 있다.
+    p_worship_end_enabled: preferences.worship_end_enabled,
     p_department_enabled: preferences.department_enabled,
     p_education_enabled: preferences.education_enabled,
     p_feedback_enabled: preferences.feedback_enabled,

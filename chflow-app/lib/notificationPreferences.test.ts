@@ -9,7 +9,8 @@ describe("notificationCategory", () => {
   it("운영 중인 알림 유형을 사용자 설정 유형으로 분류한다", () => {
     expect(notificationCategory("message_new")).toBe("message");
     expect(notificationCategory("notice_worship_live")).toBe("worship");
-    expect(notificationCategory("notice_worship_live_ended")).toBe("worship");
+    // 시작과 종료는 각각 끌 수 있어야 하므로 카테고리가 다르다
+    expect(notificationCategory("notice_worship_live_ended")).toBe("worship_end");
     expect(notificationCategory("edu_absence")).toBe("education");
     expect(notificationCategory("feedback_reply")).toBe("feedback");
     expect(notificationCategory("signup_approved")).toBe("account");

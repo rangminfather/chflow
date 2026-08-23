@@ -12,6 +12,7 @@ import {
   NOTIFICATION_TYPES,
   notificationAudience,
   notificationCategory,
+  USER_NOTIFICATION_CATEGORIES,
   type NotificationTypeSpec,
 } from "./notificationPreferences";
 
@@ -84,11 +85,25 @@ function typesFromAppCode(): Set<string> {
   return found;
 }
 
+/**
+ * 같은 함수를 나중 마이그레이션이 다시 정의하면 그 최신 정의가 실제 DB 상태다.
+ * (한 파일만 보면 카테고리를 옮긴 뒤 이 테스트가 옛 매핑을 검사해 잘못 실패한다)
+ */
+function latestFunctionBody(functionName: string): string {
+  const marker = `create or replace function public.${functionName}(`;
+  let body = "";
+  for (const file of migrationFiles()) {
+    const sql = readFileSync(file, "utf8");
+    for (let at = sql.indexOf(marker); at > -1; at = sql.indexOf(marker, at + 1)) {
+      body = sql.slice(at, sql.indexOf("$$;", at));
+    }
+  }
+  return body;
+}
+
 function sqlCaseMapping(functionName: string): Map<string, string> {
-  const sql = readFileSync(AUDIENCE_MIGRATION, "utf8");
-  const start = sql.indexOf(`function public.${functionName}(`);
-  expect(start, `${functionName} 정의를 찾지 못했습니다`).toBeGreaterThan(-1);
-  const body = sql.slice(start, sql.indexOf("$$;", start));
+  const body = latestFunctionBody(functionName);
+  expect(body, `${functionName} 정의를 찾지 못했습니다`).not.toBe("");
   const mapping = new Map<string, string>();
   for (const match of body.matchAll(/when\s+'([a-z0-9_]+)'\s+then\s+'([a-z0-9_]+)'/g)) {
     mapping.set(match[1], match[2]);
@@ -142,6 +157,16 @@ describe("DB 매핑과 TS 레지스트리가 일치한다", () => {
     }
   });
 
+  // 새 카테고리를 만들고 컬럼 분기를 빼먹으면 그 알림이 조용히 system_enabled 스위치에
+  // 빨려 들어간다. 사용자 스위치가 있는 카테고리는 전용 컬럼을 봐야 한다.
+  it("사용자 스위치가 있는 카테고리는 notification_channel_allowed 에 전용 분기가 있다", () => {
+    const body = latestFunctionBody("notification_channel_allowed");
+    for (const category of USER_NOTIFICATION_CATEGORIES) {
+      expect(body, `${category.key} 분기 누락`)
+        .toContain(`when '${category.key}' then np.${category.key}_enabled`);
+    }
+  });
+
   it("mark_all_notifications_read 가 audience 범위를 받고 ops 권한을 다시 확인한다", () => {
     const sql = readFileSync(AUDIENCE_MIGRATION, "utf8");
     // 인자 없는 구버전(전체 처리)은 제거해야 한다
@@ -162,9 +187,7 @@ describe("DB 매핑과 TS 레지스트리가 일치한다", () => {
   });
 
   it("SQL 이 미분류를 system 으로 흘려보내지 않는다", () => {
-    const sql = readFileSync(AUDIENCE_MIGRATION, "utf8");
-    const start = sql.indexOf("function public.notification_category(");
-    const body = sql.slice(start, sql.indexOf("$$;", start));
+    const body = latestFunctionBody("notification_category");
     expect(body).toContain("else 'unclassified'");
     expect(body).not.toMatch(/else\s+'system'/);
   });
