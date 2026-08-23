@@ -67,20 +67,30 @@ const ADMIN_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "ops", label: "명부·부서 운영", icon: Users },
 ];
 
-const initialMenuCategory = () => {
-  if (typeof window === "undefined") return MENU_CATEGORIES[0].id;
-  const category = new URLSearchParams(window.location.search).get("menu");
-  return category && MENU_CATEGORIES.some((item) => item.id === category)
-    ? category
-    : MENU_CATEGORIES[0].id;
-};
+const menuLocationStorageKey = (deptId: string) => `dept-menu-location:${deptId}`;
 
-const initialAdminSection = () => {
-  if (typeof window === "undefined") return ADMIN_SECTIONS[0].id;
-  const section = new URLSearchParams(window.location.search).get("section");
-  return section && ADMIN_SECTIONS.some((item) => item.id === section)
-    ? section
-    : ADMIN_SECTIONS[0].id;
+const readMenuLocation = (deptId: string) => {
+  const fallback = { categoryId: MENU_CATEGORIES[0].id, sectionId: ADMIN_SECTIONS[0].id };
+  if (typeof window === "undefined") return fallback;
+
+  let stored: { categoryId?: string; sectionId?: string } = {};
+  try {
+    stored = JSON.parse(window.sessionStorage.getItem(menuLocationStorageKey(deptId)) || "{}") as typeof stored;
+  } catch {
+    // 저장값이 손상되었거나 sessionStorage를 사용할 수 없으면 URL/기본값으로 복원한다.
+  }
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const categoryCandidate = stored.categoryId || searchParams.get("menu");
+  const sectionCandidate = stored.sectionId || searchParams.get("section");
+  return {
+    categoryId: categoryCandidate && MENU_CATEGORIES.some((item) => item.id === categoryCandidate)
+      ? categoryCandidate
+      : fallback.categoryId,
+    sectionId: sectionCandidate && ADMIN_SECTIONS.some((item) => item.id === sectionCandidate)
+      ? sectionCandidate
+      : fallback.sectionId,
+  };
 };
 
 interface MenuCategory {
@@ -210,8 +220,9 @@ export default function DepartmentDetailPage() {
   const [editCatId, setEditCatId] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ catId: string; itemId: string } | null>(null);
   const [sectionOrder, setSectionOrder] = useState<string[]>(ADMIN_SECTIONS.map((s) => s.id));
-  const [activeAdminSection, setActiveAdminSection] = useState(initialAdminSection);
-  const [activeMenuCategory, setActiveMenuCategory] = useState(initialMenuCategory);
+  const [activeAdminSection, setActiveAdminSection] = useState(() => readMenuLocation(deptId).sectionId);
+  const [activeMenuCategory, setActiveMenuCategory] = useState(() => readMenuLocation(deptId).categoryId);
+  const [menuRestoreVersion, setMenuRestoreVersion] = useState(0);
   const [sectionLabels, setSectionLabels] = useState<SectionLabels>({});
   const [itemOrder, setItemOrder] = useState<Record<string, string[]>>({});
   // 드래그 정렬 (편집모드) — Pointer Events 라 마우스·터치 모두 동작
@@ -224,6 +235,7 @@ export default function DepartmentDetailPage() {
   const adminSectionRefs = useRef(new Map<string, HTMLDivElement>());
   const adminCarouselRef = useRef<HTMLDivElement | null>(null);
   const restoreAdminSectionRef = useRef(true);
+  const navigatingToMenuRef = useRef(false);
   const dragRef = useRef<{
     catId: string; itemId: string; allIds: string[];
     startOrder: string[]; currentOrder: string[];
@@ -235,6 +247,24 @@ export default function DepartmentDetailPage() {
   const [membersOpen, setMembersOpen] = useState(false);
   const [deptMembers, setDeptMembers] = useState<DeptMemberRow[] | null>(null);
   const [membersLoading, setMembersLoading] = useState(false);
+
+  useEffect(() => {
+    const restoreMenuLocation = () => {
+      const location = readMenuLocation(deptId);
+      restoreAdminSectionRef.current = true;
+      setActiveMenuCategory(location.categoryId);
+      setActiveAdminSection(location.sectionId);
+      setMenuRestoreVersion((version) => version + 1);
+    };
+
+    restoreMenuLocation();
+    window.addEventListener("popstate", restoreMenuLocation);
+    window.addEventListener("pageshow", restoreMenuLocation);
+    return () => {
+      window.removeEventListener("popstate", restoreMenuLocation);
+      window.removeEventListener("pageshow", restoreMenuLocation);
+    };
+  }, [deptId]);
 
   useEffect(() => {
     (async () => {
@@ -487,6 +517,11 @@ export default function DepartmentDetailPage() {
     url.searchParams.set("menu", categoryId);
     url.searchParams.set("section", sectionId);
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    try {
+      window.sessionStorage.setItem(menuLocationStorageKey(deptId), JSON.stringify({ categoryId, sectionId }));
+    } catch {
+      // sessionStorage가 차단된 환경에서도 URL 기반 복원은 유지한다.
+    }
   };
 
   const selectMenuCategory = (categoryId: string) => {
@@ -505,7 +540,7 @@ export default function DepartmentDetailPage() {
   };
 
   const updateActiveAdminSection = () => {
-    if (restoreAdminSectionRef.current) return;
+    if (restoreAdminSectionRef.current || navigatingToMenuRef.current) return;
     const carousel = adminCarouselRef.current;
     if (!carousel) return;
     let closestId = activeAdminSection;
@@ -547,7 +582,7 @@ export default function DepartmentDetailPage() {
       if (releaseFrame !== null) window.cancelAnimationFrame(releaseFrame);
       if (restoredCarousel) restoredCarousel.style.scrollBehavior = previousScrollBehavior;
     };
-  }, [activeAdminSection, activeMenuCategory, loading]);
+  }, [activeAdminSection, activeMenuCategory, loading, menuRestoreVersion]);
 
   const sectionLabelOf = (id: string, fallback: string) => {
     const custom = sectionLabels[id];
@@ -602,6 +637,7 @@ export default function DepartmentDetailPage() {
       return;
     }
     const sectionId = categoryId === "admin" ? (item.section ?? activeAdminSection) : activeAdminSection;
+    navigatingToMenuRef.current = true;
     persistMenuLocation(categoryId, sectionId);
     router.push(`/departments/d/${deptId}/${item.href || item.id}`);
   };
