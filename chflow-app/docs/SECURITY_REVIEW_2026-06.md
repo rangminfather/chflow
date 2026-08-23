@@ -51,7 +51,7 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 | **H-5** | High | xlsx 0.18.5 서버측 파싱(prototype pollution/ReDoS) | ✅ **해소**(2026-06-15, exceljs 4.4.0 전면 교체) |
 | **M-err** | Medium | API 라우트 에러 원문 노출 (error.message 반환) | ✅ **해소**(2026-06-15, 12개 파일 29곳 한국어 일반 메시지로 교체) |
 | **M-bucket** | Medium | member-photos·feedback-attachments 버킷 public → PII 사진 노출 | ✅ **해소**(2026-06-15, private 전환 + /api/storage/ 프록시, DB 마이그레이션 완료) |
-| **L-enum** | Low | 로그인·비밀번호재설정 계정 존재여부 노출 (열거 가능) | ✅ **해소**(2026-06-15, check_username_available 제거·API 응답 통일) |
+| **L-enum** | Low | 로그인·비밀번호재설정 계정 존재여부 노출 (열거 가능) | ✅ **해소**(2026-06-15, 로그인 화면의 `check_username_available` 사전체크 제거·API 응답 통일). 함수 자체는 회원가입 아이디 중복확인용으로 유지 — 아래 주석 참고 |
 | **L-token** | Low | `window.__chflowSupabase` Supabase 클라이언트 전역 노출 | ✅ **해소**(2026-06-15, 전역 할당 제거) |
 | **L-1~5** | Low | 진단코드 토큰노출, rate-limit 부재, document.write 등 | ⏳ 미착수 |
 
@@ -103,6 +103,10 @@ chflow 플랫폼(Next.js + Supabase) 보안 검토 결과와 조치 상태를 �
 - ~~**M-err**: 에러원문 노출~~ → ✅ **해소(2026-06-15)**. API 라우트 12개 파일, 29곳 `error.message` → 한국어 일반 메시지. ums-bulletin/post-v2 스택트레이스 필드 제거.
 - ~~**M-bucket**: 버킷 public~~ → ✅ **해소(2026-06-15)**. member-photos·feedback-attachments → `public=false`. `/api/storage/[bucket]/[...path]` 프록시 라우트 (인증 확인 → signed URL 302). members.photo_url 513건 → `/api/storage/...` 형태로 DB 마이그레이션 완료. commit df3c688.
 - ~~**L-enum**: find-id/password 계정 열거~~ → ✅ **해소(2026-06-15)**. 로그인 `check_username_available` 클라이언트 사전체크 제거. API 응답 통일(404→401, "아이디 또는 비밀번호가 일치하지 않습니다"). 비밀번호재설정 계정 미존재 시 `noEmail:true` 반환(200).
+  - **현행 확인(2026-08-23)**: `check_username_available(p_username text)` 함수는 **삭제되지 않고 존재**하며, 회원가입 화면(`app/signup/page.tsx`, 아이디 중복확인 버튼)에서 계속 호출한다. 위 표의 "제거"는 **로그인 화면의 사전체크 제거**를 뜻한다.
+    - 가입 전(비로그인) 단계에서 필요하므로 **anon EXECUTE 는 의도된 설계**다. (2026-08-23 anon 회수 작업에서도 이 함수는 의도적으로 유지했다 — `20260823180000_revoke_anon_on_sensitive_rpcs.sql`)
+    - 반환값은 `boolean` 하나뿐이다(`SELECT NOT EXISTS (... profiles WHERE lower(username)=lower($1))`). 이름·연락처 등 **개인정보는 반환하지 않는다**.
+    - 남는 위험은 "특정 아이디가 이미 쓰이는지"를 비로그인 상태에서 확인할 수 있다는 점이며, 아이디 중복확인 기능의 본질적 성질이다. 완화가 필요하면 rate-limit 이 대상이고(미해소 **L-1~5** 의 rate-limit 항목), 함수 제거는 가입 기능을 깨뜨린다.
 - ~~**L-token**: `window.__chflowSupabase` 전역 노출~~ → ✅ **해소(2026-06-15)**. `lib/supabase.ts`에서 전역 할당 제거.
 - ~~**postcss moderate(next 내부)**~~ → ✅ **해소(2026-07-13)**. Next stable 최신 16.2.10은 여전히 postcss 8.4.31을 의존하지만, npm `overrides`로 `postcss@8.5.18`을 강제하고 빌드 검증 완료.
 - ~~**npm audit 잔여 advisory**~~ → ✅ **해소(2026-07-13)**. `@babel/core`, `js-yaml`는 `npm audit fix`로 패치. `uuid`/`echarts`는 `overrides`로 각각 11.1.1/6.1.0 고정. `npm audit` 0건.
