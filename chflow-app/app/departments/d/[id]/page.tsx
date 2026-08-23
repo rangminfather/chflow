@@ -84,8 +84,11 @@ const readMenuLocation = (deptId: string) => {
   }
 
   const searchParams = new URLSearchParams(window.location.search);
-  const categoryCandidate = stored.categoryId || searchParams.get("menu");
-  const sectionCandidate = stored.sectionId || searchParams.get("section");
+  // 브라우저 뒤로가기로 복원된 이력의 URL이 현재 화면의 정확한 상태다.
+  // Android Chrome은 BFCache 복원 시 저장소 값이 늦게 갱신될 수 있으므로
+  // 저장값은 URL에 복귀 정보가 없을 때만 보조값으로 사용한다.
+  const categoryCandidate = searchParams.get("menu") || stored.categoryId;
+  const sectionCandidate = searchParams.get("section") || stored.sectionId;
   return {
     categoryId: categoryCandidate && MENU_CATEGORIES.some((item) => item.id === categoryCandidate)
       ? categoryCandidate
