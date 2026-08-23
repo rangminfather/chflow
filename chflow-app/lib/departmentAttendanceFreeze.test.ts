@@ -20,4 +20,10 @@ describe("출결·달란트 통합표 틀고정", () => {
     expect(source).not.toContain('<th style={thStyle(44)}>등반</th>');
     expect(source).toContain('newFriendMap[s.id] ? "등반" : "등반전"');
   });
+
+  it("주차별 지급 항목 대신 합산 달란트 수량을 표시한다", () => {
+    expect(source).toContain("const points = checked.reduce(");
+    expect(source).toContain("+{points} 달란트");
+    expect(source).not.toContain('checked.map((idx) => CIRCLED[idx] || `(${idx + 1})`).join("")');
+  });
 });

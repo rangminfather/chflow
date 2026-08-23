@@ -858,6 +858,10 @@ export default function AttendancePage() {
                             {sundays.map((d) => {
                               const checked = extraMap[`${s.id}_${d}`] || [];
                               const other = getOther(s.id, d);
+                              const points = checked.reduce(
+                                (sum, idx) => sum + (checkRules[idx]?.points || 0),
+                                other?.pts_other || 0,
+                              );
                               const titleParts = checked.map((idx) => `${checkRules[idx]?.label} +${checkRules[idx]?.points}`);
                               if (other) titleParts.push(`기타(직접입력) +${other.pts_other}${other.note ? ` · ${other.note}` : ""}`);
                               return (
@@ -875,17 +879,8 @@ export default function AttendancePage() {
                                     }}
                                   >
                                     {checked.length > 0 || other ? (
-                                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3, whiteSpace: "nowrap" }}>
-                                        {checked.length > 0 && (
-                                          <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 12, letterSpacing: 1 }}>
-                                            {checked.map((idx) => CIRCLED[idx] || `(${idx + 1})`).join("")}
-                                          </span>
-                                        )}
-                                        {other && (
-                                          <span style={{ color: "var(--warning)", fontWeight: 800, fontSize: 10 }}>
-                                            직+{other.pts_other}
-                                          </span>
-                                        )}
+                                      <span style={{ color: "var(--accent)", fontWeight: 800, fontSize: 11, whiteSpace: "nowrap" }}>
+                                        +{points} 달란트
                                       </span>
                                     ) : (
                                       <span style={{ color: "var(--hairline-strong)", fontSize: 12 }}>·</span>
