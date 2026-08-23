@@ -9,6 +9,7 @@ import {
   canManageEducationCourses,
   canManageEducationHistory,
 } from "@/lib/education/permissions";
+import YmdSelect from "@/components/YmdSelect";
 
 const TABS = [
   "성도별 이력", "과정별 조회", "기본필수과정 현황", "LMTC",
@@ -16,6 +17,10 @@ const TABS = [
 ] as const;
 type Tab = typeof TABS[number];
 type JsonRecord = Record<string, unknown>;
+
+/** 과정 정책 적용 기간에서 고를 수 있는 연도 범위 */
+const POLICY_MIN_YEAR = new Date().getFullYear() - 15;
+const POLICY_MAX_YEAR = new Date().getFullYear() + 5;
 
 interface MemberSummary {
   member_id: string;
@@ -576,7 +581,7 @@ function CourseManageTab({ courses, aliases, policies, unclassifiedRows, reload 
     <UnclassifiedCoursePanel rows={unclassifiedRows} courses={courses} reload={reload} />
     <Panel><h2 className="mb-3 font-black">표준 과정 생성</h2><div className="flex flex-wrap gap-2"><input className="rounded-lg border p-2" value={name} onChange={(event) => setName(event.target.value)} placeholder="과정명" /><select className="rounded-lg border p-2" value={category} onChange={(event) => setCategory(event.target.value)}>{["life_study","discipleship","mission_training","family_ministry","bible_training","leadership_training","lmtc","other","unclassified"].map((item) => <option key={item}>{item}</option>)}</select><button onClick={create} className="rounded-lg bg-[var(--accent)] px-4 py-2 font-bold text-white">추가</button></div></Panel>
     <Panel><h2 className="mb-3 font-black">과정 별칭 연결</h2><div className="flex flex-wrap gap-2"><input className="rounded-lg border p-2" value={aliasRaw} onChange={(event) => setAliasRaw(event.target.value)} placeholder="원본 과정명" /><CourseSelect courses={courses} value={aliasCourse} onChange={setAliasCourse} /><button className="rounded-lg bg-[var(--accent)] px-4 text-white" onClick={() => createResource({ resource: "alias", rawCourseName: aliasRaw, courseId: aliasCourse })}>별칭 저장</button></div><Table headers={["원본명","표준 과정"]} rows={aliases.map((row) => [text(row.raw_course_name), text(courses.find((course) => course.id === row.course_id)?.name)])} /></Panel>
-    <Panel><h2 className="mb-3 font-black">과정 정책</h2><div className="flex flex-wrap gap-2"><CourseSelect courses={courses} value={policyCourse} onChange={setPolicyCourse} /><select className="rounded-lg border p-2" value={requirementType} onChange={(event) => setRequirementType(event.target.value)}>{["basic_required","elective","not_applicable","unknown"].map((item) => <option key={item}>{item}</option>)}</select><input type="date" className="rounded-lg border p-2" value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} /><input type="date" className="rounded-lg border p-2" value={effectiveTo} onChange={(event) => setEffectiveTo(event.target.value)} /><button className="rounded-lg bg-[var(--accent)] px-4 text-white" onClick={() => createResource({ resource: "policy", courseId: policyCourse, requirementType, effectiveFrom, effectiveTo, policyName: "관리자 등록 정책" })}>정책 추가</button></div><Table headers={["과정","구분","시작","종료","정책명"]} rows={policies.map((row) => [text(courses.find((course) => course.id === row.course_id)?.name), text(row.requirement_type), text(row.effective_from) || "현재 기준", text(row.effective_to) || "-", text(row.policy_name)])} /></Panel>
+    <Panel><h2 className="mb-3 font-black">과정 정책</h2><div className="flex flex-wrap gap-2"><CourseSelect courses={courses} value={policyCourse} onChange={setPolicyCourse} /><select className="rounded-lg border p-2" value={requirementType} onChange={(event) => setRequirementType(event.target.value)}>{["basic_required","elective","not_applicable","unknown"].map((item) => <option key={item}>{item}</option>)}</select><div className="min-w-[240px]"><div className="mb-1 text-[12px] font-bold text-[var(--ink-soft)]">적용 시작일 (선택)</div><YmdSelect groupLabel="적용 시작일" value={effectiveFrom} onChange={setEffectiveFrom} minYear={POLICY_MIN_YEAR} maxYear={POLICY_MAX_YEAR} className="rounded-lg border p-2" /></div><div className="min-w-[240px]"><div className="mb-1 text-[12px] font-bold text-[var(--ink-soft)]">적용 종료일 (선택)</div><YmdSelect groupLabel="적용 종료일" value={effectiveTo} onChange={setEffectiveTo} minYear={POLICY_MIN_YEAR} maxYear={POLICY_MAX_YEAR} className="rounded-lg border p-2" /></div><button className="rounded-lg bg-[var(--accent)] px-4 text-white" onClick={() => createResource({ resource: "policy", courseId: policyCourse, requirementType, effectiveFrom, effectiveTo, policyName: "관리자 등록 정책" })}>정책 추가</button></div><Table headers={["과정","구분","시작","종료","정책명"]} rows={policies.map((row) => [text(courses.find((course) => course.id === row.course_id)?.name), text(row.requirement_type), text(row.effective_from) || "현재 기준", text(row.effective_to) || "-", text(row.policy_name)])} /></Panel>
     <Panel><Table headers={["과정명","분류","대상","활성","정렬"]} rows={courses.map((row) => [text(row.name), text(row.category), text(row.default_audience), row.active ? "활성" : "비활성", number(row.sort_order)])} /></Panel></div>;
 }
 

@@ -7,6 +7,10 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { NotebookPen, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
+import YmdSelect from "@/components/YmdSelect";
+
+/** 일지 날짜에서 고를 수 있는 연도 범위 — 지난해 일지 수정까지 허용 */
+const JOURNAL_MIN_YEAR = new Date().getFullYear() - 1;
 
 interface JournalSummary {
   id: string;
@@ -509,11 +513,12 @@ export default function JournalPage() {
 
               {/* 1) 날짜 */}
               <FormRow label="날짜">
-                <input
-                  type="date"
+                <YmdSelect
+                  groupLabel="일지 날짜"
                   value={form.date}
-                  onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                  style={inputStyle}
+                  onChange={(next) => setForm((f) => ({ ...f, date: next }))}
+                  minYear={JOURNAL_MIN_YEAR}
+                  selectStyle={inputStyle}
                 />
               </FormRow>
 
