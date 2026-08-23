@@ -235,6 +235,7 @@ export default function DepartmentDetailPage() {
   const adminSectionRefs = useRef(new Map<string, HTMLDivElement>());
   const adminCarouselRef = useRef<HTMLDivElement | null>(null);
   const restoreAdminSectionRef = useRef(true);
+  const controlledAdminSectionRef = useRef<string | null>(null);
   const navigatingToMenuRef = useRef(false);
   const dragRef = useRef<{
     catId: string; itemId: string; allIds: string[];
@@ -534,15 +535,30 @@ export default function DepartmentDetailPage() {
     const carousel = adminCarouselRef.current;
     const panel = adminSectionRefs.current.get(sectionId);
     if (!carousel || !panel) return;
+    controlledAdminSectionRef.current = sectionId;
     setActiveAdminSection(sectionId);
     persistMenuLocation("admin", sectionId);
-    carousel.scrollTo({ left: panel.offsetLeft, behavior: "smooth" });
+    const previousScrollBehavior = carousel.style.scrollBehavior;
+    carousel.style.scrollBehavior = "auto";
+    carousel.scrollLeft = panel.offsetLeft;
+    carousel.style.scrollBehavior = previousScrollBehavior;
   };
 
   const updateActiveAdminSection = () => {
-    if (restoreAdminSectionRef.current || navigatingToMenuRef.current) return;
     const carousel = adminCarouselRef.current;
     if (!carousel) return;
+    const controlledSection = controlledAdminSectionRef.current;
+    if (controlledSection) {
+      const controlledPanel = adminSectionRefs.current.get(controlledSection);
+      if (controlledPanel && Math.abs(carousel.scrollLeft - controlledPanel.offsetLeft) > 1) {
+        const previousScrollBehavior = carousel.style.scrollBehavior;
+        carousel.style.scrollBehavior = "auto";
+        carousel.scrollLeft = controlledPanel.offsetLeft;
+        carousel.style.scrollBehavior = previousScrollBehavior;
+      }
+      return;
+    }
+    if (restoreAdminSectionRef.current || navigatingToMenuRef.current) return;
     let closestId = activeAdminSection;
     let closestDistance = Number.POSITIVE_INFINITY;
     for (const [sectionId, panel] of adminSectionRefs.current) {
@@ -568,6 +584,7 @@ export default function DepartmentDetailPage() {
       const carousel = adminCarouselRef.current;
       const panel = adminSectionRefs.current.get(activeAdminSection);
       if (!carousel || !panel) return;
+      controlledAdminSectionRef.current = activeAdminSection;
       restoredCarousel = carousel;
       previousScrollBehavior = carousel.style.scrollBehavior;
       carousel.style.scrollBehavior = "auto";
@@ -1152,6 +1169,18 @@ export default function DepartmentDetailPage() {
                         ref={adminCarouselRef}
                         className={`admin-section-carousel${sectionsEditable ? " admin-section-carousel-editing" : ""}`}
                         onScroll={sectionsEditable ? undefined : updateActiveAdminSection}
+                        onPointerDown={sectionsEditable ? undefined : () => {
+                          controlledAdminSectionRef.current = null;
+                          restoreAdminSectionRef.current = false;
+                        }}
+                        onTouchStart={sectionsEditable ? undefined : () => {
+                          controlledAdminSectionRef.current = null;
+                          restoreAdminSectionRef.current = false;
+                        }}
+                        onWheel={sectionsEditable ? undefined : () => {
+                          controlledAdminSectionRef.current = null;
+                          restoreAdminSectionRef.current = false;
+                        }}
                       >
                         {groups.map(({ sec, items }, gi) => (
                           <div
