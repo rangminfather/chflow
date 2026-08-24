@@ -4,9 +4,10 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // Vercel env variable: 크로미엄 팩 URL — 버전 업 시 이 값만 교체
+const CHROMIUM_PACK_ARCH = process.arch === "arm64" ? "arm64" : "x64";
 const CHROMIUM_PACK_URL =
   process.env.CHROMIUM_PACK_URL ??
-  "https://github.com/Sparticuz/chromium/releases/download/v149.0.0/chromium-v149.0.0-pack.tar";
+  `https://github.com/Sparticuz/chromium/releases/download/v149.0.0/chromium-v149.0.0-pack.${CHROMIUM_PACK_ARCH}.tar`;
 
 export async function GET(request: NextRequest) {
   const host = request.headers.get("host") ?? "chflow-app.vercel.app";
@@ -26,14 +27,14 @@ export async function GET(request: NextRequest) {
   const puppeteer = (await import("puppeteer-core")).default;
   const Chromium = (await import("@sparticuz/chromium-min")).default;
 
-  const executablePath = localChrome ?? (await Chromium.executablePath(CHROMIUM_PACK_URL));
-
   let browser;
   try {
+    const executablePath = localChrome ?? (await Chromium.executablePath(CHROMIUM_PACK_URL));
     browser = await puppeteer.launch({
       args: isDev ? ["--no-sandbox"] : Chromium.args,
       defaultViewport: { width: 1280, height: 900 },
       executablePath,
+      headless: "shell",
     });
 
     const page = await browser.newPage();

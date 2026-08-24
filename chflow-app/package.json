@@ -37,7 +37,7 @@
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.0.227",
     "pptx-preview": "^1.0.7",
-    "puppeteer-core": "^23.11.1",
+    "puppeteer-core": "25.1.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-easy-crop": "^5.5.7",
