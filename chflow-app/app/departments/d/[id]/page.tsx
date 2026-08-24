@@ -123,6 +123,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
     desc: "부서 공통 자료 / 공지 / 주보",
     items: [
       { id: "notices/board", label: "공지 게시판", icon: Megaphone, desc: "부서 공지·알림", color: "#4A7B96", implemented: true, maxGrade: 4 },
+      { id: "department-members", label: "부서 구성원", icon: Users, desc: "임원진 · 학년·반별 담임 안내", color: "var(--accent)", implemented: true, maxGrade: 4 },
       { id: "bulletin", label: "{dept} 주보보기", icon: Newspaper, desc: "주보 열람", color: "#3E7D74", implemented: true, onlyForCategory: "교육사역국", maxGrade: 4 },
       { id: "verse-memory", label: "요절암송", icon: BookOpen, desc: "월별 요절암송 자료", color: "#8A6D3B", implemented: true, onlyForCategory: "교육사역국", maxGrade: 4 },
       { id: "monthly-plan", label: "월간 교육계획서", icon: CalendarDays, desc: "월간 교육계획 파일 조회", color: "var(--accent)", implemented: true, maxGrade: 4 },
@@ -200,7 +201,7 @@ type SectionLabels = Record<string, string>;
 // 접근등급(학부모까지/선생님만) 변경 가능한 공통메뉴 항목
 const ACCESS_CONFIGURABLE = new Set(["monthly-plan", "review-problems"]);
 // 설정 대상 공통메뉴 (순서 = 표시 순서)
-const COMMON_MENU_KEYS = ["notices/board", "bulletin", "verse-memory", "monthly-plan", "review-problems"];
+const COMMON_MENU_KEYS = ["notices/board", "department-members", "bulletin", "verse-memory", "monthly-plan", "review-problems"];
 // 카테고리별 설정 키 prefix — 공통메뉴는 기존 키 유지, 나머지는 "prefix/menu-id"
 // (카테고리 간 같은 menu id 가 생겨도 설정 키가 충돌하지 않게)
 const CATEGORY_KEY_PREFIX: Record<string, string> = { students: "students", admin: "admin", department: "dept" };
