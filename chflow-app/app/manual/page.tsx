@@ -560,7 +560,7 @@ export default function ManualPage() {
       <style>{`
         .manual-sidenav { display: none; }
         .manual-tabbar  { display: flex; }
-        .print-doc      { display: none; }
+        .print-doc      { display: none; font-family: var(--font-noto-sans-kr), sans-serif; }
 
         /* 스크린샷 이미지: 모바일 100%, 520px 이상에서 최대 320px */
         .manual-shot-wrap { width: 100%; max-width: 100%; }

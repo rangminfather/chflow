@@ -48,6 +48,12 @@ export async function GET(request: NextRequest) {
     // React 가 print-doc 챕터를 렌더링할 때까지 대기
     await page.waitForSelector(".print-chapter", { timeout: 15000 }).catch(() => {});
 
+    // Serverless Chromium에는 기본 한글 글꼴이 없다. next/font 로 제공하는 한글 글꼴이
+    // 실제로 내려와 적용된 뒤 PDF를 만들어야 네모/빈 글자로 출력되지 않는다.
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+    });
+
     // print-doc 내 모든 이미지 로드 완료 대기
     await page
       .waitForFunction(

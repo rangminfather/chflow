@@ -22,6 +22,12 @@ describe("manual PDF runtime", () => {
     expect(routeSource).toContain('headless: "shell"');
   });
 
+  it("waits for the bundled Korean font before printing", () => {
+    const manualSource = readFileSync(resolve(here, "../app/manual/page.tsx"), "utf8");
+    expect(routeSource).toContain("await document.fonts.ready");
+    expect(manualSource).toContain("font-family: var(--font-noto-sans-kr), sans-serif");
+  });
+
   it("pairs Chromium 149 with its supported Puppeteer release", () => {
     expect(packageJson.dependencies["@sparticuz/chromium-min"]).toBe("^149.0.0");
     expect(packageJson.dependencies["puppeteer-core"]).toBe("25.1.0");
