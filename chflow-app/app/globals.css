@@ -1056,6 +1056,16 @@ input::placeholder {
 .signup-postcode-frame {
   scrollbar-color: var(--accent) var(--bg-soft);
   scrollbar-width: auto;
+  overscroll-behavior-x: contain;
+}
+
+/* The postcode document keeps a desktop-width inner layout even when its
+   iframe is shrunk to the phone viewport. Give the iframe the same real width
+   so the parent overflow area can scroll all the way to the clipped text. */
+.signup-postcode-frame iframe {
+  min-width: 500px !important;
+  max-width: none !important;
+  display: block;
 }
 
 .signup-postcode-frame::-webkit-scrollbar {
