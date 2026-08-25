@@ -325,10 +325,12 @@ export default function SignupPage() {
     (async () => {
       try {
         await loadDaumPostcodeScript();
-        if (cancelled || !addressSearchRef.current) return;
+        if (cancelled) return;
+        const container = addressSearchRef.current;
+        if (!container) throw new Error("주소 검색 화면을 준비하지 못했습니다. 다시 시도해 주세요.");
         if (!window.daum?.Postcode) throw new Error("주소 검색을 시작하지 못했습니다");
 
-        addressSearchRef.current.innerHTML = "";
+        container.replaceChildren();
         new window.daum.Postcode({
           oncomplete: (data) => {
             const baseAddress = data.roadAddress || data.jibunAddress || data.address || "";
@@ -339,12 +341,14 @@ export default function SignupPage() {
             setAddressSearchOpen(false);
             window.setTimeout(() => addressDetailRef.current?.focus(), 80);
           },
-        }).embed(addressSearchRef.current);
-        setAddressSearchLoading(false);
+        }).embed(container);
       } catch (e: unknown) {
         if (cancelled) return;
-        setAddressSearchLoading(false);
         setAddressSearchError(getErrorMessage(e));
+      } finally {
+        // Reopening can briefly leave the old async attempt without a mounted
+        // container. Never let that path keep the loading overlay forever.
+        if (!cancelled) setAddressSearchLoading(false);
       }
     })();
 
@@ -414,6 +418,8 @@ export default function SignupPage() {
   const openAddressSearch = async () => {
     setError("");
     setAddressSearchError("");
+    setAddressSearchLoading(true);
+    setAddressSearchAttempt((attempt) => attempt + 1);
     setAddressSearchOpen(true);
   };
 
@@ -1683,6 +1689,7 @@ export default function SignupPage() {
             <div style={addressSearchFrameWrapperStyle}>
               <div
                 ref={addressSearchRef}
+                key={addressSearchAttempt}
                 className="signup-postcode-frame"
                 aria-busy={addressSearchLoading}
                 style={addressSearchFrameStyle}
