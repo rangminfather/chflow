@@ -40,7 +40,7 @@ interface DeptMemberRow {
 // ─────────────────────────────────────────────────────────────────
 // 메뉴 정의 — 사용자 xlsx (초등1 메뉴구성) 기반 4 대분류 + 소분류
 // 등급:
-//   0 = 전도사, 교육사 / 1 = 부장 / 2 = 부부장·총무·서기 / 3 = 교사 / 4 = 학부모
+//   0 = 전도사, 교육사 / 1 = 부장 / 2 = 임원진(부부장·총무·서기·회계 등) / 3 = 교사 / 4 = 학부모
 // ─────────────────────────────────────────────────────────────────
 
 interface MenuItem {
@@ -1769,7 +1769,7 @@ function MenuCard({ item, badgeCount = 0, onClick, onEdit, cardRef, dragging, on
 const GRADE_LABEL: Record<number, string> = {
   0: "전도사·교육사",
   1: "부장",
-  2: "부부장·총무·서기",
+  2: "부부장·총무·서기·회계 등",
   3: "교사",
   4: "학부모",
 };
@@ -1777,7 +1777,7 @@ const GRADE_LABEL: Record<number, string> = {
 const GRADE_BADGE: Record<number, { label: string; bg: string; color: string }> = {
   0: { label: "전도사", bg: "var(--success-soft)", color: "var(--success)" },
   1: { label: "부장", bg: "var(--warning-soft)", color: "var(--warning)" },
-  2: { label: "총무·서기", bg: "var(--accent-soft)", color: "var(--accent-strong)" },
+  2: { label: "임원", bg: "var(--accent-soft)", color: "var(--accent-strong)" },
   3: { label: "교사", bg: "var(--bg-soft)", color: "var(--ink-mid)" },
   4: { label: "학부모", bg: "var(--danger-soft)", color: "var(--danger)" },
 };

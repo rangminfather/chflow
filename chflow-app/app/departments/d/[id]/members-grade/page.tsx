@@ -7,7 +7,15 @@ import { photoThumb } from "@/lib/photo";
 import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
-import { GRADE_OPTIONS, ROLE_OPTIONS } from "@/lib/deptRoles";
+import ModalBackdrop from "@/components/ModalBackdrop";
+import {
+  GRADE_OPTIONS,
+  GRADE2_SUMMARY,
+  ROLE_OPTIONS,
+  CUSTOM_ROLE_VALUE,
+  isStandardRole,
+  roleOptionsByGrade,
+} from "@/lib/deptRoles";
 import { Lock, Medal, UserMinus } from "lucide-react";
 
 interface DeptMember {
@@ -47,6 +55,15 @@ function memberKey(m: DeptMember) {
   return m.teacher_id ?? m.user_id ?? m.name;
 }
 
+// 목록에 없는 직책(직접입력·레거시)을 select 에서 잃지 않도록 현재 값 전용 항목을 둔다
+const CURRENT_ROLE_VALUE = "__current__";
+
+const MAX_ROLE_LEN = 20;
+
+function roleSelectValue(m: DeptMember) {
+  return isStandardRole(m.role_label) ? m.role_label.trim() : CURRENT_ROLE_VALUE;
+}
+
 export default function MembersGradePage() {
   const router = useRouter();
   const { confirm } = useConfirm();
@@ -67,9 +84,14 @@ export default function MembersGradePage() {
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [picked, setPicked] = useState<SearchResult | null>(null);
-  const [pickedRoleIdx, setPickedRoleIdx] = useState(5);
+  const [pickedRole, setPickedRole] = useState("교사");
+  const [appointCustomRole, setAppointCustomRole] = useState("");
+  const [appointCustomGrade, setAppointCustomGrade] = useState(2);
   const [appointing, setAppointing] = useState(false);
   const searchSkipRef = useRef(false);
+
+  // 직책 직접입력 모달 (기존 부서원)
+  const [roleEdit, setRoleEdit] = useState<{ member: DeptMember; text: string; grade: number } | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -102,26 +124,54 @@ export default function MembersGradePage() {
     })();
   }, [load, router]);
 
-  async function handleGradeChange(member: DeptMember, newGrade: number) {
-    if (member.grade === newGrade) return;
+  // 직책을 바꾸면 등급도 함께 정해진다 (표준 직책은 등급이 직책에 매여 있다).
+  // 직접입력 직책은 등급을 따로 고른다.
+  async function saveRole(member: DeptMember, role: string, grade: number) {
     if (!member.has_app || !member.user_id) {
-      showToast("앱 미가입 상태입니다. 앱 가입 후 등급 조정이 가능합니다.");
+      showToast("앱 미가입 상태입니다. 앱 가입 후 직책·등급 조정이 가능합니다.");
       return;
     }
-    if (!await confirm(`${member.name} 님의 등급을 ${member.grade} → ${newGrade} 로 변경하시겠습니까?`)) return;
+    const gradeNote = grade === member.grade ? "" : `\n등급도 ${member.grade} → ${grade} 로 함께 바뀝니다.`;
+    if (!await confirm(`${member.name} 님의 직책을 "${role}"(으)로 변경하시겠습니까?${gradeNote}`)) return;
     setSavingId(memberKey(member));
     const { error } = await supabase.rpc("upsert_member_grade", {
       p_dept_id: deptId,
       p_user_id: member.user_id,
-      p_grade: newGrade,
+      p_grade: grade,
+      p_role: role,
     });
     setSavingId(null);
     if (error) {
       showToast("저장 실패: " + error.message);
-    } else {
-      showToast(`${member.name} 등급 변경됨`);
-      await load();
+      return;
     }
+    showToast(`${member.name} — ${role}(등급 ${grade}) 로 변경됨`);
+    setRoleEdit(null);
+    await load();
+  }
+
+  async function handleRoleChange(member: DeptMember, value: string) {
+    if (value === CURRENT_ROLE_VALUE) return;
+    if (value === CUSTOM_ROLE_VALUE) {
+      setRoleEdit({
+        member,
+        text: isStandardRole(member.role_label) ? "" : (member.role_label || "").trim(),
+        grade: member.grade,
+      });
+      return;
+    }
+    const opt = ROLE_OPTIONS.find((o) => o.role === value);
+    if (!opt) return;
+    if (opt.role === (member.role_label || "").trim() && opt.grade === member.grade) return;
+    await saveRole(member, opt.role, opt.grade);
+  }
+
+  async function submitRoleEdit() {
+    if (!roleEdit) return;
+    const name = roleEdit.text.trim();
+    if (!name) { showToast("직책 이름을 입력해 주세요"); return; }
+    if (name.length > MAX_ROLE_LEN) { showToast(`직책은 ${MAX_ROLE_LEN}자 이내로 입력해 주세요`); return; }
+    await saveRole(roleEdit.member, name, roleEdit.grade);
   }
 
   async function handleRemove(member: DeptMember) {
@@ -171,7 +221,9 @@ export default function MembersGradePage() {
     setSearchResults([]);
     setSearched(false);
     setPicked(null);
-    setPickedRoleIdx(5);
+    setPickedRole("교사");
+    setAppointCustomRole("");
+    setAppointCustomGrade(2);
   }
 
   function pickResult(r: SearchResult) {
@@ -182,8 +234,23 @@ export default function MembersGradePage() {
 
   async function handleAppoint() {
     if (!picked) return;
-    const role = ROLE_OPTIONS[pickedRoleIdx];
-    if (!await confirm(`${picked.name} 님을 ${role.label}(으)로 임명하시겠습니까?`)) return;
+
+    // 직접입력이면 입력값 + 고른 등급, 아니면 표준 직책(등급은 직책에서 결정)
+    let roleName: string;
+    let roleGradeValue: number;
+    if (pickedRole === CUSTOM_ROLE_VALUE) {
+      roleName = appointCustomRole.trim();
+      roleGradeValue = appointCustomGrade;
+      if (!roleName) { showToast("직책 이름을 입력해 주세요"); return; }
+      if (roleName.length > MAX_ROLE_LEN) { showToast(`직책은 ${MAX_ROLE_LEN}자 이내로 입력해 주세요`); return; }
+    } else {
+      const opt = ROLE_OPTIONS.find((o) => o.role === pickedRole);
+      if (!opt) { showToast("직책을 선택해 주세요"); return; }
+      roleName = opt.role;
+      roleGradeValue = opt.grade;
+    }
+
+    if (!await confirm(`${picked.name} 님을 ${roleName}(등급 ${roleGradeValue})(으)로 임명하시겠습니까?`)) return;
 
     // 출석부에 같은 이름의 임시 등록(계정 미연결) 교사가 있으면 기록 이어받기 제안
     const { data: placeholders } = await supabase
@@ -218,15 +285,15 @@ export default function MembersGradePage() {
     const { error } = await supabase.rpc("admin_appoint_dept_member", {
       p_dept_id: deptId,
       p_member_id: picked.member_id,
-      p_grade: role.grade,
-      p_teacher_role: role.role,
+      p_grade: roleGradeValue,
+      p_teacher_role: roleName,
       p_link_placeholder_id: linkPlaceholderId,
     });
     setAppointing(false);
     if (error) { showToast("임명 실패: " + error.message); return; }
     showToast(linkPlaceholderId
-      ? `${picked.name} 님 ${role.label} 임명 + 출석 기록 연결 완료`
-      : `${picked.name} 님 ${role.label} 임명 완료`);
+      ? `${picked.name} 님 ${roleName} 임명 + 출석 기록 연결 완료`
+      : `${picked.name} 님 ${roleName} 임명 완료`);
     setAppointOpen(false);
     await load();
   }
@@ -269,9 +336,14 @@ export default function MembersGradePage() {
             <b>등급 정책</b>:
             <br />• <b>0</b> 전도사·교육사 — 모든 메뉴
             <br />• <b>1</b> 부장 — 공지·학생·행정·부서
-            <br />• <b>2</b> 부부장·총무·서기 — 공지·학생·행정
+            <br />• <b>2</b> 부부장·총무·부총무·서기·부서기·회계·부회계 — 공지·학생·행정
             <br />• <b>3</b> 교사 — 공지·학생
             <br />• <b>4</b> 학부모 — 공지(읽기/댓글)
+            <br />
+            <span style={{ color: "var(--ink-faint)" }}>
+              직책을 고르면 등급이 함께 정해집니다. 부서에 없는 직책은 고르지 않으면 되고,
+              목록에 없는 명칭은 “직접입력”으로 넣을 수 있습니다.
+            </span>
           </div>
         </div>
 
@@ -303,23 +375,37 @@ export default function MembersGradePage() {
                         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{m.name}</span>
                           {m.role_label && <span style={roleBadgeStyle}>{m.role_label}</span>}
+                          <span style={gradeBadgeStyle}>등급 {m.grade}</span>
                           {!m.has_dm && <span style={noDmBadgeStyle}>미승인</span>}
                         </div>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                         <select
-                          value={m.grade}
-                          onChange={(e) => handleGradeChange(m, parseInt(e.target.value, 10))}
+                          value={roleSelectValue(m)}
+                          onChange={(e) => handleRoleChange(m, e.target.value)}
                           disabled={savingId === key}
+                          title="직책 (등급이 함께 바뀝니다)"
                           style={{
                             padding: "6px 10px", fontSize: 12, fontFamily: "inherit",
                             border: "1.5px solid var(--accent-line)", borderRadius: 8, background: "var(--card)",
                             cursor: savingId === key ? "not-allowed" : "pointer", minWidth: 180,
                           }}
                         >
-                          {GRADE_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          {!isStandardRole(m.role_label) && (
+                            <option value={CURRENT_ROLE_VALUE}>
+                              {(m.role_label || "직책 없음").trim()} · 등급 {m.grade}
+                            </option>
+                          )}
+                          {GRADE_OPTIONS.map((g) => (
+                            <optgroup key={g.value} label={g.label}>
+                              {roleOptionsByGrade(g.value).map((opt) => (
+                                <option key={opt.role} value={opt.role}>
+                                  {opt.label} (등급 {opt.grade})
+                                </option>
+                              ))}
+                            </optgroup>
                           ))}
+                          <option value={CUSTOM_ROLE_VALUE}>직접입력…</option>
                         </select>
                         <button
                           onClick={() => handleRemove(m)}
@@ -480,22 +566,61 @@ export default function MembersGradePage() {
                   </div>
                 </div>
 
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 8 }}>이 분이 맞으면, 직분을 선택하세요</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 8 }}>이 분이 맞으면, 직책을 선택하세요</div>
                 <select
-                  value={pickedRoleIdx}
-                  onChange={(e) => setPickedRoleIdx(parseInt(e.target.value, 10))}
+                  value={pickedRole}
+                  onChange={(e) => setPickedRole(e.target.value)}
                   style={{
                     width: "100%", padding: "10px 12px", fontSize: 14,
                     border: "1.5px solid var(--hairline-strong)", borderRadius: 8,
                     fontFamily: "inherit", background: "var(--card)", boxSizing: "border-box",
                   }}
                 >
-                  {ROLE_OPTIONS.map((opt, idx) => (
-                    <option key={idx} value={idx}>
-                      {opt.label} (등급 {opt.grade})
-                    </option>
+                  {GRADE_OPTIONS.map((g) => (
+                    <optgroup key={g.value} label={g.label}>
+                      {roleOptionsByGrade(g.value).map((opt) => (
+                        <option key={opt.role} value={opt.role}>
+                          {opt.label} (등급 {opt.grade})
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
+                  <option value={CUSTOM_ROLE_VALUE}>직접입력…</option>
                 </select>
+
+                {pickedRole === CUSTOM_ROLE_VALUE && (
+                  <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={appointCustomRole}
+                      onChange={(e) => setAppointCustomRole(e.target.value)}
+                      maxLength={MAX_ROLE_LEN}
+                      placeholder="직책 이름 (예: 부감, 서기보)"
+                      style={{
+                        width: "100%", padding: "10px 12px", fontSize: 14,
+                        border: "1.5px solid var(--hairline-strong)", borderRadius: 8,
+                        fontFamily: "inherit", background: "var(--card)", boxSizing: "border-box",
+                      }}
+                    />
+                    <select
+                      value={appointCustomGrade}
+                      onChange={(e) => setAppointCustomGrade(parseInt(e.target.value, 10))}
+                      style={{
+                        width: "100%", padding: "10px 12px", fontSize: 14,
+                        border: "1.5px solid var(--hairline-strong)", borderRadius: 8,
+                        fontFamily: "inherit", background: "var(--card)", boxSizing: "border-box",
+                      }}
+                    >
+                      {GRADE_OPTIONS.map((g) => (
+                        <option key={g.value} value={g.value}>{g.label}</option>
+                      ))}
+                    </select>
+                    <div style={{ fontSize: 11, color: "var(--ink-faint)" }}>
+                      직접입력 직책은 권한 등급을 함께 골라 주세요. ({GRADE2_SUMMARY} 는 등급 2)
+                    </div>
+                  </div>
+                )}
 
                 <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
                   <button
@@ -517,6 +642,69 @@ export default function MembersGradePage() {
             )}
           </div>
         </div>
+      )}
+
+      {roleEdit && (
+        <ModalBackdrop onClose={() => setRoleEdit(null)} style={{ zIndex: 1001 }}>
+          <div style={{ ...modalBox, maxWidth: 360 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", marginBottom: 4 }}>
+              직책 직접입력
+            </div>
+            <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 14 }}>
+              {roleEdit.member.name} 님의 직책을 목록에 없는 이름으로 지정합니다.
+            </div>
+
+            <input
+              autoFocus
+              type="text"
+              value={roleEdit.text}
+              onChange={(e) => setRoleEdit({ ...roleEdit, text: e.target.value })}
+              maxLength={MAX_ROLE_LEN}
+              placeholder="직책 이름 (예: 부감, 서기보)"
+              style={{
+                width: "100%", padding: "10px 12px", fontSize: 14,
+                border: "1.5px solid var(--hairline-strong)", borderRadius: 8,
+                fontFamily: "inherit", background: "var(--card)", boxSizing: "border-box",
+              }}
+            />
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", margin: "12px 0 6px" }}>
+              권한 등급
+            </div>
+            <select
+              value={roleEdit.grade}
+              onChange={(e) => setRoleEdit({ ...roleEdit, grade: parseInt(e.target.value, 10) })}
+              style={{
+                width: "100%", padding: "10px 12px", fontSize: 14,
+                border: "1.5px solid var(--hairline-strong)", borderRadius: 8,
+                fontFamily: "inherit", background: "var(--card)", boxSizing: "border-box",
+              }}
+            >
+              {GRADE_OPTIONS.map((g) => (
+                <option key={g.value} value={g.value}>{g.label}</option>
+              ))}
+            </select>
+            <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 6 }}>
+              임원진({GRADE2_SUMMARY})에 해당하면 등급 2를 고르세요.
+            </div>
+
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button
+                onClick={() => setRoleEdit(null)}
+                style={{ flex: 1, padding: "10px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                취소
+              </button>
+              <button
+                onClick={submitRoleEdit}
+                disabled={savingId === memberKey(roleEdit.member)}
+                style={{ flex: 2, padding: "10px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                저장
+              </button>
+            </div>
+          </div>
+        </ModalBackdrop>
       )}
     </div>
   );
@@ -574,6 +762,11 @@ const groupLabelStyle: React.CSSProperties = {
 const roleBadgeStyle: React.CSSProperties = {
   fontSize: 10, fontWeight: 700, color: "var(--accent)",
   background: "var(--accent-soft)", borderRadius: 6, padding: "1px 6px",
+};
+const gradeBadgeStyle: React.CSSProperties = {
+  fontSize: 10, fontWeight: 600, color: "var(--ink-faint)",
+  background: "color-mix(in srgb, var(--ink-faint) 12%, transparent)",
+  borderRadius: 6, padding: "1px 6px",
 };
 const noAppBadgeStyle: React.CSSProperties = {
   fontSize: 10, fontWeight: 700, color: "var(--warning)",

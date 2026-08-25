@@ -38,7 +38,7 @@ interface DeptMemberCountRow {
 const GRADES = [
   { v: 0, label: "전도사/교육사",    desc: "모든 메뉴",        color: "#6B4F8C", bg: "#EDE7F2" },
   { v: 1, label: "부장",             desc: "공지·학생·행정·부서", color: "var(--danger)",  bg: "var(--danger-soft)" },
-  { v: 2, label: "부부장/총무/서기", desc: "공지·학생·행정",    color: "#B97B3D", bg: "#F4E8D7" },
+  { v: 2, label: "부부장/총무/서기/회계 등", desc: "공지·학생·행정",    color: "#B97B3D", bg: "#F4E8D7" },
   { v: 3, label: "교사",             desc: "공지·학생",         color: "var(--success)", bg: "var(--success-soft)" },
   { v: 4, label: "학부모",           desc: "공지 읽기/댓글",    color: "var(--ink-soft)", bg: "var(--bg-soft)" },
 ];

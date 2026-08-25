@@ -55,7 +55,7 @@ interface LogRow {
 const GRADE_LABEL: Record<number, string> = {
   0: "전도사·교육사",
   1: "부장",
-  2: "부부장·총무·서기",
+  2: "부부장·총무·서기·회계 등",
   3: "교사",
   4: "학부모",
 };

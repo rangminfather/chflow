@@ -151,7 +151,7 @@ export default function TalentFeastPage() {
             <EmptyState
               icon={<Lock size={24} strokeWidth={1.8} />}
               message="접근 권한이 없습니다"
-              hint="달란트잔치는 임원진(전도사·부장·부부장·총무·서기)만 이용할 수 있습니다"
+              hint="달란트잔치는 임원진(전도사·부장·부부장·총무·서기·회계 등)만 이용할 수 있습니다"
             />
           </div>
         </main>
