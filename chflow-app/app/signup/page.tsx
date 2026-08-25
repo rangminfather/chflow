@@ -174,6 +174,7 @@ export default function SignupPage() {
   const [parentName, setParentName] = useState("");
   const [parentPhone, setParentPhone] = useState("");
   const [matched, setMatched] = useState<MatchedMember | null>(null);
+  const [matchedPhotoFailed, setMatchedPhotoFailed] = useState(false);
   const [confirmedMatchedMember, setConfirmedMatchedMember] = useState(false);
 
   // 직분
@@ -281,6 +282,10 @@ export default function SignupPage() {
     const selected = pastureOptions.find((option) => option.pasture_id === pastureId);
     if (selected) setPastureSearch(selected.pasture_name);
   }, [pastureId, pastureOptions]);
+
+  useEffect(() => {
+    setMatchedPhotoFailed(false);
+  }, [matched?.photo_url]);
 
   const selectedPasture = useMemo(
     () => pastureOptions.find((option) => option.pasture_id === pastureId) || null,
@@ -1022,22 +1027,26 @@ export default function SignupPage() {
             marginBottom: 20,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-              {matched.photo_url && (
+              {matched.photo_url && !matchedPhotoFailed && (
                 <div style={{
                   width: 64, height: 64, borderRadius: "50%",
                   background: "var(--accent-soft)", overflow: "hidden",
                   border: "1px solid rgba(62, 90, 74, 0.16)",
                   flexShrink: 0,
-                  backgroundImage: cssUrl(matched.photo_url),
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
                 }}>
-                  <span style={visuallyHiddenStyle}>{matched.name}</span>
+                  {/* Signed R2 URLs are short-lived and should be loaded directly. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={matched.photo_url}
+                    alt={matched.name}
+                    onError={() => setMatchedPhotoFailed(true)}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  />
                 </div>
               )}
               <div style={{
                 width: 56, height: 56, borderRadius: "50%",
-                background: "var(--accent-soft)", display: matched.photo_url ? "none" : "flex", alignItems: "center",
+                background: "var(--accent-soft)", display: matched.photo_url && !matchedPhotoFailed ? "none" : "flex", alignItems: "center",
                 justifyContent: "center", color: "var(--ink-faint)",
               }}><User size={28} strokeWidth={1.8} /></div>
               <div>
@@ -2210,16 +2219,4 @@ const infoValue: React.CSSProperties = {
   fontSize: 12,
   color: "var(--ink)",
   fontWeight: 500,
-};
-
-const visuallyHiddenStyle: React.CSSProperties = {
-  position: "absolute",
-  width: 1,
-  height: 1,
-  padding: 0,
-  margin: -1,
-  overflow: "hidden",
-  clip: "rect(0, 0, 0, 0)",
-  whiteSpace: "nowrap",
-  border: 0,
 };
