@@ -1,12 +1,26 @@
 -- ============================================================================
--- 성도검색 결과 정렬: 관계 우선순위 적용
+-- 성도검색 결과 정렬: "자기 가족" 먼저, 그다음 윗세대/옆세대
 --
---   검색어와 직접 일치하는 사람(들) 기준으로, 함께 딸려 나오는 가족들을
---   "본인 > 배우자 > 자녀 > 자녀의 배우자 > 손주/증손주 > 부모 > 형제" 순으로 보여준다.
---   기존에는 관계 종류와 무관하게 이름순으로만 섞여 나왔다.
+--   검색된 사람(들) 기준으로:
+--     0 본인
+--     1 배우자
+--     2 자녀
+--     3 자녀의 배우자
+--     4 손주·증손주
+--     5 부모
+--     6 형제자매
+--     7 형제자매의 자녀 (조카)
+--     8 조부모·증조부모
+--   순으로 보여준다. "자기 가족"(0~4)이 먼저 뜨고, 그다음 윗세대/옆세대(5~8)가
+--   뒤따르는 구조다.
+--   예) "정다솔" 검색 → 정다솔·하재훈(배우자)·하엘·하율(자녀)이 먼저,
+--       그다음 정준수·최정선(부모)·정다영(형제) 순.
+--     "정준수" 검색 → 최정선(배우자)·정다솔·정다영(자녀)·하재훈·허재영(자녀의 배우자)
+--       ·하엘·하율·허진하·허연우(손주) 순. 정준수는 부모/조부모 관계가 없어 5~8은 안 뜸.
 --
---   변경 범위: filtered CTE에 family_tier 계산 추가, 정렬 기준에 family_tier 삽입.
---   나머지 로직(입력 파싱, scoped, direct_matches, related_ids)은 이전 정의 그대로.
+--   기존에는 같은 세대(household)에 살면 관계 종류와 무관하게 이름순으로 섞여
+--   나왔다. related_ids를 "같은 세대 전체"가 아니라 family_tier(0~8)로 한정해서
+--   관계가 명확한 사람만, 정해진 순서로 나오게 한다.
 -- ============================================================================
 
 create or replace function public.directory_search_members(
@@ -113,23 +127,6 @@ begin
         )
       )
   ),
-  related_ids as (
-    select dm.id
-    from direct_matches dm
-
-    union
-
-    select s.id
-    from scoped s
-    join direct_matches dm on dm.household_id is not null and s.household_id = dm.household_id
-
-    union
-
-    select r.subject_id
-    from public.member_relations r
-    join direct_matches dm on dm.id = r.relative_id
-    where r.kind <> 'spouse'
-  ),
   -- 직접 일치한 사람(dm) 기준, 함께 딸려 나오는 가족 구성원의 관계 우선순위.
   -- 숫자가 작을수록 먼저 보인다. 여러 dm과 겹치면 가장 가까운(작은) 값을 쓴다.
   family_tier as (
@@ -155,11 +152,17 @@ begin
     join public.member_relations rc on rc.relative_id = dm.id and rc.kind = 'parent'
     join public.member_relations rs on rs.subject_id = rc.subject_id and rs.kind = 'spouse'
 
-    -- 4. 손주·증손주
+    -- 4. 손주·증손주 (명시적 grandparent 관계 + 부모관계 2단 전개 모두 포함
+    --    — 자녀 쪽에 grandparent row를 안 만들어둔 경우를 대비)
     union all
     select dm.id, r.subject_id, 4
     from direct_matches dm
     join public.member_relations r on r.relative_id = dm.id and r.kind in ('grandparent', 'great_grandparent')
+    union all
+    select dm.id, gc.subject_id, 4
+    from direct_matches dm
+    join public.member_relations c on c.relative_id = dm.id and c.kind = 'parent'
+    join public.member_relations gc on gc.relative_id = c.subject_id and gc.kind = 'parent'
 
     -- 5. 부모
     union all
@@ -176,16 +179,40 @@ begin
       and sib.kind = 'parent'
       and sib.subject_id <> dm.id
 
-    -- 7. 조부모·증조부모
+    -- 7. 형제자매의 자녀 (조카)
     union all
-    select dm.id, r.relative_id, 7
+    select dm.id, niece.subject_id, 7
+    from direct_matches dm
+    join public.member_relations rp on rp.subject_id = dm.id and rp.kind = 'parent'
+    join public.member_relations sib on sib.relative_id = rp.relative_id
+      and sib.kind = 'parent'
+      and sib.subject_id <> dm.id
+    join public.member_relations niece on niece.relative_id = sib.subject_id and niece.kind = 'parent'
+
+    -- 8. 조부모·증조부모 (명시적 grandparent 관계 + 부모관계 2단 전개 모두 포함)
+    union all
+    select dm.id, r.relative_id, 8
     from direct_matches dm
     join public.member_relations r on r.subject_id = dm.id and r.kind in ('grandparent', 'great_grandparent')
+    union all
+    select dm.id, gp.relative_id, 8
+    from direct_matches dm
+    join public.member_relations p on p.subject_id = dm.id and p.kind = 'parent'
+    join public.member_relations gp on gp.subject_id = p.relative_id and gp.kind = 'parent'
   ),
   best_tier as (
     select member_id, min(tier) as tier
     from family_tier
     group by member_id
+  ),
+  related_ids as (
+    select dm.id
+    from direct_matches dm
+
+    union
+
+    select member_id
+    from best_tier
   ),
   filtered as (
     select
@@ -203,7 +230,7 @@ begin
       s.is_child,
       s.photo_url,
       case when dm.id is not null then s.match_order else 4 end as match_order,
-      coalesce(bt.tier, 8) as family_tier
+      coalesce(bt.tier, 9) as family_tier
     from scoped s
     left join direct_matches dm on dm.id = s.id
     left join best_tier bt on bt.member_id = s.id
