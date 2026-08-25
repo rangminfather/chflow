@@ -7,7 +7,7 @@ import { getRoleImageByLabel, ROLES, getLockedGroupLabels, type Role } from "@/l
 import HeaderLogo from "@/components/HeaderLogo";
 import PhotoAvatar from "@/components/PhotoAvatar";
 import { LoadingView } from "@/components/StatusViews";
-import { MapPin } from "lucide-react";
+import { BadgeCheck, MapPin } from "lucide-react";
 
 interface Profile {
   user_id: string;
@@ -324,7 +324,23 @@ export default function MyInfoPage() {
           </div>
         </div>
 
-        {/* 3. 등록 정보 */}
+        {/* 3. 모바일 교인증 */}
+        <div style={card}>
+          <CardHeader title="모바일 교인증" sub="교인 확인용 모바일 교인증" />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, minWidth: 0 }}>
+              <BadgeCheck size={20} color="var(--accent)" style={{ flexShrink: 0, marginTop: 2 }} />
+              <span style={{ color: "var(--ink-mid)", fontSize: 13, lineHeight: 1.55 }}>
+                스마트폰에서 교인증을 확인할 수 있습니다.
+              </span>
+            </div>
+            <button onClick={() => showToast("모바일 교인증은 구현 예정입니다.")} style={{ ...btnPrimary, flexShrink: 0 }}>
+              확인하기
+            </button>
+          </div>
+        </div>
+
+        {/* 4. 등록 정보 */}
         <div style={card}>
           <CardHeader title="등록 정보" sub="변경은 관리자 또는 사무실에 문의" />
           <div style={infoGrid}>
@@ -402,7 +418,7 @@ export default function MyInfoPage() {
           </div>
         </div>
 
-        {/* 3. 연락처 */}
+        {/* 5. 연락처 */}
         <div style={card}>
           <CardHeader title="연락처" sub="직접 변경 가능" />
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -451,7 +467,7 @@ export default function MyInfoPage() {
           </div>
         </div>
 
-        {/* 4. 비밀번호 변경 */}
+        {/* 6. 비밀번호 변경 */}
         <div style={card}>
           <CardHeader title="비밀번호" sub="" />
           {pwOpen ? (
@@ -470,7 +486,7 @@ export default function MyInfoPage() {
           )}
         </div>
 
-        {/* 5. 계정 */}
+        {/* 7. 계정 */}
         <div style={{ ...card, borderColor: "var(--danger-soft)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>계정</span>
