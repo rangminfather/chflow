@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { CalendarDays, MapPin, RefreshCw, UserRound, UsersRound } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import YmdSelect from "@/components/YmdSelect";
 
 type AttendanceRow = {
   member_id: string;
@@ -32,6 +33,9 @@ const daysAgo = (days: number) => {
   return date.toISOString().slice(0, 10);
 };
 
+// 조회 기간 연도 목록 — 자동출석 기록이 쌓인 범위만 보여준다
+const ATTENDANCE_MIN_YEAR = new Date().getFullYear() - 3;
+
 export default function AttendanceOverviewPage() {
   const router = useRouter();
   const [start, setStart] = useState(daysAgo(30));
@@ -41,6 +45,12 @@ export default function AttendanceOverviewPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    // 연·월·일 중 하나라도 비어 있으면 조회하지 않는다 (기간이 정해지기 전 요청 방지)
+    if (!start || !end) {
+      setError("조회 기간을 연·월·일까지 선택해 주세요.");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     const { data: sessionData } = await supabase.auth.getSession();
@@ -97,9 +107,13 @@ export default function AttendanceOverviewPage() {
       <section style={cardStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}><CalendarDays size={18} /> 조회 기간</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-          <input aria-label="조회 시작일" type="date" value={start} onChange={(event) => setStart(event.target.value)} style={inputStyle} />
+          <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+            <YmdSelect groupLabel="조회 시작일" value={start} onChange={setStart} minYear={ATTENDANCE_MIN_YEAR} selectStyle={inputStyle} />
+          </div>
           <span style={{ color: "var(--ink-soft)" }}>~</span>
-          <input aria-label="조회 종료일" type="date" value={end} onChange={(event) => setEnd(event.target.value)} style={inputStyle} />
+          <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+            <YmdSelect groupLabel="조회 종료일" value={end} onChange={setEnd} minYear={ATTENDANCE_MIN_YEAR} selectStyle={inputStyle} />
+          </div>
         </div>
       </section>
 

@@ -18,6 +18,20 @@ const ROOT_PATHS = new Set(["/", "/home", "/login"]);
 
 export default function HardwareBackBridge() {
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const backDept = searchParams.get("backDept");
+    const backMenu = searchParams.get("backMenu");
+    const backSection = searchParams.get("backSection");
+    if (backDept && backMenu && backSection) {
+      try {
+        const serialized = JSON.stringify({ categoryId: backMenu, sectionId: backSection });
+        window.localStorage.setItem(`dept-menu-location:${backDept}`, serialized);
+        window.sessionStorage.setItem(`dept-menu-location:${backDept}`, serialized);
+      } catch {
+        // 저장소가 차단된 환경에서는 부서 화면 URL의 검색 매개변수로 복원한다.
+      }
+    }
+
     window.__chflowHardwareBack = () => {
       const p = window.location.pathname;
       const atRoot = ROOT_PATHS.has(p);

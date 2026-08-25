@@ -330,7 +330,7 @@ export default function MonthlyPlanUploadPage() {
             <div className="mt-5 flex gap-2">
               <button
                 type="button"
-                onClick={() => router.push(`/departments/d/${deptId}`)}
+                onClick={() => router.back()}
                 className="min-h-12 flex-1 rounded-md border border-hairline-strong bg-card text-[15px] font-bold text-ink-mid"
               >
                 취소
@@ -439,7 +439,7 @@ function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typ
   return (
     <div className="app-subpage-header" style={headerStyle}>
       <HeaderLogo />
-      <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+      <button className="app-header-back" onClick={() => router.back()} style={backBtnStyle}>← 뒤로</button>
       <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}><CalendarPlus size={18} strokeWidth={1.8} /> 월간교육등록</div>
       <div style={{ width: 80 }} />
     </div>

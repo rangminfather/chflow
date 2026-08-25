@@ -86,6 +86,8 @@ const ROLE_GROUPS: { id: RoleGroupId; label: string; roleIds: string[] }[] = [
 ];
 const NEW_MEMBER_ROLE_IDS = ["member_male", "member_female"];
 const NEXTGEN_ROLE_IDS = ["youth_male", "youth_female", "teen_male", "teen_female", "child_male", "child_female", "toddler_male", "toddler_female"];
+const CURRENT_YEAR = new Date().getFullYear();
+const BIRTH_YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR - 1899 }, (_, index) => String(CURRENT_YEAR - index));
 
 interface MatchedMember {
   id: string;
@@ -1385,15 +1387,10 @@ export default function SignupPage() {
               style={{ ...inputStyle, marginTop: 6, background: identityLocked ? "var(--bg-soft)" : inputStyle.background }} />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 10, marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 14, marginBottom: 14 }}>
             <div>
               <label style={labelStyle}>생년월일 *</label>
-              <input
-                type="date"
-                value={birthDate}
-                onChange={(e) => setBirthDate(e.target.value)}
-                style={{ ...inputStyle, marginTop: 6 }}
-              />
+              <BirthDateSelect value={birthDate} onChange={setBirthDate} />
             </div>
             <div>
               <label style={labelStyle}>성별 *</label>
@@ -1751,6 +1748,72 @@ function RoleCard({ role, onClick }: { role: Role; onClick: () => void }) {
         background: "var(--accent)", color: "#fff", borderRadius: 8,
           fontSize: 9, fontWeight: 700 }}>▼</div>
       )}
+    </div>
+  );
+}
+
+type BirthDatePart = "year" | "month" | "day";
+
+function splitBirthDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match
+    ? { year: match[1], month: String(Number(match[2])), day: String(Number(match[3])) }
+    : { year: "", month: "", day: "" };
+}
+
+function BirthDateSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [parts, setParts] = useState(() => splitBirthDate(value));
+  const maxDay = parts.year && parts.month
+    ? new Date(Number(parts.year), Number(parts.month), 0).getDate()
+    : 31;
+
+  useEffect(() => {
+    setParts(splitBirthDate(value));
+  }, [value]);
+
+  const updatePart = (part: BirthDatePart, nextValue: string) => {
+    const next = { ...parts, [part]: nextValue };
+    const nextMaxDay = next.year && next.month
+      ? new Date(Number(next.year), Number(next.month), 0).getDate()
+      : 31;
+    if (Number(next.day) > nextMaxDay) next.day = String(nextMaxDay);
+    setParts(next);
+
+    if (next.year && next.month && next.day) {
+      onChange(`${next.year}-${next.month.padStart(2, "0")}-${next.day.padStart(2, "0")}`);
+    } else {
+      onChange("");
+    }
+  };
+
+  const selectStyle: React.CSSProperties = {
+    ...inputStyle,
+    height: 54,
+    minWidth: 0,
+    padding: "0 8px",
+    fontSize: 16,
+    cursor: "pointer",
+  };
+
+  return (
+    <div style={{ marginTop: 6 }}>
+      <div role="group" aria-label="생년월일" style={{ display: "grid", gridTemplateColumns: "1.35fr 1fr 1fr", gap: 8 }}>
+        <select aria-label="출생 연도" value={parts.year} onChange={(event) => updatePart("year", event.target.value)} style={selectStyle}>
+          <option value="">연도</option>
+          {BIRTH_YEAR_OPTIONS.map((year) => <option key={year} value={year}>{year}년</option>)}
+        </select>
+        <select aria-label="출생 월" value={parts.month} onChange={(event) => updatePart("month", event.target.value)} disabled={!parts.year} style={selectStyle}>
+          <option value="">월</option>
+          {Array.from({ length: 12 }, (_, index) => String(index + 1)).map((month) => <option key={month} value={month}>{month}월</option>)}
+        </select>
+        <select aria-label="출생 일" value={parts.day} onChange={(event) => updatePart("day", event.target.value)} disabled={!parts.year || !parts.month} style={selectStyle}>
+          <option value="">일</option>
+          {Array.from({ length: maxDay }, (_, index) => String(index + 1)).map((day) => <option key={day} value={day}>{day}일</option>)}
+        </select>
+      </div>
+      <div style={{ marginTop: 6, color: "var(--ink-soft)", fontSize: 11, fontWeight: 600, lineHeight: 1.45 }}>
+        연도를 먼저 선택한 뒤 월과 일을 선택해주세요.
+      </div>
     </div>
   );
 }

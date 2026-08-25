@@ -141,7 +141,7 @@ export default function TalentRulesPage() {
             <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><Medal size={40} strokeWidth={1.8} color="var(--ink-faint)" /></div>
             <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>달란트 항목 미설정</div>
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>임원진(등급 0~2: 부장·총무·서기)만 항목을 등록·수정할 수 있습니다</div>
-            <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtn}>← 부서홈</button>
+            <button onClick={() => router.back()} style={primaryBtn}>← 뒤로</button>
           </div>
         </div>
       </div>
@@ -153,7 +153,7 @@ export default function TalentRulesPage() {
 
       <div className="app-subpage-header" style={headerStyle}>
           <HeaderLogo />
-          <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtn}>← 부서홈</button>
+          <button className="app-header-back" onClick={() => router.back()} style={backBtn}>← 뒤로</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Medal size={18} strokeWidth={1.8} /> 달란트 항목설정</div>
         <div style={{ width: 60 }} />
       </div>

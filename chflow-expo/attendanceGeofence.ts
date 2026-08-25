@@ -441,7 +441,20 @@ TaskManager.defineTask(ATTENDANCE_TASK, async ({ data, error }) => {
   }
 });
 
-export async function maybeConfirmAttendance(accessToken: string) {
+let attendanceConfirmationInFlight: Promise<boolean> | null = null;
+
+export function maybeConfirmAttendance(accessToken: string): Promise<boolean> {
+  if (attendanceConfirmationInFlight) return attendanceConfirmationInFlight;
+  const request = confirmAttendance(accessToken);
+  attendanceConfirmationInFlight = request;
+  const clear = () => {
+    if (attendanceConfirmationInFlight === request) attendanceConfirmationInFlight = null;
+  };
+  request.then(clear, clear);
+  return request;
+}
+
+async function confirmAttendance(accessToken: string): Promise<boolean> {
   const geofence = await readGeofence();
   if (!geofence) {
     await report({ code: 'no_geofence' });

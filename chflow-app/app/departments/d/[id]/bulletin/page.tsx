@@ -167,8 +167,8 @@ export default function DepartmentBulletinPage() {
     <main style={pageStyle}>
       <section style={shellStyle}>
         <header className="app-subpage-header" style={headerStyle}>
-          <button className="app-header-back" type="button" onClick={() => router.push(`/departments/d/${deptId}`)} aria-label="부서홈으로" style={{ ...iconButtonStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}>
-            ← 부서홈
+          <button className="app-header-back" type="button" onClick={() => router.back()} aria-label="뒤로가기" style={{ ...iconButtonStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}>
+            ← 뒤로
           </button>
           <HeaderLogo />
           <div style={{ minWidth: 0, flex: 1 }}>

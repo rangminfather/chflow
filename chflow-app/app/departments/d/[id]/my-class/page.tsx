@@ -10,6 +10,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import StudentPhotoEditor from "@/components/StudentPhotoEditor";
 import PendingStudentPhotoPicker from "@/components/PendingStudentPhotoPicker";
+import BirthDateSelect, { STUDENT_BIRTH_MIN_YEAR, joinBirthDate, splitBirthDate } from "@/components/BirthDateSelect";
 import { saveStudentPendingPhoto } from "@/lib/studentPhotoUpload";
 import { Baby, Cog, MoonStar, Plus, Save, UserPlus, X } from "lucide-react";
 import { isAgeBasedDept, ageOptionsFor, birthYearForGrade as birthYearForDeptGrade, gradeFieldLabel, gradeText, schoolFieldLabel, schoolFieldPlaceholder } from "@/lib/eduAge";
@@ -841,7 +842,14 @@ export default function MyClassPage() {
                     <input value={draft.phone} onChange={(event) => updateDraft("phone", event.target.value)} placeholder="010-0000-0000" className={inputClass} disabled={!draft.member_id} />
                   </InfoField>
                   <InfoField label="생년월일" editMode={editMode} value={draft.birth_date || "미등록"}>
-                    <input type="date" value={draft.birth_date} onChange={(event) => updateDraft("birth_date", event.target.value)} className={inputClass} disabled={!draft.member_id} />
+                    <BirthDateSelect
+                      value={draft.birth_date}
+                      onChange={(next) => updateDraft("birth_date", next)}
+                      minYear={STUDENT_BIRTH_MIN_YEAR}
+                      monthDayOptional
+                      className={inputClass}
+                      disabled={!draft.member_id}
+                    />
                   </InfoField>
                   <InfoField label="주소" editMode={editMode} value={draft.address || "미등록"}>
                     <input value={draft.address} onChange={(event) => updateDraft("address", event.target.value)} className={inputClass} disabled={!draft.member_id} />
@@ -1074,11 +1082,17 @@ function NewFriendModal({
             <input value={form.mobile} onChange={(event) => set("mobile", formatPhone(event.target.value))} placeholder="010-0000-0000" className={inputClass} />
           </Field>
           <Field label={`생년월일 — ${gradeFieldLabel(deptName)} 선택 시 연도 자동`}>
-            <div className="grid grid-cols-3 gap-2">
-              <input value={form.birthYear} onChange={(event) => set("birthYear", event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="년" inputMode="numeric" className={inputClass} />
-              <input value={form.birthMonth} onChange={(event) => set("birthMonth", event.target.value.replace(/\D/g, "").slice(0, 2))} placeholder="월" inputMode="numeric" className={inputClass} />
-              <input value={form.birthDay} onChange={(event) => set("birthDay", event.target.value.replace(/\D/g, "").slice(0, 2))} placeholder="일" inputMode="numeric" className={inputClass} />
-            </div>
+            <BirthDateSelect
+              value={joinBirthDate({ year: form.birthYear, month: form.birthMonth, day: form.birthDay }, true)}
+              onChange={(next) => {
+                const parts = splitBirthDate(next, true);
+                onChange({ ...form, birthYear: parts.year, birthMonth: parts.month, birthDay: parts.day });
+              }}
+              minYear={STUDENT_BIRTH_MIN_YEAR}
+              monthDayOptional
+              className={inputClass}
+              hint="연도는 학년(나이) 선택 시 자동으로 채워집니다. 월·일은 모르면 비워둘 수 있습니다."
+            />
           </Field>
         </div>
 
@@ -1247,7 +1261,7 @@ function PageHeader({ deptId, router, myClassName }: { deptId: string; router: R
   return (
     <div className="app-subpage-header" style={headerStyle}>
       <HeaderLogo />
-      <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+      <button className="app-header-back" onClick={() => router.back()} style={backBtnStyle}>← 뒤로</button>
       <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
         <Baby size={18} strokeWidth={1.8} /> 우리반 아이정보 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
       </div>

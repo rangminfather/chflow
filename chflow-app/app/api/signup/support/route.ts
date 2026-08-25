@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
 
   const notifications = admins?.map((profile) => ({
       user_id: profile.id,
-      type: "feedback_new",
+      type: "ops_feedback_new",
       title: "회원가입 문의",
       body: cleanTitle,
       link_url: `/feedback/${post.id}`,

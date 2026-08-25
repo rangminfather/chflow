@@ -8,7 +8,7 @@
 //
 // 모바일 브라우저는 소리 있는 자동재생을 막으므로 재생은 사용자 탭으로 시작된다.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ExternalLink, RefreshCw, Radio } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -45,8 +45,11 @@ export default function LivePage() {
   const [status, setStatus] = useState<LiveStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const loadInFlightRef = useRef(false);
 
   async function load(isRefresh = false) {
+    if (loadInFlightRef.current || document.visibilityState !== "visible") return;
+    loadInFlightRef.current = true;
     if (isRefresh) setRefreshing(true);
     try {
       const { data: sess } = await supabase.auth.getSession();
@@ -60,9 +63,11 @@ export default function LivePage() {
       }
     } catch {
       // 네트워크 실패 시 이전 상태를 유지한다
+    } finally {
+      loadInFlightRef.current = false;
+      setLoading(false);
+      setRefreshing(false);
     }
-    setLoading(false);
-    setRefreshing(false);
   }
 
   useEffect(() => {
@@ -74,17 +79,35 @@ export default function LivePage() {
       load();
     });
     // 방송 시작·종료를 화면에 반영하기 위해 1분마다 캐시만 다시 읽는다(YouTube 호출 아님)
-    const timer = setInterval(() => load(), 60_000);
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const stopPolling = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+    };
+    const startPolling = () => {
+      stopPolling();
+      if (document.visibilityState === "visible") {
+        timer = setInterval(() => load(), 60_000);
+      }
+    };
     const loadWhenVisible = () => {
+      if (document.visibilityState !== "visible") {
+        stopPolling();
+        return;
+      }
+      load();
+      startPolling();
+    };
+    const loadWhenActive = () => {
       if (document.visibilityState === "visible") load();
     };
-    const loadWhenActive = () => load();
+    startPolling();
     document.addEventListener("visibilitychange", loadWhenVisible);
     window.addEventListener("focus", loadWhenActive);
     window.addEventListener("pageshow", loadWhenActive);
     window.addEventListener("chflow:app-active", loadWhenActive);
     return () => {
-      clearInterval(timer);
+      stopPolling();
       document.removeEventListener("visibilitychange", loadWhenVisible);
       window.removeEventListener("focus", loadWhenActive);
       window.removeEventListener("pageshow", loadWhenActive);

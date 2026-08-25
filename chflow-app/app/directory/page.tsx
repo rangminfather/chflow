@@ -10,6 +10,7 @@ import { photoThumb } from "@/lib/photo";
 import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryChildText, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, getDirectoryFilterOptions, hasDirectorySearchCriteria, moveDirectoryChild, type QuickEditChange, type QuickEditDraft } from "@/lib/directory-utils";
 import { getAllSubRoleOptions, getRoleImageBySubRole } from "@/lib/roles";
 import { LoadingView } from "@/components/StatusViews";
+import BirthDateSelect from "@/components/BirthDateSelect";
 import { MessageCircle, PhoneCall } from "lucide-react";
 
 type UserInfo = {
@@ -775,8 +776,14 @@ function DirectoryProfileModal({
                   style={{ ...quickEditInputStyle, flex: 1 }}>
                   <option value="">성별</option><option value="M">남</option><option value="F">여</option>
                 </select>
-                <input type="date" value={newChildBirth} onChange={(e) => setNewChildBirth(e.target.value)}
-                  style={{ ...quickEditInputStyle, flex: 1 }} />
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <BirthDateSelect
+                  value={newChildBirth}
+                  onChange={setNewChildBirth}
+                  selectStyle={quickEditInputStyle}
+                  hint="생년월일은 연·월·일을 모두 선택해야 저장됩니다."
+                />
               </div>
               <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                 <button style={ghostButtonStyle} onClick={() => { setAddingChild(false); setNewChildName(""); setNewChildGender(""); setNewChildBirth(""); }}>취소</button>
@@ -1060,8 +1067,14 @@ function ChildRelationRow({
             style={{ ...quickEditInputStyle, flex: 1 }}>
             <option value="">성별</option><option value="M">남</option><option value="F">여</option>
           </select>
-          <input type="date" value={edit.birth_date} onChange={(e) => setEdit({ ...edit, birth_date: e.target.value })}
-            style={{ ...quickEditInputStyle, flex: 1 }} />
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <BirthDateSelect
+            value={edit.birth_date}
+            onChange={(next) => setEdit({ ...edit, birth_date: next })}
+            selectStyle={quickEditInputStyle}
+            hint="생년월일은 연·월·일을 모두 선택해야 저장됩니다."
+          />
         </div>
         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
           <button style={ghostButtonStyle} onClick={onCancelEdit}>취소</button>
@@ -1289,11 +1302,11 @@ const modalCardStyle: CSSProperties = {
   padding: 18,
 };
 
-// 모달은 #app-zoom-root 밖(document.body)으로 portal되므로 글자확대(zoom)가 적용되지 않는다.
-// 스크롤 컨테이너(카드)는 기본 크기로 두어 화면에 맞추고, '내용'에만 zoom을 다시 걸어
-// 노안 대응 글자확대를 살린다. position:fixed 자식(확인 오버레이)은 이 래퍼 밖에 둬야 한다.
+// 모달은 #app-zoom-root 밖(document.body)으로 portal된다.
+// 모바일은 html의 text-size-adjust를 상속하고, PC에서만 내용에 화면 확대를 다시 적용한다.
+// position:fixed 자식(확인 오버레이)은 이 래퍼 밖에 둬야 한다.
 const modalZoomContentStyle: CSSProperties = {
-  zoom: "var(--app-zoom, 1)" as CSSProperties["zoom"],
+  zoom: "var(--app-surface-zoom, 1)" as CSSProperties["zoom"],
 };
 
 const modalHeaderStyle: CSSProperties = {

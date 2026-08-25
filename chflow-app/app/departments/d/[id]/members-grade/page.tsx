@@ -194,17 +194,17 @@ export default function MembersGradePage() {
       .is("user_id", null)
       .is("member_id", null)
       .eq("name", picked.name);
+    // 연결은 임명과 같은 트랜잭션에서 처리한다 (p_link_placeholder_id).
+    // 예전처럼 연결을 먼저 호출하면 아직 부서원이 아닌 사람에게 계정이 붙어
+    // '임명 실패 + 연결만 된' 중간 상태가 남을 수 있었다.
+    let linkPlaceholderId: string | null = null;
     if (placeholders && placeholders.length > 0) {
       const inherit = await confirm(
         `교사 출석부에 같은 이름의 임시 등록 교사 "${picked.name}"이(가) 있습니다.\n같은 사람이면 기존 출석 기록에 이 계정을 연결합니다.`,
         { okText: "같은 사람 — 기록 이어받기", cancelText: "다른 사람" },
       );
       if (inherit) {
-        const { error: linkErr } = await supabase.rpc("edu_link_teacher_account", {
-          p_teacher_id: placeholders[0].id,
-          p_member_id: picked.member_id,
-        });
-        if (linkErr) { showToast("기록 연결 실패: " + linkErr.message); return; }
+        linkPlaceholderId = placeholders[0].id;
       } else {
         const proceed = await confirm(
           `정말 병합하지 않고 새로 등록할까요?\n동명이인으로 처리되어 출석부에 교사가 중복 생성되고, 기존 출석 기록과 연결되지 않습니다.`,
@@ -220,10 +220,13 @@ export default function MembersGradePage() {
       p_member_id: picked.member_id,
       p_grade: role.grade,
       p_teacher_role: role.role,
+      p_link_placeholder_id: linkPlaceholderId,
     });
     setAppointing(false);
     if (error) { showToast("임명 실패: " + error.message); return; }
-    showToast(`${picked.name} 님 ${role.label} 임명 완료`);
+    showToast(linkPlaceholderId
+      ? `${picked.name} 님 ${role.label} 임명 + 출석 기록 연결 완료`
+      : `${picked.name} 님 ${role.label} 임명 완료`);
     setAppointOpen(false);
     await load();
   }
@@ -242,8 +245,8 @@ export default function MembersGradePage() {
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>
               부서원관리는 전도사·교육사·부장(설정에 따라 임원진까지)만 가능합니다.
             </div>
-            <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtnStyle}>
-              부서홈으로
+            <button onClick={() => router.back()} style={primaryBtnStyle}>
+              뒤로
             </button>
           </div>
         </div>
@@ -255,7 +258,7 @@ export default function MembersGradePage() {
     <div style={pageStyle}>
       <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
-        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.back()} style={backBtnStyle}>← 뒤로</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><Medal size={18} strokeWidth={1.8} /> 부서원관리</div>
         <div style={{ width: 60 }} />
       </div>

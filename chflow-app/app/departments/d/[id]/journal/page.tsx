@@ -7,6 +7,10 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { NotebookPen, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
+import YmdSelect from "@/components/YmdSelect";
+
+/** 일지 날짜에서 고를 수 있는 연도 범위 — 지난해 일지 수정까지 허용 */
+const JOURNAL_MIN_YEAR = new Date().getFullYear() - 1;
 
 interface JournalSummary {
   id: string;
@@ -436,7 +440,7 @@ export default function JournalPage() {
       {/* Header */}
       <div className="journal-header app-subpage-header" style={headerStyle}>
           <HeaderLogo />
-          <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+          <button className="app-header-back" onClick={() => router.back()} style={backBtnStyle}>← 뒤로</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><NotebookPen size={18} strokeWidth={1.8} /> 일지작성</div>
         <button className="app-header-actions" onClick={newJournal} style={addBtnStyle}>+ 새 일지</button>
       </div>
@@ -509,11 +513,12 @@ export default function JournalPage() {
 
               {/* 1) 날짜 */}
               <FormRow label="날짜">
-                <input
-                  type="date"
+                <YmdSelect
+                  groupLabel="일지 날짜"
                   value={form.date}
-                  onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                  style={inputStyle}
+                  onChange={(next) => setForm((f) => ({ ...f, date: next }))}
+                  minYear={JOURNAL_MIN_YEAR}
+                  selectStyle={inputStyle}
                 />
               </FormRow>
 

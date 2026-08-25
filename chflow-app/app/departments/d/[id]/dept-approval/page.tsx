@@ -36,6 +36,14 @@ const GRADES = [
   { g: 4, label: "학부모", desc: "공지 (읽기·댓글)" },
 ];
 
+/** 출석부에 이름만 등록돼 있는 교사(계정 미연결). 같은 이름이면 같은 사람일 가능성이 높다. */
+interface PlaceholderTeacher {
+  id: string;
+  name: string;
+}
+
+const normName = (v: string | null | undefined) => (v || "").replace(/\s+/g, "");
+
 export default function DeptApprovalPage() {
   const router = useRouter();
   const { confirm } = useConfirm();
@@ -48,6 +56,8 @@ export default function DeptApprovalPage() {
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState<PendingJoin | null>(null);
   const [pickedGrade, setPickedGrade] = useState(3);
+  const [placeholders, setPlaceholders] = useState<PlaceholderTeacher[]>([]);
+  const [linkPlaceholder, setLinkPlaceholder] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
   const [toast, setToast] = useState("");
   const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2500); };
@@ -59,8 +69,21 @@ export default function DeptApprovalPage() {
     setPending(data || []);
     const { data: d } = await supabase.from("departments").select("name").eq("id", deptId).maybeSingle();
     if (d) setDeptName(d.name);
+    // 출석부에 이름만 올라간 교사 목록 — 승인 대상과 동명이면 연결까지 함께 처리한다
+    const { data: ts } = await supabase.rpc("list_teachers_status", { p_dept_id: deptId });
+    setPlaceholders(
+      ((ts || []) as { id: string; name: string; is_placeholder: boolean; is_active: boolean }[])
+        .filter((t) => t.is_placeholder && t.is_active)
+        .map((t) => ({ id: t.id, name: t.name }))
+    );
     setLoading(false);
   }, [deptId]);
+
+  /** 승인 대상과 이름이 같은 미연결 교사들 (2명 이상이면 자동 연결하지 않는다) */
+  const matchPlaceholders = useCallback(
+    (name: string | null) => placeholders.filter((p) => normName(p.name) === normName(name) && normName(name) !== ""),
+    [placeholders]
+  );
 
   useEffect(() => {
     (async () => {
@@ -80,19 +103,41 @@ export default function DeptApprovalPage() {
   function openApprove(j: PendingJoin) {
     setApproving(j);
     setPickedGrade(j.requested_role === "학부모" ? 4 : 3);
+    setLinkPlaceholder(true);
   }
 
   async function doApprove() {
     if (!approving) return;
+    const matches = matchPlaceholders(approving.user_name);
+    // 교사 등급이고 동명 미연결 교사가 딱 1명일 때만 연결 대상이 된다
+    const target = pickedGrade <= 3 && matches.length === 1 && linkPlaceholder ? matches[0] : null;
+
     setProcessing(approving.id);
     const { error } = await supabase.rpc("dept_leader_approve_join", {
       p_join_id: approving.id,
       p_approved: true,
       p_grade: pickedGrade,
     });
+    if (error) { setProcessing(null); showToast(error.message); return; }
+
+    // 승인으로 계정 연결 교사 행이 만들어진 뒤에 기존 담임 기록을 그쪽으로 합친다
+    let linkError: string | null = null;
+    if (target) {
+      const { error: mErr } = await supabase.rpc("merge_placeholder_teacher", {
+        p_placeholder_id: target.id,
+        p_target_user_id: approving.user_id,
+        p_reason: "가입 승인 시 동명 담임 기록 연결",
+      });
+      if (mErr) linkError = mErr.message;
+    }
     setProcessing(null);
-    if (error) { showToast(error.message); return; }
-    showToast(`${approving.user_name} 승인 완료 (등급 ${pickedGrade})`);
+    showToast(
+      linkError
+        ? `${approving.user_name} 승인됨 · 담임 기록 연결 실패: ${linkError} (반 관리에서 연결하세요)`
+        : target
+          ? `${approving.user_name} 승인 + 담임 기록 연결 완료`
+          : `${approving.user_name} 승인 완료 (등급 ${pickedGrade})`
+    );
     setApproving(null);
     load();
   }
@@ -122,7 +167,7 @@ export default function DeptApprovalPage() {
           <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", margin: 0, display: "inline-flex", alignItems: "center", gap: 6 }}><Inbox size={20} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> 사역 가입 승인</h1>
           <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>{deptName}</div>
         </div>
-        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={btnGhost}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.back()} style={btnGhost}>← 뒤로</button>
       </div>
 
       <div style={{ maxWidth: 800, margin: "0 auto", padding: 16 }}>
@@ -167,6 +212,14 @@ export default function DeptApprovalPage() {
                         color: j.requested_role === "학부모" ? "var(--warning)" : "var(--accent-strong)",
                       }}>
                         {j.requested_role === "teacher" ? "교사" : j.requested_role}
+                      </span>
+                    )}
+                    {matchPlaceholders(j.user_name).length > 0 && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 6,
+                        background: "var(--warning-soft)", color: "var(--warning)",
+                      }}>
+                        출석부에 같은 이름 담임 있음
                       </span>
                     )}
                   </div>
@@ -226,6 +279,39 @@ export default function DeptApprovalPage() {
                 </button>
               ))}
             </div>
+            {/* 출석부에 이름만 올라간 담임과 같은 사람이면, 승인과 함께 그 기록으로 합친다.
+                합치지 않으면 같은 이름의 교사 행이 두 개 남고 담임메뉴가 열리지 않는다. */}
+            {pickedGrade <= 3 && matchPlaceholders(approving.user_name).length === 1 && (
+              <label style={{
+                display: "flex", gap: 9, alignItems: "flex-start", marginTop: 14,
+                padding: "11px 13px", borderRadius: 10,
+                background: "var(--warning-soft)", border: "1px solid #E0C893",
+                cursor: "pointer",
+              }}>
+                <input
+                  type="checkbox"
+                  checked={linkPlaceholder}
+                  onChange={(e) => setLinkPlaceholder(e.currentTarget.checked)}
+                  style={{ marginTop: 2, flexShrink: 0 }}
+                />
+                <span style={{ fontSize: 12, color: "var(--warning)", lineHeight: 1.6 }}>
+                  출석부에 이름만 등록된 담임 <strong>{matchPlaceholders(approving.user_name)[0].name}</strong> 이(가) 있습니다.
+                  같은 사람이면 체크를 두세요 — 승인과 함께 그 담임·출석 기록을 이 계정으로 합쳐
+                  <strong> 담임메뉴(내 반 출결·달란트)</strong>가 바로 열립니다.
+                  해제하면 나중에 <strong>반 관리</strong>에서 직접 연결해야 합니다.
+                </span>
+              </label>
+            )}
+            {pickedGrade <= 3 && matchPlaceholders(approving.user_name).length > 1 && (
+              <div style={{
+                marginTop: 14, padding: "11px 13px", borderRadius: 10,
+                background: "var(--warning-soft)", border: "1px solid #E0C893",
+                fontSize: 12, color: "var(--warning)", lineHeight: 1.6,
+              }}>
+                출석부에 같은 이름의 미연결 담임이 {matchPlaceholders(approving.user_name).length}명 있습니다.
+                동명이인일 수 있어 자동으로 합치지 않습니다. 승인 후 <strong>반 관리</strong>에서 어느 쪽인지 확인해 연결하세요.
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
               <button onClick={() => setApproving(null)} style={{ flex: 1, padding: 12, background: "var(--bg-soft)", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "var(--ink-soft)", cursor: "pointer", fontFamily: "inherit" }}>취소</button>
               <button onClick={doApprove} disabled={processing === approving.id} style={{ flex: 1, padding: 12, background: "linear-gradient(135deg, var(--success), var(--success))", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer", fontFamily: "inherit" }}>

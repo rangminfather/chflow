@@ -258,7 +258,7 @@ export default function PromotePage() {
             <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><Lock size={40} strokeWidth={1.8} color="var(--ink-faint)" /></div>
             <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>접근 권한이 없습니다</div>
             <div style={{ fontSize: 12, color: "var(--ink-soft)", marginBottom: 20 }}>진급 마법사는 전도사·교육사·부장(설정에 따라 임원진까지)만 가능합니다</div>
-            <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtn}>← 부서홈</button>
+            <button onClick={() => router.back()} style={primaryBtn}>← 뒤로</button>
           </div>
         </div>
       </div>
@@ -276,7 +276,7 @@ export default function PromotePage() {
               재학 → 진급: <b>{done.promoted}명</b><br />
               {nextDeptName ? `${nextDeptName}으로 전출` : "졸업 보관"}: <b>{done.graduated}명</b>
             </div>
-            <button onClick={() => router.push(`/departments/d/${deptId}`)} style={primaryBtn}>부서홈으로</button>
+            <button onClick={() => router.back()} style={primaryBtn}>뒤로</button>
           </div>
         </div>
       </div>
@@ -288,7 +288,7 @@ export default function PromotePage() {
 
       <div className="app-subpage-header" style={headerStyle}>
           <HeaderLogo />
-          <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtn}>← 부서홈</button>
+          <button className="app-header-back" onClick={() => router.back()} style={backBtn}>← 뒤로</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}><GraduationCap size={18} strokeWidth={1.8} /> 진급 마법사</div>
         <div className="hidden md:block" style={{ width: 60 }} />
       </div>

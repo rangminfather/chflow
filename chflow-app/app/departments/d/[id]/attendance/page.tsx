@@ -251,7 +251,8 @@ export default function AttendancePage() {
       .eq("department_id", deptId)
       .gte("record_date", firstDate)
       .lte("record_date", lastDate)
-      .gt("pts_other", 0);
+      .gt("pts_other", 0)
+      .order("created_at", { ascending: true });
     setOthers((data || []) as OtherRecord[]);
   }, [deptId, month, year]);
 
@@ -328,24 +329,28 @@ export default function AttendancePage() {
   }, [extras, ruleIndexById]);
 
   const otherMap = useMemo(() => {
-    const m: Record<string, OtherRecord> = {};
+    const m: Record<string, OtherRecord[]> = {};
     others.forEach((record) => {
       const key = `${record.student_id}_${record.record_date}`;
-      if (!m[key]) {
-        m[key] = record;
-        return;
-      }
-      m[key] = {
-        ...m[key],
-        pts_other: m[key].pts_other + record.pts_other,
-        note: [m[key].note, record.note].filter(Boolean).join(" / "),
-      };
+      if (!m[key]) m[key] = [];
+      m[key].push(record);
     });
     return m;
   }, [others]);
 
-  const getOther = (studentId: string, date: string): OtherRecord | undefined =>
-    otherMap[`${studentId}_${date}`];
+  const getOthers = (studentId: string, date: string): OtherRecord[] =>
+    otherMap[`${studentId}_${date}`] || [];
+
+  const getOtherTotal = (studentId: string, date: string): number =>
+    getOthers(studentId, date).reduce((sum, record) => sum + record.pts_other, 0);
+
+  const attendanceRule = useMemo(
+    () => rules.find((rule) => rule.rule_kind === "weekly" && rule.rule_key === "attendance" && rule.is_active),
+    [rules],
+  );
+
+  const getAutoAttendancePoints = (studentId: string, date: string): number =>
+    getCell(studentId, date)?.attend_status === "출" ? (attendanceRule?.points || 0) : 0;
 
   const getCell = (studentId: string, date: string): AttendRow | undefined =>
     attMap[studentId]?.[date];
@@ -420,43 +425,58 @@ export default function AttendancePage() {
   };
 
   const openTalentEdit = (student: Student, date: string) => {
-    const current = getOther(student.id, date);
-    setOtherAmount(String(current?.pts_other || 1));
-    setOtherNote(current?.note || "");
+    setOtherAmount("1");
+    setOtherNote("");
     setTalentEdit({ student, date });
   };
 
   const saveOther = async () => {
     if (!talentEdit) return;
     const amount = Math.max(0, Number(otherAmount) || 0);
-    const current = getOther(talentEdit.student.id, talentEdit.date);
+    if (amount <= 0) {
+      showToast("달란트 수량은 1 이상 입력하세요");
+      return;
+    }
     setOtherSaving(true);
 
     try {
-      if (amount === 0 && current?.id) {
-        const { error } = await supabase.rpc("edu_delete_talent", { p_id: current.id });
-        if (error) throw error;
-      } else if (amount > 0) {
-        const { error } = await supabase.rpc("edu_save_talent", {
-          p_id: current?.id ?? null,
-          p_dept_id: deptId,
-          p_student_id: talentEdit.student.id,
-          p_date: talentEdit.date,
-          p_attendance: 0,
-          p_offering: 0,
-          p_evangelism: 0,
-          p_memory: 0,
-          p_win: 0,
-          p_other: amount,
-          p_note: otherNote.trim() || "기타",
-        });
-        if (error) throw error;
-      }
+      const { error } = await supabase.rpc("edu_save_talent", {
+        p_id: null,
+        p_dept_id: deptId,
+        p_student_id: talentEdit.student.id,
+        p_date: talentEdit.date,
+        p_attendance: 0,
+        p_offering: 0,
+        p_evangelism: 0,
+        p_memory: 0,
+        p_win: 0,
+        p_other: amount,
+        p_note: otherNote.trim() || "기타",
+      });
+      if (error) throw error;
 
       await loadOtherRecords();
-      showToast("저장되었습니다");
+      setOtherAmount("1");
+      setOtherNote("");
+      showToast("직접입력이 추가되었습니다");
     } catch (error) {
       showToast(`저장 실패: ${(error as Error).message}`);
+    } finally {
+      setOtherSaving(false);
+    }
+  };
+
+  const deleteOther = async (record: OtherRecord) => {
+    const ok = await confirm(`${record.note || "기타"} +${record.pts_other} 달란트를 삭제할까요?`, { okText: "삭제" });
+    if (!ok) return;
+    setOtherSaving(true);
+    try {
+      const { error } = await supabase.rpc("edu_delete_talent", { p_id: record.id });
+      if (error) throw error;
+      await loadOtherRecords();
+      showToast("직접입력이 삭제되었습니다");
+    } catch (error) {
+      showToast(`삭제 실패: ${(error as Error).message}`);
     } finally {
       setOtherSaving(false);
     }
@@ -498,15 +518,18 @@ export default function AttendancePage() {
   const talentSummary = (studentId: string) => {
     let count = 0, points = 0;
     sundays.forEach((d) => {
+      const attendancePoints = getAutoAttendancePoints(studentId, d);
+      if (attendancePoints > 0) {
+        count += 1;
+        points += attendancePoints;
+      }
       (extraMap[`${studentId}_${d}`] || []).forEach((idx) => {
         count += 1;
         points += checkRules[idx]?.points || 0;
       });
-      const other = getOther(studentId, d);
-      if (other) {
-        count += 1;
-        points += other.pts_other;
-      }
+      const directRecords = getOthers(studentId, d);
+      count += directRecords.length;
+      points += directRecords.reduce((sum, record) => sum + record.pts_other, 0);
     });
     return { count, points };
   };
@@ -553,8 +576,50 @@ export default function AttendancePage() {
     <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
 
       <style>{`
-        .att-table { border-collapse: collapse; }
-        .att-table th, .att-table td { border: 1px solid var(--hairline); }
+        .attendance-grid-scroll {
+          max-height: calc(100dvh - 110px);
+          overflow: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .att-table {
+          border-collapse: separate;
+          border-spacing: 0;
+          border-top: 1px solid var(--hairline);
+          border-left: 1px solid var(--hairline);
+        }
+        .att-table th, .att-table td {
+          border: 0;
+          border-right: 1px solid var(--hairline);
+          border-bottom: 1px solid var(--hairline);
+        }
+        .att-table thead th {
+          position: sticky;
+          top: 0;
+          z-index: 3;
+          background: var(--surface);
+        }
+        .att-table th:nth-child(1),
+        .att-table .att-student-row > td:nth-child(1) {
+          position: sticky;
+          left: 0;
+          width: 40px;
+          min-width: 40px;
+          max-width: 40px;
+        }
+        .att-table th:nth-child(2),
+        .att-table .att-student-row > td:nth-child(2) {
+          position: sticky;
+          left: 40px;
+          width: 80px;
+          min-width: 80px;
+          max-width: 80px;
+          box-shadow: 3px 0 5px rgba(0, 0, 0, 0.07);
+        }
+        .att-table .att-student-row > td:nth-child(-n+2) {
+          z-index: 2;
+          background: var(--card);
+        }
+        .att-table thead th:nth-child(-n+2) { z-index: 4; }
         .status-btn { transition: all 0.1s; }
         .status-btn:hover { filter: brightness(0.92); }
         .name-btn:hover { text-decoration: underline; }
@@ -563,7 +628,7 @@ export default function AttendancePage() {
       {/* Header */}
       <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
-        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.back()} style={backBtnStyle}>← 뒤로</button>
         <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}>
           {viewMode === "talent" ? <Medal size={18} strokeWidth={1.8} style={{ color: "var(--accent)" }} /> : <ClipboardList size={18} strokeWidth={1.8} style={{ color: "var(--accent)" }} />}
           {viewMode === "talent" ? "달란트 통합체크" : "출결 통합 조회"}
@@ -619,7 +684,7 @@ export default function AttendancePage() {
         )}
 
         {/* 그리드 */}
-        <div style={{ ...cardStyle, overflowX: "auto", padding: 0 }}>
+        <div className="attendance-grid-scroll" style={{ ...cardStyle, padding: 0 }}>
           {/* 범례 */}
           <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--hairline)", display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center", fontSize: 11 }}>
             <span style={{ fontWeight: 800, color: "var(--ink-soft)" }}>범례</span>
@@ -693,7 +758,6 @@ export default function AttendancePage() {
                 <tr>
                   <th style={thStyle(36)}>번호</th>
                   <th style={thStyle(72)}>이름</th>
-                  <th style={thStyle(44)}>등반</th>
                   {sundays.map((d, i) => (
                     <th key={d} style={{ ...thStyle(viewMode === "attendance" ? 44 : 72), textAlign: "center" }}>
                       {i + 1}주<br />({formatMD(d)})
@@ -719,7 +783,7 @@ export default function AttendancePage() {
                   // 반복하지 않고 목장 번호 기준으로 한 번만 묶어 표시한다.
                   const groupByClassOnly = deptName.trim() === "유아부";
                   const sorted = [...students].sort((a, b) => compareStudents(a, b, groupByClassOnly));
-                  const colSpan = 3 + sundays.length + (viewMode === "attendance" ? 3 : 2);
+                  const colSpan = 2 + sundays.length + (viewMode === "attendance" ? 3 : 2);
                   let lastGroup = "__init__";
                   const rows: React.ReactNode[] = [];
                   const groupCounts = new Map<string, number>();
@@ -751,28 +815,28 @@ export default function AttendancePage() {
                       );
                     }
                     rows.push(
-                      <tr key={s.id} style={{ borderBottom: "1px solid var(--bg-soft)" }}>
+                      <tr key={s.id} className="att-student-row" style={{ borderBottom: "1px solid var(--bg-soft)" }}>
                         <td style={{ textAlign: "center", padding: 3, fontWeight: 700 }}>{s.student_no ?? ""}</td>
                         <td style={{ padding: "3px 6px", whiteSpace: "nowrap" }}>
-                          <button
-                            className="name-btn"
-                            onClick={() => openHistory(s)}
-                            style={{ background: "none", border: "none", padding: 0, fontWeight: 700, fontSize: 11, color: "var(--accent)", cursor: "pointer", fontFamily: "inherit" }}
-                          >
-                            {s.name}
-                          </button>
-                        </td>
-                        <td style={{ textAlign: "center", padding: 3 }}>
-                          {s.id in newFriendMap && (
-                            <span style={{
-                              fontSize: 10, padding: "1px 5px", borderRadius: 4,
-                              background: newFriendMap[s.id] ? "var(--accent-soft)" : "var(--warning-soft)",
-                              color: newFriendMap[s.id] ? "var(--accent)" : "var(--warning)",
-                              fontWeight: 700,
-                            }}>
-                              {newFriendMap[s.id] ? "등반" : "등반전"}
-                            </span>
-                          )}
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                            <button
+                              className="name-btn"
+                              onClick={() => openHistory(s)}
+                              style={{ background: "none", border: "none", padding: 0, fontWeight: 700, fontSize: 11, color: "var(--accent)", cursor: "pointer", fontFamily: "inherit" }}
+                            >
+                              {s.name}
+                            </button>
+                            {s.id in newFriendMap && (
+                              <span style={{
+                                fontSize: 9, padding: "1px 4px", borderRadius: 4,
+                                background: newFriendMap[s.id] ? "var(--accent-soft)" : "var(--warning-soft)",
+                                color: newFriendMap[s.id] ? "var(--accent)" : "var(--warning)",
+                                fontWeight: 700,
+                              }}>
+                                {newFriendMap[s.id] ? "등반" : "등반전"}
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {viewMode === "attendance" ? (
@@ -816,9 +880,15 @@ export default function AttendancePage() {
                           <>
                             {sundays.map((d) => {
                               const checked = extraMap[`${s.id}_${d}`] || [];
-                              const other = getOther(s.id, d);
+                              const directRecords = getOthers(s.id, d);
+                              const autoAttendancePoints = getAutoAttendancePoints(s.id, d);
+                              const points = checked.reduce(
+                                (sum, idx) => sum + (checkRules[idx]?.points || 0),
+                                autoAttendancePoints + getOtherTotal(s.id, d),
+                              );
                               const titleParts = checked.map((idx) => `${checkRules[idx]?.label} +${checkRules[idx]?.points}`);
-                              if (other) titleParts.push(`기타(직접입력) +${other.pts_other}${other.note ? ` · ${other.note}` : ""}`);
+                              if (autoAttendancePoints > 0) titleParts.unshift(`출석 자동 +${autoAttendancePoints}`);
+                              directRecords.forEach((record) => titleParts.push(`${record.note || "기타"} +${record.pts_other}`));
                               return (
                                 <td key={d} style={{ textAlign: "center", padding: 0 }}>
                                   <button
@@ -833,18 +903,9 @@ export default function AttendancePage() {
                                       display: "flex", alignItems: "center", justifyContent: "center",
                                     }}
                                   >
-                                    {checked.length > 0 || other ? (
-                                      <span style={{ display: "inline-flex", alignItems: "center", gap: 3, whiteSpace: "nowrap" }}>
-                                        {checked.length > 0 && (
-                                          <span style={{ color: "var(--accent)", fontWeight: 700, fontSize: 12, letterSpacing: 1 }}>
-                                            {checked.map((idx) => CIRCLED[idx] || `(${idx + 1})`).join("")}
-                                          </span>
-                                        )}
-                                        {other && (
-                                          <span style={{ color: "var(--warning)", fontWeight: 800, fontSize: 10 }}>
-                                            직+{other.pts_other}
-                                          </span>
-                                        )}
+                                    {checked.length > 0 || directRecords.length > 0 || autoAttendancePoints > 0 ? (
+                                      <span style={{ color: "var(--accent)", fontWeight: 800, fontSize: 11, whiteSpace: "nowrap" }}>
+                                        +{points} 달란트
                                       </span>
                                     ) : (
                                       <span style={{ color: "var(--hairline-strong)", fontSize: 12 }}>·</span>
@@ -932,6 +993,11 @@ export default function AttendancePage() {
               담임 달란트통장과 같은 항목입니다. 탭하면 바로 저장됩니다.
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {talentEdit && getAutoAttendancePoints(talentEdit.student.id, talentEdit.date) > 0 && (
+                <div style={{ padding: "8px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700, border: "1.5px solid color-mix(in srgb, var(--success) 40%, transparent)", background: "var(--success-soft)", color: "var(--success)" }}>
+                  출석 자동 +{getAutoAttendancePoints(talentEdit.student.id, talentEdit.date)}
+                </div>
+              )}
               {checkRules.map((r, i) => {
                 const isOn = (extraMap[`${talentEdit.student.id}_${talentEdit.date}`] || []).includes(i);
                 const savingKey = `${talentEdit.student.id}_${talentEdit.date}_${r.id}`;
@@ -951,6 +1017,17 @@ export default function AttendancePage() {
                   >
                     {CIRCLED[i] || `(${i + 1})`} {r.label} +{r.points}
                   </button>
+                );
+              })}
+              {getOthers(talentEdit.student.id, talentEdit.date).map((record, index) => {
+                const number = checkRules.length + index;
+                return (
+                  <div key={record.id} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 8px 7px 12px", borderRadius: 20, border: "1.5px solid color-mix(in srgb, var(--warning) 45%, transparent)", background: "var(--warning-soft)", color: "var(--warning)", fontSize: 12, fontWeight: 700 }}>
+                    <span>{CIRCLED[number] || `(${number + 1})`} {record.note || "기타"} +{record.pts_other}</span>
+                    <button type="button" onClick={() => deleteOther(record)} disabled={otherSaving} aria-label={`${record.note || "기타"} 삭제`} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, padding: 0, border: 0, borderRadius: "50%", background: "transparent", color: "inherit", cursor: "pointer" }}>
+                      <X size={13} strokeWidth={2.2} />
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -987,19 +1064,19 @@ export default function AttendancePage() {
                   disabled={otherSaving}
                   style={{ minWidth: 92, border: "none", borderRadius: 9, background: "var(--ink)", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", opacity: otherSaving ? 0.6 : 1 }}
                 >
-                  {otherSaving ? "저장 중..." : "직접입력 저장"}
+                  {otherSaving ? "추가 중..." : "직접입력 추가"}
                 </button>
               </div>
-              <div style={{ marginTop: 7, fontSize: 10, color: "var(--ink-faint)", lineHeight: 1.5 }}>
-                기존 직접입력을 삭제하려면 수량을 0으로 저장하세요.
-              </div>
+              <div style={{ marginTop: 7, fontSize: 10, color: "var(--ink-faint)", lineHeight: 1.5 }}>필요한 만큼 반복해서 추가할 수 있으며, 위 항목의 × 버튼으로 개별 삭제합니다.</div>
             </div>
 
             {(() => {
               const idxs = extraMap[`${talentEdit.student.id}_${talentEdit.date}`] || [];
-              const other = getOther(talentEdit.student.id, talentEdit.date);
-              const count = idxs.length + (other ? 1 : 0);
-              const pts = idxs.reduce((sum, idx) => sum + (checkRules[idx]?.points || 0), 0) + (other?.pts_other || 0);
+              const directRecords = getOthers(talentEdit.student.id, talentEdit.date);
+              const attendancePoints = getAutoAttendancePoints(talentEdit.student.id, talentEdit.date);
+              const count = idxs.length + directRecords.length + (attendancePoints > 0 ? 1 : 0);
+              const pts = idxs.reduce((sum, idx) => sum + (checkRules[idx]?.points || 0), attendancePoints)
+                + directRecords.reduce((sum, record) => sum + record.pts_other, 0);
               return (
                 <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--hairline)", fontSize: 12, fontWeight: 700, color: "var(--ink-soft)", textAlign: "right" }}>
                   이번 주 항목 {count}개 · <span style={{ color: "var(--accent)" }}>+{pts}점</span>

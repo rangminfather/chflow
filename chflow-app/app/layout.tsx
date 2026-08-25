@@ -74,7 +74,7 @@ export default function RootLayout({
         {/* 다크모드 수동설정 복원 — 렌더 전 실행해서 FOWT 방지 */}
         <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('chflow-theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}` }} />
         {/* 글자 크기 비례 확대 복원 — 렌더 전 적용해서 깜빡임 방지 */}
-        <script dangerouslySetInnerHTML={{ __html: `try{var f=localStorage.getItem('chflow-font-scale');var m={'1':'1','2':'1.15','3':'1.3'};if(m[f])document.documentElement.style.setProperty('--app-zoom',m[f]);}catch(e){}` }} />
+        <script dangerouslySetInnerHTML={{ __html: `try{var f=localStorage.getItem('chflow-font-scale');var m={'1':['100%','1'],'2':['115%','1.15'],'3':['130%','1.3']};var s=m[f];if(s){document.documentElement.style.setProperty('--app-font-scale',s[0]);document.documentElement.style.setProperty('--app-zoom',s[1]);}}catch(e){}` }} />
         {/* 본문: Pretendard (CDN), 한글 fallback: next/font */}
         <link
           rel="stylesheet"
@@ -84,7 +84,7 @@ export default function RootLayout({
         <link rel="preload" as="image" href="/launch-dandelion.webp" fetchPriority="high" />
       </head>
       <body className="min-h-full flex flex-col">
-        {/* 글자 크기 확대 배율은 이 래퍼에만 적용 — 플로팅 dock(가/벨)은 바깥이라 확대 안 됨 */}
+        {/* PC 화면 확대는 이 래퍼에만 적용 — 플로팅 dock(가/벨)은 바깥이라 확대 안 됨 */}
         <div id="app-zoom-root" className="min-h-full flex flex-col flex-1">
           <ConfirmProvider>
             {children}

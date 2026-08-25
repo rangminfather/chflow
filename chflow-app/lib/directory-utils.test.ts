@@ -18,6 +18,19 @@ describe("directory display helpers", () => {
     expect(directoryAccountDetail({ has_app_account: true, app_status: "active", app_username: "member1" })).toBe("앱 가입 · member1");
   });
 
+  // 로그인 아이디 노출 정책: directory_member_profile 이 시스템 staff(admin/office/pastor)
+  // 에게만 app_username 실제 값을 주고 일반 사용자에게는 null 을 준다.
+  // 그래서 같은 헬퍼가 역할에 따라 두 가지 문구를 만든다 (헬퍼 자체에 역할 인자는 없다).
+  it("hides the login id for non-staff viewers and keeps it for staff", () => {
+    // 일반 로그인 사용자 — 서버가 app_username 을 null 로 내려준다
+    expect(directoryAccountDetail({ has_app_account: true, app_status: "active", app_username: null })).toBe("앱 가입");
+    expect(directoryAccountDetail({ has_app_account: true, app_status: "active" })).toBe("앱 가입");
+    // 시스템 staff — 서버가 실제 아이디를 내려준다
+    expect(directoryAccountDetail({ has_app_account: true, app_status: "active", app_username: "member1" })).toBe("앱 가입 · member1");
+    // 앱 미가입 성도는 아이디 유무와 무관하게 기존 표현 유지
+    expect(directoryAccountDetail({ has_app_account: false, app_username: null })).toBe("앱 미가입");
+  });
+
   it("formats common profile values", () => {
     expect(directoryDisplayText(false)).toBe("아니오");
     expect(directoryDisplayText(" ")).toBe("없음");

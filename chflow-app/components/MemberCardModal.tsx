@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase, formatPhone } from "@/lib/supabase";
 import ModalBackdrop from "./ModalBackdrop";
+import BirthDateSelect from "./BirthDateSelect";
 import { ArrowLeft, Camera, Trash2, Baby, Phone, MapPin, Home, Pencil, Users, User, Lightbulb, MessageCircle, PhoneCall } from "lucide-react";
 import { EmptyState } from "@/components/StatusViews";
 import { moveDirectoryChild } from "@/lib/directory-utils";
@@ -564,8 +565,14 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                         style={{ ...editInput, flex: 1, marginBottom: 0 }}>
                         <option value="">성별</option><option value="M">남</option><option value="F">여</option>
                       </select>
-                      <input type="date" value={newChildBirth} onChange={(e) => setNewChildBirth(e.target.value)}
-                        style={{ ...editInput, flex: 1, marginBottom: 0 }} />
+                    </div>
+                    <div style={{ marginBottom: 8 }}>
+                      <BirthDateSelect
+                        value={newChildBirth}
+                        onChange={setNewChildBirth}
+                        selectStyle={{ ...editInput, marginBottom: 0 }}
+                        hint="생년월일은 연·월·일을 모두 선택해야 저장됩니다."
+                      />
                     </div>
                     <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                       <button onClick={() => { setAddingChild(false); setNewChildName(""); setNewChildGender(""); setNewChildBirth(""); }} style={btnGhost}>취소</button>
@@ -724,8 +731,14 @@ function ChildRow({ relation, editing, edit, setEdit, saving, onClick, onStartEd
             style={{ ...editInput, flex: 1, marginBottom: 0 }}>
             <option value="">성별</option><option value="M">남</option><option value="F">여</option>
           </select>
-          <input type="date" value={edit.birth_date} onChange={(e) => setEdit({ ...edit, birth_date: e.target.value })}
-            style={{ ...editInput, flex: 1, marginBottom: 0 }} />
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <BirthDateSelect
+            value={edit.birth_date}
+            onChange={(next) => setEdit({ ...edit, birth_date: next })}
+            selectStyle={{ ...editInput, marginBottom: 0 }}
+            hint="생년월일은 연·월·일을 모두 선택해야 저장됩니다."
+          />
         </div>
         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
           <button onClick={onCancelEdit} style={btnGhost}>취소</button>

@@ -7,7 +7,8 @@ import DeptMasterClassPicker from "@/components/DeptMasterClassPicker";
 import { supabase } from "@/lib/supabase";
 import { photoThumb } from "@/lib/photo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Check, ChevronDown, Medal, PiggyBank, Star } from "lucide-react";
+import { Check, ChevronDown, Medal, PiggyBank, Star, X } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { kidDefaultFace, kidFaceTransform, isKidDefaultFace } from "@/lib/kidAvatar";
 import { fetchDeptClassScope, type DeptClassOption } from "@/lib/deptClassScope";
 import {
@@ -99,6 +100,7 @@ const OTHER_EMOJI = "🎁";
 
 export default function TalentPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
   const weekCardRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -309,12 +311,10 @@ export default function TalentPage() {
   async function ensureDefaultRules() {
     const { data: listed } = await supabase.rpc("list_talent_rules", { p_dept_id: deptId });
     const current = ((listed || []) as TalentRule[]).filter((rule) => rule.rule_kind === "weekly");
-    const existingKeys = new Set(current.map((rule) => rule.rule_key));
-    const missing = DEFAULT_WEEKLY_RULES.filter((rule) => !existingKeys.has(rule.rule_key));
 
-    if (missing.length > 0) {
+    if (current.length === 0) {
       await supabase.from("edu_talent_rules").insert(
-        missing.map((rule) => ({
+        DEFAULT_WEEKLY_RULES.map((rule) => ({
           department_id: deptId,
           rule_kind: "weekly",
           rule_key: rule.rule_key,
@@ -346,7 +346,8 @@ export default function TalentPage() {
       .in("student_id", studentIds)
       .gte("record_date", firstDate)
       .lte("record_date", lastDate)
-      .gt("pts_other", 0);
+      .gt("pts_other", 0)
+      .order("created_at", { ascending: true });
 
     setOthers((data || []) as OtherRecord[]);
   }
@@ -370,17 +371,11 @@ export default function TalentPage() {
   }, [extras]);
 
   const otherMap = useMemo(() => {
-    const map: Record<string, OtherRecord> = {};
+    const map: Record<string, OtherRecord[]> = {};
     others.forEach((record) => {
       const key = `${record.student_id}_${record.record_date}`;
-      if (!map[key]) map[key] = record;
-      else {
-        map[key] = {
-          ...map[key],
-          pts_other: map[key].pts_other + record.pts_other,
-          note: [map[key].note, record.note].filter(Boolean).join(" / "),
-        };
-      }
+      if (!map[key]) map[key] = [];
+      map[key].push(record);
     });
     return map;
   }, [others]);
@@ -420,8 +415,12 @@ export default function TalentPage() {
     return !!extraMap[extraKey(studentId, date, rule.id)];
   }
 
-  function getOther(studentId: string, date: string) {
-    return otherMap[`${studentId}_${date}`];
+  function getOthers(studentId: string, date: string) {
+    return otherMap[`${studentId}_${date}`] || [];
+  }
+
+  function getOtherTotal(studentId: string, date: string) {
+    return getOthers(studentId, date).reduce((sum, record) => sum + record.pts_other, 0);
   }
 
   function studentWeekTotal(studentId: string, date: string) {
@@ -430,7 +429,7 @@ export default function TalentPage() {
       (sum, rule) => sum + (isChecked(studentId, date, rule) ? rule.points : 0),
       0
     );
-    return attendancePoints + checkPoints + (getOther(studentId, date)?.pts_other || 0);
+    return attendancePoints + checkPoints + getOtherTotal(studentId, date);
   }
 
   function weekTotal(date: string) {
@@ -485,10 +484,9 @@ export default function TalentPage() {
 
   function openOther(student: Student, date: string) {
     if (getWeekEditState(date, currentSundayKey) !== "current") return;
-    const current = getOther(student.id, date);
     setOtherModal({ student, date });
-    setOtherAmount(String(current?.pts_other || 1));
-    setOtherNote(current?.note || "");
+    setOtherAmount("1");
+    setOtherNote("");
   }
 
   async function saveOther() {
@@ -496,42 +494,61 @@ export default function TalentPage() {
     if (getWeekEditState(otherModal.date, currentSundayKey) !== "current") return;
 
     const amount = Math.max(0, Number(otherAmount) || 0);
-    const current = getOther(otherModal.student.id, otherModal.date);
+    if (amount <= 0) {
+      showToast("달란트 수량은 1 이상 입력하세요");
+      return;
+    }
     setOtherSaving(true);
 
     try {
-      if (amount === 0 && current?.id) {
-        await supabase.rpc("edu_delete_talent", { p_id: current.id });
-      } else if (amount > 0) {
-        const { error } = await supabase.rpc("edu_save_talent", {
-          p_id: current?.id ?? null,
-          p_dept_id: deptId,
-          p_student_id: otherModal.student.id,
-          p_date: otherModal.date,
-          p_attendance: 0,
-          p_offering: 0,
-          p_evangelism: 0,
-          p_memory: 0,
-          p_win: 0,
-          p_other: amount,
-          p_note: otherNote.trim() || "기타",
-        });
-        if (error) throw error;
-      }
+      const { error } = await supabase.rpc("edu_save_talent", {
+        p_id: null,
+        p_dept_id: deptId,
+        p_student_id: otherModal.student.id,
+        p_date: otherModal.date,
+        p_attendance: 0,
+        p_offering: 0,
+        p_evangelism: 0,
+        p_memory: 0,
+        p_win: 0,
+        p_other: amount,
+        p_note: otherNote.trim() || "기타",
+      });
+      if (error) throw error;
 
       await loadOtherRecords(students.map((student) => student.id));
 
-      // 총 달란트 실시간 반영 (기타 변경분)
-      const oldOther = current?.pts_other || 0;
       setCumulative((prev) => ({
         ...prev,
-        [otherModal.student.id]: (prev[otherModal.student.id] || 0) + (amount - oldOther),
+        [otherModal.student.id]: (prev[otherModal.student.id] || 0) + amount,
       }));
 
-      setOtherModal(null);
-      showToast("저장되었습니다");
+      setOtherAmount("1");
+      setOtherNote("");
+      showToast("직접입력이 추가되었습니다");
     } catch (error) {
       showToast("저장 실패: " + (error as Error).message);
+    } finally {
+      setOtherSaving(false);
+    }
+  }
+
+  async function deleteOther(record: OtherRecord) {
+    if (!otherModal || getWeekEditState(otherModal.date, currentSundayKey) !== "current") return;
+    const ok = await confirm(`${record.note || "기타"} +${record.pts_other} 달란트를 삭제할까요?`, { okText: "삭제" });
+    if (!ok) return;
+    setOtherSaving(true);
+    try {
+      const { error } = await supabase.rpc("edu_delete_talent", { p_id: record.id });
+      if (error) throw error;
+      await loadOtherRecords(students.map((student) => student.id));
+      setCumulative((prev) => ({
+        ...prev,
+        [record.student_id]: (prev[record.student_id] || 0) - record.pts_other,
+      }));
+      showToast("직접입력이 삭제되었습니다");
+    } catch (error) {
+      showToast("삭제 실패: " + (error as Error).message);
     } finally {
       setOtherSaving(false);
     }
@@ -554,7 +571,7 @@ export default function TalentPage() {
       <div style={pageStyle}>
         <div className="app-subpage-header" style={headerStyle}>
           <HeaderLogo />
-          <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+          <button className="app-header-back" onClick={() => router.back()} style={backBtnStyle}>← 뒤로</button>
           <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}><Medal size={18} strokeWidth={1.8} /> 달란트통장</div>
           <div className="hidden md:block" style={{ width: 80 }} />
         </div>
@@ -584,7 +601,7 @@ export default function TalentPage() {
 
       <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
-        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.back()} style={backBtnStyle}>← 뒤로</button>
         <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
           <Medal size={18} strokeWidth={1.8} /> 달란트통장 {myClassName && <span style={{ color: "var(--accent)", marginLeft: 6 }}>{myClassName}반</span>}
         </div>
@@ -703,7 +720,8 @@ export default function TalentPage() {
                     {students.map((student) => {
                       const studentTotal = studentWeekTotal(student.id, date);
                       const present = isPresent(student.id, date);
-                      const other = getOther(student.id, date);
+                      const otherRecords = getOthers(student.id, date);
+                      const otherTotal = getOtherTotal(student.id, date);
                       const rowKey = `${date}_${student.id}`;
                       const expanded = !!expandedStudents[rowKey];
 
@@ -795,16 +813,16 @@ export default function TalentPage() {
                                   disabled={!isEditableWeek}
                                   className={[
                                     "coin-chip flex min-h-[40px] items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[13.5px] font-bold leading-tight",
-                                    other ? "coin-on" : "",
+                                    otherRecords.length > 0 ? "coin-on" : "",
                                     !isEditableWeek ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                                   ].join(" ")}
-                                  style={other
+                                  style={otherRecords.length > 0
                                     ? { background: "color-mix(in srgb, var(--warning) 20%, #fff)", color: "color-mix(in srgb, var(--warning) 78%, var(--ink))", border: "1.5px solid color-mix(in srgb, var(--warning) 48%, transparent)" }
                                     : { background: "color-mix(in srgb, var(--bg-soft) 70%, #fff)", color: "var(--ink-soft)", border: "1px solid var(--hairline)" }}
                                 >
                                   <span className="shrink-0 text-[17px] leading-none" aria-hidden>{OTHER_EMOJI}</span>
                                   <span className="flex-1 truncate">{"\uAE30\uD0C0 (\uC9C1\uC811\uC785\uB825)"}</span>
-                                  {other && <span className="shrink-0 text-[12px] font-extrabold">{other.pts_other}</span>}
+                                  {otherRecords.length > 0 && <span className="shrink-0 text-[12px] font-extrabold">+{otherTotal}</span>}
                                 </button>
                               </div>
                             </>
@@ -829,6 +847,22 @@ export default function TalentPage() {
             <div className="mb-4 text-[14px] font-semibold text-ink-soft">
               {otherModal.student.name} · {formatMD(otherModal.date)} 주일
             </div>
+
+            {getOthers(otherModal.student.id, otherModal.date).length > 0 && (
+              <div className="mb-4 flex flex-col gap-2">
+                <div className="text-[13px] font-extrabold text-ink-mid">등록된 직접입력</div>
+                {getOthers(otherModal.student.id, otherModal.date).map((record, index) => (
+                  <div key={record.id} className="flex items-center gap-2 rounded-lg border border-hairline bg-bg-soft px-3 py-2">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-warning-soft text-[12px] font-extrabold text-warning">{index + 1}</span>
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-ink-mid">{record.note || "기타"}</span>
+                    <span className="shrink-0 text-[13px] font-extrabold text-warning">+{record.pts_other}</span>
+                    <button type="button" onClick={() => deleteOther(record)} disabled={otherSaving} aria-label={`${record.note || "기타"} 삭제`} className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-faint hover:bg-card">
+                      <X size={14} strokeWidth={2.2} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <label className="mb-1 block text-[15px] font-bold text-ink-mid">사유</label>
             <input
@@ -863,7 +897,7 @@ export default function TalentPage() {
                 disabled={otherSaving}
                 className="min-h-12 flex-[1.4] rounded-md bg-ink text-[16px] font-extrabold text-white"
               >
-                {otherSaving ? "저장 중..." : "저장"}
+                {otherSaving ? "추가 중..." : "추가"}
               </button>
             </div>
           </div>

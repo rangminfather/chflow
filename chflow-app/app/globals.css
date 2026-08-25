@@ -47,6 +47,9 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --body-safe-top: 0px;
+  --app-font-scale: 100%;
+  --app-zoom: 1;
+  --app-surface-zoom: 1;
 
   /* 하위호환: 기존 코드가 참조하는 background/foreground 를 새 토큰에 매핑 */
   --background: var(--bg);
@@ -269,6 +272,8 @@ body {
   /* 한글 가독성: 기본 행간 넉넉히, 자간은 살짝 좁게 (Pretendard 권장) */
   line-height: 1.55;
   letter-spacing: -0.01em;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 /* ========================================================
@@ -294,12 +299,33 @@ img, video, canvas, svg, iframe { max-width: 100%; }
 }
 
 /* 글자 크기 비례 확대 (접근성 — 노안 대응)
-   --app-zoom 은 useFontScale + <head> 인라인 스크립트가 설정.
-   래퍼에만 적용해 글자·버튼·간격이 함께 커지고, 플로팅 dock(가/벨)은 제외된다. */
+   모바일은 글자만 확대해 좁은 화면의 카드·버튼·여백 폭을 보존한다.
+   마우스 기반의 넓은 화면에서는 기존 zoom 동작을 유지한다. */
+html {
+  -webkit-text-size-adjust: var(--app-font-scale, 100%);
+  text-size-adjust: var(--app-font-scale, 100%);
+}
+
 #app-zoom-root {
-  zoom: var(--app-zoom, 1);
   width: 100%;
   max-width: 100vw;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :root {
+    --app-surface-zoom: var(--app-zoom, 1);
+  }
+
+  #app-zoom-root {
+    zoom: var(--app-zoom, 1);
+  }
+}
+
+/* 글자 크기 조절 도크 자체는 항상 같은 크기로 유지한다. */
+.global-notification-dock,
+.global-notification-dock-toggle {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* ========================================================

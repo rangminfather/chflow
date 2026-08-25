@@ -70,57 +70,56 @@ export default function GlobalNotifications() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [userId]);
 
-  if (hidden || !userId) return null;
-
-  if (collapsed) {
-    return (
-      <button
-        type="button"
-        className="global-notification-dock-toggle global-notification-dock-toggle-collapsed"
-        onClick={() => setCollapsed(false)}
-        aria-label="도움 메뉴 열기"
-        title="도움 메뉴 열기"
-      >
-        <ChevronsLeft size={16} strokeWidth={2.2} />
-      </button>
-    );
-  }
+  if (!userId) return null;
 
   return (
     <div className="global-notification-dock" aria-live="polite">
-      <button
-        type="button"
-        className="global-notification-dock-toggle"
-        onClick={() => setCollapsed(true)}
-        aria-label="도움 메뉴 접기"
-        title="도움 메뉴 접기"
-      >
-        <ChevronsRight size={16} strokeWidth={2.2} />
-      </button>
-      <FontScaleControl />
-      <button
-        type="button"
-        className="dock-messenger-button"
-        onClick={() => router.push("/messenger")}
-        aria-label="메신저 열기"
-        title="메신저"
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: "50%",
-          border: "1px solid rgba(43, 39, 34, 0.1)",
-          background: "var(--surface)",
-          color: "var(--accent-strong)",
-          boxShadow: "0 14px 34px rgba(43, 39, 34, 0.18)",
-          cursor: "pointer",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <MessagesSquare size={20} strokeWidth={1.9} />
-      </button>
-      <NotificationBell userId={userId} placement="dock" />
+      {!hidden && (
+        <button
+          type="button"
+          className={`global-notification-dock-toggle${collapsed ? " global-notification-dock-toggle-collapsed" : ""}`}
+          onClick={() => setCollapsed((value) => !value)}
+          aria-label={collapsed ? "도움 메뉴 열기" : "도움 메뉴 접기"}
+          title={collapsed ? "도움 메뉴 열기" : "도움 메뉴 접기"}
+        >
+          {collapsed
+            ? <ChevronsLeft size={16} strokeWidth={2.2} />
+            : <ChevronsRight size={16} strokeWidth={2.2} />}
+        </button>
+      )}
+      {!hidden && !collapsed && (
+        <>
+          <FontScaleControl />
+          <button
+            type="button"
+            className="dock-messenger-button"
+            onClick={() => router.push("/messenger")}
+            aria-label="메신저 열기"
+            title="메신저"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: "50%",
+              border: "1px solid rgba(43, 39, 34, 0.1)",
+              background: "var(--surface)",
+              color: "var(--accent-strong)",
+              boxShadow: "0 14px 34px rgba(43, 39, 34, 0.18)",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <MessagesSquare size={20} strokeWidth={1.9} />
+          </button>
+        </>
+      )}
+      <NotificationBell
+        userId={userId}
+        placement="dock"
+        controlsVisible={!hidden && !collapsed}
+        toastMode={hidden ? "ops" : "all"}
+      />
     </div>
   );
 }

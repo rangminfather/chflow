@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ArrowLeft, CheckCircle2, Clock3, MapPin, RefreshCw, Smartphone } from "lucide-react";
 import { useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
+import { attendancePollingDelay } from "@/lib/pollingPolicies";
 import { supabase } from "@/lib/supabase";
 
 type AttendanceStatus = {
@@ -117,35 +118,85 @@ export default function MyAttendancePage() {
   const [now, setNow] = useState(() => new Date());
   const [snapshot, setSnapshot] = useState<NativeSnapshot | null>(null);
   const [diagnostic, setDiagnostic] = useState<NativeDiagnostic | null>(null);
+  const mountedRef = useRef(false);
+  const statusRef = useRef<AttendanceStatus | null>(null);
+  const statusRequestInFlightRef = useRef(false);
 
-  const load = useCallback(async () => {
-    const token = (await supabase.auth.getSession()).data.session?.access_token;
-    if (!token) {
-      router.replace("/login");
-      return;
+  const load = useCallback(async (): Promise<AttendanceStatus | null> => {
+    if (statusRequestInFlightRef.current) return statusRef.current;
+    statusRequestInFlightRef.current = true;
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) {
+        router.replace("/login");
+        return null;
+      }
+      const response = await fetch("/api/mobile/attendance-status", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const payload = await response.json().catch(() => null) as AttendanceStatus | null;
+      if (!response.ok || !payload?.ok) {
+        if (mountedRef.current) {
+          setError(payload?.error || "자동출석 상태를 확인하지 못했습니다.");
+        }
+        return null;
+      }
+      statusRef.current = payload;
+      if (mountedRef.current) {
+        setData(payload);
+        setError(null);
+      }
+      return payload;
+    } catch {
+      if (mountedRef.current) setError("자동출석 상태를 확인하지 못했습니다.");
+      return null;
+    } finally {
+      statusRequestInFlightRef.current = false;
+      if (mountedRef.current) setLoading(false);
     }
-    const response = await fetch("/api/mobile/attendance-status", {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-    const payload = await response.json().catch(() => null) as AttendanceStatus | null;
-    if (!response.ok || !payload?.ok) {
-      setError(payload?.error || "자동출석 상태를 확인하지 못했습니다.");
-    } else {
-      setData(payload);
-      setError(null);
-    }
-    setLoading(false);
   }, [router]);
 
   useEffect(() => {
-    const initialTimer = window.setTimeout(() => void load(), 0);
-    const statusTimer = window.setInterval(() => void load(), 10_000);
+    mountedRef.current = true;
+    let stopped = false;
+    let statusTimer: number | null = null;
+
+    const clearStatusTimer = () => {
+      if (statusTimer) window.clearTimeout(statusTimer);
+      statusTimer = null;
+    };
+
+    const schedule = (status: AttendanceStatus | null) => {
+      clearStatusTimer();
+      if (stopped || document.visibilityState !== "visible") return;
+      const delay = attendancePollingDelay(status);
+      if (delay === null) return;
+      statusTimer = window.setTimeout(() => void tick(), delay);
+    };
+
+    const tick = async () => {
+      const next = await load();
+      if (!stopped) schedule(next ?? statusRef.current);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        clearStatusTimer();
+        return;
+      }
+      void tick();
+    };
+
+    void tick();
+    document.addEventListener("visibilitychange", onVisibilityChange);
     const clockTimer = window.setInterval(() => setNow(new Date()), 1_000);
     return () => {
-      window.clearTimeout(initialTimer);
-      window.clearInterval(statusTimer);
+      stopped = true;
+      mountedRef.current = false;
+      clearStatusTimer();
       window.clearInterval(clockTimer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [load]);
 
@@ -180,11 +231,27 @@ export default function MyAttendancePage() {
     const ask = () => nativeWindow.ReactNativeWebView?.postMessage(
       JSON.stringify({ type: "CHFLOW_ATTENDANCE_DIAGNOSE" }),
     );
-    ask();
-    const timer = window.setInterval(ask, 10_000);
+    let timer: number | null = null;
+    const stopPolling = () => {
+      if (timer) window.clearInterval(timer);
+      timer = null;
+    };
+    const startPolling = () => {
+      stopPolling();
+      if (document.visibilityState !== "visible") return;
+      ask();
+      timer = window.setInterval(ask, 10_000);
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") startPolling();
+      else stopPolling();
+    };
+    startPolling();
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.removeEventListener("chflow-native-attendance", receive);
-      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      stopPolling();
     };
   }, []);
 

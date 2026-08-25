@@ -67,6 +67,38 @@ const ADMIN_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: "ops", label: "명부·부서 운영", icon: Users },
 ];
 
+const menuLocationStorageKey = (deptId: string) => `dept-menu-location:${deptId}`;
+
+const readMenuLocation = (deptId: string) => {
+  const fallback = { categoryId: MENU_CATEGORIES[0].id, sectionId: ADMIN_SECTIONS[0].id };
+  if (typeof window === "undefined") return fallback;
+
+  let stored: { categoryId?: string; sectionId?: string } = {};
+  try {
+    const serialized = window.localStorage.getItem(menuLocationStorageKey(deptId))
+      || window.sessionStorage.getItem(menuLocationStorageKey(deptId))
+      || "{}";
+    stored = JSON.parse(serialized) as typeof stored;
+  } catch {
+    // 저장값이 손상되었거나 sessionStorage를 사용할 수 없으면 URL/기본값으로 복원한다.
+  }
+
+  const searchParams = new URLSearchParams(window.location.search);
+  // 브라우저 뒤로가기로 복원된 이력의 URL이 현재 화면의 정확한 상태다.
+  // Android Chrome은 BFCache 복원 시 저장소 값이 늦게 갱신될 수 있으므로
+  // 저장값은 URL에 복귀 정보가 없을 때만 보조값으로 사용한다.
+  const categoryCandidate = searchParams.get("menu") || stored.categoryId;
+  const sectionCandidate = searchParams.get("section") || stored.sectionId;
+  return {
+    categoryId: categoryCandidate && MENU_CATEGORIES.some((item) => item.id === categoryCandidate)
+      ? categoryCandidate
+      : fallback.categoryId,
+    sectionId: sectionCandidate && ADMIN_SECTIONS.some((item) => item.id === sectionCandidate)
+      ? sectionCandidate
+      : fallback.sectionId,
+  };
+};
+
 interface MenuCategory {
   id: string;
   label: string;
@@ -194,6 +226,9 @@ export default function DepartmentDetailPage() {
   const [editCatId, setEditCatId] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ catId: string; itemId: string } | null>(null);
   const [sectionOrder, setSectionOrder] = useState<string[]>(ADMIN_SECTIONS.map((s) => s.id));
+  const [activeAdminSection, setActiveAdminSection] = useState(() => readMenuLocation(deptId).sectionId);
+  const [activeMenuCategory, setActiveMenuCategory] = useState(() => readMenuLocation(deptId).categoryId);
+  const [menuRestoreVersion, setMenuRestoreVersion] = useState(0);
   const [sectionLabels, setSectionLabels] = useState<SectionLabels>({});
   const [itemOrder, setItemOrder] = useState<Record<string, string[]>>({});
   // 드래그 정렬 (편집모드) — Pointer Events 라 마우스·터치 모두 동작
@@ -204,6 +239,10 @@ export default function DepartmentDetailPage() {
   } | null>(null);
   const itemRefs = useRef(new Map<string, HTMLDivElement>());
   const adminSectionRefs = useRef(new Map<string, HTMLDivElement>());
+  const adminCarouselRef = useRef<HTMLDivElement | null>(null);
+  const restoreAdminSectionRef = useRef(true);
+  const controlledAdminSectionRef = useRef<string | null>(null);
+  const navigatingToMenuRef = useRef(false);
   const dragRef = useRef<{
     catId: string; itemId: string; allIds: string[];
     startOrder: string[]; currentOrder: string[];
@@ -215,6 +254,24 @@ export default function DepartmentDetailPage() {
   const [membersOpen, setMembersOpen] = useState(false);
   const [deptMembers, setDeptMembers] = useState<DeptMemberRow[] | null>(null);
   const [membersLoading, setMembersLoading] = useState(false);
+
+  useEffect(() => {
+    const restoreMenuLocation = () => {
+      const location = readMenuLocation(deptId);
+      restoreAdminSectionRef.current = true;
+      setActiveMenuCategory(location.categoryId);
+      setActiveAdminSection(location.sectionId);
+      setMenuRestoreVersion((version) => version + 1);
+    };
+
+    restoreMenuLocation();
+    window.addEventListener("popstate", restoreMenuLocation);
+    window.addEventListener("pageshow", restoreMenuLocation);
+    return () => {
+      window.removeEventListener("popstate", restoreMenuLocation);
+      window.removeEventListener("pageshow", restoreMenuLocation);
+    };
+  }, [deptId]);
 
   useEffect(() => {
     (async () => {
@@ -461,6 +518,96 @@ export default function DepartmentDetailPage() {
     }
   };
 
+  const persistMenuLocation = (categoryId: string, sectionId: string = activeAdminSection) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("menu", categoryId);
+    url.searchParams.set("section", sectionId);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    try {
+      const serialized = JSON.stringify({ categoryId, sectionId });
+      window.localStorage.setItem(menuLocationStorageKey(deptId), serialized);
+      window.sessionStorage.setItem(menuLocationStorageKey(deptId), serialized);
+    } catch {
+      // sessionStorage가 차단된 환경에서도 URL 기반 복원은 유지한다.
+    }
+  };
+
+  const selectMenuCategory = (categoryId: string) => {
+    if (categoryId === "admin") restoreAdminSectionRef.current = true;
+    setActiveMenuCategory(categoryId);
+    persistMenuLocation(categoryId);
+  };
+
+  const scrollToAdminSection = (sectionId: string) => {
+    const carousel = adminCarouselRef.current;
+    const panel = adminSectionRefs.current.get(sectionId);
+    if (!carousel || !panel) return;
+    controlledAdminSectionRef.current = sectionId;
+    setActiveAdminSection(sectionId);
+    persistMenuLocation("admin", sectionId);
+    const previousScrollBehavior = carousel.style.scrollBehavior;
+    carousel.style.scrollBehavior = "auto";
+    carousel.scrollLeft = panel.offsetLeft;
+    carousel.style.scrollBehavior = previousScrollBehavior;
+  };
+
+  const updateActiveAdminSection = () => {
+    const carousel = adminCarouselRef.current;
+    if (!carousel) return;
+    const controlledSection = controlledAdminSectionRef.current;
+    if (controlledSection) {
+      const controlledPanel = adminSectionRefs.current.get(controlledSection);
+      if (controlledPanel && Math.abs(carousel.scrollLeft - controlledPanel.offsetLeft) > 1) {
+        const previousScrollBehavior = carousel.style.scrollBehavior;
+        carousel.style.scrollBehavior = "auto";
+        carousel.scrollLeft = controlledPanel.offsetLeft;
+        carousel.style.scrollBehavior = previousScrollBehavior;
+      }
+      return;
+    }
+    if (restoreAdminSectionRef.current || navigatingToMenuRef.current) return;
+    let closestId = activeAdminSection;
+    let closestDistance = Number.POSITIVE_INFINITY;
+    for (const [sectionId, panel] of adminSectionRefs.current) {
+      const distance = Math.abs(panel.offsetLeft - carousel.scrollLeft);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestId = sectionId;
+      }
+    }
+    setActiveAdminSection((current) => {
+      if (current === closestId) return current;
+      persistMenuLocation("admin", closestId);
+      return closestId;
+    });
+  };
+
+  useEffect(() => {
+    if (loading || activeMenuCategory !== "admin" || !restoreAdminSectionRef.current) return;
+    let releaseFrame: number | null = null;
+    let restoredCarousel: HTMLDivElement | null = null;
+    let previousScrollBehavior = "";
+    const frame = window.requestAnimationFrame(() => {
+      const carousel = adminCarouselRef.current;
+      const panel = adminSectionRefs.current.get(activeAdminSection);
+      if (!carousel || !panel) return;
+      controlledAdminSectionRef.current = activeAdminSection;
+      restoredCarousel = carousel;
+      previousScrollBehavior = carousel.style.scrollBehavior;
+      carousel.style.scrollBehavior = "auto";
+      carousel.scrollLeft = panel.offsetLeft;
+      releaseFrame = window.requestAnimationFrame(() => {
+        carousel.style.scrollBehavior = previousScrollBehavior;
+        restoreAdminSectionRef.current = false;
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (releaseFrame !== null) window.cancelAnimationFrame(releaseFrame);
+      if (restoredCarousel) restoredCarousel.style.scrollBehavior = previousScrollBehavior;
+    };
+  }, [activeAdminSection, activeMenuCategory, loading, menuRestoreVersion]);
+
   const sectionLabelOf = (id: string, fallback: string) => {
     const custom = sectionLabels[id];
     return custom && custom.trim() ? custom : fallback;
@@ -508,12 +655,22 @@ export default function DepartmentDetailPage() {
     setMembersLoading(false);
   };
 
-  const handleItemClick = (item: MenuItem) => {
+  const handleItemClick = (categoryId: string, item: MenuItem) => {
     if (!item.implemented) {
       showToast(`준비 중인 기능입니다: ${item.label}`);
       return;
     }
-    router.push(`/departments/d/${deptId}/${item.href || item.id}`);
+    const sectionId = categoryId === "admin" ? (item.section ?? activeAdminSection) : activeAdminSection;
+    navigatingToMenuRef.current = true;
+    persistMenuLocation(categoryId, sectionId);
+    // 현재 부서 메뉴 위치가 브라우저 이력에 확정된 뒤 이동한다.
+    // replaceState 직후 router.push를 호출하면 WebView에서 이전 이력의 검색 매개변수가
+    // 첫 탭 값으로 되돌아가는 경합이 있어, 문서 이동으로 이력 순서를 보장한다.
+    const destination = new URL(`/departments/d/${deptId}/${item.href || item.id}`, window.location.origin);
+    destination.searchParams.set("backDept", deptId);
+    destination.searchParams.set("backMenu", categoryId);
+    destination.searchParams.set("backSection", sectionId);
+    window.location.assign(`${destination.pathname}${destination.search}`);
   };
 
   if (!authChecked || loading) return <LoadingView full />;
@@ -606,34 +763,221 @@ export default function DepartmentDetailPage() {
       return grade <= (resolved.maxGrade ?? cat.maxGrade);
     });
   });
+  const selectedMenuCategory = visibleCategories.some((cat) => cat.id === activeMenuCategory)
+    ? activeMenuCategory
+    : visibleCategories[0]?.id;
+  const categoryLabelOf = (cat: MenuCategory) => (
+    dept.is_admin && cat.id === "students" ? "마스터담임" : cat.label
+  );
 
   return (
     <div style={pageStyle}>
 
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: 24 }}>
+      <style>{`
+        .admin-section-tabs,
+        .menu-category-tabs { display: none; }
+
+        .dept-page-container {
+          max-width: 960px;
+          margin: 0 auto;
+          padding: 24px;
+        }
+
+        .dept-page-header-main {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+
+        .dept-page-header-identity {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+
+        .dept-page-title-row {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          column-gap: 7px;
+          row-gap: 5px;
+        }
+
+        .dept-page-name,
+        .dept-page-badge,
+        .dept-page-home-button {
+          white-space: nowrap;
+          word-break: keep-all;
+          overflow-wrap: normal;
+        }
+
+        .dept-page-name {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          flex: 0 0 auto;
+        }
+
+        .dept-page-badge,
+        .dept-page-home-button {
+          flex: 0 0 auto;
+        }
+
+        @media (max-width: 640px) {
+          .dept-page-container {
+            padding: 16px clamp(12px, 4vw, 18px) 24px;
+          }
+
+          .dept-page-header {
+            gap: 10px;
+            padding: 14px 12px !important;
+          }
+
+          .dept-page-header-main {
+            gap: 10px;
+          }
+
+          .dept-page-badge {
+            margin-left: 0 !important;
+          }
+
+          .dept-page-home-button {
+            padding-inline: 11px !important;
+          }
+
+          .menu-category-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 14px;
+            padding: 4px;
+            border: 1px solid var(--hairline);
+            border-radius: 12px;
+            background: var(--card);
+          }
+
+          .menu-category-tab {
+            flex: 1 1 0;
+            min-width: 0;
+            padding: 9px 3px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--ink-faint);
+            font-family: inherit;
+            font-size: 10.5px;
+            font-weight: 800;
+            line-height: 1.25;
+            white-space: nowrap;
+            word-break: keep-all;
+            cursor: pointer;
+          }
+
+          .menu-category-tab[aria-selected="true"] {
+            background: var(--accent-soft);
+            color: var(--accent-strong);
+          }
+
+          .menu-category-panel[data-mobile-active="false"] {
+            display: none;
+          }
+
+          .admin-section-tabs {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 4px;
+            margin-bottom: 10px;
+            padding: 4px;
+            border: 1px solid var(--hairline);
+            border-radius: 12px;
+            background: var(--card);
+          }
+          .admin-section-tab {
+            min-width: 0;
+            padding: 8px 3px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--ink-faint);
+            font-family: inherit;
+            font-size: 10.5px;
+            font-weight: 800;
+            line-height: 1.25;
+            cursor: pointer;
+          }
+          .admin-section-tab[aria-current="true"] {
+            background: var(--accent-soft);
+            color: var(--accent-strong);
+          }
+          .admin-section-carousel:not(.admin-section-carousel-editing) {
+            position: relative;
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: 100%;
+            gap: 12px;
+            overflow-x: auto;
+            overscroll-behavior-inline: contain;
+            scroll-snap-type: x mandatory;
+            scroll-behavior: smooth;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+          }
+          .admin-section-carousel:not(.admin-section-carousel-editing)::-webkit-scrollbar { display: none; }
+          .admin-section-carousel:not(.admin-section-carousel-editing) > .admin-section-panel {
+            min-width: 0;
+            margin-top: 0 !important;
+            scroll-snap-align: center;
+            scroll-snap-stop: always;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .dept-page-container {
+            padding-inline: 10px;
+          }
+
+          .dept-page-header {
+            padding-inline: 10px !important;
+          }
+
+          .dept-page-header .app-home-logo img {
+            width: 44px !important;
+            height: 44px !important;
+          }
+
+          .dept-page-home-button {
+            padding-inline: 9px !important;
+          }
+        }
+      `}</style>
+
+      <div className="dept-page-container">
         {/* Header */}
-        <div style={{
+        <div className="dept-page-header" style={{
           background: "var(--card)", borderRadius: 12, padding: "16px 20px", marginBottom: 20,
-          display: "flex", justifyContent: "space-between", alignItems: "center",
+          display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
           boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div className="dept-page-header-main">
             <HeaderLogo />
-            <div>
+            <div className="dept-page-header-identity">
               <div style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 600 }}>{dept.category}</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 7 }}>
-                <DeptIcon name={dept.name} category={dept.category} size={18} /> {dept.name}
+              <div className="dept-page-title-row" style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)" }}>
+                <span className="dept-page-name">
+                  <DeptIcon name={dept.name} category={dept.category} size={18} />
+                  <span>{dept.name}</span>
+                </span>
                 {dept.is_admin ? (
-                  <span style={{
-                    marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 800,
+                  <span className="dept-page-badge" style={{
+                    fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 800,
                     background: "var(--accent-soft)", color: "var(--accent-strong)",
                     display: "inline-flex", alignItems: "center", gap: 4,
                   }}>
                     <ShieldCheck size={11} strokeWidth={2.2} /> 관리자 마스터
                   </span>
                 ) : grade <= 4 && (
-                  <span style={{
-                    marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700,
+                  <span className="dept-page-badge" style={{
+                    fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 700,
                     background: GRADE_BADGE[grade]?.bg || "var(--bg-soft)",
                     color: GRADE_BADGE[grade]?.color || "var(--ink-soft)",
                   }}>
@@ -643,7 +987,7 @@ export default function DepartmentDetailPage() {
               </div>
             </div>
           </div>
-          <button onClick={() => router.push("/home")} style={backBtnStyle}>← 홈</button>
+          <button className="dept-page-home-button" onClick={() => router.push("/home")} style={backBtnStyle}>← 홈</button>
         </div>
 
         {/* Welcome Card */}
@@ -702,20 +1046,51 @@ export default function DepartmentDetailPage() {
           </div>
         )}
 
+        {/* 모바일 대분류 탭 — PC에서는 기존처럼 모든 카테고리를 세로로 표시 */}
+        {visibleCategories.length > 0 && (
+          <div className="menu-category-tabs" role="tablist" aria-label="부서 메뉴 카테고리">
+            {visibleCategories.map((cat) => {
+              const selected = selectedMenuCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  role="tab"
+                  className="menu-category-tab"
+                  id={`menu-category-tab-${cat.id}`}
+                  aria-selected={selected}
+                  aria-controls={`menu-category-panel-${cat.id}`}
+                  onClick={() => selectMenuCategory(cat.id)}
+                >
+                  {categoryLabelOf(cat)}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* 메뉴 그리드 — 행정관리(grade 0~2) · 부서관리(grade 0~1) 는 모든 부서 표시 */}
         {visibleCategories.map((cat) => (
-          <div key={cat.id} style={{ marginBottom: 24 }}>
+          <div
+            key={cat.id}
+            id={`menu-category-panel-${cat.id}`}
+            role="tabpanel"
+            aria-labelledby={`menu-category-tab-${cat.id}`}
+            className="menu-category-panel"
+            data-mobile-active={selectedMenuCategory === cat.id}
+            style={{ marginBottom: 24 }}
+          >
             <div style={{
               display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12,
             }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 }}>
                 <cat.icon size={17} strokeWidth={1.8} style={{ color: "var(--accent)" }} />
-                {dept.is_admin && cat.id === "students" ? "마스터 담임메뉴" : cat.label}
+                {categoryLabelOf(cat)}
               </div>
               {canEditCat(cat.id) && (
                 <button
                   onClick={() => setEditCatId((v) => (v === cat.id ? null : cat.id))}
-                  title={editCatId === cat.id ? "편집 종료" : `${cat.label} 편집`}
+                  title={editCatId === cat.id ? "편집 종료" : `${categoryLabelOf(cat)} 편집`}
                   style={{
                     display: "inline-flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 8, cursor: "pointer",
                     border: `1px solid ${editCatId === cat.id ? "var(--accent)" : "var(--hairline)"}`,
@@ -756,7 +1131,7 @@ export default function DepartmentDetailPage() {
                       key={item.id}
                       item={item}
                       badgeCount={item.id === "dept-approval" ? deptApprovalPendingCount : 0}
-                      onClick={() => handleItemClick(item)}
+                      onClick={() => handleItemClick(cat.id, item)}
                       onEdit={editingCat
                         && (cat.id !== "notices" || COMMON_MENU_KEYS.includes(item.id))
                         ? () => setEditing({ catId: cat.id, itemId: item.id }) : undefined}
@@ -784,65 +1159,107 @@ export default function DepartmentDetailPage() {
                   .filter((g) => g.items.length > 0 || editingCat);
                 if (groups.length > 1) {
                   const sectionsEditable = editCatId === "admin" && canEditCat("admin");
-                  return groups.map(({ sec, items }, gi) => (
-                    <div
-                      key={sec.id}
-                      ref={(el) => {
-                        if (el) adminSectionRefs.current.set(sec.id, el);
-                        else adminSectionRefs.current.delete(sec.id);
-                      }}
-                      style={{ marginTop: gi === 0 ? 0 : 16 }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
-                        <sec.icon size={13} strokeWidth={1.9} style={{ color: "var(--ink-faint)" }} />
-                        {sectionsEditable ? (
-                          <input
-                            defaultValue={sectionLabelOf(sec.id, sec.label)}
-                            aria-label={`${sec.label} 섹션명`}
-                            maxLength={24}
-                            onClick={(e) => e.stopPropagation()}
-                            onBlur={(e) => saveSectionLabel(sec.id, sec.label, e.currentTarget.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") e.currentTarget.blur();
-                              if (e.key === "Escape") {
-                                e.currentTarget.value = sectionLabelOf(sec.id, sec.label);
-                                e.currentTarget.blur();
-                              }
-                            }}
-                            style={sectionLabelInputStyle}
-                          />
-                        ) : (
-                          <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.3, whiteSpace: "nowrap" }}>
-                            {sectionLabelOf(sec.id, sec.label)}
-                          </span>
-                        )}
-                        <div style={{ flex: 1, height: 1, background: "var(--hairline)" }} />
-                        {sectionsEditable && (
-                          <div style={{ display: "flex", gap: 2 }}>
+                  const selectedSection = groups.some(({ sec }) => sec.id === activeAdminSection)
+                    ? activeAdminSection
+                    : groups[0].sec.id;
+                  return (
+                    <>
+                      {!sectionsEditable && (
+                        <div className="admin-section-tabs" role="navigation" aria-label="행정관리 카테고리">
+                          {groups.map(({ sec }) => (
                             <button
+                              key={sec.id}
                               type="button"
-                              onClick={() => moveSection(sec.id, -1)}
-                              disabled={gi === 0}
-                              title="위로 이동"
-                              style={sectionMoveBtnStyle(gi === 0)}
-                            ><ChevronUp size={14} strokeWidth={2.2} /></button>
-                            <button
-                              type="button"
-                              onClick={() => moveSection(sec.id, 1)}
-                              disabled={gi === groups.length - 1}
-                              title="아래로 이동"
-                              style={sectionMoveBtnStyle(gi === groups.length - 1)}
-                            ><ChevronDown size={14} strokeWidth={2.2} /></button>
-                          </div>
-                        )}
-                      </div>
-                      {items.length > 0 ? renderGrid(items) : (
-                        <div style={{ border: "1.5px dashed var(--hairline-strong)", borderRadius: 10, padding: 14, textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--ink-faint)" }}>
-                          소메뉴를 여기로 드래그하세요
+                              className="admin-section-tab"
+                              aria-current={selectedSection === sec.id}
+                              onClick={() => scrollToAdminSection(sec.id)}
+                            >
+                              {sectionLabelOf(sec.id, sec.label)}
+                            </button>
+                          ))}
                         </div>
                       )}
-                    </div>
-                  ));
+                      <div
+                        ref={adminCarouselRef}
+                        className={`admin-section-carousel${sectionsEditable ? " admin-section-carousel-editing" : ""}`}
+                        onScroll={sectionsEditable ? undefined : updateActiveAdminSection}
+                        onPointerDown={sectionsEditable ? undefined : () => {
+                          controlledAdminSectionRef.current = null;
+                          restoreAdminSectionRef.current = false;
+                        }}
+                        onTouchStart={sectionsEditable ? undefined : () => {
+                          controlledAdminSectionRef.current = null;
+                          restoreAdminSectionRef.current = false;
+                        }}
+                        onWheel={sectionsEditable ? undefined : () => {
+                          controlledAdminSectionRef.current = null;
+                          restoreAdminSectionRef.current = false;
+                        }}
+                      >
+                        {groups.map(({ sec, items }, gi) => (
+                          <div
+                            key={sec.id}
+                            className="admin-section-panel"
+                            aria-label={`${sectionLabelOf(sec.id, sec.label)} 메뉴`}
+                            ref={(el) => {
+                              if (el) adminSectionRefs.current.set(sec.id, el);
+                              else adminSectionRefs.current.delete(sec.id);
+                            }}
+                            style={{ marginTop: gi === 0 ? 0 : 16 }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                              <sec.icon size={13} strokeWidth={1.9} style={{ color: "var(--ink-faint)" }} />
+                              {sectionsEditable ? (
+                                <input
+                                  defaultValue={sectionLabelOf(sec.id, sec.label)}
+                                  aria-label={`${sec.label} 섹션명`}
+                                  maxLength={24}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onBlur={(e) => saveSectionLabel(sec.id, sec.label, e.currentTarget.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") e.currentTarget.blur();
+                                    if (e.key === "Escape") {
+                                      e.currentTarget.value = sectionLabelOf(sec.id, sec.label);
+                                      e.currentTarget.blur();
+                                    }
+                                  }}
+                                  style={sectionLabelInputStyle}
+                                />
+                              ) : (
+                                <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink-faint)", letterSpacing: 0.3, whiteSpace: "nowrap" }}>
+                                  {sectionLabelOf(sec.id, sec.label)}
+                                </span>
+                              )}
+                              <div style={{ flex: 1, height: 1, background: "var(--hairline)" }} />
+                              {sectionsEditable && (
+                                <div style={{ display: "flex", gap: 2 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => moveSection(sec.id, -1)}
+                                    disabled={gi === 0}
+                                    title="위로 이동"
+                                    style={sectionMoveBtnStyle(gi === 0)}
+                                  ><ChevronUp size={14} strokeWidth={2.2} /></button>
+                                  <button
+                                    type="button"
+                                    onClick={() => moveSection(sec.id, 1)}
+                                    disabled={gi === groups.length - 1}
+                                    title="아래로 이동"
+                                    style={sectionMoveBtnStyle(gi === groups.length - 1)}
+                                  ><ChevronDown size={14} strokeWidth={2.2} /></button>
+                                </div>
+                              )}
+                            </div>
+                            {items.length > 0 ? renderGrid(items) : (
+                              <div style={{ border: "1.5px dashed var(--hairline-strong)", borderRadius: 10, padding: 14, textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--ink-faint)" }}>
+                                소메뉴를 여기로 드래그하세요
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  );
                 }
               }
               return renderGrid(visibleItems);

@@ -113,7 +113,7 @@ export default function ReviewProblemsPage() {
     <div style={pageStyle}>
       <div className="app-subpage-header" style={headerStyle}>
         <HeaderLogo />
-        <button className="app-header-back" onClick={() => router.push(`/departments/d/${deptId}`)} style={backBtnStyle}>← 부서홈</button>
+        <button className="app-header-back" onClick={() => router.back()} style={backBtnStyle}>← 뒤로</button>
         <div style={{ ...titleStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
           <BookOpen size={18} strokeWidth={1.8} /> 복습문제 보기
         </div>
