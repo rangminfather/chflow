@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, School, ShieldCheck, UserRound, Users } from "lucide-react";
+import { ChevronLeft, type LucideIcon, School, ShieldCheck, UserRound, Users } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import { EmptyState, LoadingView } from "@/components/StatusViews";
 import { supabase } from "@/lib/supabase";
@@ -30,6 +30,13 @@ interface DirectoryResponse {
   classes?: ClassRow[];
 }
 
+type TabId = "executives" | "classes";
+
+const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
+  { id: "executives", label: "임원진", icon: ShieldCheck },
+  { id: "classes", label: "학년·반별 담임", icon: School },
+];
+
 function classNameOf(row: ClassRow) {
   const className = row.label?.trim()
     || (row.class_no.endsWith("반") ? row.class_no : `${row.class_no}반`);
@@ -45,6 +52,7 @@ export default function DepartmentMembersPage() {
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState<TabId>("executives");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,13 +118,47 @@ export default function DepartmentMembersPage() {
             <button type="button" onClick={() => void load()} className="ml-3 underline">다시 시도</button>
           </div>
         ) : (
-          <div className="mt-7 space-y-8">
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <ShieldCheck size={18} className="text-[var(--accent)]" />
-                <h2 className="text-base font-extrabold">임원진</h2>
-                <span className="text-xs font-bold text-[var(--ink-faint)]">{sortedExecutives.length}명</span>
-              </div>
+          <div className="mt-6">
+            {/* 탭은 항상 1/2 씩 고정 폭 — 인원수·반 개수가 달라져도 탭 크기와 위치가 변하지 않게 */}
+            <div
+              role="tablist"
+              aria-label="부서 구성원 분류"
+              className="grid grid-cols-2 gap-1 rounded-xl border border-[var(--hairline)] bg-[var(--bg-soft)] p-1"
+            >
+              {TABS.map((tab) => {
+                const selected = activeTab === tab.id;
+                const count = tab.id === "executives" ? sortedExecutives.length : classes.length;
+                const TabIcon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    id={`dept-members-tab-${tab.id}`}
+                    aria-selected={selected}
+                    aria-controls={`dept-members-panel-${tab.id}`}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex min-h-10 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-extrabold ${
+                      selected
+                        ? "bg-[var(--card)] text-[var(--accent)] shadow-sm"
+                        : "bg-transparent text-[var(--ink-faint)]"
+                    }`}
+                  >
+                    <TabIcon size={16} strokeWidth={1.9} className="shrink-0" />
+                    <span className="truncate">{tab.label}</span>
+                    <span className="shrink-0 text-xs font-bold tabular-nums">{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div
+              role="tabpanel"
+              id="dept-members-panel-executives"
+              aria-labelledby="dept-members-tab-executives"
+              hidden={activeTab !== "executives"}
+              className="mt-5"
+            >
               {sortedExecutives.length === 0 ? (
                 <EmptyState message="등록된 임원진이 없습니다" />
               ) : (
@@ -134,14 +176,15 @@ export default function DepartmentMembersPage() {
                   ))}
                 </div>
               )}
-            </section>
+            </div>
 
-            <section>
-              <div className="mb-3 flex items-center gap-2">
-                <School size={18} className="text-[var(--success)]" />
-                <h2 className="text-base font-extrabold">학년·반별 담임</h2>
-                <span className="text-xs font-bold text-[var(--ink-faint)]">{classes.length}개 반</span>
-              </div>
+            <div
+              role="tabpanel"
+              id="dept-members-panel-classes"
+              aria-labelledby="dept-members-tab-classes"
+              hidden={activeTab !== "classes"}
+              className="mt-5"
+            >
               {classes.length === 0 ? (
                 <EmptyState message="등록된 반이 없습니다" />
               ) : (
@@ -163,9 +206,9 @@ export default function DepartmentMembersPage() {
                   ))}
                 </div>
               )}
-            </section>
+            </div>
 
-            <p className="text-center text-xs leading-5 text-[var(--ink-faint)]">개인 연락처는 표시하지 않습니다.</p>
+            <p className="mt-8 text-center text-xs leading-5 text-[var(--ink-faint)]">개인 연락처는 표시하지 않습니다.</p>
           </div>
         )}
       </div>
