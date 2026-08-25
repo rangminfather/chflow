@@ -54,14 +54,19 @@ BEGIN
   END LOOP;
 END;
 $$;
+REVOKE EXECUTE ON FUNCTION public.member_reorder_children(uuid, uuid[]) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.member_reorder_children(uuid, uuid[]) TO authenticated;
 
 
 -- 관리자 회원 카드용 상세. 직접 자녀는 수동 순서 → 생년월일 순으로 정렬한다.
 CREATE OR REPLACE FUNCTION public.admin_member_profile(p_member_id uuid)
 RETURNS jsonb
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public
 AS $$
+BEGIN
+  PERFORM public.assert_staff();
+
+  RETURN (
   SELECT jsonb_build_object(
     'member', to_jsonb(m) || jsonb_build_object(
       'address', h.address,
@@ -129,9 +134,13 @@ AS $$
   LEFT JOIN public.directory_pastures p ON h.pasture_id = p.id
   LEFT JOIN public.grasslands g ON p.grassland_id = g.id
   LEFT JOIN public.plains pl ON g.plain_id = pl.id
-  WHERE m.id = p_member_id;
+  WHERE m.id = p_member_id
+  );
+END;
 $$;
+REVOKE EXECUTE ON FUNCTION public.admin_member_profile(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_member_profile(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_member_profile(uuid) TO service_role;
 
 
 -- 일반 성도요람 상세에도 같은 정렬 기준과 자녀 순서 정보를 제공한다.
@@ -163,7 +172,10 @@ AS $$
       'has_app_account', coalesce(m.app_user_id is not null or pr.id is not null, false),
       'app_user_id', coalesce(m.app_user_id, pr.id),
       'app_status', pr.status,
-      'app_username', pr.username
+      'app_username', case
+        when public.get_user_role() in ('admin', 'office', 'pastor') then pr.username
+        else null
+      end
     ),
     'household_members', (
       select coalesce(jsonb_agg(jsonb_build_object(
@@ -271,4 +283,6 @@ AS $$
     and m.status = 'active';
 $$;
 
+REVOKE EXECUTE ON FUNCTION public.directory_member_profile(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.directory_member_profile(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.directory_member_profile(uuid) TO service_role;
