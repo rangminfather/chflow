@@ -118,6 +118,7 @@ export default function DirectoryPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<DirectoryPerson[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [pickedMemberId, setPickedMemberId] = useState<string | null>(null);
   const searchBoxRef = useRef<HTMLDivElement>(null);
 
   // 모달 열려있을 때 안드로이드 뒤로가기 → 모달만 닫기 (페이지 이탈 방지)
@@ -200,8 +201,9 @@ export default function DirectoryPage() {
 
   function pickSuggestion(person: DirectoryPerson) {
     setShowSuggestions(false);
+    setSuggestions([]);
     setQuery(person.name);
-    setSelectedId(person.id);
+    setPickedMemberId(person.id);
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -223,6 +225,7 @@ export default function DirectoryPage() {
     nextPlain = plain,
     nextGrassland = grassland,
     nextPasture = pasture,
+    nextMemberId = pickedMemberId,
   ) {
     if (!hasSearchCriteria(nextQuery, nextPlain, nextGrassland, nextPasture)) {
       setMembers([]);
@@ -241,6 +244,7 @@ export default function DirectoryPage() {
       p_pasture: nextPasture || null,
       p_offset: (nextPage - 1) * PAGE_SIZE,
       p_limit: PAGE_SIZE,
+      p_member_id: nextMemberId || null,
     });
 
     if (error) {
@@ -257,7 +261,7 @@ export default function DirectoryPage() {
 
   function runSearch() {
     setPage(1);
-    searchMembers(1, query, plain, grassland, pasture);
+    searchMembers(1, query, plain, grassland, pasture, pickedMemberId);
   }
 
   function resetSearch() {
@@ -269,6 +273,8 @@ export default function DirectoryPage() {
     setMembers([]);
     setTotal(0);
     setHasSearched(false);
+    setPickedMemberId(null);
+    setSuggestions([]);
   }
 
   function goPage(nextPage: number) {
@@ -312,7 +318,7 @@ export default function DirectoryPage() {
           <div ref={searchBoxRef} style={{ position: "relative", minWidth: 0 }}>
             <input
               value={query}
-              onChange={(event) => { setQuery(event.target.value); setShowSuggestions(true); }}
+              onChange={(event) => { setQuery(event.target.value); setShowSuggestions(true); setPickedMemberId(null); }}
               onFocus={() => setShowSuggestions(true)}
               onKeyDown={(event) => {
                 if (event.key !== "Enter") return;
