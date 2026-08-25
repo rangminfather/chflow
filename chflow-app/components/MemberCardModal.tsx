@@ -822,11 +822,12 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
   const search = async () => {
     if (!name.trim()) return;
     setSearching(true);
-    const { data } = await supabase.rpc("search_member_candidates", {
+    const { data, error } = await supabase.rpc("search_member_candidates", {
       p_name: name.trim(), p_phone: phone || null, p_limit: 10,
     });
-    setCandidates((data || []) as MemberCandidate[]);
     setSearching(false);
+    if (error) { alert(`검색 실패: ${error.message}`); return; }
+    setCandidates((data || []) as MemberCandidate[]);
   };
 
   useEffect(() => {
@@ -913,10 +914,10 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
               <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
                 <input value={name} onChange={(e) => setName(e.target.value)}
                   placeholder="이름" style={{ ...editInput, flex: 2, marginBottom: 0 }}
-                  onKeyDown={(e) => e.key === "Enter" && search()} />
+                  onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && search()} />
                 <input value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))}
                   placeholder="휴대폰 (선택)" style={{ ...editInput, flex: 2, marginBottom: 0 }}
-                  onKeyDown={(e) => e.key === "Enter" && search()} />
+                  onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && search()} />
                 <button onClick={search} style={btnPrimary}>{searching ? "..." : "검색"}</button>
               </div>
               {candidates.length > 0 && (
