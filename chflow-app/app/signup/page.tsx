@@ -52,25 +52,40 @@ declare global {
 
 let daumPostcodePromise: Promise<void> | null = null;
 
+const DAUM_POSTCODE_SCRIPT_ID = "daum-postcode-script";
+const DAUM_POSTCODE_SCRIPT_URL = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+const DAUM_POSTCODE_LOAD_TIMEOUT_MS = 12_000;
+
 function loadDaumPostcodeScript() {
   if (typeof window === "undefined") return Promise.reject(new Error("브라우저에서만 주소 검색을 사용할 수 있습니다"));
   if (window.daum?.Postcode) return Promise.resolve();
   if (daumPostcodePromise) return daumPostcodePromise;
 
   daumPostcodePromise = new Promise((resolve, reject) => {
-    const existing = document.getElementById("daum-postcode-script") as HTMLScriptElement | null;
-    if (existing) {
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("주소 검색 스크립트를 불러오지 못했습니다")), { once: true });
-      return;
-    }
+    // A failed script element can remain in the document after a route transition.
+    // Remove it so a later click performs a real network retry.
+    document.getElementById(DAUM_POSTCODE_SCRIPT_ID)?.remove();
 
     const script = document.createElement("script");
-    script.id = "daum-postcode-script";
-    script.src = "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+    script.id = DAUM_POSTCODE_SCRIPT_ID;
+    script.src = DAUM_POSTCODE_SCRIPT_URL;
     script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("주소 검색 스크립트를 불러오지 못했습니다"));
+    const fail = () => {
+      window.clearTimeout(timeoutId);
+      script.remove();
+      daumPostcodePromise = null;
+      reject(new Error("주소 검색을 불러오지 못했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요."));
+    };
+    const timeoutId = window.setTimeout(fail, DAUM_POSTCODE_LOAD_TIMEOUT_MS);
+    script.onload = () => {
+      window.clearTimeout(timeoutId);
+      if (!window.daum?.Postcode) {
+        fail();
+        return;
+      }
+      resolve();
+    };
+    script.onerror = fail;
     document.head.appendChild(script);
   });
 
@@ -182,6 +197,9 @@ export default function SignupPage() {
   const [addressDetail, setAddressDetail] = useState("");
   const [addressZonecode, setAddressZonecode] = useState("");
   const [addressSearchOpen, setAddressSearchOpen] = useState(false);
+  const [addressSearchLoading, setAddressSearchLoading] = useState(false);
+  const [addressSearchError, setAddressSearchError] = useState("");
+  const [addressSearchAttempt, setAddressSearchAttempt] = useState(0);
   const [pastureId, setPastureId] = useState("");
   const [pastureSearch, setPastureSearch] = useState("");
   const [showPastureSuggestions, setShowPastureSuggestions] = useState(false);
@@ -296,6 +314,8 @@ export default function SignupPage() {
   useEffect(() => {
     if (!addressSearchOpen) return;
     let cancelled = false;
+    setAddressSearchLoading(true);
+    setAddressSearchError("");
 
     (async () => {
       try {
@@ -315,16 +335,18 @@ export default function SignupPage() {
             window.setTimeout(() => addressDetailRef.current?.focus(), 80);
           },
         }).embed(addressSearchRef.current);
+        setAddressSearchLoading(false);
       } catch (e: unknown) {
-        setError(getErrorMessage(e));
-        setAddressSearchOpen(false);
+        if (cancelled) return;
+        setAddressSearchLoading(false);
+        setAddressSearchError(getErrorMessage(e));
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [addressSearchOpen]);
+  }, [addressSearchAttempt, addressSearchOpen]);
 
   const filteredPastureOptions = useMemo(() => {
     const query = normalizeSearchText(pastureSearch);
@@ -386,6 +408,7 @@ export default function SignupPage() {
 
   const openAddressSearch = async () => {
     setError("");
+    setAddressSearchError("");
     setAddressSearchOpen(true);
   };
 
@@ -1648,7 +1671,29 @@ export default function SignupPage() {
                 닫기
               </button>
             </div>
-            <div ref={addressSearchRef} style={addressSearchFrameStyle} />
+            <div style={addressSearchFrameWrapperStyle}>
+              <div
+                ref={addressSearchRef}
+                className="signup-postcode-frame"
+                aria-busy={addressSearchLoading}
+                style={addressSearchFrameStyle}
+              />
+              {(addressSearchLoading || addressSearchError) && (
+                <div style={addressSearchStatusStyle} role={addressSearchError ? "alert" : "status"}>
+                  <div>{addressSearchError || "주소 검색을 불러오는 중입니다..."}</div>
+                  {addressSearchError && (
+                    <button
+                      type="button"
+                      onClick={() => setAddressSearchAttempt((attempt) => attempt + 1)}
+                      style={addressSearchRetryStyle}
+                    >
+                      다시 시도
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            <div style={addressSearchHintStyle}>화면이 좁으면 아래 가로 스크롤바를 움직여 전체 내용을 확인하세요.</div>
           </div>
         </ModalBackdrop>
       )}
@@ -2043,7 +2088,7 @@ const addressSearchPanelStyle: React.CSSProperties = {
   width: "min(640px, calc(100vw - 8px))",
   background: "var(--card)",
   borderRadius: 8,
-  overflow: "visible",
+  overflow: "hidden",
   boxShadow: "0 22px 70px rgba(43, 39, 34, 0.3)",
 };
 
@@ -2070,11 +2115,55 @@ const addressSearchCloseStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+const addressSearchFrameWrapperStyle: React.CSSProperties = {
+  position: "relative",
+};
+
 const addressSearchFrameStyle: React.CSSProperties = {
   width: "100%",
   height: "min(560px, 78vh)",
-  overflow: "hidden",
+  overflowX: "auto",
+  overflowY: "hidden",
   boxSizing: "border-box",
+  WebkitOverflowScrolling: "touch",
+  scrollbarGutter: "stable",
+};
+
+const addressSearchStatusStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 12,
+  padding: 24,
+  background: "var(--card)",
+  color: "var(--ink-soft)",
+  fontSize: 13,
+  fontWeight: 700,
+  textAlign: "center",
+};
+
+const addressSearchRetryStyle: React.CSSProperties = {
+  border: "1px solid rgba(62, 90, 74, 0.22)",
+  borderRadius: 8,
+  padding: "8px 12px",
+  background: "var(--accent-soft)",
+  color: "var(--accent)",
+  fontFamily: "inherit",
+  fontSize: 12,
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const addressSearchHintStyle: React.CSSProperties = {
+  padding: "8px 12px 10px",
+  borderTop: "1px solid var(--hairline)",
+  color: "var(--ink-soft)",
+  fontSize: 11,
+  lineHeight: 1.45,
+  textAlign: "center",
 };
 
 const primaryBtnStyle: React.CSSProperties = {
