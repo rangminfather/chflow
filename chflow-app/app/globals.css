@@ -1050,3 +1050,24 @@ input::placeholder {
 .app-subpage-header > :empty {
   display: none !important;
 }
+
+/* Daum postcode embeds a 500px-wide iframe. Keep its horizontal scrollbar
+   visible on narrow signup screens instead of clipping the right-hand side. */
+.signup-postcode-frame {
+  scrollbar-color: var(--accent) var(--bg-soft);
+  scrollbar-width: auto;
+}
+
+.signup-postcode-frame::-webkit-scrollbar {
+  height: 10px;
+}
+
+.signup-postcode-frame::-webkit-scrollbar-track {
+  background: var(--bg-soft);
+}
+
+.signup-postcode-frame::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border: 2px solid var(--bg-soft);
+  border-radius: 999px;
+}
