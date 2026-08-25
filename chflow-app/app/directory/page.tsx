@@ -7,7 +7,7 @@ import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { formatPhone, supabase } from "@/lib/supabase";
 import { photoThumb } from "@/lib/photo";
-import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryChildText, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, getDirectoryFilterOptions, hasDirectorySearchCriteria, type QuickEditChange, type QuickEditDraft } from "@/lib/directory-utils";
+import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryChildText, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, getDirectoryFilterOptions, hasDirectorySearchCriteria, moveDirectoryChild, type QuickEditChange, type QuickEditDraft } from "@/lib/directory-utils";
 import { getAllSubRoleOptions, getRoleImageBySubRole } from "@/lib/roles";
 import { LoadingView } from "@/components/StatusViews";
 import { MessageCircle, PhoneCall } from "lucide-react";
@@ -73,6 +73,8 @@ type RelatedMember = {
   grassland_name?: string | null;
   plain_name?: string | null;
   direction?: "ancestor" | "descendant";
+  birth_date?: string | null;
+  child_order?: number | null;
 };
 
 type ProfileData = {
@@ -390,6 +392,7 @@ function DirectoryProfileModal({
   const [newChildGender, setNewChildGender] = useState("");
   const [newChildBirth, setNewChildBirth] = useState("");
   const [savingChild, setSavingChild] = useState(false);
+  const [orderingChildId, setOrderingChildId] = useState<string | null>(null);
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [childEdit, setChildEdit] = useState({ name: "", gender: "", birth_date: "" });
 
@@ -477,6 +480,30 @@ function DirectoryProfileModal({
     onChanged();
   };
 
+  const handleMoveChild = async (childId: string, offset: -1 | 1) => {
+    if (!data || orderingChildId) return;
+    const childIds = (data.descendants || [])
+      .filter((item) => item.kind === "parent" && item.relative_id)
+      .map((item) => item.relative_id as string);
+    const nextChildIds = moveDirectoryChild(childIds, childId, offset);
+    if (!nextChildIds) return;
+
+    setOrderingChildId(childId);
+    try {
+      const { error } = await supabase.rpc("member_reorder_children", {
+        p_parent_id: memberId,
+        p_child_ids: nextChildIds,
+      });
+      if (error) alert(`순서 변경 실패: ${error.message}`);
+      else {
+        await reloadProfile();
+        onChanged();
+      }
+    } finally {
+      setOrderingChildId(null);
+    }
+  };
+
   if (loading || !data) {
     return (
       <ModalBackdrop onClose={onClose} style={modalBgStyle}>
@@ -487,6 +514,7 @@ function DirectoryProfileModal({
 
   const member = data.member;
   const relations = [...(data.relations || []), ...(data.descendants || [])];
+  const directChildren = (data.descendants || []).filter((item) => item.kind === "parent");
   const canManageChildren = canQuickEdit || (!!viewerUid && member.app_user_id === viewerUid);
 
   function openQuickEdit() {
@@ -759,7 +787,7 @@ function DirectoryProfileModal({
           {relations.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {relations.map((item, index) => (
-                item.kind === "parent" && item.direction === "descendant" && item.is_child && canManageChildren ? (
+                item.kind === "parent" && item.direction === "descendant" && canManageChildren ? (
                   <ChildRelationRow
                     key={`${item.relative_id}-${index}`}
                     item={item}
@@ -772,6 +800,13 @@ function DirectoryProfileModal({
                     onCancelEdit={() => setEditingChildId(null)}
                     onSave={() => item.relative_id && handleSaveChildEdit(item.relative_id)}
                     onDelete={() => item.relative_id && handleDeleteChild(item.relative_id)}
+                    order={directChildren.findIndex((child) => child.relative_id === item.relative_id) + 1}
+                    canMoveUp={directChildren.findIndex((child) => child.relative_id === item.relative_id) > 0}
+                    canMoveDown={directChildren.findIndex((child) => child.relative_id === item.relative_id) < directChildren.length - 1}
+                    ordering={orderingChildId !== null}
+                    onMoveUp={() => item.relative_id && handleMoveChild(item.relative_id, -1)}
+                    onMoveDown={() => item.relative_id && handleMoveChild(item.relative_id, 1)}
+                    canEditDetails={!!item.is_child}
                   />
                 ) : (
                   <RelatedRow
@@ -995,6 +1030,7 @@ function RelatedRow({ item, onClick }: { item: RelatedMember; onClick: () => voi
 
 function ChildRelationRow({
   item, editing, edit, setEdit, saving, onClick, onStartEdit, onCancelEdit, onSave, onDelete,
+  order, canMoveUp, canMoveDown, ordering, onMoveUp, onMoveDown, canEditDetails,
 }: {
   item: RelatedMember;
   editing: boolean;
@@ -1006,6 +1042,13 @@ function ChildRelationRow({
   onCancelEdit: () => void;
   onSave: () => void;
   onDelete: () => void;
+  order: number;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  ordering: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  canEditDetails: boolean;
 }) {
   if (editing) {
     return (
@@ -1032,14 +1075,24 @@ function ChildRelationRow({
       <Avatar member={{ name: item.name, photo_url: item.photo_url }} size={40} />
       <span style={{ flex: 1, minWidth: 0 }}>
         <strong style={relationNameStyle}>{item.name}</strong>
-        <span style={relationSubStyle}>자녀 · {item.phone || item.home_phone || "연락처 없음"}</span>
+        <span style={relationSubStyle}>{childOrderLabel(order)} · {item.birth_date || item.phone || item.home_phone || "생년월일 미등록"}</span>
       </span>
       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-        <button onClick={(e) => { e.stopPropagation(); onStartEdit(); }} style={childRowActionStyle("var(--accent-soft)", "var(--accent-strong)")}>수정</button>
-        <button onClick={(e) => { e.stopPropagation(); onDelete(); }} style={childRowActionStyle("var(--danger-soft)", "var(--danger)")}>삭제</button>
+        <button title="한 단계 위로" disabled={!canMoveUp || ordering} onClick={(e) => { e.stopPropagation(); onMoveUp(); }} style={childOrderButtonStyle(!canMoveUp || ordering)}>↑</button>
+        <button title="한 단계 아래로" disabled={!canMoveDown || ordering} onClick={(e) => { e.stopPropagation(); onMoveDown(); }} style={childOrderButtonStyle(!canMoveDown || ordering)}>↓</button>
+        {canEditDetails && <button onClick={(e) => { e.stopPropagation(); onStartEdit(); }} style={childRowActionStyle("var(--accent-soft)", "var(--accent-strong)")}>수정</button>}
+        {canEditDetails && <button onClick={(e) => { e.stopPropagation(); onDelete(); }} style={childRowActionStyle("var(--danger-soft)", "var(--danger)")}>삭제</button>}
       </div>
     </div>
   );
+}
+
+function childOrderLabel(order: number) {
+  return ["", "첫째", "둘째", "셋째", "넷째"][order] || `${order}째`;
+}
+
+function childOrderButtonStyle(disabled: boolean): CSSProperties {
+  return { padding: "4px 7px", background: "var(--bg-soft)", color: "var(--ink-mid)", border: "1px solid var(--hairline)", borderRadius: 4, fontSize: 11, cursor: disabled ? "default" : "pointer", fontFamily: "inherit", opacity: disabled ? 0.35 : 1 };
 }
 
 function childRowActionStyle(bg: string, color: string): CSSProperties {

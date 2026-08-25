@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, getDirectoryFilterOptions, hasDirectorySearchCriteria } from "./directory-utils";
+import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, getDirectoryFilterOptions, hasDirectorySearchCriteria, moveDirectoryChild } from "./directory-utils";
 
 describe("directory display helpers", () => {
+  it("moves a child without mutating the original order", () => {
+    const original = ["first", "second", "third"];
+    expect(moveDirectoryChild(original, "third", -1)).toEqual(["first", "third", "second"]);
+    expect(original).toEqual(["first", "second", "third"]);
+  });
+
+  it("rejects a child move beyond either end", () => {
+    expect(moveDirectoryChild(["first", "second"], "first", -1)).toBeNull();
+    expect(moveDirectoryChild(["first", "second"], "second", 1)).toBeNull();
+  });
+
   it("formats account state without exposing missing values", () => {
     expect(directoryAccountLabel({ has_app_account: false })).toBe("앱 미가입");
     expect(directoryAccountDetail({ has_app_account: true, app_status: "active", app_username: "member1" })).toBe("앱 가입 · member1");
