@@ -86,6 +86,15 @@ export function hasDirectorySearchCriteria(query: string, plain: string, grassla
   return !!(query.trim() || plain || grassland || pasture);
 }
 
+export function moveDirectoryChild(ids: string[], childId: string, offset: -1 | 1) {
+  const next = [...ids];
+  const currentIndex = next.indexOf(childId);
+  const nextIndex = currentIndex + offset;
+  if (currentIndex < 0 || nextIndex < 0 || nextIndex >= next.length) return null;
+  [next[currentIndex], next[nextIndex]] = [next[nextIndex], next[currentIndex]];
+  return next;
+}
+
 export function getDirectoryFilterOptions(rows: DirectoryTreeRow[], plain: string, grassland: string) {
   const plains = new Map<string, number>();
   const grasslands = new Set<string>();

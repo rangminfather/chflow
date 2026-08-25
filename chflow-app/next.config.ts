@@ -20,7 +20,10 @@ const cspPolicy = [
   // 지난 말씀 영상: UMS VOD(http) 를 Cloudflare Worker 가 https 로 중계한다 (2026-07-29 추가)
   "media-src 'self' blob: https://chflow-vod.rangminfather.workers.dev",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://*.r2.cloudflarestorage.com",
-  "frame-src 'self' https://*.daumcdn.net https://postcode.map.kakao.com https://www.youtube.com https://www.youtube-nocookie.com",
+  // Kakao's postcode script follows the embedding page protocol. The explicit
+  // http source is required for local/LAN development; HTTPS pages still block
+  // active mixed content and use the HTTPS endpoint.
+  "frame-src 'self' https://*.daumcdn.net http://postcode.map.kakao.com https://postcode.map.kakao.com https://www.youtube.com https://www.youtube-nocookie.com",
   "worker-src 'self' blob:",
 ].join("; ");
 

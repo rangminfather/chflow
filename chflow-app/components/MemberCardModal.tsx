@@ -6,6 +6,7 @@ import ModalBackdrop from "./ModalBackdrop";
 import BirthDateSelect from "./BirthDateSelect";
 import { ArrowLeft, Camera, Trash2, Baby, Phone, MapPin, Home, Pencil, Users, User, Lightbulb, MessageCircle, PhoneCall } from "lucide-react";
 import { EmptyState } from "@/components/StatusViews";
+import { moveDirectoryChild } from "@/lib/directory-utils";
 
 interface Props {
   memberId: string;
@@ -46,6 +47,8 @@ interface RelationItem {
   pasture_name: string | null;
   is_child?: boolean;
   has_account?: boolean;
+  birth_date?: string | null;
+  child_order?: number | null;
 }
 
 interface MemberCandidate {
@@ -123,6 +126,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
   const [newChildGender, setNewChildGender] = useState("");
   const [newChildBirth, setNewChildBirth] = useState("");
   const [savingChild, setSavingChild] = useState(false);
+  const [orderingChildId, setOrderingChildId] = useState<string | null>(null);
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [childEdit, setChildEdit] = useState({ name: "", gender: "", birth_date: "" });
 
@@ -302,6 +306,30 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
     if (error) { alert(`삭제 실패: ${error.message}`); return; }
     await load();
     onChanged?.();
+  };
+
+  const handleMoveChild = async (childId: string, offset: -1 | 1) => {
+    if (!data || orderingChildId) return;
+    const childIds = (data.descendants || [])
+      .filter((relation) => relation.kind === "parent")
+      .map((relation) => relation.relative_id);
+    const nextChildIds = moveDirectoryChild(childIds, childId, offset);
+    if (!nextChildIds) return;
+
+    setOrderingChildId(childId);
+    try {
+      const { error } = await supabase.rpc("member_reorder_children", {
+        p_parent_id: currentId,
+        p_child_ids: nextChildIds,
+      });
+      if (error) alert(`순서 변경 실패: ${error.message}`);
+      else {
+        await load();
+        onChanged?.();
+      }
+    } finally {
+      setOrderingChildId(null);
+    }
   };
 
   if (loading || !data) {
@@ -518,6 +546,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
           {showChildren && (() => {
             const desc = (data.descendants || []).filter((r) =>
               ["parent", "grandparent", "great_grandparent"].includes(r.kind));
+            const directChildren = desc.filter((r) => r.kind === "parent");
             return (
               <Section title={<><Baby size={15} strokeWidth={1.8} /> 자녀·손주</>} action={
                 <div style={{ display: "flex", gap: 6 }}>
@@ -554,7 +583,7 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                 {desc.length > 0 ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {desc.map((r, i: number) => (
-                      r.kind === "parent" && r.is_child && canManageChildren ? (
+                      r.kind === "parent" && canManageChildren ? (
                         <ChildRow key={i} relation={r}
                           editing={editingChildId === r.relative_id}
                           edit={childEdit} setEdit={setChildEdit}
@@ -563,7 +592,14 @@ export default function MemberCardModal({ memberId, onClose, onChanged }: Props)
                           onStartEdit={() => startEditChild(r)}
                           onCancelEdit={() => setEditingChildId(null)}
                           onSave={() => handleSaveChildEdit(r.relative_id)}
-                          onDelete={() => handleDeleteChild(r.relative_id)} />
+                          onDelete={() => handleDeleteChild(r.relative_id)}
+                          order={directChildren.findIndex((child) => child.relative_id === r.relative_id) + 1}
+                          canMoveUp={directChildren.findIndex((child) => child.relative_id === r.relative_id) > 0}
+                          canMoveDown={directChildren.findIndex((child) => child.relative_id === r.relative_id) < directChildren.length - 1}
+                          ordering={orderingChildId !== null}
+                          onMoveUp={() => handleMoveChild(r.relative_id, -1)}
+                          onMoveDown={() => handleMoveChild(r.relative_id, 1)}
+                          canEditDetails={!!r.is_child} />
                       ) : (
                         <RelationRow key={i} relation={r} reversed
                           onClick={() => navigateTo(r.relative_id)}
@@ -666,7 +702,7 @@ function RelationRow({ relation, reversed, onRemove, onClick, onEdit }: { relati
   );
 }
 
-function ChildRow({ relation, editing, edit, setEdit, saving, onClick, onStartEdit, onCancelEdit, onSave, onDelete }: {
+function ChildRow({ relation, editing, edit, setEdit, saving, onClick, onStartEdit, onCancelEdit, onSave, onDelete, order, canMoveUp, canMoveDown, ordering, onMoveUp, onMoveDown, canEditDetails }: {
   relation: RelationItem;
   editing: boolean;
   edit: { name: string; gender: string; birth_date: string };
@@ -677,6 +713,13 @@ function ChildRow({ relation, editing, edit, setEdit, saving, onClick, onStartEd
   onCancelEdit: () => void;
   onSave: () => void;
   onDelete: () => void;
+  order: number;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  ordering: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  canEditDetails: boolean;
 }) {
   if (editing) {
     return (
@@ -722,17 +765,29 @@ function ChildRow({ relation, editing, edit, setEdit, saving, onClick, onStartEd
           <span style={{ fontSize: 10, marginLeft: 6, padding: "1px 6px", background: "var(--warning-soft)", color: "var(--warning)", borderRadius: 4 }}>자녀</span>
         </div>
         <div style={{ fontSize: 10, color: "var(--ink-soft)", marginTop: 2 }}>
-          {relation.phone || "연락처 없음"}
+          {childOrderLabel(order)} · {relation.birth_date || relation.phone || "생년월일 미등록"}
         </div>
       </div>
       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-        <button onClick={(e) => { e.stopPropagation(); onStartEdit(); }}
-          style={{ padding: "4px 8px", background: "var(--accent-soft)", color: "var(--accent-strong)", border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>수정</button>
-        <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          style={{ padding: "4px 8px", background: "var(--danger-soft)", color: "var(--danger)", border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>삭제</button>
+        <button title="한 단계 위로" disabled={!canMoveUp || ordering} onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
+          style={childOrderButtonStyle(!canMoveUp || ordering)}>↑</button>
+        <button title="한 단계 아래로" disabled={!canMoveDown || ordering} onClick={(e) => { e.stopPropagation(); onMoveDown(); }}
+          style={childOrderButtonStyle(!canMoveDown || ordering)}>↓</button>
+        {canEditDetails && <button onClick={(e) => { e.stopPropagation(); onStartEdit(); }}
+          style={{ padding: "4px 8px", background: "var(--accent-soft)", color: "var(--accent-strong)", border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>수정</button>}
+        {canEditDetails && <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          style={{ padding: "4px 8px", background: "var(--danger-soft)", color: "var(--danger)", border: "none", borderRadius: 4, fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>삭제</button>}
       </div>
     </div>
   );
+}
+
+function childOrderLabel(order: number) {
+  return ["", "첫째", "둘째", "셋째", "넷째"][order] || `${order}째`;
+}
+
+function childOrderButtonStyle(disabled: boolean): React.CSSProperties {
+  return { padding: "4px 7px", background: "var(--bg-soft)", color: "var(--ink-mid)", border: "1px solid var(--hairline)", borderRadius: 4, fontSize: 11, cursor: disabled ? "default" : "pointer", fontFamily: "inherit", opacity: disabled ? 0.35 : 1 };
 }
 
 function kindReverseLabel(kind: string, role: string | null): string {
@@ -767,11 +822,12 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
   const search = async () => {
     if (!name.trim()) return;
     setSearching(true);
-    const { data } = await supabase.rpc("search_member_candidates", {
+    const { data, error } = await supabase.rpc("search_member_candidates", {
       p_name: name.trim(), p_phone: phone || null, p_limit: 10,
     });
-    setCandidates((data || []) as MemberCandidate[]);
     setSearching(false);
+    if (error) { alert(`검색 실패: ${error.message}`); return; }
+    setCandidates((data || []) as MemberCandidate[]);
   };
 
   useEffect(() => {
@@ -858,10 +914,10 @@ function RelationAddModal({ subjectId, subjectGender, initialKind, onClose, onAd
               <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
                 <input value={name} onChange={(e) => setName(e.target.value)}
                   placeholder="이름" style={{ ...editInput, flex: 2, marginBottom: 0 }}
-                  onKeyDown={(e) => e.key === "Enter" && search()} />
+                  onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && search()} />
                 <input value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))}
                   placeholder="휴대폰 (선택)" style={{ ...editInput, flex: 2, marginBottom: 0 }}
-                  onKeyDown={(e) => e.key === "Enter" && search()} />
+                  onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && search()} />
                 <button onClick={search} style={btnPrimary}>{searching ? "..." : "검색"}</button>
               </div>
               {candidates.length > 0 && (

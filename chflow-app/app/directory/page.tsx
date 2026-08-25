@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { formatPhone, supabase } from "@/lib/supabase";
 import { photoThumb } from "@/lib/photo";
-import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryChildText, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, getDirectoryFilterOptions, hasDirectorySearchCriteria, type QuickEditChange, type QuickEditDraft } from "@/lib/directory-utils";
+import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryChildText, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, getDirectoryFilterOptions, hasDirectorySearchCriteria, moveDirectoryChild, type QuickEditChange, type QuickEditDraft } from "@/lib/directory-utils";
 import { getAllSubRoleOptions, getRoleImageBySubRole } from "@/lib/roles";
 import { LoadingView } from "@/components/StatusViews";
 import BirthDateSelect from "@/components/BirthDateSelect";
@@ -74,6 +74,8 @@ type RelatedMember = {
   grassland_name?: string | null;
   plain_name?: string | null;
   direction?: "ancestor" | "descendant";
+  birth_date?: string | null;
+  child_order?: number | null;
 };
 
 type ProfileData = {
@@ -114,6 +116,10 @@ export default function DirectoryPage() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<DirectoryPerson[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [pickedMemberId, setPickedMemberId] = useState<string | null>(null);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
 
   // 모달 열려있을 때 안드로이드 뒤로가기 → 모달만 닫기 (페이지 이탈 방지)
   const isProfileModalOpen = selectedId !== null;
@@ -160,6 +166,46 @@ export default function DirectoryPage() {
   const filterOptions = useMemo(() => getDirectoryFilterOptions(dirTree, plain, grassland), [dirTree, plain, grassland]);
   const { plains: plainOptions, grasslands: grasslandOptions, pastures: pastureOptions } = filterOptions;
 
+  // 이름 입력 중 동명이인 등 후보가 여러 명이면, 검색을 누르기 전에 바로 골라서 카드로 이동할 수 있게 자동완성 목록을 보여준다.
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setSuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const { data, error } = await supabase.rpc("directory_search_name_suggestions", {
+        p_query: trimmed,
+        p_limit: 8,
+      });
+      if (!cancelled && !error) {
+        setSuggestions((data || []) as DirectoryPerson[]);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query]);
+
+  useEffect(() => {
+    function onClickOutside(event: MouseEvent) {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  function pickSuggestion(person: DirectoryPerson) {
+    setShowSuggestions(false);
+    setSuggestions([]);
+    setQuery(person.name);
+    setPickedMemberId(person.id);
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isAdmin = !!user && ["admin", "office", "pastor"].includes(user.role);
   const canQuickEdit = !!user && user.role === "admin";
@@ -179,6 +225,7 @@ export default function DirectoryPage() {
     nextPlain = plain,
     nextGrassland = grassland,
     nextPasture = pasture,
+    nextMemberId = pickedMemberId,
   ) {
     if (!hasSearchCriteria(nextQuery, nextPlain, nextGrassland, nextPasture)) {
       setMembers([]);
@@ -197,6 +244,7 @@ export default function DirectoryPage() {
       p_pasture: nextPasture || null,
       p_offset: (nextPage - 1) * PAGE_SIZE,
       p_limit: PAGE_SIZE,
+      p_member_id: nextMemberId || null,
     });
 
     if (error) {
@@ -213,7 +261,7 @@ export default function DirectoryPage() {
 
   function runSearch() {
     setPage(1);
-    searchMembers(1, query, plain, grassland, pasture);
+    searchMembers(1, query, plain, grassland, pasture, pickedMemberId);
   }
 
   function resetSearch() {
@@ -225,6 +273,8 @@ export default function DirectoryPage() {
     setMembers([]);
     setTotal(0);
     setHasSearched(false);
+    setPickedMemberId(null);
+    setSuggestions([]);
   }
 
   function goPage(nextPage: number) {
@@ -265,13 +315,43 @@ export default function DirectoryPage() {
 
       <section style={searchPanelStyle}>
         <div className="directory-search-row" style={searchGridStyle}>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => event.key === "Enter" && runSearch()}
-            placeholder="이름, 전화번호, 배우자 검색"
-            style={inputStyle}
-          />
+          <div ref={searchBoxRef} style={{ position: "relative", minWidth: 0 }}>
+            <input
+              value={query}
+              onChange={(event) => { setQuery(event.target.value); setShowSuggestions(true); setPickedMemberId(null); }}
+              onFocus={() => setShowSuggestions(true)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                setShowSuggestions(false);
+                runSearch();
+              }}
+              placeholder="이름, 전화번호, 배우자 검색"
+              style={{ ...inputStyle, width: "100%" }}
+            />
+            {showSuggestions && suggestions.length > 1 && (
+              <div style={suggestionListStyle}>
+                {suggestions.map((person) => (
+                  <button
+                    key={person.id}
+                    type="button"
+                    style={suggestionItemStyle}
+                    onClick={() => pickSuggestion(person)}
+                  >
+                    <Avatar member={person} size={32} />
+                    <div style={{ minWidth: 0, textAlign: "left" }}>
+                      <div style={suggestionNameStyle}>
+                        {person.name}
+                        {person.is_child && <span style={tagStyle("var(--warning-soft)", "var(--warning)")}>자녀</span>}
+                      </div>
+                      <div style={suggestionMetaStyle}>
+                        {person.sub_role || "직분 미지정"} · {locationText(person)} · {person.phone || person.home_phone || "연락처 없음"}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <select
             value={plain}
             onChange={(event) => {
@@ -391,6 +471,7 @@ function DirectoryProfileModal({
   const [newChildGender, setNewChildGender] = useState("");
   const [newChildBirth, setNewChildBirth] = useState("");
   const [savingChild, setSavingChild] = useState(false);
+  const [orderingChildId, setOrderingChildId] = useState<string | null>(null);
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [childEdit, setChildEdit] = useState({ name: "", gender: "", birth_date: "" });
 
@@ -478,6 +559,30 @@ function DirectoryProfileModal({
     onChanged();
   };
 
+  const handleMoveChild = async (childId: string, offset: -1 | 1) => {
+    if (!data || orderingChildId) return;
+    const childIds = (data.descendants || [])
+      .filter((item) => item.kind === "parent" && item.relative_id)
+      .map((item) => item.relative_id as string);
+    const nextChildIds = moveDirectoryChild(childIds, childId, offset);
+    if (!nextChildIds) return;
+
+    setOrderingChildId(childId);
+    try {
+      const { error } = await supabase.rpc("member_reorder_children", {
+        p_parent_id: memberId,
+        p_child_ids: nextChildIds,
+      });
+      if (error) alert(`순서 변경 실패: ${error.message}`);
+      else {
+        await reloadProfile();
+        onChanged();
+      }
+    } finally {
+      setOrderingChildId(null);
+    }
+  };
+
   if (loading || !data) {
     return (
       <ModalBackdrop onClose={onClose} style={modalBgStyle}>
@@ -488,6 +593,7 @@ function DirectoryProfileModal({
 
   const member = data.member;
   const relations = [...(data.relations || []), ...(data.descendants || [])];
+  const directChildren = (data.descendants || []).filter((item) => item.kind === "parent");
   const canManageChildren = canQuickEdit || (!!viewerUid && member.app_user_id === viewerUid);
 
   function openQuickEdit() {
@@ -766,7 +872,7 @@ function DirectoryProfileModal({
           {relations.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {relations.map((item, index) => (
-                item.kind === "parent" && item.direction === "descendant" && item.is_child && canManageChildren ? (
+                item.kind === "parent" && item.direction === "descendant" && canManageChildren ? (
                   <ChildRelationRow
                     key={`${item.relative_id}-${index}`}
                     item={item}
@@ -779,6 +885,13 @@ function DirectoryProfileModal({
                     onCancelEdit={() => setEditingChildId(null)}
                     onSave={() => item.relative_id && handleSaveChildEdit(item.relative_id)}
                     onDelete={() => item.relative_id && handleDeleteChild(item.relative_id)}
+                    order={directChildren.findIndex((child) => child.relative_id === item.relative_id) + 1}
+                    canMoveUp={directChildren.findIndex((child) => child.relative_id === item.relative_id) > 0}
+                    canMoveDown={directChildren.findIndex((child) => child.relative_id === item.relative_id) < directChildren.length - 1}
+                    ordering={orderingChildId !== null}
+                    onMoveUp={() => item.relative_id && handleMoveChild(item.relative_id, -1)}
+                    onMoveDown={() => item.relative_id && handleMoveChild(item.relative_id, 1)}
+                    canEditDetails={!!item.is_child}
                   />
                 ) : (
                   <RelatedRow
@@ -1002,6 +1115,7 @@ function RelatedRow({ item, onClick }: { item: RelatedMember; onClick: () => voi
 
 function ChildRelationRow({
   item, editing, edit, setEdit, saving, onClick, onStartEdit, onCancelEdit, onSave, onDelete,
+  order, canMoveUp, canMoveDown, ordering, onMoveUp, onMoveDown, canEditDetails,
 }: {
   item: RelatedMember;
   editing: boolean;
@@ -1013,6 +1127,13 @@ function ChildRelationRow({
   onCancelEdit: () => void;
   onSave: () => void;
   onDelete: () => void;
+  order: number;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  ordering: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  canEditDetails: boolean;
 }) {
   if (editing) {
     return (
@@ -1045,14 +1166,24 @@ function ChildRelationRow({
       <Avatar member={{ name: item.name, photo_url: item.photo_url }} size={40} />
       <span style={{ flex: 1, minWidth: 0 }}>
         <strong style={relationNameStyle}>{item.name}</strong>
-        <span style={relationSubStyle}>자녀 · {item.phone || item.home_phone || "연락처 없음"}</span>
+        <span style={relationSubStyle}>{childOrderLabel(order)} · {item.birth_date || item.phone || item.home_phone || "생년월일 미등록"}</span>
       </span>
       <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-        <button onClick={(e) => { e.stopPropagation(); onStartEdit(); }} style={childRowActionStyle("var(--accent-soft)", "var(--accent-strong)")}>수정</button>
-        <button onClick={(e) => { e.stopPropagation(); onDelete(); }} style={childRowActionStyle("var(--danger-soft)", "var(--danger)")}>삭제</button>
+        <button title="한 단계 위로" disabled={!canMoveUp || ordering} onClick={(e) => { e.stopPropagation(); onMoveUp(); }} style={childOrderButtonStyle(!canMoveUp || ordering)}>↑</button>
+        <button title="한 단계 아래로" disabled={!canMoveDown || ordering} onClick={(e) => { e.stopPropagation(); onMoveDown(); }} style={childOrderButtonStyle(!canMoveDown || ordering)}>↓</button>
+        {canEditDetails && <button onClick={(e) => { e.stopPropagation(); onStartEdit(); }} style={childRowActionStyle("var(--accent-soft)", "var(--accent-strong)")}>수정</button>}
+        {canEditDetails && <button onClick={(e) => { e.stopPropagation(); onDelete(); }} style={childRowActionStyle("var(--danger-soft)", "var(--danger)")}>삭제</button>}
       </div>
     </div>
   );
+}
+
+function childOrderLabel(order: number) {
+  return ["", "첫째", "둘째", "셋째", "넷째"][order] || `${order}째`;
+}
+
+function childOrderButtonStyle(disabled: boolean): CSSProperties {
+  return { padding: "4px 7px", background: "var(--bg-soft)", color: "var(--ink-mid)", border: "1px solid var(--hairline)", borderRadius: 4, fontSize: 11, cursor: disabled ? "default" : "pointer", fontFamily: "inherit", opacity: disabled ? 0.35 : 1 };
 }
 
 function childRowActionStyle(bg: string, color: string): CSSProperties {
@@ -1140,6 +1271,50 @@ const inputStyle: CSSProperties = {
 const selectStyle: CSSProperties = {
   ...inputStyle,
   padding: "0 10px",
+};
+
+const suggestionListStyle: CSSProperties = {
+  position: "absolute",
+  top: "calc(100% + 4px)",
+  left: 0,
+  right: 0,
+  zIndex: 20,
+  background: "var(--card)",
+  border: "1px solid var(--hairline-strong)",
+  borderRadius: 8,
+  boxShadow: "0 12px 32px rgba(43, 39, 34,0.18)",
+  maxHeight: 320,
+  overflowY: "auto",
+};
+
+const suggestionItemStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  width: "100%",
+  padding: "8px 10px",
+  border: 0,
+  borderBottom: "1px solid var(--hairline)",
+  background: "transparent",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  textAlign: "left",
+};
+
+const suggestionNameStyle: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 700,
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+};
+
+const suggestionMetaStyle: CSSProperties = {
+  fontSize: 12,
+  color: "var(--ink-soft)",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
 };
 
 const buttonStyle: CSSProperties = {

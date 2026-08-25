@@ -1050,3 +1050,34 @@ input::placeholder {
 .app-subpage-header > :empty {
   display: none !important;
 }
+
+/* Daum postcode embeds a 500px-wide iframe. Keep its horizontal scrollbar
+   visible on narrow signup screens instead of clipping the right-hand side. */
+.signup-postcode-frame {
+  scrollbar-color: var(--accent) var(--bg-soft);
+  scrollbar-width: auto;
+  overscroll-behavior-x: contain;
+}
+
+/* The postcode document keeps a desktop-width inner layout even when its
+   iframe is shrunk to the phone viewport. Give the iframe the same real width
+   so the parent overflow area can scroll all the way to the clipped text. */
+.signup-postcode-frame iframe {
+  min-width: 500px !important;
+  max-width: none !important;
+  display: block;
+}
+
+.signup-postcode-frame::-webkit-scrollbar {
+  height: 10px;
+}
+
+.signup-postcode-frame::-webkit-scrollbar-track {
+  background: var(--bg-soft);
+}
+
+.signup-postcode-frame::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border: 2px solid var(--bg-soft);
+  border-radius: 999px;
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { r2 } from "@/lib/r2";
+import { getSignupPhotoStoragePath, SIGNUP_PHOTO_PREFIX } from "@/lib/server/signup-photo";
 import {
   getClientIp,
   getSignupThrottle,
@@ -29,11 +30,11 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-const PHOTO_PREFIX = "/api/storage/member-photos/";
 async function resolvePhotoUrl(row: Record<string, unknown>) {
   const raw = row.photo_url;
-  if (typeof raw !== "string" || !raw.startsWith(PHOTO_PREFIX)) return row;
-  const storagePath = raw.slice(PHOTO_PREFIX.length);
+  if (typeof raw !== "string" || !raw.startsWith(SIGNUP_PHOTO_PREFIX)) return row;
+  const storagePath = getSignupPhotoStoragePath(raw);
+  if (!storagePath) return { ...row, photo_url: null };
   const { data } = await r2.from("member-photos").createSignedUrl(storagePath, 300);
   return { ...row, photo_url: data?.signedUrl ?? null };
 }
