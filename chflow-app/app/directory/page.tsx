@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -116,6 +116,9 @@ export default function DirectoryPage() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<DirectoryPerson[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
 
   // 모달 열려있을 때 안드로이드 뒤로가기 → 모달만 닫기 (페이지 이탈 방지)
   const isProfileModalOpen = selectedId !== null;
@@ -161,6 +164,45 @@ export default function DirectoryPage() {
 
   const filterOptions = useMemo(() => getDirectoryFilterOptions(dirTree, plain, grassland), [dirTree, plain, grassland]);
   const { plains: plainOptions, grasslands: grasslandOptions, pastures: pastureOptions } = filterOptions;
+
+  // 이름 입력 중 동명이인 등 후보가 여러 명이면, 검색을 누르기 전에 바로 골라서 카드로 이동할 수 있게 자동완성 목록을 보여준다.
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setSuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const { data, error } = await supabase.rpc("directory_search_name_suggestions", {
+        p_query: trimmed,
+        p_limit: 8,
+      });
+      if (!cancelled && !error) {
+        setSuggestions((data || []) as DirectoryPerson[]);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query]);
+
+  useEffect(() => {
+    function onClickOutside(event: MouseEvent) {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  function pickSuggestion(person: DirectoryPerson) {
+    setShowSuggestions(false);
+    setQuery(person.name);
+    setSelectedId(person.id);
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isAdmin = !!user && ["admin", "office", "pastor"].includes(user.role);
@@ -267,13 +309,43 @@ export default function DirectoryPage() {
 
       <section style={searchPanelStyle}>
         <div className="directory-search-row" style={searchGridStyle}>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => event.key === "Enter" && runSearch()}
-            placeholder="이름, 전화번호, 배우자 검색"
-            style={inputStyle}
-          />
+          <div ref={searchBoxRef} style={{ position: "relative", minWidth: 0 }}>
+            <input
+              value={query}
+              onChange={(event) => { setQuery(event.target.value); setShowSuggestions(true); }}
+              onFocus={() => setShowSuggestions(true)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                setShowSuggestions(false);
+                runSearch();
+              }}
+              placeholder="이름, 전화번호, 배우자 검색"
+              style={{ ...inputStyle, width: "100%" }}
+            />
+            {showSuggestions && suggestions.length > 1 && (
+              <div style={suggestionListStyle}>
+                {suggestions.map((person) => (
+                  <button
+                    key={person.id}
+                    type="button"
+                    style={suggestionItemStyle}
+                    onClick={() => pickSuggestion(person)}
+                  >
+                    <Avatar member={person} size={32} />
+                    <div style={{ minWidth: 0, textAlign: "left" }}>
+                      <div style={suggestionNameStyle}>
+                        {person.name}
+                        {person.is_child && <span style={tagStyle("var(--warning-soft)", "var(--warning)")}>자녀</span>}
+                      </div>
+                      <div style={suggestionMetaStyle}>
+                        {person.sub_role || "직분 미지정"} · {locationText(person)} · {person.phone || person.home_phone || "연락처 없음"}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <select
             value={plain}
             onChange={(event) => {
@@ -1193,6 +1265,50 @@ const inputStyle: CSSProperties = {
 const selectStyle: CSSProperties = {
   ...inputStyle,
   padding: "0 10px",
+};
+
+const suggestionListStyle: CSSProperties = {
+  position: "absolute",
+  top: "calc(100% + 4px)",
+  left: 0,
+  right: 0,
+  zIndex: 20,
+  background: "var(--card)",
+  border: "1px solid var(--hairline-strong)",
+  borderRadius: 8,
+  boxShadow: "0 12px 32px rgba(43, 39, 34,0.18)",
+  maxHeight: 320,
+  overflowY: "auto",
+};
+
+const suggestionItemStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  width: "100%",
+  padding: "8px 10px",
+  border: 0,
+  borderBottom: "1px solid var(--hairline)",
+  background: "transparent",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  textAlign: "left",
+};
+
+const suggestionNameStyle: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 700,
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+};
+
+const suggestionMetaStyle: CSSProperties = {
+  fontSize: 12,
+  color: "var(--ink-soft)",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
 };
 
 const buttonStyle: CSSProperties = {
