@@ -42,6 +42,21 @@ export function roleOptionsByGrade(grade: number) {
 /** 직접입력 select 항목을 표준 직책과 구분하는 sentinel */
 export const CUSTOM_ROLE_VALUE = "__custom__";
 
+/**
+ * 임원진 명단 표시 순서 (사용자 지정, 2026-08-27)
+ * 전도사 > 교육사 > 부장 > 부부장 > 총무 > 부총무 > 서기 > 회계 > 부서기 > 부회계 > 기타(직접입력)
+ * 선택 목록(ROLE_OPTIONS)의 순서와는 별개다 — DB `edu_role_sort` 와 같은 순서를 유지한다.
+ */
+export const ROLE_DISPLAY_ORDER = [
+  "전도사", "교육사", "부장", "부부장", "총무", "부총무", "서기", "회계", "부서기", "부회계",
+] as const;
+
+/** 표준 직책이면 표시 순서, 직접입력·레거시 라벨이면 맨 뒤 */
+export function roleOrderIndex(role: string | null | undefined): number {
+  const idx = ROLE_DISPLAY_ORDER.indexOf((role || "").trim() as (typeof ROLE_DISPLAY_ORDER)[number]);
+  return idx < 0 ? ROLE_DISPLAY_ORDER.length : idx;
+}
+
 const ROLE_TO_GRADE: Record<string, number> = Object.fromEntries(
   ROLE_OPTIONS.map((o) => [o.role, o.grade]),
 );

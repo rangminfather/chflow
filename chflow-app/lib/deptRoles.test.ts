@@ -7,6 +7,8 @@ import {
   isTeacherRosterGrade,
   isStandardRole,
   roleOptionsByGrade,
+  roleOrderIndex,
+  ROLE_DISPLAY_ORDER,
   ROLE_OPTIONS,
   GRADE_OPTIONS,
 } from "./deptRoles";
@@ -72,6 +74,41 @@ describe("roleOptionsByGrade", () => {
 
   it("없는 등급은 빈 배열", () => {
     expect(roleOptionsByGrade(9)).toEqual([]);
+  });
+});
+
+describe("roleOrderIndex — 임원진 표시 순서", () => {
+  it("전도사>교육사>부장>부부장>총무>부총무>서기>회계>부서기>부회계 순서", () => {
+    expect([...ROLE_DISPLAY_ORDER]).toEqual([
+      "전도사", "교육사", "부장", "부부장", "총무", "부총무", "서기", "회계", "부서기", "부회계",
+    ]);
+  });
+
+  it("직책 목록을 이 순서로 정렬한다", () => {
+    const shuffled = ["부회계", "부장", "회계", "전도사", "서기", "부서기", "총무", "교육사", "부총무", "부부장"];
+    expect([...shuffled].sort((a, b) => roleOrderIndex(a) - roleOrderIndex(b))).toEqual([
+      "전도사", "교육사", "부장", "부부장", "총무", "부총무", "서기", "회계", "부서기", "부회계",
+    ]);
+  });
+
+  it("직접입력·레거시·빈 라벨은 맨 뒤", () => {
+    const last = ROLE_DISPLAY_ORDER.length;
+    expect(roleOrderIndex("부감")).toBe(last);
+    expect(roleOrderIndex("전도사·교육사")).toBe(last);
+    expect(roleOrderIndex("임원")).toBe(last);
+    expect(roleOrderIndex("")).toBe(last);
+    expect(roleOrderIndex(null)).toBe(last);
+  });
+
+  it("공백이 섞여 있어도 인식한다", () => {
+    expect(roleOrderIndex(" 회계 ")).toBe(roleOrderIndex("회계"));
+  });
+
+  it("표준 임원 직책은 모두 순서에 들어 있다 (교사·학부모 제외)", () => {
+    for (const o of ROLE_OPTIONS) {
+      if (o.grade > 2) continue;
+      expect(roleOrderIndex(o.role)).toBeLessThan(ROLE_DISPLAY_ORDER.length);
+    }
   });
 });
 

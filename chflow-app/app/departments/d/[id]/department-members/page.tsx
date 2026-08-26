@@ -6,6 +6,7 @@ import { ChevronLeft, type LucideIcon, School, ShieldCheck, UserRound, Users } f
 import HeaderLogo from "@/components/HeaderLogo";
 import { EmptyState, LoadingView } from "@/components/StatusViews";
 import { supabase } from "@/lib/supabase";
+import { roleOrderIndex } from "@/lib/deptRoles";
 
 interface ExecutiveRow {
   user_id: string;
@@ -34,7 +35,7 @@ type TabId = "executives" | "classes";
 
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: "executives", label: "임원진", icon: ShieldCheck },
-  { id: "classes", label: "학년·반별 담임", icon: School },
+  { id: "classes", label: "반별 담임", icon: School },
 ];
 
 function classNameOf(row: ClassRow) {
@@ -83,7 +84,12 @@ export default function DepartmentMembersPage() {
   useEffect(() => { void load(); }, [load]);
 
   const sortedExecutives = useMemo(
-    () => [...executives].sort((a, b) => a.grade - b.grade || a.name.localeCompare(b.name, "ko")),
+    // 직책 표시 순서: 전도사>교육사>부장>부부장>총무>부총무>서기>회계>부서기>부회계>기타(직접입력)
+    // 등급을 먼저 보는 이유 — 직책이 레거시/빈값이라 화면 라벨이 대체된 사람도 자기 등급 자리에 남는다.
+    () => [...executives].sort((a, b) =>
+      a.grade - b.grade
+      || roleOrderIndex(a.role) - roleOrderIndex(b.role)
+      || a.name.localeCompare(b.name, "ko")),
     [executives],
   );
 
@@ -108,7 +114,7 @@ export default function DepartmentMembersPage() {
           </div>
           <div>
             <h1 className="text-xl font-extrabold">{departmentName} 구성원</h1>
-            <p className="mt-0.5 text-sm text-[var(--ink-soft)]">임원진과 학년·반별 담임 안내</p>
+            <p className="mt-0.5 text-sm text-[var(--ink-soft)]">임원진과 반별 담임 안내</p>
           </div>
         </div>
 

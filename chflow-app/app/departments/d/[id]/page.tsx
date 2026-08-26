@@ -123,7 +123,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
     desc: "부서 공통 자료 / 공지 / 주보",
     items: [
       { id: "notices/board", label: "공지 게시판", icon: Megaphone, desc: "부서 공지·알림", color: "#4A7B96", implemented: true, maxGrade: 4 },
-      { id: "department-members", label: "부서 구성원", icon: Users, desc: "임원진 · 학년·반별 담임 안내", color: "var(--accent)", implemented: true, maxGrade: 4 },
+      { id: "department-members", label: "부서 구성원", icon: Users, desc: "임원진 · 반별 담임 안내", color: "var(--accent)", implemented: true, maxGrade: 4 },
       { id: "bulletin", label: "{dept} 주보보기", icon: Newspaper, desc: "주보 열람", color: "#3E7D74", implemented: true, onlyForCategory: "교육사역국", maxGrade: 4 },
       { id: "verse-memory", label: "요절암송", icon: BookOpen, desc: "월별 요절암송 자료", color: "#8A6D3B", implemented: true, onlyForCategory: "교육사역국", maxGrade: 4 },
       { id: "monthly-plan", label: "월간 교육계획서", icon: CalendarDays, desc: "월간 교육계획 파일 조회", color: "var(--accent)", implemented: true, maxGrade: 4 },

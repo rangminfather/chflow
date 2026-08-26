@@ -16,7 +16,7 @@ describe("department member directory", () => {
 
   it("shows executives and homeroom assignments", () => {
     expect(pageSource).toContain("임원진");
-    expect(pageSource).toContain("학년·반별 담임");
+    expect(pageSource).toContain("반별 담임");
     expect(apiSource).toContain('rpc("list_dept_classes_full"');
     expect(apiSource).toContain('.lte("grade", 2)');
     expect(apiSource).toContain("displayRole(row.member_role, row.grade)");
