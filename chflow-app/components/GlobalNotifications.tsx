@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronsLeft, ChevronsRight, MessagesSquare } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, Headphones, LoaderCircle, MessagesSquare } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import FontScaleControl from "@/components/FontScaleControl";
 import { supabase } from "@/lib/supabase";
+import { openAdminHotline } from "@/lib/messenger";
 
 const HIDDEN_PATH_PREFIXES = [
   "/login",
@@ -22,6 +23,8 @@ export default function GlobalNotifications() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [hotlineOpening, setHotlineOpening] = useState(false);
+  const [hotlineError, setHotlineError] = useState("");
   const hidden = useMemo(
     () =>
       HIDDEN_PATH_PREFIXES.some((prefix) => pathname?.startsWith(prefix)) ||
@@ -72,8 +75,33 @@ export default function GlobalNotifications() {
 
   if (!userId) return null;
 
+  const handleOpenHotline = async () => {
+    if (hotlineOpening) return;
+    setHotlineOpening(true);
+    setHotlineError("");
+    try {
+      const { data: role, error: roleError } = await supabase.rpc("get_user_role");
+      if (roleError) throw roleError;
+      if (["admin", "office", "pastor"].includes(String(role || ""))) {
+        router.push("/messenger?hotline=inbox");
+        return;
+      }
+      const conversationId = await openAdminHotline();
+      router.push(`/messenger?c=${conversationId}`);
+    } catch (error) {
+      setHotlineError(error instanceof Error ? error.message : "관리자 핫라인을 열지 못했습니다.");
+    } finally {
+      setHotlineOpening(false);
+    }
+  };
+
   return (
     <div className="global-notification-dock" aria-live="polite">
+      {hotlineError && !hidden && !collapsed && (
+        <div role="alert" style={{ maxWidth: 230, padding: "8px 10px", borderRadius: 10, background: "var(--card)", border: "1px solid var(--hairline)", color: "var(--danger)", fontSize: 12, fontWeight: 700, boxShadow: "0 8px 24px rgba(43,39,34,0.14)" }}>
+          {hotlineError}
+        </div>
+      )}
       {!hidden && (
         <button
           type="button"
@@ -111,6 +139,33 @@ export default function GlobalNotifications() {
             }}
           >
             <MessagesSquare size={20} strokeWidth={1.9} />
+          </button>
+          <button
+            type="button"
+            className="dock-hotline-button"
+            onClick={handleOpenHotline}
+            disabled={hotlineOpening}
+            aria-label="관리자 핫라인 열기"
+            aria-busy={hotlineOpening}
+            title="관리자 핫라인"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: "50%",
+              border: "1px solid var(--accent-line)",
+              background: "var(--accent-soft)",
+              color: "var(--accent-strong)",
+              boxShadow: "0 14px 34px rgba(43, 39, 34, 0.18)",
+              cursor: hotlineOpening ? "wait" : "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: hotlineOpening ? 0.7 : 1,
+            }}
+          >
+            {hotlineOpening
+              ? <LoaderCircle size={20} strokeWidth={1.9} />
+              : <Headphones size={20} strokeWidth={1.9} />}
           </button>
         </>
       )}

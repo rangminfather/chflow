@@ -53,6 +53,41 @@ export async function GET(req: NextRequest) {
     results.messenger_error = (e as Error).message;
   }
 
+  // 관리자 핫라인은 최근 30일만 보관한다. 대화 삭제 전에 남아 있는 첨부 원본도 함께 정리한다.
+  try {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: oldHotlines, error: hotlineLookupError } = await admin
+      .from("messenger_conversations")
+      .select("id")
+      .eq("channel_kind", "admin_hotline")
+      .lt("created_at", cutoff)
+      .limit(500);
+    if (hotlineLookupError) throw hotlineLookupError;
+
+    const hotlineIds = (oldHotlines ?? []).map((row: { id: string }) => row.id);
+    if (hotlineIds.length > 0) {
+      const { data: hotlineAttachments, error: attachmentLookupError } = await admin
+        .from("messenger_message_attachments")
+        .select("file_path")
+        .in("conversation_id", hotlineIds);
+      if (attachmentLookupError) throw attachmentLookupError;
+
+      const paths = (hotlineAttachments ?? []).map((row: { file_path: string }) => row.file_path);
+      if (paths.length > 0) await r2.from("messenger-attachments").remove(paths);
+
+      const { error: deleteError } = await admin
+        .from("messenger_conversations")
+        .delete()
+        .in("id", hotlineIds);
+      if (deleteError) throw deleteError;
+      results.admin_hotline = `${hotlineIds.length}개 대화 삭제`;
+    } else {
+      results.admin_hotline = "없음";
+    }
+  } catch (e) {
+    results.admin_hotline_error = (e as Error).message;
+  }
+
   // ── 2. 주보(jubo) — 최근 52개 초과분 R2 삭제 + pdf_url null ──────
   try {
     const { data: juboAll } = await admin

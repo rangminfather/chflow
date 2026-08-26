@@ -10,6 +10,7 @@ import {
   Copy,
   FileText,
   Forward,
+  Headphones,
   LogOut,
   MoreVertical,
   MessageCircle,
@@ -64,6 +65,7 @@ import {
   renameGroupConversation,
   reportMessengerMessage,
   searchMessengerMessages,
+  sendAdminHotlineMessage,
   sendMessengerMessage,
   setMessengerConversationState,
   toggleMessengerReaction,
@@ -77,8 +79,20 @@ import {
 type PendingAttachment = MessengerAttachment & { local_url?: string };
 type ImagePreviewState = { attachment: MessengerAttachment; url: string } | null;
 
-function isMobileMessengerViewport(): boolean {
-  return typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
+function canConfirmMessengerRead(messageList: HTMLDivElement | null): boolean {
+  if (typeof document === "undefined" || document.visibilityState !== "visible" || !document.hasFocus()) return false;
+  if (!messageList) return true;
+  const distanceFromBottom = messageList.scrollHeight - messageList.scrollTop - messageList.clientHeight;
+  return distanceFromBottom <= 120;
+}
+
+function kstDateString(date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
 }
 
 const MAX_ATTACHMENTS = 6;
@@ -151,6 +165,18 @@ export default function MessengerPage() {
     ));
   }, [conversations, searchQuery]);
 
+  const conversationSections = useMemo(() => {
+    const today = kstDateString();
+    const currentHotline = filteredConversations.filter((c) => c.channel_kind === "admin_hotline" && c.hotline_session_date === today);
+    const regular = filteredConversations.filter((c) => c.channel_kind !== "admin_hotline");
+    const pastHotline = filteredConversations.filter((c) => c.channel_kind === "admin_hotline" && c.hotline_session_date !== today);
+    return [
+      { key: "current-hotline", label: "오늘의 관리자 핫라인", rows: currentHotline },
+      { key: "regular", label: searchQuery.trim() ? "대화 결과" : "최근 대화", rows: regular },
+      { key: "past-hotline", label: "지난 핫라인 · 30일 보관", rows: pastHotline },
+    ].filter((section) => section.rows.length > 0);
+  }, [filteredConversations, searchQuery]);
+
   useEffect(() => {
     conversationsRef.current = conversations;
   }, [conversations]);
@@ -173,8 +199,6 @@ export default function MessengerPage() {
       const requested = preferredId !== undefined ? preferredId : activeId;
       if (requested && rows.some((c) => c.conversation_id === requested)) {
         setActiveId(requested);
-      } else if (!requested && !activeId && rows.length > 0 && !isMobileMessengerViewport()) {
-        setActiveId(rows[0].conversation_id);
       }
     } catch (e) {
       setError(messengerErrorMessage(e));
@@ -183,11 +207,10 @@ export default function MessengerPage() {
     }
   }, [activeId]);
 
-  const loadConversationBody = useCallback(async (conversationId: string, unreadCount = 0) => {
+  const loadConversationBody = useCallback(async (conversationId: string, unreadCount = 0, confirmRead = false) => {
     setLoadingMessages(true);
     setError("");
     try {
-      await markMessengerRead(conversationId);
       const [messageRows, participantRows] = await Promise.all([
         getMessengerMessages(conversationId, 60),
         getMessengerParticipants(conversationId),
@@ -199,9 +222,12 @@ export default function MessengerPage() {
       setFirstUnreadMessageId(firstUnreadId);
       setShowFirstUnreadJump(!!firstUnreadId);
       if (firstUnreadId) skipNextAutoScrollRef.current = true;
-      setConversations((prev) => prev.map((c) => (
-        c.conversation_id === conversationId ? { ...c, unread_count: 0 } : c
-      )));
+      if (confirmRead && canConfirmMessengerRead(messageListRef.current)) {
+        await markMessengerRead(conversationId);
+        setConversations((prev) => prev.map((c) => (
+          c.conversation_id === conversationId ? { ...c, unread_count: 0 } : c
+        )));
+      }
     } catch (e) {
       setError(getErrorMessage(e));
       setMessages([]);
@@ -246,7 +272,7 @@ export default function MessengerPage() {
     setAttachments([]);
     setShowLatestJump(false);
     const unreadCount = conversationsRef.current.find((c) => c.conversation_id === activeId)?.unread_count || 0;
-    loadConversationBody(activeId, unreadCount);
+    loadConversationBody(activeId, unreadCount, true);
   }, [activeId, loadConversationBody]);
 
   useEffect(() => {
@@ -310,8 +336,20 @@ export default function MessengerPage() {
           filter: `conversation_id=eq.${activeId}`,
         },
         async () => {
-          await loadConversationBody(activeId);
+          await loadConversationBody(activeId, 0, canConfirmMessengerRead(messageListRef.current));
           await loadConversations(activeId);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messenger_participants",
+          filter: `conversation_id=eq.${activeId}`,
+        },
+        async () => {
+          await loadConversationBody(activeId);
         }
       )
       .on(
@@ -343,6 +381,21 @@ export default function MessengerPage() {
       supabase.removeChannel(channel);
     };
   }, [activeId, loadConversationBody, loadConversations, myUserId]);
+
+  useEffect(() => {
+    if (!activeId) return;
+    const confirmVisibleConversation = () => {
+      if (canConfirmMessengerRead(messageListRef.current)) {
+        loadConversationBody(activeId, 0, true);
+      }
+    };
+    window.addEventListener("focus", confirmVisibleConversation);
+    document.addEventListener("visibilitychange", confirmVisibleConversation);
+    return () => {
+      window.removeEventListener("focus", confirmVisibleConversation);
+      document.removeEventListener("visibilitychange", confirmVisibleConversation);
+    };
+  }, [activeId, loadConversationBody]);
 
   useEffect(() => {
     if (skipNextAutoScrollRef.current) {
@@ -493,7 +546,10 @@ export default function MessengerPage() {
     if (!body && attachments.length === 0) return;
     setSending(true);
     try {
-      await sendMessengerMessage(
+      const sendMessage = activeConversation?.channel_kind === "admin_hotline"
+        ? sendAdminHotlineMessage
+        : sendMessengerMessage;
+      await sendMessage(
         activeId,
         body,
         replyTarget?.id || null,
@@ -738,24 +794,26 @@ export default function MessengerPage() {
                     }}
                   />
                 )}
-                <div style={sidebarLabelStyle}>
-                  {searchQuery.trim() ? "대화 결과" : "최근 대화"}
-                </div>
                 {filteredConversations.length === 0 ? (
                   <EmptyState message="일치하는 대화가 없습니다." padding={30} />
                 ) : (
-                  <ul style={listStyle}>
-                    {filteredConversations.map((c) => (
-                      <li key={c.conversation_id}>
-                        <ConversationButton
-                          conversation={c}
-                          active={c.conversation_id === activeId}
-                          mine={myUserId}
-                          onClick={() => setActiveId(c.conversation_id)}
-                        />
-                      </li>
-                    ))}
-                  </ul>
+                  conversationSections.map((section) => (
+                    <div key={section.key}>
+                      <div style={sidebarLabelStyle}>{section.label}</div>
+                      <ul style={listStyle}>
+                        {section.rows.map((c) => (
+                          <li key={c.conversation_id}>
+                            <ConversationButton
+                              conversation={c}
+                              active={c.conversation_id === activeId}
+                              mine={myUserId}
+                              onClick={() => setActiveId(c.conversation_id)}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))
                 )}
               </>
             )}
@@ -787,7 +845,7 @@ export default function MessengerPage() {
                 onArchive={() => updateConversationState({ archived: true })}
                 onLeave={leaveConversation}
                 onBlockPeer={activeConversation.type === "direct" ? blockCurrentPeer : undefined}
-                onManageGroup={activeConversation.type === "group" ? () => setGroupManageOpen(true) : undefined}
+                onManageGroup={activeConversation.type === "group" && activeConversation.channel_kind !== "admin_hotline" ? () => setGroupManageOpen(true) : undefined}
                 onBack={clearActiveConversation}
                 sidebarCollapsed={sidebarCollapsed}
                 onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
@@ -818,6 +876,7 @@ export default function MessengerPage() {
                         )}
                         <MessageBubble
                           message={m}
+                          hotline={activeConversation.channel_kind === "admin_hotline"}
                           compact={idx > 0 && messages[idx - 1].sender_id === m.sender_id}
                           participants={participants}
                           highlighted={highlightedMessageId === m.id}
@@ -917,7 +976,7 @@ export default function MessengerPage() {
           onForward={forwardMessage}
         />
       )}
-      {groupManageOpen && activeConversation?.type === "group" && (
+      {groupManageOpen && activeConversation?.type === "group" && activeConversation.channel_kind !== "admin_hotline" && (
         <GroupManagementModal
           conversation={activeConversation}
           participants={participants}
@@ -978,6 +1037,7 @@ function ChatHeader({
   onToggleSidebar: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const isHotline = conversation.channel_kind === "admin_hotline";
   const statusText = typingNames.length > 0
     ? `${typingNames.slice(0, 2).join(", ")} 입력 중`
     : `온라인 ${onlineUserIds.length}명`;
@@ -997,11 +1057,11 @@ function ChatHeader({
         {sidebarCollapsed ? <PanelLeftOpen size={18} strokeWidth={2} /> : <PanelLeftClose size={18} strokeWidth={2} />}
         <span>{sidebarCollapsed ? "목록 열기" : "목록 접기"}</span>
       </button>
-      <Avatar title={conversation.display_title} src={conversation.display_avatar_url} />
+      {isHotline ? <HotlineAvatar /> : <Avatar title={conversation.display_title} src={conversation.display_avatar_url} />}
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={chatTitleStyle}>{conversation.display_title}</div>
         <div style={chatSubStyle}>
-          {conversation.type === "group" && <Users size={12} strokeWidth={1.8} />}
+          {isHotline ? <Headphones size={12} strokeWidth={1.8} /> : conversation.type === "group" && <Users size={12} strokeWidth={1.8} />}
           {conversation.participant_count}명
           <span style={presenceDotStyle} />
           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", color: typingNames.length > 0 ? "var(--accent)" : "var(--ink-faint)", fontWeight: 800 }}>
@@ -1017,11 +1077,11 @@ function ChatHeader({
         {menuOpen && (
           <div style={conversationMenuStyle}>
             {onManageGroup && <MenuAction icon={<Users size={14} />} label="그룹 관리" onClick={() => { setMenuOpen(false); onManageGroup(); }} />}
-            <MenuAction icon={<LogOut size={14} />} label={conversation.type === "group" ? "대화방 나가기" : "대화 숨기기"} onClick={() => { setMenuOpen(false); onLeave(); }} />
+            {!isHotline && <MenuAction icon={<LogOut size={14} />} label={conversation.type === "group" ? "대화방 나가기" : "대화 숨기기"} onClick={() => { setMenuOpen(false); onLeave(); }} />}
             <MenuAction icon={<Pin size={14} />} label={conversation.is_pinned ? "고정 해제" : "대화 고정"} onClick={() => { setMenuOpen(false); onTogglePinned(); }} />
             <MenuAction icon={<Star size={14} />} label={conversation.is_favorite ? "즐겨찾기 해제" : "즐겨찾기"} onClick={() => { setMenuOpen(false); onToggleFavorite(); }} />
             <MenuAction icon={conversation.is_muted ? <Volume2 size={14} /> : <VolumeX size={14} />} label={conversation.is_muted ? "알림 켜기" : "알림 끄기"} onClick={() => { setMenuOpen(false); onToggleMuted(); }} />
-            <MenuAction icon={<X size={14} />} label="대화 숨기기" onClick={() => { setMenuOpen(false); onArchive(); }} />
+            {!isHotline && <MenuAction icon={<X size={14} />} label="대화 숨기기" onClick={() => { setMenuOpen(false); onArchive(); }} />}
             {onBlockPeer && <MenuAction danger icon={<ShieldAlert size={14} />} label="상대 차단" onClick={() => { setMenuOpen(false); onBlockPeer(); }} />}
           </div>
         )}
@@ -1108,7 +1168,9 @@ function ConversationButton({
       background: active ? "var(--accent-soft)" : conversation.unread_count > 0 ? "color-mix(in srgb, var(--card) 72%, transparent)" : "transparent",
       boxShadow: active ? "0 8px 20px rgba(62,90,74,0.1)" : conversation.unread_count > 0 ? "0 1px 6px rgba(26,22,18,0.04)" : "none",
     }}>
-      <Avatar title={conversation.display_title} src={conversation.display_avatar_url} />
+      {conversation.channel_kind === "admin_hotline"
+        ? <HotlineAvatar />
+        : <Avatar title={conversation.display_title} src={conversation.display_avatar_url} />}
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <div style={conversationTitleStyle}>{conversation.display_title}</div>
@@ -1134,8 +1196,30 @@ function ConversationButton({
   );
 }
 
+function HotlineAvatar() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        width: 42,
+        height: 42,
+        borderRadius: "50%",
+        flexShrink: 0,
+        display: "grid",
+        placeItems: "center",
+        background: "var(--accent-soft)",
+        color: "var(--accent-strong)",
+        boxShadow: "inset 0 0 0 1px var(--accent-line)",
+      }}
+    >
+      <Headphones size={20} strokeWidth={1.9} />
+    </div>
+  );
+}
+
 function MessageBubble({
   message,
+  hotline,
   compact,
   participants,
   highlighted,
@@ -1152,6 +1236,7 @@ function MessageBubble({
   onToggleActions,
 }: {
   message: MessengerMessage;
+  hotline: boolean;
   compact: boolean;
   participants: MessengerParticipant[];
   highlighted: boolean;
@@ -1186,7 +1271,7 @@ function MessageBubble({
         transition: "outline-color .2s ease",
       }}>
         {!message.is_mine && !compact && (
-          <div style={senderNameStyle}>{message.sender_name || "이름 없음"}</div>
+          <div style={senderNameStyle}>{hotline && message.kind === "system" ? "스마트명성 관리자" : message.sender_name || "이름 없음"}</div>
         )}
 
         <div style={{ display: "flex", alignItems: "flex-end", gap: 6, minWidth: 0, maxWidth: "100%", flexDirection: message.is_mine ? "row" : "row-reverse" }}>

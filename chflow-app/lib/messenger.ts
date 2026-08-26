@@ -26,6 +26,8 @@ export type MessengerConversation = {
   is_favorite?: boolean;
   is_muted?: boolean;
   archived_at?: string | null;
+  channel_kind?: "standard" | "admin_hotline";
+  hotline_session_date?: string | null;
 };
 
 export type MessengerParticipant = {
@@ -165,6 +167,12 @@ export async function startDirectMessage(userId: string): Promise<string> {
   return data as string;
 }
 
+export async function openAdminHotline(): Promise<string> {
+  const { data, error } = await supabase.rpc("open_admin_hotline");
+  if (error) throw error;
+  return data as string;
+}
+
 export async function createGroupConversation(title: string, participantIds: string[]): Promise<string> {
   const { data, error } = await supabase.rpc("create_group_conversation", {
     p_title: title,
@@ -205,6 +213,22 @@ export async function sendMessengerMessage(
   attachments: MessengerAttachment[] = []
 ): Promise<string> {
   const { data, error } = await supabase.rpc("send_messenger_message_v2", {
+    p_conversation_id: conversationId,
+    p_body: body,
+    p_reply_to_id: replyToId,
+    p_attachments: attachments,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function sendAdminHotlineMessage(
+  conversationId: string,
+  body: string,
+  replyToId: string | null = null,
+  attachments: MessengerAttachment[] = []
+): Promise<string> {
+  const { data, error } = await supabase.rpc("send_admin_hotline_message_v2", {
     p_conversation_id: conversationId,
     p_body: body,
     p_reply_to_id: replyToId,
