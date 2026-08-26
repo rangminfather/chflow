@@ -220,7 +220,7 @@ export default function TeacherAssignPage() {
   const normalizeName = (name: string) => name.replace(/\s+/g, "").trim();
   const mergeTargetName = normalizeName(mergeTarget?.name || "");
   const recommendedEligible = mergeTargetName
-    ? eligible.filter((u) => normalizeName(u.name) === mergeTargetName && !u.already_linked)
+    ? eligible.filter((u) => normalizeName(u.name) === mergeTargetName)
     : [];
   const otherEligible = eligible.filter((u) => !recommendedEligible.some((r) => r.user_id === u.user_id));
 
@@ -385,7 +385,9 @@ export default function TeacherAssignPage() {
                     >
                       <span style={{ fontWeight: 800 }}>{u.name}</span>
                       <span style={{ fontSize: 11, color: pickedUserId === u.user_id ? "var(--accent-strong)" : "var(--ink-soft)" }}>{gradeLabel(u.grade)}</span>
-                      <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800 }}>{pickedUserId === u.user_id ? "선택됨" : "선택"}</span>
+                      <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800 }}>
+                        {pickedUserId === u.user_id ? "선택됨" : u.already_linked ? "기존 연결과 병합" : "선택"}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -408,14 +410,13 @@ export default function TeacherAssignPage() {
                   <button
                     key={u.user_id}
                     type="button"
-                    disabled={u.already_linked}
                     onClick={() => setPickedUserId(u.user_id)}
-                    style={accountChoiceStyle(pickedUserId === u.user_id, u.already_linked)}
+                    style={accountChoiceStyle(pickedUserId === u.user_id, false)}
                   >
                     <span style={{ fontWeight: 800 }}>{u.name}</span>
                     <span style={{ fontSize: 11, color: pickedUserId === u.user_id ? "var(--accent-strong)" : "var(--ink-soft)" }}>{gradeLabel(u.grade)}</span>
                     <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800 }}>
-                      {u.already_linked ? "이미 연결됨" : pickedUserId === u.user_id ? "선택됨" : "선택"}
+                      {pickedUserId === u.user_id ? "선택됨" : u.already_linked ? "기존 연결과 병합" : "선택"}
                     </span>
                   </button>
                 ))}

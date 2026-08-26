@@ -55,6 +55,10 @@ function memberKey(m: DeptMember) {
   return m.teacher_id ?? m.user_id ?? m.name;
 }
 
+function normalizeTeacherName(name: string) {
+  return name.replace(/\s+/g, "").trim();
+}
+
 // 목록에 없는 직책(직접입력·레거시)을 select 에서 잃지 않도록 현재 값 전용 항목을 둔다
 const CURRENT_ROLE_VALUE = "__current__";
 
@@ -131,6 +135,53 @@ export default function MembersGradePage() {
       showToast("앱 미가입 상태입니다. 앱 가입 후 직책·등급 조정이 가능합니다.");
       return;
     }
+    let linkPlaceholderId: string | null = null;
+    let allowDuplicate = false;
+
+    // 기존 부서원의 직책 변경도 신규 임명과 동일하게 미연결 교사 기록을 먼저 확인한다.
+    // 이 확인이 없으면 edu_sync_roster_member가 계정 연결 행을 새로 만들어
+    // 같은 사람의 미연결 행과 연결 행이 동시에 남는다.
+    if (grade <= 3) {
+      const { data: placeholders, error: placeholderError } = await supabase
+        .from("edu_teachers")
+        .select("id, name")
+        .eq("department_id", deptId)
+        .eq("is_active", true)
+        .is("user_id", null)
+        .is("member_id", null);
+
+      if (placeholderError) {
+        showToast("기존 교사 기록 확인 실패: " + placeholderError.message);
+        return;
+      }
+
+      const sameNamePlaceholders = (placeholders || []).filter(
+        (t) => normalizeTeacherName(t.name) === normalizeTeacherName(member.name),
+      );
+
+      if (sameNamePlaceholders.length > 1) {
+        showToast(`같은 이름의 미연결 교사가 ${sameNamePlaceholders.length}명 있어 자동으로 구분할 수 없습니다. 먼저 선생님 등록/출석에서 중복을 정리해 주세요.`);
+        return;
+      }
+
+      if (sameNamePlaceholders.length === 1) {
+        const inherit = await confirm(
+          `교사 명단에 계정이 연결되지 않은 "${member.name}" 교사가 있습니다.\n같은 사람이면 직책 변경과 함께 기존 담임·출석 기록을 연결합니다.`,
+          { okText: "같은 사람 — 연결", cancelText: "다른 사람" },
+        );
+        if (inherit) {
+          linkPlaceholderId = sameNamePlaceholders[0].id;
+        } else {
+          const proceed = await confirm(
+            `동명이인으로 처리하면 "${member.name}" 교사가 두 명으로 유지됩니다.\n정말 서로 다른 사람입니까?`,
+            { okText: "동명이인으로 유지", cancelText: "돌아가기" },
+          );
+          if (!proceed) return;
+          allowDuplicate = true;
+        }
+      }
+    }
+
     const gradeNote = grade === member.grade ? "" : `\n등급도 ${member.grade} → ${grade} 로 함께 바뀝니다.`;
     if (!await confirm(`${member.name} 님의 직책을 "${role}"(으)로 변경하시겠습니까?${gradeNote}`)) return;
     setSavingId(memberKey(member));
@@ -139,6 +190,8 @@ export default function MembersGradePage() {
       p_user_id: member.user_id,
       p_grade: grade,
       p_role: role,
+      p_link_placeholder_id: linkPlaceholderId,
+      p_allow_duplicate: allowDuplicate,
     });
     setSavingId(null);
     if (error) {
@@ -259,19 +312,25 @@ export default function MembersGradePage() {
       .eq("department_id", deptId)
       .eq("is_active", true)
       .is("user_id", null)
-      .is("member_id", null)
-      .eq("name", picked.name);
+      .is("member_id", null);
+    const sameNamePlaceholders = (placeholders || []).filter(
+      (t) => normalizeTeacherName(t.name) === normalizeTeacherName(picked.name),
+    );
     // 연결은 임명과 같은 트랜잭션에서 처리한다 (p_link_placeholder_id).
     // 예전처럼 연결을 먼저 호출하면 아직 부서원이 아닌 사람에게 계정이 붙어
     // '임명 실패 + 연결만 된' 중간 상태가 남을 수 있었다.
     let linkPlaceholderId: string | null = null;
-    if (placeholders && placeholders.length > 0) {
+    if (sameNamePlaceholders.length > 1) {
+      showToast(`같은 이름의 미연결 교사가 ${sameNamePlaceholders.length}명 있어 자동으로 구분할 수 없습니다. 먼저 선생님 등록/출석에서 중복을 정리해 주세요.`);
+      return;
+    }
+    if (sameNamePlaceholders.length === 1) {
       const inherit = await confirm(
         `교사 출석부에 같은 이름의 임시 등록 교사 "${picked.name}"이(가) 있습니다.\n같은 사람이면 기존 출석 기록에 이 계정을 연결합니다.`,
         { okText: "같은 사람 — 기록 이어받기", cancelText: "다른 사람" },
       );
       if (inherit) {
-        linkPlaceholderId = placeholders[0].id;
+        linkPlaceholderId = sameNamePlaceholders[0].id;
       } else {
         const proceed = await confirm(
           `정말 병합하지 않고 새로 등록할까요?\n동명이인으로 처리되어 출석부에 교사가 중복 생성되고, 기존 출석 기록과 연결되지 않습니다.`,
