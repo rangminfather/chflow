@@ -16,7 +16,7 @@ import {
   isStandardRole,
   roleOptionsByGrade,
 } from "@/lib/deptRoles";
-import { Lock, Medal, UserMinus } from "lucide-react";
+import { LogOut, Lock, Medal, UserMinus } from "lucide-react";
 
 interface DeptMember {
   teacher_id: string | null;
@@ -64,6 +64,11 @@ const CURRENT_ROLE_VALUE = "__current__";
 
 const MAX_ROLE_LEN = 20;
 
+/** 본인 행인지 — 본인은 '제외'가 아니라 '탈퇴'로 다룬다 */
+function isSelfRow(m: DeptMember, myUserId: string | null) {
+  return !!myUserId && m.user_id === myUserId;
+}
+
 function roleSelectValue(m: DeptMember) {
   return isStandardRole(m.role_label) ? m.role_label.trim() : CURRENT_ROLE_VALUE;
 }
@@ -75,6 +80,7 @@ export default function MembersGradePage() {
   const deptId = params.id as string;
 
   const [authChecked, setAuthChecked] = useState(false);
+  const [myUserId, setMyUserId] = useState<string | null>(null);
   const [members, setMembers] = useState<DeptMember[]>([]);
   const [authorized, setAuthorized] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -96,6 +102,8 @@ export default function MembersGradePage() {
 
   // 직책 직접입력 모달 (기존 부서원)
   const [roleEdit, setRoleEdit] = useState<{ member: DeptMember; text: string; grade: number } | null>(null);
+
+  const isSelf = (m: DeptMember) => isSelfRow(m, myUserId);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -123,6 +131,7 @@ export default function MembersGradePage() {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/login"); return; }
+      setMyUserId(session.user.id);
       setAuthChecked(true);
       await load();
     })();
@@ -228,10 +237,23 @@ export default function MembersGradePage() {
   }
 
   async function handleRemove(member: DeptMember) {
-    const ok = await confirm(
-      `${member.name} 님을 이 부서에서 제외하시겠습니까?\n출석·담임 이력은 보존되며, 다시 임명하면 복구됩니다.`,
-      { okText: "제외", cancelText: "취소" },
-    );
+    const self = isSelf(member);
+
+    // 본인 탈퇴는 문구도 결과도 다르다 — 끝나면 이 화면 권한을 잃으므로 홈으로 나간다.
+    let message: string;
+    if (self) {
+      const officersLeft = members.filter(
+        (m) => m.grade <= 2 && m.has_dm && m.user_id && m.user_id !== member.user_id,
+      ).length;
+      message = "정말 이 부서에서 탈퇴하시겠습니까?\n탈퇴하면 부서 메뉴에 더 이상 들어올 수 없고, 다시 들어오려면 임원진의 임명이 필요합니다.\n출석·담임 이력은 보존됩니다.";
+      if (officersLeft === 0) {
+        message = "이 부서에 남는 임원진이 없습니다.\n탈퇴하면 새 임원 임명은 교회 관리자만 할 수 있게 됩니다.\n\n" + message;
+      }
+    } else {
+      message = `${member.name} 님을 이 부서에서 제외하시겠습니까?\n출석·담임 이력은 보존되며, 다시 임명하면 복구됩니다.`;
+    }
+
+    const ok = await confirm(message, { okText: self ? "탈퇴" : "제외", cancelText: "취소" });
     if (!ok) return;
     setSavingId(memberKey(member));
     const { error } = await supabase.rpc("dept_remove_member", {
@@ -241,7 +263,13 @@ export default function MembersGradePage() {
     });
     setSavingId(null);
     if (error) {
-      showToast("제외 실패: " + error.message);
+      showToast((self ? "탈퇴" : "제외") + " 실패: " + error.message);
+      return;
+    }
+    if (self) {
+      // 방금 부서원 자격을 버렸으므로 목록 재조회는 권한 오류가 난다
+      showToast("부서에서 탈퇴했습니다");
+      router.replace("/home");
       return;
     }
     showToast(`${member.name} 님 제외됨`);
@@ -469,10 +497,12 @@ export default function MembersGradePage() {
                         <button
                           onClick={() => handleRemove(m)}
                           disabled={savingId === key}
-                          title="이 부서에서 제외"
-                          style={removeBtnStyle}
+                          title={isSelf(m) ? "이 부서에서 탈퇴" : "이 부서에서 제외"}
+                          style={isSelf(m) ? leaveBtnStyle : removeBtnStyle}
                         >
-                          <UserMinus size={16} strokeWidth={2} />
+                          {isSelf(m)
+                            ? <LogOut size={16} strokeWidth={2} />
+                            : <UserMinus size={16} strokeWidth={2} />}
                         </button>
                       </div>
                     </div>
@@ -840,4 +870,10 @@ const removeBtnStyle: React.CSSProperties = {
   width: 34, height: 34, flexShrink: 0,
   background: "var(--card)", border: "1.5px solid var(--hairline-strong)",
   borderRadius: 8, color: "var(--danger)", cursor: "pointer", fontFamily: "inherit",
+};
+// 본인 탈퇴 — 남을 제외하는 버튼과 헷갈리지 않게 테두리로 구분한다
+const leaveBtnStyle: React.CSSProperties = {
+  ...removeBtnStyle,
+  border: "1.5px solid var(--danger)",
+  background: "var(--danger-soft)",
 };
