@@ -13,9 +13,10 @@ import {
   Landmark, Bus, CalendarClock, Menu, LogOut, X, Folder, Home,
   Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid, MessagesSquare, SearchCheck,
   Sparkles, HeartHandshake, Sun, Moon, BarChart3, Radio, MapPin,
-  GraduationCap, ChevronRight,
+  GraduationCap, ChevronRight, CloudRain, CloudOff,
 } from "lucide-react";
 import { useTheme } from "@/lib/useTheme";
+import { useWeatherEffect } from "@/lib/useWeatherEffect";
 import { LoadingView } from "@/components/StatusViews";
 import WeatherOverlay from "@/components/WeatherOverlay";
 import {
@@ -1205,6 +1206,7 @@ function SidebarContent({ user, myDepartments, router, onNavigate, onLogout }: {
       ))}
 
       <SideDivider />
+      <WeatherToggleButton />
       <ThemeToggleButton />
       <button
         onClick={onLogout}
@@ -1220,6 +1222,36 @@ function SidebarContent({ user, myDepartments, router, onNavigate, onLogout }: {
         <span>로그아웃</span>
       </button>
     </div>
+  );
+}
+
+function WeatherToggleButton() {
+  const { enabled, toggle } = useWeatherEffect();
+  return (
+    <button
+      onClick={toggle}
+      aria-pressed={enabled}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        width: "100%", padding: "10px 12px", boxSizing: "border-box",
+        background: "transparent", border: "none", borderRadius: 8,
+        fontSize: 13, fontWeight: 500, color: T.textMuted,
+        cursor: "pointer", fontFamily: "inherit",
+      }}
+    >
+      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {enabled
+          ? <CloudRain size={15} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+          : <CloudOff size={15} strokeWidth={1.75} style={{ flexShrink: 0 }} />}
+        <span className="kr-keep">날씨 반영</span>
+      </span>
+      <span style={{
+        fontSize: 11, padding: "2px 7px", borderRadius: 99,
+        background: "var(--hairline)", color: T.textMuted,
+      }}>
+        {enabled ? "ON" : "OFF"}
+      </span>
+    </button>
   );
 }
 

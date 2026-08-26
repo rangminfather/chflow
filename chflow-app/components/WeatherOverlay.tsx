@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import type { WeatherCondition } from "@/app/api/weather/route";
+import { useWeatherEffect } from "@/lib/useWeatherEffect";
 
 const CONFIG = {
   rain:         { count: 16, minDur: 1.2, durSpan: 1.0, minW: 1.5, wSpan: 0,   minH: 14, hSpan: 6 },
@@ -21,9 +22,12 @@ function seeded(seed: number) {
 export default function WeatherOverlay() {
   const [condition, setCondition] = useState<WeatherCondition | null>(null);
   const [reduced, setReduced] = useState(false);
+  // 사이드바의 "날씨 반영" 스위치 — OFF 면 조회도 하지 않고 아무것도 그리지 않음
+  const { enabled } = useWeatherEffect();
 
   // 날씨 조회 — 마운트 시 + 10분 주기 + 앱 복귀(포커스) 시
   useEffect(() => {
+    if (!enabled) return;
     let alive = true;
     const load = () =>
       fetch("/api/weather")
@@ -35,7 +39,7 @@ export default function WeatherOverlay() {
     const onVis = () => { if (document.visibilityState === "visible") load(); };
     document.addEventListener("visibilitychange", onVis);
     return () => { alive = false; clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
-  }, []);
+  }, [enabled]);
 
   // 접근성: 모션 최소화 설정이면 번개 플래시 생략
   useEffect(() => {
@@ -62,6 +66,7 @@ export default function WeatherOverlay() {
     }));
   }, [condition]);
 
+  if (!enabled) return null;
   if (!condition || condition === "clear" || particles.length === 0) return null;
 
   const isSnow = condition === "snow";
