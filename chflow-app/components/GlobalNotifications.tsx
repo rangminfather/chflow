@@ -80,9 +80,9 @@ export default function GlobalNotifications() {
     setHotlineOpening(true);
     setHotlineError("");
     try {
-      const { data: role, error: roleError } = await supabase.rpc("get_user_role");
-      if (roleError) throw roleError;
-      if (["admin", "office", "pastor"].includes(String(role || ""))) {
+      const { data: isOperator, error: operatorError } = await supabase.rpc("is_admin_hotline_operator");
+      if (operatorError) throw operatorError;
+      if (isOperator === true) {
         router.push("/messenger?hotline=inbox");
         return;
       }
