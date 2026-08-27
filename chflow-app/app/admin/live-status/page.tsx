@@ -13,11 +13,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, RefreshCw, CheckCircle2, AlertTriangle, Radio,
-  ChevronDown, ChevronRight, Inbox,
+  ChevronDown, ChevronRight, Inbox, ClipboardCopy,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
 import { WORSHIP_SCHEDULE_TEXT } from "@/lib/worshipSchedule";
+import {
+  buildLiveOAuthReport,
+  evaluateLiveHealth,
+  type LiveEnvSnapshot,
+  type LiveHealth,
+} from "@/lib/liveDiagnostics";
 import YmdSelect from "@/components/YmdSelect";
 
 type StatusRow = {
@@ -29,6 +35,15 @@ type StatusRow = {
   last_error: string | null;
   notified_video_id: string | null;
   notified_at: string | null;
+  // OAuth 진단 (20260827160000 마이그레이션)
+  oauth_last_ok_at: string | null;
+  oauth_first_failed_at: string | null;
+  oauth_last_failed_at: string | null;
+  oauth_consecutive_failures: number | null;
+  oauth_last_error_code: string | null;
+  oauth_last_error_description: string | null;
+  oauth_last_failed_stage: string | null;
+  oauth_last_http_status: number | null;
 };
 
 type EventRow = {
@@ -192,6 +207,9 @@ export default function AdminLiveStatusPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [envSnapshot, setEnvSnapshot] = useState<LiveEnvSnapshot | null>(null);
+  const [diagOpen, setDiagOpen] = useState(false);
+  const [reportCopied, setReportCopied] = useState(false);
   // 렌더 중 Date.now() 를 부르지 않기 위해 조회 시각을 상태로 들고 간다
   const [nowMs, setNowMs] = useState(0);
   const loadInFlightRef = useRef(false);
@@ -227,7 +245,7 @@ export default function AdminLiveStatusPage() {
       const [{ data: s }, { data: e, count }] = await Promise.all([
         supabase
           .from("youtube_live_status")
-          .select("is_live, video_id, title, started_at, checked_at, last_error, notified_video_id, notified_at")
+          .select("is_live, video_id, title, started_at, checked_at, last_error, notified_video_id, notified_at, oauth_last_ok_at, oauth_first_failed_at, oauth_last_failed_at, oauth_consecutive_failures, oauth_last_error_code, oauth_last_error_description, oauth_last_failed_stage, oauth_last_http_status")
           .eq("id", "main")
           .maybeSingle(),
         eventQuery,
@@ -257,6 +275,23 @@ export default function AdminLiveStatusPage() {
         setLoading(false);
         return;
       }
+      // 진단 보조 정보(환경변수 설정 여부·배포 식별자)는 서버 route 만 알 수 있다.
+      // 실패해도 화면은 그대로 동작한다 — 리포트에서 '확인 불가'로 표기된다.
+      void (async () => {
+        try {
+          const token = sess.session?.access_token;
+          if (!token) return;
+          const res = await fetch("/api/live/diagnostics", {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-store",
+          });
+          if (!res.ok) return;
+          const payload = await res.json() as { ok?: boolean; env?: LiveEnvSnapshot };
+          if (payload?.ok && payload.env) setEnvSnapshot(payload.env);
+        } catch {
+          // 진단 보조 정보는 부가 기능이다
+        }
+      })();
       await load();
     })();
     let timer: ReturnType<typeof setInterval> | null = null;
@@ -329,6 +364,25 @@ export default function AdminLiveStatusPage() {
   const healthLabel = needsAttention ? "점검 필요" : transientError ? "자동 재시도 중" : "정상";
   const hasMore = events.length < total;
 
+  // 이상징후 판정과 리포트는 lib/liveDiagnostics 의 순수 함수가 담당한다 (테스트가 같은 함수를 검증)
+  const health: LiveHealth = evaluateLiveHealth(status, nowMs || Date.now());
+  const copyDiagnosticReport = async () => {
+    const text = buildLiveOAuthReport({
+      status,
+      events,
+      env: envSnapshot,
+      health,
+      nowMs: nowMs || Date.now(),
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setReportCopied(true);
+      setTimeout(() => setReportCopied(false), 2200);
+    } catch {
+      // clipboard 미지원 브라우저 — 무시
+    }
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "'Noto Sans KR', sans-serif", paddingBottom: 40 }}>
       {/* 행마다 가로 스크롤이라 스크롤바가 50줄 보이면 지저분하다 — 막대만 숨기고 동작은 남긴다 */}
@@ -355,6 +409,87 @@ export default function AdminLiveStatusPage() {
       </header>
 
       <div style={{ maxWidth: 760, margin: "0 auto", padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+
+        {/* ── 이상징후 배너 ── 정상일 때는 화면을 늘리지 않는다 (아래 '지금 상태' 카드가 정상 표시를 담당) ── */}
+        {health.severity !== "ok" && (
+          <div
+            role="status"
+            style={{
+              border: `1px solid ${health.severity === "critical" ? "color-mix(in srgb, var(--danger) 45%, transparent)" : "color-mix(in srgb, var(--warning) 45%, transparent)"}`,
+              background: health.severity === "critical" ? "var(--danger-soft)" : "var(--warning-soft)",
+              borderRadius: 12,
+              padding: "12px 14px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <AlertTriangle
+                size={15}
+                strokeWidth={2}
+                color={health.severity === "critical" ? "var(--danger)" : "var(--warning)"}
+              />
+              <span style={{ fontSize: 13.5, fontWeight: 800, color: "var(--ink)" }}>
+                {health.severity === "critical" ? "예배 생방송 감지 점검 필요" : "YouTube OAuth 이상징후 감지"}
+              </span>
+            </div>
+            <div style={{ fontSize: 12.5, color: "var(--ink-mid)", lineHeight: 1.65 }}>
+              {health.headline} — {health.serviceImpact}
+            </div>
+
+            <div style={{
+              marginTop: 10, display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "4px 12px",
+            }}>
+              <DiagLine label="오류 코드" value={status?.oauth_last_error_code ?? "-"} />
+              <DiagLine label="실패 단계" value={status?.oauth_last_failed_stage ?? "-"} />
+              <DiagLine label="연속 실패" value={`${status?.oauth_consecutive_failures ?? 0}회`} />
+              <DiagLine label="최초 발생" value={fmt(status?.oauth_first_failed_at ?? null)} />
+              <DiagLine label="최근 발생" value={fmt(status?.oauth_last_failed_at ?? null)} />
+              <DiagLine label="마지막 OAuth 정상" value={fmt(status?.oauth_last_ok_at ?? null)} />
+              <DiagLine label="공개 API 키 경로" value={health.fallbackHealthy ? "정상" : "실패"} />
+              <DiagLine label="마지막 확인" value={fmt(status?.checked_at ?? null)} />
+            </div>
+
+            <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+              <button type="button" onClick={copyDiagnosticReport} style={btnStyle}>
+                <ClipboardCopy size={14} strokeWidth={1.9} />
+                <span style={{ marginLeft: 5 }}>Codex 상담용 리포트 복사</span>
+              </button>
+              <button type="button" onClick={() => setDiagOpen((v) => !v)} style={btnStyle}>
+                {diagOpen ? "진단 상세 닫기" : "진단 상세 보기"}
+              </button>
+              {reportCopied && (
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--success)" }}>
+                  진단 리포트를 복사했습니다
+                </span>
+              )}
+            </div>
+
+            {diagOpen && (
+              <div style={{
+                marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--hairline)",
+                fontSize: 11.5, color: "var(--ink-soft)", lineHeight: 1.7,
+              }}>
+                {status?.oauth_last_error_description && (
+                  <div>· 오류 설명: {status.oauth_last_error_description}</div>
+                )}
+                {status?.oauth_last_http_status != null && (
+                  <div>· HTTP status: {status.oauth_last_http_status}</div>
+                )}
+                {health.findings.map((f) => <div key={f}>· {f}</div>)}
+                <div style={{ marginTop: 6 }}>
+                  · 환경변수: CLIENT_ID {envSnapshot?.youtube_oauth_client_id ?? "확인 불가"} /
+                  {" "}SECRET {envSnapshot?.youtube_oauth_client_secret ?? "확인 불가"} /
+                  {" "}REFRESH_TOKEN {envSnapshot?.youtube_oauth_refresh_token ?? "확인 불가"} /
+                  {" "}API_KEY {envSnapshot?.youtube_api_key ?? "확인 불가"}
+                </div>
+                <div>· 배포 SHA: {envSnapshot?.deploy_sha?.slice(0, 12) ?? "확인 불가"}</div>
+                <div style={{ marginTop: 6, color: "var(--ink-faint)" }}>
+                  credential 값은 화면·리포트·로그 어디에도 포함되지 않습니다.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── 지금 상태 ── 방송 여부와 진단 두 줄을 한 카드로 묶는다 ── */}
         <Card>
@@ -691,6 +826,18 @@ function Disclosure({ open, onToggle, label, children, first }: {
         {label}
       </button>
       {open && <div style={{ paddingTop: 2 }}>{children}</div>}
+    </div>
+  );
+}
+
+/** 이상징후 배너 안의 요약 한 줄 (라벨 + 값) */
+function DiagLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "baseline", minWidth: 0 }}>
+      <span style={{ fontSize: 11, color: "var(--ink-soft)", flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink)", minWidth: 0, wordBreak: "break-all" }}>
+        {value}
+      </span>
     </div>
   );
 }

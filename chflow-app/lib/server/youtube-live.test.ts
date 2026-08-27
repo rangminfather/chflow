@@ -502,6 +502,213 @@ describe("YouTube live detection", () => {
     vi.useRealTimers();
   });
 
+  // ── OAuth 진단 상태 전이 ────────────────────────────────────────────────────
+  // prev 상태(장애 누적 여부)를 바꿔가며 refreshIfStale 이 쓰는 진단 필드를 검증한다.
+  const diagnosticsFixture = (prevOver: Record<string, unknown>, oauthOk: boolean) => {
+    const prev = {
+      channel_id: "channel",
+      is_live: false,
+      video_id: null,
+      title: null,
+      started_at: null,
+      last_error: null,
+      oauth_first_failed_at: null,
+      oauth_last_failed_at: null,
+      oauth_consecutive_failures: 0,
+      oauth_last_error_code: null,
+      oauth_last_failed_stage: null,
+      ...prevOver,
+    };
+    const events: Array<Record<string, unknown>> = [];
+    const statusWrites: Array<Record<string, unknown>> = [];
+    const { client } = mockSupabase((call) => {
+      if (call.table === "youtube_live_status" && call.op === "update") {
+        if (call.filters.some((f) => f.kind === "lt")) return { data: [prev] };
+        statusWrites.push(call.payload as Record<string, unknown>);
+        return { data: [{ id: "main" }] };
+      }
+      if (call.table === "youtube_live_events" && call.op === "insert") {
+        events.push(call.payload as Record<string, unknown>);
+        return { data: null };
+      }
+      if (call.table === "profiles") return { data: activeProfiles };
+      if (call.table === "notifications" && call.op === "insert") return { data: null };
+      throw new Error(`Unexpected call: ${call.table}.${call.op}`);
+    });
+
+    const previousApiKey = process.env.YOUTUBE_API_KEY;
+    process.env.YOUTUBE_API_KEY = "api-key";
+    const restoreOAuth = stubOAuthEnv(oauthOk ? "working-refresh-token" : "revoked-refresh-token");
+    vi.mocked(umsViaCf).mockResolvedValue(umsResult("실시간 링크 없음"));
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url === "https://oauth2.googleapis.com/token") {
+        if (oauthOk) return jsonResponse({ access_token: "access-token-for-test-only" });
+        return {
+          ok: false,
+          status: 400,
+          json: async () => ({
+            error: "invalid_grant",
+            error_description: "Token has been expired or revoked.",
+          }),
+        } as Response;
+      }
+      return jsonResponse({ items: [] }); // liveBroadcasts / videos / playlist 모두 0건
+    }));
+
+    return {
+      client,
+      events,
+      statusWrites,
+      restore: () => {
+        restoreOAuth();
+        if (previousApiKey === undefined) delete process.env.YOUTUBE_API_KEY;
+        else process.env.YOUTUBE_API_KEY = previousApiKey;
+      },
+    };
+  };
+
+  it("2. OAuth 실패 시 최초 실패 시각·오류 코드·실패 단계를 기록한다", async () => {
+    const f = diagnosticsFixture({}, false);
+    try {
+      await refreshIfStale(f.client);
+      const w = f.statusWrites.at(-1)!;
+      expect(w.oauth_first_failed_at).toBeTruthy();
+      expect(w.oauth_last_failed_at).toBeTruthy();
+      expect(w.oauth_consecutive_failures).toBe(1);
+      expect(w.oauth_last_error_code).toBe("invalid_grant");
+      expect(w.oauth_last_failed_stage).toBe("token_exchange");
+      expect(w.oauth_last_http_status).toBe(400);
+      expect(String(w.oauth_last_error_description)).toContain("expired or revoked");
+      expect(w.oauth_last_ok_at).toBeUndefined(); // 성공 시각은 건드리지 않는다
+    } finally {
+      f.restore();
+    }
+  });
+
+  it("3. 동일 오류가 반복되면 최초 실패 시각은 유지하고 연속 실패만 늘린다", async () => {
+    const firstFailed = "2026-08-23T05:52:50.000Z";
+    const f = diagnosticsFixture({
+      oauth_first_failed_at: firstFailed,
+      oauth_consecutive_failures: 7,
+      oauth_last_error_code: "invalid_grant",
+      last_error: "YouTube OAuth token exchange failed (invalid_grant)",
+    }, false);
+    try {
+      await refreshIfStale(f.client);
+      const w = f.statusWrites.at(-1)!;
+      expect(w.oauth_first_failed_at).toBe(firstFailed);
+      expect(w.oauth_consecutive_failures).toBe(8);
+      // 같은 오류 문자열이면 이벤트를 다시 적립하지 않는다
+      expect(f.events.filter((e) => e.event === "error")).toHaveLength(0);
+    } finally {
+      f.restore();
+    }
+  });
+
+  it("6. OAuth 정상화 시 장애 상태를 해제하고 회복 이벤트를 1건만 남긴다", async () => {
+    const f = diagnosticsFixture({
+      oauth_first_failed_at: "2026-08-23T05:52:50.000Z",
+      oauth_last_failed_at: "2026-08-27T00:00:00.000Z",
+      oauth_consecutive_failures: 5312,
+      oauth_last_error_code: "invalid_grant",
+      oauth_last_failed_stage: "token_exchange",
+      last_error: "YouTube OAuth token exchange failed (invalid_grant)",
+    }, true);
+    try {
+      await refreshIfStale(f.client);
+      const w = f.statusWrites.at(-1)!;
+      expect(w.oauth_last_ok_at).toBeTruthy();
+      expect(w.oauth_first_failed_at).toBeNull();
+      expect(w.oauth_consecutive_failures).toBe(0);
+      expect(w.oauth_last_error_code).toBeNull();
+      expect(w.last_error).toBeNull();
+
+      const recovered = f.events.filter((e) => e.event === "oauth_recovered");
+      expect(recovered).toHaveLength(1);
+      const detail = String(recovered[0].detail);
+      expect(detail).toContain("first_failed=2026-08-23T05:52:50.000Z");
+      expect(detail).toContain("last_failed=2026-08-27T00:00:00.000Z");
+      expect(detail).toContain("failures=5312");
+      expect(detail).toContain("last_error=invalid_grant");
+      expect(detail).toContain("stage=token_exchange");
+      expect(detail).toMatch(/duration=\d+h\d{2}m/);
+    } finally {
+      f.restore();
+    }
+  });
+
+  it("6. 이미 정상인 상태에서는 회복 이벤트를 만들지 않는다", async () => {
+    const f = diagnosticsFixture({ oauth_first_failed_at: null }, true);
+    try {
+      await refreshIfStale(f.client);
+      expect(f.events.filter((e) => e.event === "oauth_recovered")).toHaveLength(0);
+      expect(f.statusWrites.at(-1)!.oauth_last_ok_at).toBeTruthy();
+    } finally {
+      f.restore();
+    }
+  });
+
+  it("liveBroadcasts.list 실패는 실패 단계를 live_broadcasts_list 로 남긴다", async () => {
+    const restoreOAuth = stubOAuthEnv("working-refresh-token");
+    const previousApiKey = process.env.YOUTUBE_API_KEY;
+    process.env.YOUTUBE_API_KEY = "api-key";
+    const statusWrites: Array<Record<string, unknown>> = [];
+    const { client } = mockSupabase((call) => {
+      if (call.table === "youtube_live_status" && call.op === "update") {
+        if (call.filters.some((f) => f.kind === "lt")) {
+          return { data: [{ channel_id: "channel", is_live: false, oauth_consecutive_failures: 0 }] };
+        }
+        statusWrites.push(call.payload as Record<string, unknown>);
+        return { data: [{ id: "main" }] };
+      }
+      if (call.table === "youtube_live_events" && call.op === "insert") return { data: null };
+      if (call.table === "profiles") return { data: activeProfiles };
+      throw new Error(`Unexpected call: ${call.table}.${call.op}`);
+    });
+    try {
+      vi.mocked(umsViaCf).mockResolvedValue(umsResult("실시간 링크 없음"));
+      vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url === "https://oauth2.googleapis.com/token") {
+          return jsonResponse({ access_token: "access-token-for-test-only" });
+        }
+        if (url.includes("/youtube/v3/liveBroadcasts")) {
+          return {
+            ok: false,
+            status: 403,
+            json: async () => ({ error: { message: "Insufficient permission", status: "PERMISSION_DENIED" } }),
+          } as Response;
+        }
+        return jsonResponse({ items: [] });
+      }));
+
+      await refreshIfStale(client);
+      const w = statusWrites.at(-1)!;
+      expect(w.oauth_last_failed_stage).toBe("live_broadcasts_list");
+      expect(w.oauth_last_error_code).toBe("PERMISSION_DENIED");
+      expect(w.oauth_last_http_status).toBe(403);
+    } finally {
+      restoreOAuth();
+      if (previousApiKey === undefined) delete process.env.YOUTUBE_API_KEY;
+      else process.env.YOUTUBE_API_KEY = previousApiKey;
+    }
+  });
+
+  it("진단 필드에 credential 이 섞이지 않는다", async () => {
+    const f = diagnosticsFixture({}, false);
+    try {
+      await refreshIfStale(f.client);
+      const serialized = JSON.stringify(f.statusWrites) + JSON.stringify(f.events);
+      expect(serialized).not.toContain("revoked-refresh-token");
+      expect(serialized).not.toContain("oauth-client-secret");
+      expect(serialized).not.toContain("access-token-for-test-only");
+      expect(serialized).not.toMatch(/Bearer/);
+    } finally {
+      f.restore();
+    }
+  });
+
   it("keeps the automatic Korean notification title intact", () => {
     const title = worshipStartedTitle(new Date("2026-07-29T10:15:03Z"));
     expect(title).toBe("수요일 2부 예배가 시작되었습니다");
