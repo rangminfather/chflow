@@ -308,6 +308,12 @@ export default function MyClassAttendancePage() {
         }
         .kid-avatar { transition: transform 0.16s ease; }
         .student-card:hover .kid-avatar { transform: scale(1.06); }
+        @media (max-width: 767px) {
+          .today-attendance-card {
+            border: 4px solid var(--accent) !important;
+            box-shadow: 0 0 0 4px var(--accent-soft), 0 16px 34px color-mix(in srgb, var(--accent) 26%, transparent) !important;
+          }
+        }
       `}</style>
 
       <div className="app-subpage-header" style={headerStyle}>
@@ -402,7 +408,7 @@ export default function MyClassAttendancePage() {
                 <article
                   key={date}
                   ref={(node) => { weekCardRefs.current[date] = node; }}
-                  className="shrink-0 w-[84vw] snap-center overflow-hidden rounded-3xl md:w-auto"
+                  className={`shrink-0 w-[84vw] snap-center overflow-hidden rounded-3xl md:w-auto ${isTodayWeek ? "today-attendance-card" : ""}`}
                   style={{
                     background: "var(--card)",
                     border: isTodayWeek ? "1.5px solid var(--accent-line)" : "1px solid var(--hairline)",
@@ -411,6 +417,11 @@ export default function MyClassAttendancePage() {
                       : "0 4px 16px rgba(43,39,34,0.06)",
                   }}
                 >
+                  {isTodayWeek && (
+                    <div className="flex items-center justify-center gap-2 bg-accent px-3 py-2 text-[15px] font-extrabold text-white md:hidden">
+                      <CheckCircle2 size={18} strokeWidth={3} /> 오늘 체크할 주차
+                    </div>
+                  )}
                   <header
                     className="flex items-center justify-between gap-3 px-4 py-4"
                     style={{
