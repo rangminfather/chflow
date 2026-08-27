@@ -53,7 +53,7 @@ type VideosResponse = {
 };
 
 type LiveEvent = {
-  event: "live_started" | "live_ended" | "notified" | "notify_skipped" | "error";
+  event: "live_started" | "live_ended" | "notified" | "notify_skipped" | "error" | "oauth_recovered";
   videoId?: string | null;
   sessionKey?: string | null;
   title?: string | null;
@@ -159,6 +159,8 @@ function hasYouTubeOAuthCredentials(): boolean {
 type OAuthTokenResponse = {
   access_token?: string;
   error?: string;
+  error_description?: string;
+  error_subtype?: string;
 };
 
 type OAuthExchangeResult = {
@@ -166,7 +168,46 @@ type OAuthExchangeResult = {
   status: number;
   accessToken?: string;
   errorCode?: string;
+  errorDescription?: string;
 };
+
+/** OAuth 실패 단계 — 진단에서 "어디서 끊겼는지"를 구분한다 */
+export type OAuthFailureStage = "token_exchange" | "live_broadcasts_list" | "unknown";
+
+/**
+ * OAuth 경로 실패를 진단 가능한 형태로 들고 다니는 오류.
+ * message 는 기존 형식을 유지한다 (last_error 문자열·기존 테스트 호환).
+ * credential(refresh token·secret·access token·authorization 헤더)은 담지 않는다.
+ */
+export class OAuthPathError extends Error {
+  readonly code: string;
+  readonly description: string | null;
+  readonly httpStatus: number | null;
+  readonly stage: OAuthFailureStage;
+
+  constructor(input: {
+    message: string;
+    code: string;
+    description?: string | null;
+    httpStatus?: number | null;
+    stage: OAuthFailureStage;
+  }) {
+    super(input.message);
+    this.name = "OAuthPathError";
+    this.code = input.code;
+    this.description = input.description ?? null;
+    this.httpStatus = input.httpStatus ?? null;
+    this.stage = input.stage;
+  }
+}
+
+/** Google 응답의 설명 문구만 남긴다 — 개행·제어문자 제거 후 200자 절단 */
+export function sanitizeOAuthDescription(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const cleaned = value.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+  if (!cleaned) return null;
+  return cleaned.slice(0, 200);
+}
 
 async function exchangeYouTubeOAuthToken(): Promise<OAuthExchangeResult> {
   const response = await fetch("https://oauth2.googleapis.com/token", {
@@ -182,10 +223,16 @@ async function exchangeYouTubeOAuthToken(): Promise<OAuthExchangeResult> {
   });
   const json = (await response.json()) as OAuthTokenResponse;
   if (!response.ok || !json.access_token) {
+    // error_subtype 은 Google 이 주는 경우에만 붙인다 (예: invalid_rapt)
+    const subtype = sanitizeOAuthDescription(json.error_subtype);
+    const description = sanitizeOAuthDescription(json.error_description);
     return {
       ok: false,
       status: response.status,
       errorCode: json.error || `http_${response.status}`,
+      errorDescription: [description, subtype ? `subtype=${subtype}` : null]
+        .filter(Boolean)
+        .join(" / ") || undefined,
     };
   }
   return { ok: true, status: response.status, accessToken: json.access_token };
@@ -194,7 +241,14 @@ async function exchangeYouTubeOAuthToken(): Promise<OAuthExchangeResult> {
 async function getYouTubeOAuthAccessToken(): Promise<string> {
   const result = await exchangeYouTubeOAuthToken();
   if (!result.ok || !result.accessToken) {
-    throw new Error(`YouTube OAuth token exchange failed (${result.errorCode || `http_${result.status}`})`);
+    const code = result.errorCode || `http_${result.status}`;
+    throw new OAuthPathError({
+      message: `YouTube OAuth token exchange failed (${code})`,
+      code,
+      description: result.errorDescription ?? null,
+      httpStatus: result.status,
+      stage: "token_exchange",
+    });
   }
   return result.accessToken;
 }
@@ -208,7 +262,16 @@ type FoundLiveVideo = {
 };
 
 /** 조회 자체는 성공했지만 알아둬야 할 문제(예: OAuth 만료)를 호출부로 전달하는 통로 */
-export type LiveLookupDiagnostics = { oauthError?: string };
+export type LiveLookupDiagnostics = {
+  /** 기존 필드 — last_error 에 그대로 기록되는 사람이 읽는 문자열 */
+  oauthError?: string;
+  /** OAuth 경로(토큰 교환 + liveBroadcasts.list)가 오류 없이 끝났는지. 자격증명이 없어 건너뛴 경우는 undefined */
+  oauthOk?: boolean;
+  oauthCode?: string;
+  oauthDescription?: string | null;
+  oauthHttpStatus?: number | null;
+  oauthStage?: OAuthFailureStage;
+};
 
 type LiveBroadcastsResponse = {
   items?: Array<{
@@ -235,10 +298,17 @@ async function findOwnedLiveBroadcasts(accessToken: string): Promise<LiveBroadca
     cache: "no-store",
   });
   const json = (await response.json()) as LiveBroadcastsResponse & {
-    error?: { message?: string };
+    error?: { message?: string; status?: string };
   };
   if (!response.ok) {
-    throw new Error(json.error?.message || `YouTube liveBroadcasts ${response.status}`);
+    const code = json.error?.status || `http_${response.status}`;
+    throw new OAuthPathError({
+      message: json.error?.message || `YouTube liveBroadcasts ${response.status}`,
+      code,
+      description: sanitizeOAuthDescription(json.error?.message),
+      httpStatus: response.status,
+      stage: "live_broadcasts_list",
+    });
   }
   return json;
 }
@@ -375,13 +445,30 @@ export async function findLiveVideo(
   if (hasYouTubeOAuthCredentials()) {
     try {
       const oauthLive = await findLiveVideoByOAuth(channelId);
+      // 여기까지 왔으면 토큰 교환과 liveBroadcasts.list 가 모두 성공했다.
+      // (방송이 없어 결과가 0건인 것도 정상 성공이다)
+      if (diag) diag.oauthOk = true;
       if (oauthLive) return oauthLive;
     } catch (error) {
       oauthFailure = error instanceof Error ? error : new Error("YouTube OAuth discovery failed");
       // 방송 중에는 아래 공개 경로가 방송을 찾아 곧바로 return 하므로 이 실패가 아무 흔적도
       // 남기지 않는다. 그러면 OAuth 가 깨진 사실을 방송이 끝날 때까지 아무도 모른다.
       // 호출부가 상태에 남길 수 있도록 여기서 바로 알려준다.
-      if (diag) diag.oauthError = oauthFailure.message;
+      if (diag) {
+        diag.oauthOk = false;
+        diag.oauthError = oauthFailure.message;
+        if (oauthFailure instanceof OAuthPathError) {
+          diag.oauthCode = oauthFailure.code;
+          diag.oauthDescription = oauthFailure.description;
+          diag.oauthHttpStatus = oauthFailure.httpStatus;
+          diag.oauthStage = oauthFailure.stage;
+        } else {
+          diag.oauthCode = "unknown";
+          diag.oauthDescription = sanitizeOAuthDescription(oauthFailure.message);
+          diag.oauthHttpStatus = null;
+          diag.oauthStage = "unknown";
+        }
+      }
     }
   }
 
@@ -430,6 +517,74 @@ export async function findLiveVideo(
   return null;
 }
 
+type OAuthPrevState = {
+  oauth_first_failed_at?: string | null;
+  oauth_last_failed_at?: string | null;
+  oauth_consecutive_failures?: number | null;
+  oauth_last_error_code?: string | null;
+  oauth_last_failed_stage?: string | null;
+};
+
+/**
+ * 상태 update 에 얹을 OAuth 진단 필드.
+ *
+ * - 성공: 마지막 정상 시각 갱신 + 장애 구간 필드 초기화(연속 실패 0)
+ * - 실패: 최초 실패 시각은 **유지**(구간 추적), 최근 실패·연속 실패·오류 상세만 갱신
+ * - OAuth 자격증명이 없어 경로를 건너뛴 경우: 아무것도 바꾸지 않는다(과거 진단 보존)
+ */
+export function oauthDiagnosticsPatch(
+  prev: OAuthPrevState,
+  diag: LiveLookupDiagnostics,
+  nowIso: string
+): Record<string, unknown> {
+  if (diag.oauthOk === true) {
+    return {
+      oauth_last_ok_at: nowIso,
+      oauth_first_failed_at: null,
+      oauth_last_failed_at: null,
+      oauth_consecutive_failures: 0,
+      oauth_last_error_code: null,
+      oauth_last_error_description: null,
+      oauth_last_failed_stage: null,
+      oauth_last_http_status: null,
+    };
+  }
+  if (diag.oauthOk === false) {
+    return {
+      oauth_first_failed_at: prev.oauth_first_failed_at ?? nowIso,
+      oauth_last_failed_at: nowIso,
+      oauth_consecutive_failures: (prev.oauth_consecutive_failures ?? 0) + 1,
+      oauth_last_error_code: diag.oauthCode ?? "unknown",
+      oauth_last_error_description: diag.oauthDescription ?? null,
+      oauth_last_failed_stage: diag.oauthStage ?? "unknown",
+      oauth_last_http_status: diag.oauthHttpStatus ?? null,
+    };
+  }
+  return {};
+}
+
+/** 회복 이벤트 detail — 장애 구간 정보를 문자열로 보존한다 (credential 미포함) */
+export function buildOAuthRecoveryDetail(prev: OAuthPrevState, recoveredAtIso: string): string {
+  const firstFailed = prev.oauth_first_failed_at ?? null;
+  const lastFailed = prev.oauth_last_failed_at ?? null;
+  const startMs = firstFailed ? new Date(firstFailed).getTime() : NaN;
+  const endMs = new Date(recoveredAtIso).getTime();
+  const durationMin = Number.isNaN(startMs) ? null : Math.max(0, Math.round((endMs - startMs) / 60000));
+  const duration = durationMin === null
+    ? "unknown"
+    : `${Math.floor(durationMin / 60)}h${String(durationMin % 60).padStart(2, "0")}m`;
+  return [
+    "OAuth recovered",
+    `first_failed=${firstFailed ?? "unknown"}`,
+    `last_failed=${lastFailed ?? "unknown"}`,
+    `recovered=${recoveredAtIso}`,
+    `duration=${duration}`,
+    `failures=${prev.oauth_consecutive_failures ?? 0}`,
+    `last_error=${prev.oauth_last_error_code ?? "unknown"}`,
+    `stage=${prev.oauth_last_failed_stage ?? "unknown"}`,
+  ].join(" | ");
+}
+
 /**
  * 캐시가 오래됐으면 한 요청만 선점해서 갱신한다.
  * @returns 갱신을 수행했는지 (false = 캐시가 신선하거나 다른 요청이 이미 선점)
@@ -449,7 +604,7 @@ export async function refreshIfStale(admin: SupabaseClient, force = false): Prom
   if (!force) claim = claim.lt("checked_at", cutoff);
   // 이전 상태를 함께 받아 "방송 시작/종료" 전환만 로그로 남긴다
   const { data: claimed, error: claimError } = await claim
-    .select("channel_id, is_live, video_id, title, started_at, last_error");
+    .select("channel_id, is_live, video_id, title, started_at, last_error, oauth_first_failed_at, oauth_last_failed_at, oauth_consecutive_failures, oauth_last_error_code, oauth_last_failed_stage");
 
   if (claimError || !claimed || claimed.length === 0) return false;
 
@@ -460,6 +615,11 @@ export async function refreshIfStale(admin: SupabaseClient, force = false): Prom
     title?: string | null;
     started_at?: string | null;
     last_error?: string | null;
+    oauth_first_failed_at?: string | null;
+    oauth_last_failed_at?: string | null;
+    oauth_consecutive_failures?: number | null;
+    oauth_last_error_code?: string | null;
+    oauth_last_failed_stage?: string | null;
   };
 
   try {
@@ -477,6 +637,7 @@ export async function refreshIfStale(admin: SupabaseClient, force = false): Prom
         // 공개 경로로 조회는 됐지만 OAuth 가 깨진 상태면 관리자 화면에 그대로 보여준다.
         last_error: diag.oauthError ?? null,
         updated_at: nowIso,
+        ...oauthDiagnosticsPatch(prev, diag, nowIso),
       })
       .eq("id", "main");
 
@@ -485,6 +646,15 @@ export async function refreshIfStale(admin: SupabaseClient, force = false): Prom
       await logLiveEvent(admin, {
         event: "error",
         detail: `${diag.oauthError} — 공개 API 키 경로로 계속 조회 중`,
+      });
+    }
+
+    // 회복 기록: 장애 구간이 열려 있었고 이번에 OAuth 가 성공했을 때만 1건.
+    // (상태 필드를 위 update 에서 이미 초기화하므로 다음 polling 에서는 조건이 성립하지 않는다)
+    if (diag.oauthOk && prev.oauth_first_failed_at) {
+      await logLiveEvent(admin, {
+        event: "oauth_recovered",
+        detail: buildOAuthRecoveryDetail(prev, nowIso),
       });
     }
 
@@ -517,10 +687,25 @@ export async function refreshIfStale(admin: SupabaseClient, force = false): Prom
     return true;
   } catch (err) {
     const message = err instanceof Error ? err.message : "YouTube 조회 실패";
+    // OAuth 실패 + 확인 수단 없음(API 키 미설정)으로 올라온 경우에도 진단은 남긴다
+    const oauthDiag: LiveLookupDiagnostics = err instanceof OAuthPathError
+      ? {
+        oauthOk: false,
+        oauthError: message,
+        oauthCode: err.code,
+        oauthDescription: err.description,
+        oauthHttpStatus: err.httpStatus,
+        oauthStage: err.stage,
+      }
+      : {};
     // 조회 실패 시 is_live 는 건드리지 않는다. 방송 중인데 꺼지면 안 된다.
     await admin
       .from("youtube_live_status")
-      .update({ last_error: message, updated_at: nowIso })
+      .update({
+        last_error: message,
+        updated_at: nowIso,
+        ...oauthDiagnosticsPatch(prev, oauthDiag, nowIso),
+      })
       .eq("id", "main");
     await logLiveEvent(admin, { event: "error", detail: message });
     return false;
