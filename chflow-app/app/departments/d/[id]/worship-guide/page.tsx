@@ -24,6 +24,7 @@ import {
 import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
+import { fillMissingWorshipGuideMessage } from "@/lib/worshipGuideMessage";
 
 // ───────────────────────── 타입 ─────────────────────────
 
@@ -668,6 +669,24 @@ export default function WorshipGuidePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, authorized, record, guideClass, prayerClass, prayerFixed, plan, themeLine]);
 
+  // 월간계획서 초안이 먼저 만들어진 뒤 주보 확인이 끝나므로,
+  // 저장본·사용자 수정값은 건드리지 않고 아직 직접 입력인 항목만 주보 값으로 보충한다.
+  useEffect(() => {
+    if (record || deptBul.status !== "ready" || !message) return;
+    const fields = deptBul.fields;
+    const filled = fillMissingWorshipGuideMessage(message, {
+      guide: fields.guide ? readableBulletinValue("guide", fields.guide) : "",
+      praise: fields.praise ? readableBulletinValue("praise", fields.praise) : "",
+      leader: fields.leader ? readableBulletinValue("leader", fields.leader) : "",
+      prayer: fields.prayer ? readableBulletinValue("prayer", fields.prayer) : "",
+      preacher: fields.preacher ? readableBulletinValue("preacher", fields.preacher) : "",
+      sermonTitle: fields.sermonTitle ? readableBulletinValue("sermonTitle", fields.sermonTitle) : "",
+      scripture: fields.scripture ? readableBulletinValue("scripture", fields.scripture) : "",
+      twoPartActivity: fields.twoPartActivity ? readableBulletinValue("twoPartActivity", fields.twoPartActivity) : "",
+    });
+    if (filled !== message) setMessage(filled);
+  }, [deptBul, message, record]);
+
   // textarea 높이 자동
   useEffect(() => {
     const el = textareaRef.current;
@@ -1125,7 +1144,7 @@ export default function WorshipGuidePage() {
                   </span>
                 ) : (
                   <span style={{ ...chipStyle, background: "color-mix(in srgb, var(--warning) 14%, transparent)", color: "var(--warning)" }}>
-                    <CircleAlert size={13} strokeWidth={2} /> 월간계획서 없음 — {planError} · 빈 항목은 직접 입력해주세요
+                    <CircleAlert size={13} strokeWidth={2} /> 월간계획서 없음 — {planError} · 주보에서 확인되는 값은 자동 반영됩니다
                   </span>
                 )}
                 <CheckChip label="초등1부 주보" state={deptBul} checks={deptChecks} refreshing={refreshingBulletins} />
