@@ -93,24 +93,28 @@ const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "life-study-apply", label: "삶공부 신청", icon: GraduationCap, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   // 화면(/facility)은 만들어져 있지만 건물·층·공간 목록이 아직 임시 데이터라
-  // href 를 붙이지 않아 "미구현된 메뉴" 그룹에 그대로 둔다. 실제 시설 목록을
-  // 채운 뒤 href: "/facility" 한 줄만 넣으면 "구현된 메뉴"로 옮겨간다.
-  { id: "facility", label: "시설 신청",   icon: Landmark,      color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
+  { id: "facility", label: "시설 신청",   icon: Landmark,      color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/facility" },
   { id: "vehicle",  label: "차량 신청",   icon: Bus,           color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "booking",  label: "예약 캘린더", icon: CalendarClock, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
 ];
 
 const ADMIN_SYSTEM_MENU_IDS = new Set(["messenger-diagnostics", "usage-status", "live-status"]);
+// 화면은 동작하지만 아직 완성 전이라 "미구현된 메뉴"에 두는 항목.
+// href 가 있어 눌러서 쓸 수 있고, 그룹만 미구현으로 유지된다.
+// (시설 신청: 건물·층·공간 목록이 아직 임시 데이터)
+const ADMIN_WIP_MENU_IDS = new Set(["facility"]);
 const ADMIN_MENU_GROUPS = [
   {
     id: "implemented",
     label: "구현된 메뉴",
-    menus: ADMIN_EXTRA_MENUS.filter((menu) => menu.href && !ADMIN_SYSTEM_MENU_IDS.has(menu.id)),
+    menus: ADMIN_EXTRA_MENUS.filter(
+      (menu) => menu.href && !ADMIN_SYSTEM_MENU_IDS.has(menu.id) && !ADMIN_WIP_MENU_IDS.has(menu.id),
+    ),
   },
   {
     id: "unimplemented",
     label: "미구현된 메뉴",
-    menus: ADMIN_EXTRA_MENUS.filter((menu) => !menu.href),
+    menus: ADMIN_EXTRA_MENUS.filter((menu) => !menu.href || ADMIN_WIP_MENU_IDS.has(menu.id)),
   },
   {
     id: "system",
