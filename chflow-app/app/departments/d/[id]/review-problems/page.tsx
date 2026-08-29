@@ -12,6 +12,7 @@ interface ReviewFile {
   path: string;
   jsonPath: string;
   title: string;
+  customTitle?: string;
   lessonNum: string;
   specialTitle: string;
   quizCount: number;
@@ -55,6 +56,7 @@ function currentSemester(): SemesterTab {
 
 // 스토리지 slug 패턴(영문+타임스탬프) 제거하고 읽기 좋은 제목 반환
 function displayTitle(file: ReviewFile): string {
+  if (file.customTitle?.trim()) return file.customTitle.trim();
   if (file.lessonNum) return `${file.lessonNum}과 복습문제`;
   if (file.specialTitle) return file.specialTitle;
   // JSON 없이 item.name이 그대로 들어온 경우 → slug 앞부분 제거
