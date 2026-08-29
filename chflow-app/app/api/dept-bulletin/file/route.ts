@@ -4,6 +4,7 @@ import * as CFB from "cfb";
 import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
 import { parseHwpBlocks } from "@/lib/bulletin/hwp-parse";
 import { extractHwpxPreview, parseHwpxBlocks } from "@/lib/bulletin/hwpx-parse";
+import { r2 } from "@/lib/r2";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -21,6 +22,9 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const SIGNING_SECRET = process.env.SUPABASE_SERVICE_ROLE_KEY || ANON_KEY;
 const PROXY_BASE = `${SUPABASE_URL}/functions/v1/ums-fetch`;
+// 저장본 모드에서 읽을 수 있는 범위 — bulletins 버킷의 부서 주보 폴더로 한정
+const STORAGE_BUCKET = "bulletins";
+const STORAGE_PATH_RE = /^dept\/[A-Za-z0-9_-]+\/[A-Za-z0-9._-]+$/;
 const UMS_BBS_BASE = "http://ums.or.kr/bbs";
 const DOWNLOAD_PATH = (no: number, fn: number) =>
   `/bbs/skin/PSM_Revolution_DragDrop_board_domi_t_reply_comment/m_download.php?id=samusil&no=${no}&filenum=${fn}&snum=0&hit=0`;
@@ -37,11 +41,19 @@ function sign(no: number, expiresAt: number) {
   return createHmac("sha256", SIGNING_SECRET).update(`samusil:${no}:${expiresAt}`).digest("hex");
 }
 
-function validSignature(no: number, expiresAt: number, sig: string) {
-  const expected = sign(no, expiresAt);
+// 저장본(R2) 경로 서명 — /api/dept-bulletin/latest 의 signStoragePath 와 같은 규칙
+function signStorage(path: string, expiresAt: number) {
+  return createHmac("sha256", SIGNING_SECRET).update(`storage:${path}:${expiresAt}`).digest("hex");
+}
+
+function matchesSignature(expected: string, sig: string) {
   const expectedBuf = Buffer.from(expected, "hex");
   const actualBuf = Buffer.from(sig, "hex");
   return expectedBuf.length === actualBuf.length && timingSafeEqual(expectedBuf, actualBuf);
+}
+
+function validSignature(no: number, expiresAt: number, sig: string) {
+  return matchesSignature(sign(no, expiresAt), sig);
 }
 
 // 받은 바이트가 파일인지 (에러 HTML 페이지가 아닌지) 판별
@@ -132,23 +144,45 @@ export async function GET(req: NextRequest) {
     const expiresAt = Number(url.searchParams.get("exp") || "0");
     const sig = url.searchParams.get("sig") || "";
     const as = url.searchParams.get("as") || "raw";
-    const fileName = url.searchParams.get("name");
+    const storagePath = url.searchParams.get("path");
     const fn = Number(url.searchParams.get("fn") || "0");
-    if (!Number.isInteger(fn) || fn < 0 || fn > 20) {
-      return NextResponse.json({ ok: false, error: "Invalid file URL" }, { status: 400 });
-    }
 
-    if (!Number.isInteger(no) || no <= 0 || !Number.isInteger(expiresAt) || expiresAt <= 0 || !/^[0-9a-f]{64}$/i.test(sig)) {
+    if (!Number.isInteger(expiresAt) || expiresAt <= 0 || !/^[0-9a-f]{64}$/i.test(sig)) {
       return NextResponse.json({ ok: false, error: "Invalid file URL" }, { status: 400 });
     }
     if (expiresAt < Math.floor(Date.now() / 1000)) {
       return NextResponse.json({ ok: false, error: "File URL expired" }, { status: 401 });
     }
-    if (!validSignature(no, expiresAt, sig)) {
-      return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
-    }
 
-    const file = await downloadAttachment(no, fn);
+    // 저장본(R2) 모드 — UMS 원본이 아니라 이미 수집해 둔 부서 주보 파일을 읽는다.
+    // hwp/hwpx 저장본도 as=hwp-json / as=hwp-preview 가공을 받게 하려는 용도.
+    let file: Uint8Array;
+    let fileName = url.searchParams.get("name");
+    if (storagePath) {
+      if (!STORAGE_PATH_RE.test(storagePath)) {
+        return NextResponse.json({ ok: false, error: "Invalid file URL" }, { status: 400 });
+      }
+      if (!matchesSignature(signStorage(storagePath, expiresAt), sig)) {
+        return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
+      }
+      const { data, error } = await r2.from(STORAGE_BUCKET).getObject(storagePath);
+      if (error || !data) {
+        return NextResponse.json({ ok: false, error: "저장된 주보 파일을 찾지 못했습니다" }, { status: 404 });
+      }
+      file = new Uint8Array(data.body);
+      fileName = fileName || storagePath.split("/").pop() || null;
+    } else {
+      if (!Number.isInteger(fn) || fn < 0 || fn > 20) {
+        return NextResponse.json({ ok: false, error: "Invalid file URL" }, { status: 400 });
+      }
+      if (!Number.isInteger(no) || no <= 0) {
+        return NextResponse.json({ ok: false, error: "Invalid file URL" }, { status: 400 });
+      }
+      if (!validSignature(no, expiresAt, sig)) {
+        return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
+      }
+      file = await downloadAttachment(no, fn);
+    }
 
     if (as === "hwp-preview") {
       const preview = isZipFile(file) ? await extractHwpxPreview(file) : extractHwpPreview(file);
