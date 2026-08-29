@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Workbook } from "exceljs";
 import HeaderLogo from "@/components/HeaderLogo";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { supabase, formatPhone } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import StudentPhotoEditor from "@/components/StudentPhotoEditor";
@@ -21,6 +22,7 @@ import {
   Plus,
   Save,
   Search,
+  UserMinus,
   Upload,
   Users,
   X,
@@ -152,6 +154,7 @@ const FAMILY_RELATIONS = ["부", "모", "형", "누나", "오빠", "언니", "�
 
 export default function StudentsInfoPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const params = useParams();
   const deptId = params.id as string;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -529,6 +532,45 @@ export default function StudentsInfoPage() {
       await refreshSavedFamily(savedId);
       showToast("가족관계가 저장되었습니다");
     }
+  }
+
+  async function handleDeactivateStudent() {
+    if (!draft) return;
+    const approved = await confirm(
+      `${draft.name} 학생을 비활성화할까요?\n\n학생정보관리와 출결 명단에서 제외되며, 기존 학생 정보와 출결 기록은 보존됩니다.`,
+      { okText: "비활성화" },
+    );
+    if (!approved) return;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      router.replace("/login");
+      return;
+    }
+
+    setSaving(true);
+    const response = await fetch("/api/edu/admin-student", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ dept_id: deptId, student_id: draft.id }),
+    });
+    const result = await response.json();
+    setSaving(false);
+
+    if (!response.ok || !result.ok) {
+      showToast(result.error || "학생 비활성화에 실패했습니다");
+      return;
+    }
+
+    setDetailOpen(false);
+    setEditMode(false);
+    setSelectedId("");
+    setDraft(null);
+    await loadStudents();
+    showToast(`${draft.name} 학생을 비활성화했습니다`);
   }
 
   async function handleSaveNew() {
@@ -995,6 +1037,7 @@ export default function StudentsInfoPage() {
           onSaveFamily={handleSaveFamily}
           onSave={handleSave}
           onCancel={cancelEdit}
+          onDeactivate={handleDeactivateStudent}
           onPhotoUpdate={updateStudentPhoto}
         />
       )}
@@ -1139,6 +1182,7 @@ function StudentDetailModal({
   onSaveFamily,
   onSave,
   onCancel,
+  onDeactivate,
   onPhotoUpdate,
 }: {
   deptId: string;
@@ -1158,6 +1202,7 @@ function StudentDetailModal({
   onSaveFamily: () => void;
   onSave: () => void;
   onCancel: () => void;
+  onDeactivate: () => void;
   onPhotoUpdate: (studentId: string, url: string | null) => void;
 }) {
   const setFamily = (index: number, key: keyof FamilyEntry, value: string) => {
@@ -1347,7 +1392,10 @@ function StudentDetailModal({
         </div>
 
         {editMode && (
-          <div className="flex gap-2 border-t border-hairline p-4">
+          <div className="flex flex-wrap gap-2 border-t border-hairline p-4">
+            <button type="button" onClick={onDeactivate} disabled={saving} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-danger px-4 text-[15px] font-extrabold text-danger disabled:opacity-60">
+              <UserMinus size={16} strokeWidth={2.2} /> 학생 비활성화
+            </button>
             <button type="button" onClick={onCancel} disabled={saving} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-bg-soft text-[15px] font-extrabold text-ink-mid">
               <X size={16} strokeWidth={2.2} /> 취소
             </button>

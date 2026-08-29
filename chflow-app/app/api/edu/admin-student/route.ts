@@ -58,6 +58,11 @@ type SaveBody = {
   };
 };
 
+type DeactivateBody = {
+  dept_id?: string;
+  student_id?: string;
+};
+
 const STUDENT_TYPES: StudentType[] = ["정", "체험"];
 
 function createAdminClient() {
@@ -525,4 +530,41 @@ export async function POST(req: NextRequest) {
     failed: failed.length,
     results,
   }, { status: failed.length === inputs.length ? 400 : 200 });
+}
+
+export async function DELETE(req: NextRequest) {
+  let body: DeactivateBody;
+  try {
+    body = (await req.json()) as DeactivateBody;
+  } catch {
+    return NextResponse.json({ ok: false, error: "잘못된 요청입니다" }, { status: 400 });
+  }
+
+  const deptId = cleanText(body.dept_id);
+  const studentId = cleanText(body.student_id);
+  if (!deptId || !studentId) {
+    return NextResponse.json({ ok: false, error: "부서 또는 학생 정보가 없습니다" }, { status: 400 });
+  }
+
+  const auth = await requireDeptAdmin(req, deptId);
+  if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("edu_students")
+    .update({ is_active: false })
+    .eq("id", studentId)
+    .eq("department_id", deptId)
+    .eq("is_active", true)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return NextResponse.json({ ok: false, error: "학생 비활성화에 실패했습니다" }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json({ ok: false, error: "활성 학생을 찾을 수 없습니다" }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true });
 }

@@ -34,6 +34,25 @@ interface ReviewDetail {
   quizzes: Quiz[];
 }
 
+type SemesterTab = "first" | "second";
+
+const FIRST_HALF_LAST_LESSON = 22;
+const FIRST_HALF_SPECIAL_TITLES = ["종려주일", "부활주일", "어린이주일", "나라사랑주일"];
+
+function semesterFor(file: ReviewFile): SemesterTab {
+  const lesson = Number(file.lessonNum);
+  if (Number.isFinite(lesson) && lesson > 0) {
+    return lesson <= FIRST_HALF_LAST_LESSON ? "first" : "second";
+  }
+
+  const title = `${file.specialTitle} ${file.title}`;
+  return FIRST_HALF_SPECIAL_TITLES.some((specialTitle) => title.includes(specialTitle)) ? "first" : "second";
+}
+
+function currentSemester(): SemesterTab {
+  return new Date().getMonth() < 6 ? "first" : "second";
+}
+
 // 스토리지 slug 패턴(영문+타임스탬프) 제거하고 읽기 좋은 제목 반환
 function displayTitle(file: ReviewFile): string {
   if (file.lessonNum) return `${file.lessonNum}과 복습문제`;
@@ -55,6 +74,7 @@ export default function ReviewProblemsPage() {
   const [loading, setLoading] = useState(true);
   const [files, setFiles] = useState<ReviewFile[]>([]);
   const [error, setError] = useState("");
+  const [semester, setSemester] = useState<SemesterTab>(currentSemester);
 
   const [selected, setSelected] = useState<ReviewDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -106,8 +126,11 @@ export default function ReviewProblemsPage() {
 
   if (!authChecked) return <LoadingView full />;
 
-  const lessonFiles = files.filter((f) => f.lessonNum);
-  const specialFiles = files.filter((f) => !f.lessonNum);
+  const firstHalfFiles = files.filter((file) => semesterFor(file) === "first");
+  const secondHalfFiles = files.filter((file) => semesterFor(file) === "second");
+  const visibleFiles = semester === "first" ? firstHalfFiles : secondHalfFiles;
+  const lessonFiles = visibleFiles.filter((file) => file.lessonNum);
+  const specialFiles = visibleFiles.filter((file) => !file.lessonNum);
 
   return (
     <div style={pageStyle}>
@@ -146,42 +169,70 @@ export default function ReviewProblemsPage() {
             <EmptyState message="등록된 복습문제가 없습니다" hint="복습문제 관리에서 PPTX 파일을 올리면 여기에 표시됩니다." />
           ) : (
             <div className="p-5">
-              <div className="mb-3 text-[13px] font-bold text-ink-soft">
-                공과 {lessonFiles.length}개 · 절기/특별 {specialFiles.length}개
-              </div>
-              <div className="space-y-3">
-                {files.map((file) => (
+              <div className="mb-4 grid grid-cols-2 rounded-lg bg-bg-soft p-1" role="tablist" aria-label="복습문제 반기 선택">
+                {([
+                  { id: "first" as const, label: "상반기", count: firstHalfFiles.length },
+                  { id: "second" as const, label: "하반기", count: secondHalfFiles.length },
+                ]).map((tab) => (
                   <button
-                    key={file.path}
-                    onClick={() => openDetail(file)}
-                    className="flex w-full items-center gap-3 rounded-lg border border-hairline bg-surface p-4 text-left transition-colors hover:border-accent hover:bg-accent-soft"
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={semester === tab.id}
+                    onClick={() => setSemester(tab.id)}
+                    className={[
+                      "min-h-11 rounded-md px-3 text-[15px] font-extrabold transition-colors",
+                      semester === tab.id
+                        ? "border border-hairline bg-card text-ink shadow-sm"
+                        : "border border-transparent text-ink-soft",
+                    ].join(" ")}
                   >
-                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent-strong">
-                      <FileText size={18} strokeWidth={1.8} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {file.lessonNum && (
-                          <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-extrabold text-accent-strong">
-                            {file.lessonNum}과
-                          </span>
-                        )}
-                        {file.specialTitle && (
-                          <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-extrabold text-accent-strong">
-                            특별
-                          </span>
-                        )}
-                        <span className="truncate text-[15px] font-extrabold text-ink">{displayTitle(file)}</span>
-                      </div>
-                      <div className="mt-1 text-[12px] font-semibold text-ink-faint">
-                        {file.quizCount}문제
-                        {file.created_at && ` · ${new Date(file.created_at).toLocaleDateString("ko-KR")}`}
-                      </div>
-                    </div>
-                    <ChevronRight size={16} strokeWidth={2} className="flex-shrink-0 text-ink-faint" />
+                    {tab.label} <span className="text-[12px] font-bold text-ink-faint">({tab.count})</span>
                   </button>
                 ))}
               </div>
+              <div className="mb-3 text-[13px] font-bold text-ink-soft">
+                공과 {lessonFiles.length}개 · 절기/특별 {specialFiles.length}개
+              </div>
+              {visibleFiles.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-hairline bg-surface px-4 py-10 text-center text-[14px] font-bold text-ink-faint">
+                  등록된 {semester === "first" ? "상반기" : "하반기"} 복습문제가 없습니다.
+                </div>
+              ) : (
+                <div className="space-y-3" role="tabpanel">
+                  {visibleFiles.map((file) => (
+                    <button
+                      key={file.path}
+                      onClick={() => openDetail(file)}
+                      className="flex w-full items-center gap-3 rounded-lg border border-hairline bg-surface p-4 text-left transition-colors hover:border-accent hover:bg-accent-soft"
+                    >
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent-strong">
+                        <FileText size={18} strokeWidth={1.8} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {file.lessonNum && (
+                            <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-extrabold text-accent-strong">
+                              {file.lessonNum}과
+                            </span>
+                          )}
+                          {file.specialTitle && (
+                            <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-extrabold text-accent-strong">
+                              특별
+                            </span>
+                          )}
+                          <span className="truncate text-[15px] font-extrabold text-ink">{displayTitle(file)}</span>
+                        </div>
+                        <div className="mt-1 text-[12px] font-semibold text-ink-faint">
+                          {file.quizCount}문제
+                          {file.created_at && ` · ${new Date(file.created_at).toLocaleDateString("ko-KR")}`}
+                        </div>
+                      </div>
+                      <ChevronRight size={16} strokeWidth={2} className="flex-shrink-0 text-ink-faint" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </section>

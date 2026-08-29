@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { r2 } from "@/lib/r2";
 import { loadWorkbook } from "@/lib/xlsx-load";
+import { resolveMonthlyPlanDate } from "@/lib/monthlyPlanDate";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -194,10 +195,11 @@ function fieldsFromRow(row: string[]): PlanFields {
 
 function sortEntriesForDate(entries: PlanEntry[], date: string) {
   const month = Number(date.slice(5, 7));
+  const matchedDate = resolveMonthlyPlanDate(date, entries.map((entry) => entry.date));
+  if (!matchedDate) return [];
   const matches = entries
-    .filter((entry) => entry.date === date)
+    .filter((entry) => entry.date === matchedDate)
     .map((entry) => ({ ...entry, sheetScore: scoreSheetForMonth(entry.sheetName, month) }));
-  if (matches.length === 0) return [];
 
   // 월간계획 화면과 동일하게 최신 파일 안의 같은 날짜 행을 셀 단위로 합친다.
   // 실제 양식은 한 날짜의 역할/설교 값이 여러 시트 또는 중복 행에 나뉠 수 있다.
