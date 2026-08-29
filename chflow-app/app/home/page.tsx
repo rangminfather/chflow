@@ -92,7 +92,10 @@ const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "life-study-apply", label: "삶공부 신청", icon: GraduationCap, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
-  { id: "facility", label: "시설 신청",   icon: Landmark,      color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/facility" },
+  // 화면(/facility)은 만들어져 있지만 건물·층·공간 목록이 아직 임시 데이터라
+  // href 를 붙이지 않아 "미구현된 메뉴" 그룹에 그대로 둔다. 실제 시설 목록을
+  // 채운 뒤 href: "/facility" 한 줄만 넣으면 "구현된 메뉴"로 옮겨간다.
+  { id: "facility", label: "시설 신청",   icon: Landmark,      color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "vehicle",  label: "차량 신청",   icon: Bus,           color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "booking",  label: "예약 캘린더", icon: CalendarClock, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
 ];
