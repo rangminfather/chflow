@@ -33,6 +33,7 @@ interface ParsedReviewProblem {
   quizzes: ParsedQuiz[];
   created_at: string | null;
   size: number | null;
+  customTitle?: string;
   answerParsed?: boolean; // true = 새 파서로 생성된 JSON (정답 감지 포함)
 }
 
@@ -417,6 +418,7 @@ interface IndexEntry {
   lessonNum: string;
   specialTitle: string;
   title: string;
+  customTitle?: string;
   quizCount: number;
   created_at: string | null;
   size: number | null;
@@ -482,7 +484,14 @@ async function rebuildIndex(deptId: string): Promise<IndexEntry[]> {
       if (blob) {
         try {
           const parsed = JSON.parse(await blob.text()) as ParsedReviewProblem;
-          entry = { ...entry, lessonNum: parsed.lessonNum, specialTitle: parsed.specialTitle, title: parsed.title, quizCount: parsed.quizzes.length };
+          entry = {
+            ...entry,
+            lessonNum: parsed.lessonNum,
+            specialTitle: parsed.specialTitle,
+            title: parsed.title,
+            customTitle: parsed.customTitle,
+            quizCount: parsed.quizzes.length,
+          };
         } catch { /* JSON 파손 무시 */ }
       }
     }
@@ -501,6 +510,7 @@ async function addToIndex(deptId: string, parsed: ParsedReviewProblem, pptxPath:
     lessonNum: parsed.lessonNum,
     specialTitle: parsed.specialTitle,
     title: parsed.title,
+    customTitle: parsed.customTitle,
     quizCount: parsed.quizzes.length,
     created_at: new Date().toISOString(),
     size: parsed.size,
@@ -609,6 +619,57 @@ export async function GET(req: NextRequest) {
   } catch (e: unknown) {
     return NextResponse.json({ ok: false, error: "처리 중 오류가 발생했습니다." }, { status: 500 });
   }
+}
+
+export async function PATCH(req: NextRequest) {
+  let body: { dept_id?: string; path?: string; title?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ ok: false, error: "잘못된 요청입니다" }, { status: 400 });
+  }
+
+  const deptId = cleanText(body.dept_id);
+  const path = cleanText(body.path);
+  const customTitle = cleanText(body.title);
+  if (!deptId || !path || !customTitle) {
+    return NextResponse.json({ ok: false, error: "부서, 파일, 제목 정보가 필요합니다" }, { status: 400 });
+  }
+  if (!path.startsWith(`${deptId}/`) || !/\.pptx$/i.test(path)) {
+    return NextResponse.json({ ok: false, error: "다른 부서의 파일은 수정할 수 없습니다" }, { status: 403 });
+  }
+  if (customTitle.length > 100) {
+    return NextResponse.json({ ok: false, error: "목차 제목은 100자 이내로 입력하세요" }, { status: 400 });
+  }
+
+  const verified = await verifyGrade(req, deptId);
+  if (!verified.ok) return NextResponse.json({ ok: false, error: verified.error }, { status: verified.status });
+  if (verified.grade > 2) {
+    return NextResponse.json({ ok: false, error: "복습문제 관리 권한이 없습니다" }, { status: 403 });
+  }
+
+  const index = await readIndex(deptId);
+  const current = index.find((entry) => entry.path === path);
+  if (!current) {
+    return NextResponse.json({ ok: false, error: "수정할 복습문제를 찾을 수 없습니다" }, { status: 404 });
+  }
+
+  const jsonPath = current.jsonPath || jsonPathFor(path);
+  const { data: jsonData } = await r2.from(REVIEW_BUCKET).download(jsonPath);
+  if (jsonData) {
+    try {
+      const parsed = JSON.parse(await jsonData.text()) as ParsedReviewProblem;
+      await saveJsonSidecar(path, { ...parsed, customTitle });
+    } catch {
+      return NextResponse.json({ ok: false, error: "복습문제 메타데이터를 읽을 수 없습니다" }, { status: 500 });
+    }
+  }
+
+  await saveIndex(deptId, index.map((entry) => (
+    entry.path === path ? { ...entry, customTitle } : entry
+  )));
+
+  return NextResponse.json({ ok: true, customTitle });
 }
 
 export async function POST(req: NextRequest) {

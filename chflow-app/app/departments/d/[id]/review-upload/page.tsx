@@ -6,12 +6,13 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { Lock, Hourglass, FolderUp, CheckCircle2, XCircle, FileText, BookOpen } from "lucide-react";
+import { Lock, Hourglass, FolderUp, CheckCircle2, XCircle, FileText, BookOpen, Pencil, Save, X } from "lucide-react";
 
 interface ReviewFile {
   path: string;
   name: string;
   title: string;
+  customTitle?: string;
   lessonNum: string;
   specialTitle: string;
   quizCount: number;
@@ -31,6 +32,9 @@ export default function ReviewUploadPage() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deletingPath, setDeletingPath] = useState<string | null>(null);
+  const [editingPath, setEditingPath] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [savingPath, setSavingPath] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
   const showMsg = (text: string, ok = true) => {
@@ -99,7 +103,7 @@ export default function ReviewUploadPage() {
   }
 
   async function handleDelete(file: ReviewFile) {
-    if (!await confirm(`"${file.title}" 복습문제를 삭제하시겠습니까?\n삭제하면 복구할 수 없습니다.`)) return;
+    if (!await confirm(`"${listTitle(file)}" 복습문제를 삭제하시겠습니까?\n삭제하면 복구할 수 없습니다.`)) return;
     setDeletingPath(file.path);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -110,12 +114,43 @@ export default function ReviewUploadPage() {
       );
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error || "삭제 실패");
-      showMsg(`"${file.title}" 삭제됨`);
+      showMsg(`"${listTitle(file)}" 삭제됨`);
       await loadFiles();
     } catch (e: unknown) {
       showMsg((e as Error).message, false);
     } finally {
       setDeletingPath(null);
+    }
+  }
+
+  async function handleSaveTitle(file: ReviewFile) {
+    const title = editingTitle.trim();
+    if (!title) { showMsg("목차 제목을 입력하세요", false); return; }
+
+    setSavingPath(file.path);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch("/api/edu/review-problems", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ dept_id: deptId, path: file.path, title }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || "목차 제목 저장 실패");
+      setFiles((current) => current.map((item) => (
+        item.path === file.path ? { ...item, customTitle: json.customTitle } : item
+      )));
+      setEditingPath(null);
+      setEditingTitle("");
+      showMsg("목차 제목을 저장했습니다");
+    } catch (e: unknown) {
+      showMsg((e as Error).message, false);
+    } finally {
+      setSavingPath(null);
     }
   }
 
@@ -225,7 +260,19 @@ export default function ReviewUploadPage() {
                           절기
                         </span>
                       )}
-                      <span className="text-[14px] font-bold text-ink truncate">{file.title}</span>
+                      {editingPath === file.path ? (
+                        <input
+                          value={editingTitle}
+                          onChange={(event) => setEditingTitle(event.target.value)}
+                          onKeyDown={(event) => { if (event.key === "Enter") handleSaveTitle(file); }}
+                          maxLength={100}
+                          autoFocus
+                          aria-label="목차 제목"
+                          className="min-h-9 min-w-0 flex-1 rounded-md border border-accent-line bg-card px-2.5 text-[14px] font-bold text-ink outline-none"
+                        />
+                      ) : (
+                        <span className="text-[14px] font-bold text-ink truncate">{listTitle(file)}</span>
+                      )}
                     </div>
                     <div className="mt-0.5 text-[12px] text-ink-faint">
                       {file.quizCount}문제
@@ -233,6 +280,37 @@ export default function ReviewUploadPage() {
                       {file.size && ` · ${(file.size / 1024).toFixed(0)}KB`}
                     </div>
                   </div>
+                  {editingPath === file.path ? (
+                    <div className="flex flex-shrink-0 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleSaveTitle(file)}
+                        disabled={savingPath === file.path}
+                        aria-label="목차 제목 저장"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-accent text-white disabled:opacity-40"
+                      >
+                        <Save size={15} strokeWidth={2.1} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setEditingPath(null); setEditingTitle(""); }}
+                        disabled={savingPath === file.path}
+                        aria-label="목차 제목 수정 취소"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-hairline bg-card text-ink-soft disabled:opacity-40"
+                      >
+                        <X size={15} strokeWidth={2.1} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { setEditingPath(file.path); setEditingTitle(listTitle(file)); }}
+                      aria-label="목차 제목 수정"
+                      className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-hairline bg-card text-ink-soft"
+                    >
+                      <Pencil size={14} strokeWidth={2} />
+                    </button>
+                  )}
                   <button
                     onClick={() => handleDelete(file)}
                     disabled={deletingPath === file.path}
@@ -249,6 +327,13 @@ export default function ReviewUploadPage() {
       </main>
     </div>
   );
+}
+
+function listTitle(file: ReviewFile) {
+  if (file.customTitle?.trim()) return file.customTitle.trim();
+  if (file.lessonNum) return `${file.lessonNum}과 복습문제`;
+  if (file.specialTitle) return file.specialTitle;
+  return file.title;
 }
 
 function PageHeader({ deptId, router }: { deptId: string; router: ReturnType<typeof useRouter> }) {
