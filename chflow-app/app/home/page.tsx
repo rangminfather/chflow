@@ -92,7 +92,7 @@ const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "life-study-apply", label: "삶공부 신청", icon: GraduationCap, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
-  { id: "facility", label: "시설 신청",   icon: Landmark,      color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
+  { id: "facility", label: "시설 신청",   icon: Landmark,      color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/facility" },
   { id: "vehicle",  label: "차량 신청",   icon: Bus,           color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "booking",  label: "예약 캘린더", icon: CalendarClock, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
 ];

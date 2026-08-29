@@ -1081,3 +1081,37 @@ input::placeholder {
   border: 2px solid var(--bg-soft);
   border-radius: 999px;
 }
+
+/* ============================================================
+   시설 사용신청 — 반입체(2.5D) 건물도
+   SVG 안의 선택 대상(건물/층/공간)에 붙는 최소한의 상호작용 스타일.
+   hover 는 마우스가 있는 기기에서만 보조로 동작하고, 모바일은 tap 만으로 쓴다.
+   ============================================================ */
+.facility-map-target {
+  cursor: pointer;
+  outline: none;
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.facility-map-target .facility-map-face {
+  transition: fill 180ms ease, stroke 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .facility-map-target:hover {
+    transform: translateY(-3px);
+  }
+}
+
+.facility-map-target:focus-visible .facility-map-outline {
+  stroke: var(--accent-strong);
+  stroke-width: 2.5;
+  stroke-dasharray: 4 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .facility-map-target,
+  .facility-map-target .facility-map-face {
+    transition: none;
+  }
+}
