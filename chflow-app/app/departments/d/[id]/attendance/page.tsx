@@ -289,6 +289,7 @@ export default function AttendancePage() {
   }, [authChecked, loadAttendance, loadOtherRecords]);
 
   const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
+  const thisWeekSunday = useMemo(() => getThisWeekSunday(), []);
 
   // 달란트 수동 체크 칩 규칙 (달란트통장과 동일 기준) — 표시 순서 = 범례 번호 순서
   const checkRules = useMemo(
@@ -759,8 +760,16 @@ export default function AttendancePage() {
                   <th style={thStyle(36)}>번호</th>
                   <th style={thStyle(72)}>이름</th>
                   {sundays.map((d, i) => (
-                    <th key={d} style={{ ...thStyle(viewMode === "attendance" ? 44 : 72), textAlign: "center" }}>
+                    <th
+                      key={d}
+                      style={{
+                        ...thStyle(viewMode === "attendance" ? 44 : 72),
+                        textAlign: "center",
+                        ...(d === thisWeekSunday ? thisWeekHeadStyle : null),
+                      }}
+                    >
                       {i + 1}주<br />({formatMD(d)})
+                      {d === thisWeekSunday && <div style={{ fontSize: 9, fontWeight: 800 }}>이번 주</div>}
                     </th>
                   ))}
                   {viewMode === "attendance" ? (
@@ -846,7 +855,7 @@ export default function AttendancePage() {
                               const status = cell?.attend_status ?? "";
                               const key = `${s.id}-${d}`;
                               return (
-                                <td key={d} style={{ textAlign: "center", padding: 2 }}>
+                                <td key={d} style={{ textAlign: "center", padding: 2, ...(d === thisWeekSunday ? thisWeekCellStyle : null) }}>
                                   <button
                                     className="status-btn"
                                     onClick={() => cycleStatus(s.id, d)}
@@ -890,7 +899,7 @@ export default function AttendancePage() {
                               if (autoAttendancePoints > 0) titleParts.unshift(`출석 자동 +${autoAttendancePoints}`);
                               directRecords.forEach((record) => titleParts.push(`${record.note || "기타"} +${record.pts_other}`));
                               return (
-                                <td key={d} style={{ textAlign: "center", padding: 0 }}>
+                                <td key={d} style={{ textAlign: "center", padding: 0, ...(d === thisWeekSunday ? thisWeekCellStyle : null) }}>
                                   <button
                                     className="status-btn"
                                     onClick={() => openTalentEdit(s, d)}
@@ -1218,5 +1227,26 @@ const backBtnStyle: React.CSSProperties = { padding: "8px 14px", background: "va
 const searchBtnStyle: React.CSSProperties = { padding: "8px 16px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const navBtnStyle: React.CSSProperties = { padding: "6px 12px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "inherit", color: "var(--ink-mid)" };
 const thStyle = (minWidth: number): React.CSSProperties => ({ padding: "5px 4px", textAlign: "center", fontSize: 10, fontWeight: 700, color: "var(--ink-soft)", background: "var(--surface)", whiteSpace: "nowrap", minWidth });
+
+/** 오늘이 속한 주(주일 시작)의 주일 날짜. 표에서 "이번 주" 열을 짚어주는 기준이 된다. */
+function getThisWeekSunday(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - d.getDay());
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// 이번 주 열을 세로 띠처럼 감싸 어느 주차가 오늘인지 한눈에 보이게 한다.
+const thisWeekHeadStyle: React.CSSProperties = {
+  background: "color-mix(in srgb, var(--accent) 16%, var(--surface))",
+  color: "var(--accent)",
+  borderTop: "2px solid var(--accent)",
+  borderLeft: "2px solid var(--accent)",
+  borderRight: "2px solid var(--accent)",
+};
+const thisWeekCellStyle: React.CSSProperties = {
+  background: "color-mix(in srgb, var(--accent) 7%, transparent)",
+  borderLeft: "2px solid color-mix(in srgb, var(--accent) 45%, transparent)",
+  borderRight: "2px solid color-mix(in srgb, var(--accent) 45%, transparent)",
+};
 const histThStyle = (align: "left" | "center"): React.CSSProperties => ({ padding: "8px 10px", textAlign: align, fontSize: 10, fontWeight: 700, color: "var(--ink-soft)", borderBottom: "2px solid var(--hairline)", background: "var(--surface)", whiteSpace: "nowrap" });
 const toastStyle: React.CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap" };
