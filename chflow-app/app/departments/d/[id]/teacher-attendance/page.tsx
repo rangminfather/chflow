@@ -304,7 +304,7 @@ export default function TeacherAttendancePage() {
             <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 400 }}>
               <thead>
                 <tr>
-                  <th style={thStyle("left", 120)}>이름 / 직책</th>
+                  <th style={{ ...thStyle("left", 120), ...stickyNameCol, zIndex: 2 }}>이름 / 직책</th>
                   {sundays.map((d) => (
                     <th key={d} style={thStyle("center", 70)}>
                       <div style={{ fontSize: 11, fontWeight: 700 }}>{formatMD(d)}</div>
@@ -322,7 +322,7 @@ export default function TeacherAttendancePage() {
                   const presentCount = sundays.filter((d) => tMap[d]).length;
                   return (
                     <tr key={t.id} style={{ borderBottom: "1px solid var(--bg-soft)" }}>
-                      <td style={{ padding: "10px 12px" }}>
+                      <td style={{ padding: "10px 12px", ...stickyNameCol, background: "var(--card)" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{t.name}</div>
                         {t.teacher_role && (
                           <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>{t.teacher_role}</div>
@@ -590,6 +590,14 @@ const orderBtnStyle = (disabled: boolean): React.CSSProperties => ({
   cursor: disabled ? "default" : "pointer",
   margin: "0 1px",
 });
+
+// 날짜 열이 많아 가로로 스크롤되므로 이름/직책 열은 왼쪽에 고정한다 (엑셀 틀 고정)
+const stickyNameCol: React.CSSProperties = {
+  position: "sticky",
+  left: 0,
+  zIndex: 1,
+  borderRight: "1px solid var(--hairline)",
+};
 
 const thStyle = (align: "left" | "center", minWidth?: number): React.CSSProperties => ({
   padding: "10px 8px",
