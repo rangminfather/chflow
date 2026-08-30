@@ -8,6 +8,9 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const RECEIPT_SECRET = process.env.PUSH_DISPATCH_SECRET || process.env.CRON_SECRET || "";
 const EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts";
+// Expo 는 영수증을 24시간만 보관한다. 그 시간이 지난 발송 건은 조회해도 영영 응답이 없으므로
+// sent 로 남겨두면 오래된 순 정렬에 계속 먼저 걸려 새 발송 건까지 확인을 막는다(큐 고착).
+const RECEIPT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 type DeliveryRow = {
   id: string;
@@ -70,12 +73,32 @@ async function pollReceipts(req: NextRequest) {
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
   const limit = readLimit(req);
+  const windowStart = new Date(Date.now() - RECEIPT_WINDOW_MS).toISOString();
+
+  // 보관 기간이 지나 확인할 수 없게 된 건은 먼저 종결시킨다. 그러지 않으면 매 실행마다
+  // 같은 행만 다시 집어와 정작 새 발송 건의 영수증을 못 본다.
+  const { data: expiredRows, error: expireError } = await admin
+    .from("notification_push_deliveries")
+    .update({
+      status: "skipped",
+      error_message: "Expo 영수증 보관 기간(24시간) 경과로 전달 여부 확인 불가",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("status", "sent")
+    .lt("updated_at", windowStart)
+    .select("id");
+
+  if (expireError) {
+    return NextResponse.json({ ok: false, error: expireError.message }, { status: 500 });
+  }
+  const expired = expiredRows?.length ?? 0;
 
   const { data: rows, error: selectError } = await admin
     .from("notification_push_deliveries")
     .select("id, push_token_id, expo_push_token, expo_ticket_id")
     .eq("status", "sent")
     .not("expo_ticket_id", "is", null)
+    .gte("updated_at", windowStart)
     .order("updated_at", { ascending: true })
     .limit(limit)
     .returns<DeliveryRow[]>();
@@ -85,7 +108,7 @@ async function pollReceipts(req: NextRequest) {
   }
 
   if (!rows || rows.length === 0) {
-    return NextResponse.json({ ok: true, checked: 0, delivered: 0, failed: 0, pending: 0, disabled_tokens: 0 });
+    return NextResponse.json({ ok: true, checked: 0, delivered: 0, failed: 0, pending: 0, expired, disabled_tokens: 0 });
   }
 
   let receipts: Record<string, ExpoReceipt>;
@@ -152,6 +175,7 @@ async function pollReceipts(req: NextRequest) {
     delivered,
     failed,
     pending,
+    expired,
     disabled_tokens: disabledTokens,
   });
 }
