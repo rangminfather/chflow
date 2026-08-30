@@ -738,13 +738,15 @@ export default function JournalPage() {
               </div>
 
               {/* 13) 헌금 */}
+              {/* 금액은 자릿수를 눈으로 확인하기 쉽도록 천 단위 콤마를 붙여 보여준다.
+                  type="number" 는 콤마가 들어간 값을 표시하지 못해 text + inputMode="numeric" 으로 둔다.
+                  (인원수 입력들은 콤마가 필요 없어 그대로 number 를 쓴다) */}
               <FormRow label="헌금 (원)">
                 <input
-                  type="number"
-                  min={0}
+                  type="text"
                   inputMode="numeric"
-                  value={form.offering || ""}
-                  onChange={(e) => setN("offering", e.target.value)}
+                  value={form.offering ? form.offering.toLocaleString("ko-KR") : ""}
+                  onChange={(e) => setN("offering", e.target.value.replace(/[^0-9]/g, ""))}
                   placeholder="0"
                   style={inputStyle}
                 />
