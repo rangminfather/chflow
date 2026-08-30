@@ -77,7 +77,7 @@ const COMMON_MENUS: CommonMenu[] = [
   { id: "bulletin",  label: "주보 보기",     icon: BookOpen,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/bulletin" },
   { id: "directory", label: "성도 요람",     icon: Users,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/directory" },
   { id: "education-history", label: "삶공부·교육이력(구현중)", icon: GraduationCap, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/education-history" },
-  { id: "facility",  label: "시설 신청",     icon: Landmark,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/facility" },
+  { id: "facility",  label: "시설 신청(구현중)", icon: Landmark,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/facility" },
   { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/feedback" },
   { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/manual" },
 ];
