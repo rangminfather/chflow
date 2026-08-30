@@ -18,11 +18,22 @@ const HIDDEN_PATH_PREFIXES = [
   "/admin/messenger-reports",
 ];
 
+const COLLAPSED_STORAGE_KEY = "chflow-global-notification-dock-collapsed";
+
+function getInitialCollapsed(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(COLLAPSED_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export default function GlobalNotifications() {
   const pathname = usePathname();
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(getInitialCollapsed);
   const [hotlineOpening, setHotlineOpening] = useState(false);
   const [hotlineError, setHotlineError] = useState("");
   const hidden = useMemo(
@@ -75,6 +86,22 @@ export default function GlobalNotifications() {
 
   if (!userId) return null;
 
+  const toggleCollapsed = () => {
+    setCollapsed((value) => {
+      const next = !value;
+      try {
+        if (next) {
+          window.localStorage.setItem(COLLAPSED_STORAGE_KEY, "1");
+        } else {
+          window.localStorage.removeItem(COLLAPSED_STORAGE_KEY);
+        }
+      } catch {
+        // 저장소가 차단된 환경에서는 현재 화면의 상태만 유지한다.
+      }
+      return next;
+    });
+  };
+
   const handleOpenHotline = async () => {
     if (hotlineOpening) return;
     setHotlineOpening(true);
@@ -106,7 +133,7 @@ export default function GlobalNotifications() {
         <button
           type="button"
           className={`global-notification-dock-toggle${collapsed ? " global-notification-dock-toggle-collapsed" : ""}`}
-          onClick={() => setCollapsed((value) => !value)}
+          onClick={toggleCollapsed}
           aria-label={collapsed ? "도움 메뉴 열기" : "도움 메뉴 접기"}
           title={collapsed ? "도움 메뉴 열기" : "도움 메뉴 접기"}
         >
