@@ -86,6 +86,8 @@ const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "attendance-settings", label: "자동출석 설정", icon: MapPin, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/attendance/settings" },
   { id: "vote",     label: "투표",        icon: Vote,          color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/vote" },
   { id: "messenger-reports", label: "메신저 신고", icon: MessagesSquare, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/messenger-reports" },
+  // 이메일 미등록 성도는 본인 재설정이 불가능해 관리자 초기화가 유일한 경로다 (화면 자체는 admin role 만 통과)
+  { id: "password-reset", label: "비밀번호 초기화", icon: KeyRound, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/password-reset" },
   { id: "messenger-diagnostics", label: "메신저 진단", icon: SearchCheck, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/messenger-diagnostics" },
   { id: "usage-status", label: "이용 현황", icon: BarChart3, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/usage-status" },
   { id: "live-status", label: "실시간예배 점검", icon: Radio, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/live-status" },

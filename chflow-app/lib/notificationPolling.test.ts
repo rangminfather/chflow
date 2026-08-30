@@ -23,6 +23,14 @@ describe("알림벨 폴링 비용", () => {
     expect(count(/supabase\.removeChannel\(channel\)/g)).toBe(1);
   });
 
+  it("보조 메뉴 숨김 상태를 다시 열 때까지 브라우저에 유지한다", () => {
+    expect(globalSource).toContain('const COLLAPSED_STORAGE_KEY = "chflow-global-notification-dock-collapsed"');
+    expect(globalSource).toContain('window.localStorage.getItem(COLLAPSED_STORAGE_KEY) === "1"');
+    expect(globalSource).toContain('window.localStorage.setItem(COLLAPSED_STORAGE_KEY, "1")');
+    expect(globalSource).toContain("window.localStorage.removeItem(COLLAPSED_STORAGE_KEY)");
+    expect(globalSource).toContain("onClick={toggleCollapsed}");
+  });
+
   it("도움 메뉴 표시와 토스트 표시를 분리한다", () => {
     expect(source).toContain("controlsVisible = true");
     expect(source).toContain('toastMode = "all"');

@@ -5,8 +5,6 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 export const preferredRegion = "icn1";
 
-const DEPT_KEY = "초등1부";
-
 function hasCronAccess(req: NextRequest) {
   const secrets = [
     process.env.CRON_SECRET,
@@ -30,7 +28,7 @@ async function handler(req: NextRequest) {
     return NextResponse.json(result);
   } catch (e) {
     return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : `${DEPT_KEY} 주보 수집 실패` },
+      { ok: false, error: e instanceof Error ? e.message : "부서 주보 수집 실패" },
       { status: 500 },
     );
   }

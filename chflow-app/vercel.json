@@ -53,6 +53,22 @@
       "schedule": "0 19 * * *"
     },
     {
+      "path": "/api/cron/push-maintenance",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/push-maintenance",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/push-maintenance",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/push-maintenance",
+      "schedule": "0 19 * * *"
+    },
+    {
       "path": "/api/cron/promotion-upcoming",
       "schedule": "0 0 * * 6"
     },

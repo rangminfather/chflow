@@ -90,6 +90,7 @@ export default function TeacherAttendancePage() {
 
   // 해당 월의 일요일 날짜 배열
   const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
+  const thisWeekSunday = useMemo(() => getThisWeekSunday(), []);
 
   const activeTeachers = useMemo(() => teachers.filter((t) => t.is_active), [teachers]);
   const deletedTeachers = useMemo(() => teachers.filter((t) => !t.is_active), [teachers]);
@@ -292,6 +293,10 @@ export default function TeacherAttendancePage() {
           </div>
         )}
 
+        {/* 고정된 이름 열이 카드 좌측 여백(20px)까지 덮어야 스크롤된 칸이 비쳐 보이지 않는다.
+            border-collapse 표에서는 box-shadow 가 먹지 않아 가상요소로 채운다. */}
+        <style>{`.ta-sticky-name::before{content:"";position:absolute;top:0;bottom:0;right:100%;width:22px;background:inherit}`}</style>
+
         {/* 출석 그리드 */}
         <div style={{ ...cardStyle, overflowX: "auto" }}>
           {loading ? (
@@ -304,13 +309,19 @@ export default function TeacherAttendancePage() {
             <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 400 }}>
               <thead>
                 <tr>
-                  <th style={thStyle("left", 120)}>이름 / 직책</th>
-                  {sundays.map((d) => (
-                    <th key={d} style={thStyle("center", 70)}>
-                      <div style={{ fontSize: 11, fontWeight: 700 }}>{formatMD(d)}</div>
-                      <div style={{ fontSize: 9, color: "var(--ink-faint)", fontWeight: 400 }}>{weekNo(d, sundays)}주</div>
-                    </th>
-                  ))}
+                  <th className="ta-sticky-name" style={{ ...thStyle("left", 120), ...stickyNameCol, zIndex: 2 }}>이름 / 직책</th>
+                  {sundays.map((d) => {
+                    const isThisWeek = d === thisWeekSunday;
+                    return (
+                      <th key={d} style={{ ...thStyle("center", 70), ...(isThisWeek ? thisWeekHeadStyle : null) }}>
+                        <div style={{ fontSize: 11, fontWeight: 700 }}>{formatMD(d)}</div>
+                        <div style={{ fontSize: 9, color: isThisWeek ? "var(--accent)" : "var(--ink-faint)", fontWeight: isThisWeek ? 800 : 400 }}>
+                          {weekNo(d, sundays)}주
+                        </div>
+                        {isThisWeek && <div style={{ fontSize: 9, fontWeight: 800, color: "var(--accent)" }}>이번 주</div>}
+                      </th>
+                    );
+                  })}
                   <th style={thStyle("center", 60)}>출석수</th>
                   <th style={thStyle("center", 56)}>순서</th>
                   <th style={thStyle("center", 76)}>관리</th>
@@ -322,7 +333,7 @@ export default function TeacherAttendancePage() {
                   const presentCount = sundays.filter((d) => tMap[d]).length;
                   return (
                     <tr key={t.id} style={{ borderBottom: "1px solid var(--bg-soft)" }}>
-                      <td style={{ padding: "10px 12px" }}>
+                      <td className="ta-sticky-name" style={{ padding: "10px 12px", ...stickyNameCol, background: "var(--card)" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{t.name}</div>
                         {t.teacher_role && (
                           <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>{t.teacher_role}</div>
@@ -332,7 +343,7 @@ export default function TeacherAttendancePage() {
                         const present = !!tMap[d];
                         const key = `${t.id}-${d}`;
                         return (
-                          <td key={d} style={{ textAlign: "center", padding: "6px 4px" }}>
+                          <td key={d} style={{ textAlign: "center", padding: "6px 4px", ...(d === thisWeekSunday ? thisWeekCellStyle : null) }}>
                             <button
                               onClick={() => toggleAttend(t.id, d, present)}
                               disabled={saving === key}
@@ -590,6 +601,35 @@ const orderBtnStyle = (disabled: boolean): React.CSSProperties => ({
   cursor: disabled ? "default" : "pointer",
   margin: "0 1px",
 });
+
+/** 오늘이 속한 주(주일 시작)의 주일 날짜. 표에서 "이번 주" 열을 짚어주는 기준이 된다. */
+function getThisWeekSunday(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - d.getDay());
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// 이번 주 열을 세로 띠처럼 감싸 어느 주차가 오늘인지 한눈에 보이게 한다.
+const thisWeekHeadStyle: React.CSSProperties = {
+  background: "color-mix(in srgb, var(--accent) 16%, var(--surface))",
+  color: "var(--accent)",
+  borderTop: "2px solid var(--accent)",
+  borderLeft: "2px solid var(--accent)",
+  borderRight: "2px solid var(--accent)",
+};
+const thisWeekCellStyle: React.CSSProperties = {
+  background: "color-mix(in srgb, var(--accent) 7%, transparent)",
+  borderLeft: "2px solid color-mix(in srgb, var(--accent) 45%, transparent)",
+  borderRight: "2px solid color-mix(in srgb, var(--accent) 45%, transparent)",
+};
+
+// 날짜 열이 많아 가로로 스크롤되므로 이름/직책 열은 왼쪽에 고정한다 (엑셀 틀 고정)
+const stickyNameCol: React.CSSProperties = {
+  position: "sticky",
+  left: 0,
+  zIndex: 1,
+  borderRight: "1px solid var(--hairline)",
+};
 
 const thStyle = (align: "left" | "center", minWidth?: number): React.CSSProperties => ({
   padding: "10px 8px",
