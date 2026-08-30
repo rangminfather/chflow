@@ -10,7 +10,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Landmark } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Construction, Landmark } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { EmptyState, LoadingView } from "@/components/StatusViews";
@@ -257,6 +257,17 @@ function FacilityRequestView() {
       </div>
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "18px 16px 60px" }}>
+        {/* 구현 중 안내 — 건물·층·공간 목록이 아직 임시 데이터라 사용자가
+            실제 시설 정보로 오해하지 않도록 화면 맨 위에 고정으로 보여준다.
+            실제 시설 목록으로 교체하면 이 블록을 지운다. */}
+        <div style={wipBanner}>
+          <Construction size={16} strokeWidth={1.8} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <div style={{ fontWeight: 800 }}>현재 시설신청에 대해 구현중에 있습니다.</div>
+            <div style={{ marginTop: 2, fontWeight: 600 }}>본 화면은 샘플 화면입니다.</div>
+          </div>
+        </div>
+
         {notice && (
           <div style={{ ...banner, background: "var(--success-soft)", color: "var(--success)" }}>
             <CheckCircle2 size={14} strokeWidth={1.8} /> {notice}
@@ -538,6 +549,13 @@ const cancelBtn: React.CSSProperties = {
 const banner: React.CSSProperties = {
   display: "flex", alignItems: "center", gap: 6,
   padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontWeight: 600, marginBottom: 12,
+};
+const wipBanner: React.CSSProperties = {
+  display: "flex", alignItems: "flex-start", gap: 8,
+  padding: "12px 14px", borderRadius: 12, marginBottom: 14,
+  background: "var(--warning-soft)", color: "var(--warning)",
+  border: "1px solid color-mix(in srgb, var(--warning) 30%, transparent)",
+  fontSize: 13, lineHeight: 1.5,
 };
 const caption: React.CSSProperties = {
   margin: "10px 0 0", fontSize: 11.5, color: "var(--ink-faint)", textAlign: "center", lineHeight: 1.6,
