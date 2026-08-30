@@ -8,7 +8,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { getRoleImageByLabel, getAllSubRoleOptions } from "@/lib/roles";
-import { Hourglass, CheckCircle2, CircleHelp, RefreshCw, Phone, Cake, MapPin, Info } from "lucide-react";
+import { Hourglass, CheckCircle2, CircleHelp, RefreshCw, Phone, Cake, MapPin, Info, History } from "lucide-react";
 
 interface PendingUser {
   id: string;
@@ -35,6 +35,18 @@ interface PendingUser {
   photo_url: string | null;
 }
 
+interface SignupApprovalLog {
+  id: string;
+  event_type: "signup_approved" | "signup_rejected";
+  target_user_id: string | null;
+  target_name: string | null;
+  target_username: string | null;
+  actor_id: string | null;
+  actor_name: string | null;
+  actor_username: string | null;
+  occurred_at: string;
+}
+
 const displayGender = (value?: string | null) => {
   if (value === "M") return "남";
   if (value === "F") return "여";
@@ -46,14 +58,19 @@ export default function AdminPendingPage() {
   const { confirm } = useConfirm();
   const [authChecked, setAuthChecked] = useState(false);
   const [pending, setPending] = useState<PendingUser[]>([]);
+  const [approvalLogs, setApprovalLogs] = useState<SignupApprovalLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState<string | null>(null);
   const [approveModal, setApproveModal] = useState<{ user: PendingUser; subRole: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase.rpc("admin_list_pending_signups");
-    if (!error) setPending(data || []);
+    const [pendingResult, logResult] = await Promise.all([
+      supabase.rpc("admin_list_pending_signups"),
+      supabase.rpc("admin_list_signup_approval_logs", { p_limit: 100 }),
+    ]);
+    if (!pendingResult.error) setPending(pendingResult.data || []);
+    if (!logResult.error) setApprovalLogs(logResult.data || []);
     setLoading(false);
   }, []);
 
@@ -293,6 +310,58 @@ export default function AdminPendingPage() {
         <div style={{ marginTop: 16, padding: "12px 16px", background: "var(--accent-soft)", borderRadius: 10, fontSize: 11, color: "var(--accent-strong)", lineHeight: 1.6 }}>
           <Info size={13} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> <strong>등록 성도</strong>는 명성교회 요람에 등록된 회원과 매칭된 가입 신청입니다.<br />
           <strong>신규</strong>는 요람에 없는 신규 가입 신청입니다. 본인 확인 후 승인해주세요.
+        </div>
+
+        <div style={{ marginTop: 16, background: "var(--card)", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--hairline)", display: "flex", alignItems: "center", gap: 7 }}>
+            <History size={15} strokeWidth={1.8} color="var(--ink-mid)" />
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-mid)" }}>
+              가입 처리 기록 ({approvalLogs.length}건)
+            </div>
+          </div>
+
+          {approvalLogs.length === 0 && !loading && (
+            <EmptyState message="가입 승인·거절 기록이 없습니다" />
+          )}
+
+          {approvalLogs.map((log) => {
+            const approved = log.event_type === "signup_approved";
+            return (
+              <div key={log.id} style={{
+                padding: "13px 16px",
+                borderBottom: "1px solid var(--bg-soft)",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+              }}>
+                <div style={{
+                  padding: "4px 10px",
+                  background: approved ? "var(--success-soft)" : "var(--danger-soft)",
+                  color: approved ? "var(--success)" : "var(--danger)",
+                  borderRadius: 6,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                }}>
+                  {approved ? "승인" : "거절"}
+                </div>
+                <div style={{ flex: 1, minWidth: 180 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
+                    {log.target_name || "이름 없음"}
+                    {log.target_username && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 400, color: "var(--ink-faint)" }}>@{log.target_username}</span>}
+                  </div>
+                  <div style={{ marginTop: 3, fontSize: 10, color: "var(--ink-faint)" }}>
+                    처리일: {new Date(log.occurred_at).toLocaleString("ko-KR")}
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: "var(--ink-mid)" }}>
+                  처리자: <strong>{log.actor_name || "자동 처리"}</strong>
+                  {log.actor_username && <span style={{ marginLeft: 4, color: "var(--ink-faint)" }}>@{log.actor_username}</span>}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
