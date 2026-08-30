@@ -5,7 +5,7 @@
 //  - 달란트체크: 달란트통장 체크 항목과 기타 직접입력을 종합 표시, 칸 탭 → 팝업에서 수정.
 // 학생 추가/삭제는 학생정보관리 메뉴에서 수행. 학생 이름 클릭 → 출결 이력 모달(기간 조회).
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter, useParams, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -290,6 +290,24 @@ export default function AttendancePage() {
 
   const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
   const thisWeekSunday = useMemo(() => getThisWeekSunday(), []);
+
+  // 주차 열이 화면 밖으로 밀려 있으면 이번 주가 보이도록 가로만 스크롤한다
+  // (담임 출석체크와 같은 동작. 세로 위치는 건드리지 않는다.)
+  const gridScrollRef = useRef<HTMLDivElement | null>(null);
+  const weekHeadRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
+
+  useEffect(() => {
+    if (loading) return;
+    const timer = window.setTimeout(() => {
+      const container = gridScrollRef.current;
+      const target = weekHeadRefs.current[thisWeekSunday];
+      if (!container || !target) return;
+      const delta = target.getBoundingClientRect().left - container.getBoundingClientRect().left;
+      const left = container.scrollLeft + delta - (container.clientWidth - target.offsetWidth) / 2;
+      container.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [loading, students.length, sundays, thisWeekSunday, viewMode]);
 
   // 달란트 수동 체크 칩 규칙 (달란트통장과 동일 기준) — 표시 순서 = 범례 번호 순서
   const checkRules = useMemo(
@@ -685,7 +703,7 @@ export default function AttendancePage() {
         )}
 
         {/* 그리드 */}
-        <div className="attendance-grid-scroll" style={{ ...cardStyle, padding: 0 }}>
+        <div ref={gridScrollRef} className="attendance-grid-scroll" style={{ ...cardStyle, padding: 0 }}>
           {/* 범례 */}
           <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--hairline)", display: "flex", flexWrap: "wrap", gap: "6px 14px", alignItems: "center", fontSize: 11 }}>
             <span style={{ fontWeight: 800, color: "var(--ink-soft)" }}>범례</span>
@@ -762,6 +780,7 @@ export default function AttendancePage() {
                   {sundays.map((d, i) => (
                     <th
                       key={d}
+                      ref={(el) => { weekHeadRefs.current[d] = el; }}
                       style={{
                         ...thStyle(viewMode === "attendance" ? 44 : 72),
                         textAlign: "center",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useConfirm } from "@/components/ConfirmDialog";
@@ -91,6 +91,24 @@ export default function TeacherAttendancePage() {
   // 해당 월의 일요일 날짜 배열
   const sundays = useMemo(() => getSundaysInMonth(year, month), [year, month]);
   const thisWeekSunday = useMemo(() => getThisWeekSunday(), []);
+
+  // 주차 열이 화면 밖으로 밀려 있으면 이번 주가 보이도록 가로만 스크롤한다
+  // (담임 출석체크와 같은 동작. 세로 위치는 건드리지 않는다.)
+  const gridScrollRef = useRef<HTMLDivElement | null>(null);
+  const weekHeadRefs = useRef<Record<string, HTMLTableCellElement | null>>({});
+
+  useEffect(() => {
+    if (loading) return;
+    const timer = window.setTimeout(() => {
+      const container = gridScrollRef.current;
+      const target = weekHeadRefs.current[thisWeekSunday];
+      if (!container || !target) return;
+      const delta = target.getBoundingClientRect().left - container.getBoundingClientRect().left;
+      const left = container.scrollLeft + delta - (container.clientWidth - target.offsetWidth) / 2;
+      container.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [loading, teachers.length, sundays, thisWeekSunday]);
 
   const activeTeachers = useMemo(() => teachers.filter((t) => t.is_active), [teachers]);
   const deletedTeachers = useMemo(() => teachers.filter((t) => !t.is_active), [teachers]);
@@ -298,7 +316,7 @@ export default function TeacherAttendancePage() {
         <style>{`.ta-sticky-name::before{content:"";position:absolute;top:0;bottom:0;right:100%;width:22px;background:inherit}`}</style>
 
         {/* 출석 그리드 */}
-        <div style={{ ...cardStyle, overflowX: "auto" }}>
+        <div ref={gridScrollRef} style={{ ...cardStyle, overflowX: "auto" }}>
           {loading ? (
             <LoadingView padding={40} label="불러오는 중..." />
           ) : activeTeachers.length === 0 ? (
@@ -313,7 +331,7 @@ export default function TeacherAttendancePage() {
                   {sundays.map((d) => {
                     const isThisWeek = d === thisWeekSunday;
                     return (
-                      <th key={d} style={{ ...thStyle("center", 70), ...(isThisWeek ? thisWeekHeadStyle : null) }}>
+                      <th key={d} ref={(el) => { weekHeadRefs.current[d] = el; }} style={{ ...thStyle("center", 70), ...(isThisWeek ? thisWeekHeadStyle : null) }}>
                         <div style={{ fontSize: 11, fontWeight: 700 }}>{formatMD(d)}</div>
                         <div style={{ fontSize: 9, color: isThisWeek ? "var(--accent)" : "var(--ink-faint)", fontWeight: isThisWeek ? 800 : 400 }}>
                           {weekNo(d, sundays)}주
