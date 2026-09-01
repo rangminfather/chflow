@@ -179,7 +179,7 @@ async function dispatchPush(req: NextRequest, requestedDeliveryId: string | null
   const userIds = Array.from(new Set(rows.map((row) => row.user_id)));
   const { data: preferenceRows, error: preferenceError } = await admin
     .from("notification_preferences")
-    .select("user_id, enabled, push_enabled, in_app_enabled, message_enabled, worship_enabled, worship_end_enabled, notice_enabled, department_enabled, education_enabled, feedback_enabled, account_enabled, system_enabled, ops_signup_enabled, ops_feedback_enabled")
+    .select("user_id, enabled, push_enabled, in_app_enabled, message_enabled, worship_enabled, worship_end_enabled, notice_enabled, department_enabled, education_enabled, pasture_enabled, feedback_enabled, account_enabled, system_enabled, ops_signup_enabled, ops_feedback_enabled")
     .in("user_id", userIds);
   if (preferenceError) {
     return NextResponse.json({ ok: false, error: preferenceError.message }, { status: 500 });

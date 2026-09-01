@@ -159,6 +159,7 @@ export async function saveNotificationPreferences(preferences: NotificationPrefe
     p_worship_end_enabled: preferences.worship_end_enabled,
     p_department_enabled: preferences.department_enabled,
     p_education_enabled: preferences.education_enabled,
+    p_pasture_enabled: preferences.pasture_enabled,
     p_feedback_enabled: preferences.feedback_enabled,
     p_account_enabled: preferences.account_enabled,
     p_system_enabled: preferences.system_enabled,
