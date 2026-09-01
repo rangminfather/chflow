@@ -21,6 +21,7 @@ export type NotificationCategory =
   | "notice"
   | "department"
   | "education"
+  | "pasture"
   | "feedback"
   | "account"
   | "system"
@@ -74,6 +75,13 @@ export const NOTIFICATION_TYPES = {
   edu_promotion_done: { audience: "user", category: "education" },
   edu_promotion_upcoming: { audience: "user", category: "education" },
   edu_absence: { audience: "user", category: "education" },
+
+  // 목장 모임 조율 — 가능일 조사 → 확정 → 최종 참석
+  pasture_availability_request: { audience: "user", category: "pasture" },
+  pasture_schedule_confirmed: { audience: "user", category: "pasture" },
+  pasture_schedule_changed: { audience: "user", category: "pasture" },
+  pasture_schedule_cancelled: { audience: "user", category: "pasture" },
+  pasture_rsvp_request: { audience: "user", category: "pasture" },
 
   // ── 운영(선택): 업무 처리 대기 — 운영 설정으로 끌 수 있다 ──
   ops_signup_pending: { audience: "ops", category: "ops_signup" },
@@ -139,6 +147,7 @@ export interface NotificationPreferences {
   notice_enabled: boolean;
   department_enabled: boolean;
   education_enabled: boolean;
+  pasture_enabled: boolean;
   feedback_enabled: boolean;
   account_enabled: boolean;
   system_enabled: boolean;
@@ -156,6 +165,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   notice_enabled: true,
   department_enabled: true,
   education_enabled: true,
+  pasture_enabled: true,
   feedback_enabled: true,
   account_enabled: true,
   system_enabled: true,
@@ -184,6 +194,7 @@ export const NOTIFICATION_CATEGORIES: CategoryDisplay[] = [
   { key: "notice", label: "공지·게시판", description: "공지, 게시글과 댓글 알림", audience: "user" },
   { key: "department", label: "사역·부서", description: "부서 가입, 승인과 역할 변경 알림", audience: "user" },
   { key: "education", label: "교육부서", description: "등반 예정·완료와 장기 미출석 알림", audience: "user" },
+  { key: "pasture", label: "목장", description: "목장모임 확정, 가능일 요청과 참석 확인 알림", audience: "user" },
   { key: "feedback", label: "문의게시판", description: "내가 쓴 문의의 답변과 처리 상태", audience: "user" },
   { key: "account", label: "계정", description: "회원가입 승인과 계정 상태 알림", audience: "user" },
   { key: "ops_signup", label: "가입 승인 대기", description: "새 가입 신청이 들어왔을 때", audience: "ops" },

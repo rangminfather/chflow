@@ -40,6 +40,9 @@ const NOT_A_TYPE = new Set([
   "dedup_key", "signup_name", "signup_username",
   "source", "detail", "approved", "session", "event",
   "admin", "office", "pastor", "active",
+  // audience 값과 metadata 키. audience 는 기본값이 'user' 라 대개 생략되지만
+  // 목장 알림 SQL 처럼 명시하면 8줄 창에 리터럴로 잡힌다. 'month' 는 metadata 키다.
+  "user", "month",
 ]);
 
 function looksLikeType(value: string): boolean {

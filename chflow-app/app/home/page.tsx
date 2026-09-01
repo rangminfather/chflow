@@ -722,14 +722,15 @@ function MinistryCard({ dept, status, onClick }: {
 }
 
 // =============================================================
-// 1-1) 나의 목장 — 목장일지 (해외선교 후원목장, 목자/목녀 전용)
+// 1-1) 나의 목장 — 목장 모임(전 목원) + 목장일지(목자/목녀 전용)
 //
 // 아래 MyMokjangSection(가입신청/목장보기)은 아직 미구현이라 계속 숨겨둔다.
-// 목장일지만 먼저 "나의 목장" 카테고리 형태로 노출.
+// 목장 모임은 소속 목장이 있으면 누구나, 목장일지는 예전처럼 목자·목녀만 본다.
 // =============================================================
 function CellShepherdSection({ user, router }: { user: UserInfo; router: RouterType }) {
   const isCellShepherd = user.family_church === "목자" || user.family_church === "목녀";
-  if (!isCellShepherd) return null;
+  const hasPasture = !!user.pasture_name;
+  if (!isCellShepherd && !hasPasture) return null;
 
   return (
     <Section bg="var(--surface)" style={{ marginBottom: 18, border: "1px solid var(--hairline)" }}>
@@ -738,20 +739,38 @@ function CellShepherdSection({ user, router }: { user: UserInfo; router: RouterT
         iconColor="var(--accent)"
         title="나의 목장"
       />
-      <SafeCard onClick={() => router.push("/pasture/journal")} padding={12} style={{ borderRadius: 10 }}>
-        <SafeRow gap={12}>
-          <IconBox bg="var(--accent-soft)" size={40}>
-            <BookText size={21} strokeWidth={1.75} color="var(--accent)" />
-          </IconBox>
-          <SafeGrow>
-            <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>목장일지</div>
-            <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
-              해외선교 후원목장 · 본인 UMS 계정으로 열람
-            </div>
-          </SafeGrow>
-          <ChevronRight size={16} strokeWidth={1.8} color={T.textMuted} />
-        </SafeRow>
-      </SafeCard>
+      {hasPasture && (
+        <SafeCard onClick={() => router.push("/pasture")} padding={12} style={{ borderRadius: 10, marginBottom: isCellShepherd ? 8 : 0 }}>
+          <SafeRow gap={12}>
+            <IconBox bg="var(--accent-soft)" size={40}>
+              <CalendarDays size={21} strokeWidth={1.75} color="var(--accent)" />
+            </IconBox>
+            <SafeGrow>
+              <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>목장 모임</div>
+              <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
+                {user.pasture_name}목장 · 가능일 표시 · 참석 확인
+              </div>
+            </SafeGrow>
+            <ChevronRight size={16} strokeWidth={1.8} color={T.textMuted} />
+          </SafeRow>
+        </SafeCard>
+      )}
+      {isCellShepherd && (
+        <SafeCard onClick={() => router.push("/pasture/journal")} padding={12} style={{ borderRadius: 10 }}>
+          <SafeRow gap={12}>
+            <IconBox bg="var(--accent-soft)" size={40}>
+              <BookText size={21} strokeWidth={1.75} color="var(--accent)" />
+            </IconBox>
+            <SafeGrow>
+              <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>목장일지</div>
+              <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
+                해외선교 후원목장 · 본인 UMS 계정으로 열람
+              </div>
+            </SafeGrow>
+            <ChevronRight size={16} strokeWidth={1.8} color={T.textMuted} />
+          </SafeRow>
+        </SafeCard>
+      )}
     </Section>
   );
 }
