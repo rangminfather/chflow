@@ -12,12 +12,21 @@ type Props = {
   url: string;
   // 렌더 실패 시 새 탭으로 열 원문/PDF 주소
   fallbackUrl: string;
+  httpHeaders?: Record<string, string>;
+  loadingLabel?: string;
+  errorTitle?: string;
 };
 
 // 캔버스 백킹 스토어 폭(px). CSS 로 컨테이너 폭에 맞춰 축소되므로 폰에서 선명.
 const BACKING_WIDTH = 1100;
 
-export default function PdfCanvasViewer({ url, fallbackUrl }: Props) {
+export default function PdfCanvasViewer({
+  url,
+  fallbackUrl,
+  httpHeaders,
+  loadingLabel = "주보를 불러오는 중...",
+  errorTitle = "주보를 표시하지 못했습니다",
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -36,7 +45,7 @@ export default function PdfCanvasViewer({ url, fallbackUrl }: Props) {
         const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
-        loadingTask = pdfjs.getDocument({ url });
+        loadingTask = pdfjs.getDocument({ url, httpHeaders });
         const doc = await loadingTask.promise;
         if (cancelled) return;
 
@@ -80,7 +89,7 @@ export default function PdfCanvasViewer({ url, fallbackUrl }: Props) {
         // ignore
       }
     };
-  }, [url]);
+  }, [httpHeaders, url]);
 
   return (
     <div style={rootStyle}>
@@ -90,10 +99,10 @@ export default function PdfCanvasViewer({ url, fallbackUrl }: Props) {
         onScroll={(e) => setShowTop(e.currentTarget.scrollTop > 200)}
       >
         <div ref={containerRef} style={canvasHostStyle} />
-        {status === "loading" && <div style={overlayStyle}>주보를 불러오는 중...</div>}
+        {status === "loading" && <div style={overlayStyle}>{loadingLabel}</div>}
         {status === "error" && (
           <div style={overlayStyle}>
-            <div style={{ fontWeight: 800, marginBottom: 8 }}>주보를 표시하지 못했습니다</div>
+            <div style={{ fontWeight: 800, marginBottom: 8 }}>{errorTitle}</div>
             <a href={fallbackUrl} target="_blank" rel="noopener noreferrer" style={openButtonStyle}>
               <span>원문 보기</span>
               <ExternalLink size={16} strokeWidth={1.8} />

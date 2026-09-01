@@ -12,7 +12,7 @@ import {
   Medal, Users, Inbox, BookText, CalendarPlus, BookOpen, FileText, BarChart3,
   TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks,
   Settings, Award, Lock, CircleHelp, Construction, Cog, X, Pencil, MessageSquareText, ShieldCheck,
-  ChevronUp, ChevronDown, User, GripVertical, PartyPopper,
+  ChevronUp, ChevronDown, User, GripVertical, PartyPopper, LibraryBig,
 } from "lucide-react";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { photoThumb } from "@/lib/photo";
@@ -128,6 +128,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
       { id: "verse-memory", label: "요절암송", icon: BookOpen, desc: "월별 요절암송 자료", color: "#8A6D3B", implemented: true, onlyForCategory: "교육사역국", maxGrade: 4 },
       { id: "monthly-plan", label: "월간 교육계획서", icon: CalendarDays, desc: "월간 교육계획 파일 조회", color: "var(--accent)", implemented: true, maxGrade: 4 },
       { id: "review-problems", label: "복습문제 보기", icon: BookOpen, desc: "등록된 복습문제 PPT 보기", color: "#6B4F8C", implemented: true, onlyForCategory: "교육사역국", maxGrade: 3 },
+      { id: "education-materials", label: "교육자료", icon: LibraryBig, desc: "과별 교사 PDF 자료", color: "#4F6F8F", implemented: true, onlyForCategory: "교육사역국", maxGrade: 3 },
     ],
   },
   {
@@ -201,7 +202,7 @@ type SectionLabels = Record<string, string>;
 // 접근등급(학부모까지/선생님만) 변경 가능한 공통메뉴 항목
 const ACCESS_CONFIGURABLE = new Set(["monthly-plan", "review-problems"]);
 // 설정 대상 공통메뉴 (순서 = 표시 순서)
-const COMMON_MENU_KEYS = ["notices/board", "department-members", "bulletin", "verse-memory", "monthly-plan", "review-problems"];
+const COMMON_MENU_KEYS = ["notices/board", "department-members", "bulletin", "verse-memory", "monthly-plan", "review-problems", "education-materials"];
 // 카테고리별 설정 키 prefix — 공통메뉴는 기존 키 유지, 나머지는 "prefix/menu-id"
 // (카테고리 간 같은 menu id 가 생겨도 설정 키가 충돌하지 않게)
 const CATEGORY_KEY_PREFIX: Record<string, string> = { students: "students", admin: "admin", department: "dept" };
