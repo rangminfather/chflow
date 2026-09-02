@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { FacilityRoom } from "./facility-map-config";
 import {
   FACILITY_BUILDINGS,
   findBuilding,
@@ -80,22 +81,25 @@ describe("facility-map-config", () => {
   it("없는 값에는 null 을 돌려준다", () => {
     expect(findBuilding("nope")).toBeNull();
     expect(findBuilding(null)).toBeNull();
-    expect(findFloor("main", 99)).toBeNull();
+    expect(findFloor("myungsung", 99)).toBeNull();
     expect(findRoom("nope")).toBeNull();
     expect(findRoom(null)).toBeNull();
   });
 
-  it("표기 헬퍼 — 경로와 수용인원", () => {
-    const room = findRoom("education-2f-201");
+  it("표기 헬퍼 — 경로", () => {
+    const room = findRoom("library-1f-reading");
     expect(room).not.toBeNull();
-    expect(formatRoomPath(room!)).toBe("교육관 · 2층 · 201호");
-    expect(formatCapacity(room!)).toBe("수용인원 35명");
+    expect(formatRoomPath(room!)).toBe("맑은숲작은도서관 · 1층 · 도서관");
 
-    const parking = findRoom("parking-1f-area-a");
-    expect(formatCapacity(parking!)).toBe("수용인원 40대");
+    // 세부 공간 확인 전이라 실제 데이터의 capacity 는 모두 null —
+    // 표기 로직 자체(단위 있음/없음)는 합성 fixture로 따로 검증한다
+    expect(formatCapacity(room!)).toBeNull();
 
-    const corridor = findRoom("education-2f-corridor");
-    expect(formatCapacity(corridor!)).toBeNull();
+    const withCapacity: FacilityRoom = { ...room!, capacity: 35 };
+    expect(formatCapacity(withCapacity)).toBe("수용인원 35명");
+
+    const withUnit: FacilityRoom = { ...room!, capacity: 40, capacityUnit: "대" };
+    expect(formatCapacity(withUnit)).toBe("수용인원 40대");
   });
 });
 

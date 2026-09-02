@@ -42,7 +42,9 @@ export default function FacilityBuildingMap({ buildings, selectedCode, onSelect 
     // 선택 시 살짝 떠오르므로 위쪽 여유를 조금 더 준다
     bounds = growBoundsWithBox(bounds, { ...building.block, h: building.block.h + 0.3 }, UNIT);
   }
-  const { viewBox, width } = toViewBox(bounds, 18);
+  // 여백은 상자 자체가 아니라 건물명 라벨(최대 9자, "맑은숲도서관주차장" 등) 폭까지 감안한 값이다 —
+  // 상자 기준 18px로는 긴 이름이 옆으로 잘렸다.
+  const { viewBox, width } = toViewBox(bounds, 70);
 
   const ordered = [...buildings].sort((a, b) => depthKey(a.block) - depthKey(b.block));
 
