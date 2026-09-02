@@ -1,5 +1,11 @@
 import * as CFB from "cfb";
 import { inflateRawSync } from "zlib";
+import {
+  MAX_ARCHIVE_EXPANDED_BYTES,
+  MAX_ARCHIVE_SINGLE_ENTRY_BYTES,
+  BulletinFileLimitError,
+  assertBulletinSourceSize,
+} from "./attachment-limits";
 
 // HWP 5.x(OLE) 본문 구조 파서 — 부서 주보 리메이크 렌더링용.
 // BodyText/SectionN 레코드를 순회해 문단/표(셀 병합·중첩 포함) 트리를 추출한다.
@@ -26,6 +32,24 @@ const TAG = {
 } as const;
 
 type Rec = { tag: number; level: number; body: Buffer };
+
+export function inflateHwpSection(
+  content: Buffer,
+  maxOutputBytes = MAX_ARCHIVE_SINGLE_ENTRY_BYTES,
+): Buffer {
+  try {
+    return inflateRawSync(content, { maxOutputLength: maxOutputBytes });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ERR_BUFFER_TOO_LARGE") {
+      throw new BulletinFileLimitError("archive_entry_too_large");
+    }
+    if (content.byteLength > maxOutputBytes) {
+      throw new BulletinFileLimitError("archive_entry_too_large");
+    }
+    // Uncompressed HWP sections are valid; retain the existing fallback.
+    return Buffer.from(content);
+  }
+}
 
 function parseRecords(data: Buffer): Rec[] {
   const recs: Rec[] = [];
@@ -164,16 +188,24 @@ function parseTable(recs: Rec[], ctrlIdx: number, endIdx: number): { block: HwpB
 
 // HWP 파일 전체 → 블록 목록 (본문 순서대로, 모든 섹션)
 export function parseHwpBlocks(file: Buffer): HwpBlock[] {
+  assertBulletinSourceSize(file.byteLength);
   const cfb = CFB.read(file, { type: "buffer" });
   const blocks: HwpBlock[] = [];
+  let expandedTotal = 0;
   for (let s = 0; s < 16; s++) {
     const entry = CFB.find(cfb, `Section${s}`);
     if (!entry || !entry.content) break;
-    let data: Buffer;
-    try {
-      data = inflateRawSync(Buffer.from(entry.content as Buffer));
-    } catch {
-      data = Buffer.from(entry.content as Buffer);
+    const remaining = MAX_ARCHIVE_EXPANDED_BYTES - expandedTotal;
+    if (remaining <= 0) {
+      throw new BulletinFileLimitError("archive_expanded_too_large");
+    }
+    const data = inflateHwpSection(
+      Buffer.from(entry.content as Buffer),
+      Math.min(MAX_ARCHIVE_SINGLE_ENTRY_BYTES, remaining),
+    );
+    expandedTotal += data.byteLength;
+    if (expandedTotal > MAX_ARCHIVE_EXPANDED_BYTES) {
+      throw new BulletinFileLimitError("archive_expanded_too_large");
     }
     const recs = parseRecords(data);
     blocks.push(...walk(recs, 0, 0, recs.length));

@@ -2,6 +2,12 @@ import { readFile } from "node:fs/promises";
 import JSZip from "jszip";
 import { XMLParser } from "fast-xml-parser";
 import type { HwpxCell, HwpxExtraction, HwpxRow } from "./types";
+import {
+  assertBulletinSourceSize,
+  assertSafeZipMetadata,
+  createArchiveOutputBudget,
+  readLimitedZipEntry,
+} from "../bulletin/attachment-limits";
 
 type OrderedNode = Record<string, unknown>;
 
@@ -102,7 +108,10 @@ function parseTable(tableNode: OrderedNode, tableIndex: number): HwpxRow[] {
 export async function extractHwpxTablesFromBuffer(
   source: Uint8Array | ArrayBuffer,
 ): Promise<HwpxExtraction> {
+  assertBulletinSourceSize(source.byteLength);
   const archive = await JSZip.loadAsync(source);
+  assertSafeZipMetadata(archive);
+  const outputBudget = createArchiveOutputBudget();
   const sectionFiles = Object.keys(archive.files)
     .filter((name) => /^Contents\/section\d+\.xml$/i.test(name))
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
@@ -116,7 +125,10 @@ export async function extractHwpxTablesFromBuffer(
   for (const sectionFile of sectionFiles) {
     const entry = archive.file(sectionFile);
     if (!entry) continue;
-    const document = parser.parse(await entry.async("string")) as OrderedNode[];
+    const xml = new TextDecoder("utf-8", { fatal: true }).decode(
+      await readLimitedZipEntry(entry, outputBudget),
+    );
+    const document = parser.parse(xml) as OrderedNode[];
     const tables = findNodes(document, "tbl");
     for (const table of tables) {
       rows.push(...parseTable(table, tableCount));

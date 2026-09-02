@@ -8,6 +8,7 @@
 // 검증: post no=1468 (2026-05-08 AWS Seoul 클라우드 IP).
 
 import iconv from "iconv-lite";
+import { readLimitedResponseBytes } from "@/lib/bulletin/attachment-limits";
 
 const WORKER_URL = process.env.UMS_PROXY_WORKER_URL || "https://ums-probe.rangminfather.workers.dev";
 
@@ -31,6 +32,7 @@ export interface ProxyOptions {
   contentType?: string;
   xRequestedWith?: string;
   origin?: string;
+  maxResponseBytes?: number;
 }
 
 // Cloudflare Worker 통한 UMS 호출
@@ -47,7 +49,9 @@ export async function umsViaCf(path: string, opts: ProxyOptions = {}): Promise<P
   if (opts.body) init.body = opts.body as BodyInit;
 
   const res = await fetch(url, init);
-  const buf = Buffer.from(await res.arrayBuffer());
+  const buf = opts.maxResponseBytes === undefined
+    ? Buffer.from(await res.arrayBuffer())
+    : Buffer.from(await readLimitedResponseBytes(res, opts.maxResponseBytes));
 
   const cookieB64 = res.headers.get("X-Forward-Set-Cookie-B64") || "";
   let setCookies: string[] = [];

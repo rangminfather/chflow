@@ -1,6 +1,17 @@
-import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import * as CFB from "cfb";
+import {
+  MAX_BULLETIN_SOURCE_BYTES,
+  assertBulletinSourceSize,
+  isBulletinFileLimitError,
+  readLimitedResponseBytes,
+} from "@/lib/bulletin/attachment-limits";
+import {
+  isDeptBulletinUrlExpired,
+  isDeptBulletinSigningConfigurationError,
+  verifyDeptBulletinPostSignature,
+  verifyDeptBulletinStorageSignature,
+} from "@/lib/bulletin/dept-bulletin-signing";
 import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
 import { parseHwpBlocks } from "@/lib/bulletin/hwp-parse";
 import { extractHwpxPreview, parseHwpxBlocks } from "@/lib/bulletin/hwpx-parse";
@@ -19,8 +30,6 @@ export const preferredRegion = "icn1";
 // 서명 방식은 /api/dept-bulletin/pdf 와 동일 (samusil:no:exp HMAC).
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const SIGNING_SECRET = process.env.SUPABASE_SERVICE_ROLE_KEY || ANON_KEY;
 const PROXY_BASE = `${SUPABASE_URL}/functions/v1/ums-fetch`;
 // 저장본 모드에서 읽을 수 있는 범위 — bulletins 버킷의 부서 주보 폴더로 한정
 const STORAGE_BUCKET = "bulletins";
@@ -36,25 +45,6 @@ const BROWSER_HEADERS = {
   "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
   "Referer": "http://www.ums.or.kr/",
 } as const;
-
-function sign(no: number, expiresAt: number) {
-  return createHmac("sha256", SIGNING_SECRET).update(`samusil:${no}:${expiresAt}`).digest("hex");
-}
-
-// 저장본(R2) 경로 서명 — /api/dept-bulletin/latest 의 signStoragePath 와 같은 규칙
-function signStorage(path: string, expiresAt: number) {
-  return createHmac("sha256", SIGNING_SECRET).update(`storage:${path}:${expiresAt}`).digest("hex");
-}
-
-function matchesSignature(expected: string, sig: string) {
-  const expectedBuf = Buffer.from(expected, "hex");
-  const actualBuf = Buffer.from(sig, "hex");
-  return expectedBuf.length === actualBuf.length && timingSafeEqual(expectedBuf, actualBuf);
-}
-
-function validSignature(no: number, expiresAt: number, sig: string) {
-  return matchesSignature(sign(no, expiresAt), sig);
-}
 
 // 받은 바이트가 파일인지 (에러 HTML 페이지가 아닌지) 판별
 function looksLikeFile(buf: Uint8Array) {
@@ -84,13 +74,14 @@ function detectContentType(buf: Uint8Array, fileName: string | null) {
 
 async function fetchBuffer(url: string, headers?: HeadersInit) {
   const res = await fetch(url, { cache: "no-store", headers });
-  const buf = new Uint8Array(await res.arrayBuffer());
+  const buf = await readLimitedResponseBytes(res);
   return { ok: res.ok, buf };
 }
 
 async function downloadAttachment(no: number, fn: number): Promise<Uint8Array> {
   const worker = await umsViaCf(DOWNLOAD_PATH(no, fn), {
     referer: `${UMS_BBS_BASE}/zboard.php?id=samusil&no=${no}`,
+    maxResponseBytes: MAX_BULLETIN_SOURCE_BYTES,
   });
   if (worker.status >= 200 && worker.status < 300 && looksLikeFile(worker.body)) return worker.body;
 
@@ -150,7 +141,7 @@ export async function GET(req: NextRequest) {
     if (!Number.isInteger(expiresAt) || expiresAt <= 0 || !/^[0-9a-f]{64}$/i.test(sig)) {
       return NextResponse.json({ ok: false, error: "Invalid file URL" }, { status: 400 });
     }
-    if (expiresAt < Math.floor(Date.now() / 1000)) {
+    if (isDeptBulletinUrlExpired(expiresAt)) {
       return NextResponse.json({ ok: false, error: "File URL expired" }, { status: 401 });
     }
 
@@ -162,7 +153,7 @@ export async function GET(req: NextRequest) {
       if (!STORAGE_PATH_RE.test(storagePath)) {
         return NextResponse.json({ ok: false, error: "Invalid file URL" }, { status: 400 });
       }
-      if (!matchesSignature(signStorage(storagePath, expiresAt), sig)) {
+      if (!verifyDeptBulletinStorageSignature(storagePath, expiresAt, sig)) {
         return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
       }
       const { data, error } = await r2.from(STORAGE_BUCKET).getObject(storagePath);
@@ -170,6 +161,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ ok: false, error: "저장된 주보 파일을 찾지 못했습니다" }, { status: 404 });
       }
       file = new Uint8Array(data.body);
+      assertBulletinSourceSize(file.byteLength);
       fileName = fileName || storagePath.split("/").pop() || null;
     } else {
       if (!Number.isInteger(fn) || fn < 0 || fn > 20) {
@@ -178,7 +170,7 @@ export async function GET(req: NextRequest) {
       if (!Number.isInteger(no) || no <= 0) {
         return NextResponse.json({ ok: false, error: "Invalid file URL" }, { status: 400 });
       }
-      if (!validSignature(no, expiresAt, sig)) {
+      if (!verifyDeptBulletinPostSignature(no, expiresAt, sig)) {
         return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
       }
       file = await downloadAttachment(no, fn);
@@ -207,7 +199,8 @@ export async function GET(req: NextRequest) {
           { ok: true, blocks },
           { headers: { "Cache-Control": "private, max-age=600" } },
         );
-      } catch {
+      } catch (error) {
+        if (isBulletinFileLimitError(error)) throw error;
         return NextResponse.json({ ok: false, error: "HWP 본문을 해석하지 못했습니다" }, { status: 422 });
       }
     }
@@ -220,6 +213,19 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (e) {
+    if (isDeptBulletinSigningConfigurationError(e)) {
+      return NextResponse.json(
+        { ok: false, error: "Bulletin file service unavailable" },
+        { status: 503 },
+      );
+    }
+    if (isBulletinFileLimitError(e)) {
+      console.warn(`[dept-bulletin-file] rejected attachment (${e.code})`);
+      return NextResponse.json(
+        { ok: false, error: "Attachment exceeds the allowed processing limits" },
+        { status: 413 },
+      );
+    }
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "첨부파일 불러오기 실패" },
       { status: 502 },

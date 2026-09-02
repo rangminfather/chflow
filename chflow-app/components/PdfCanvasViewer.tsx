@@ -45,6 +45,8 @@ export default function PdfCanvasViewer({
         const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
+        // This canvas-only viewer does not create PDFScriptingManager or an
+        // annotation layer, so embedded PDF JavaScript has no execution path.
         loadingTask = pdfjs.getDocument({ url, httpHeaders });
         const doc = await loadingTask.promise;
         if (cancelled) return;

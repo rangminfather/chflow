@@ -15,6 +15,7 @@
 | `NEXT_PUBLIC_SUPABASE_URL` | Vercel, `.env.local` | Supabase 프로젝트 URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel, `.env.local` | 브라우저/앱용 Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Vercel | 서버 API에서 RLS를 우회해 운영 작업 수행 |
+| `DEPT_BULLETIN_SIGNING_SECRET` | Vercel Preview/Production, `.env.local` | 부서 주보 파일 URL 전용 HMAC 키(최소 32바이트). 미설정 또는 짧은 값이면 파일 URL 생성·검증이 fail closed 됨 |
 | `NEXT_PUBLIC_SITE_URL` | Vercel | 비밀번호 재설정 등 절대 URL 기준 |
 | `CRON_SECRET` | Vercel | Vercel Cron 보호용 토큰. **미설정 시 production에서 모든 cron이 401로 거부됨** |
 | `PUSH_DISPATCH_SECRET` | Vercel, Supabase Vault | 모바일 푸시 dispatch API 보호 토큰 |
