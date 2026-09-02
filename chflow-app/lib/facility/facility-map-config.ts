@@ -1,16 +1,20 @@
 /* ============================================================
    시설물 사용신청 — 건물/층/공간 지도 설정
 
-   이 파일의 건물·층·공간 목록은 **임시 안내용 데이터**다.
-   실제 CAD/BIM/건축도면이 없는 상태에서 "어느 건물의 몇 층, 어느 공간을
-   신청하는지"를 사용자가 이해하도록 만든 모형이며, 실제 면적비·배치와
-   일치하지 않는다. 실제 공간 목록·수용인원·비품은 확인 후 교체해야 한다.
+   건물 이름·위치·층 구성(지하 유무, 대여 불가 층 등)은 실제 캠퍼스 배치를
+   반영했다. 다만 각 층의 세부 공간(방 이름·수용인원·비품)은 아직 확인 전이라
+   층마다 "확인 필요" 자리표시 공간 하나만 넣어뒀다 — 확인되는 대로 해당 층의
+   rooms 배열만 채우면 된다. block(x,y,w,d,h)의 배치 좌표는 실측이 아니라
+   "명덕6길을 사이에 두고 비전센터가 맞은편에, 바울관·도서관이 명성교회 본당보다
+   도로 쪽으로 나와 있는" 상대적 관계를 보여주기 위한 값이다.
 
    교체 지점
-     1) 건물/층/공간을 바꾸려면 아래 FACILITY_BUILDINGS 만 고친다.
-     2) 실제 도면 SVG가 준비되면 components/facility/*Map.tsx 의 그리기 코드만
+     1) 층별 세부 공간이 확인되면 해당 floor.rooms 배열을 채운다
+        (지금 들어있는 "확인 필요" placeholder room을 실제 공간 목록으로 교체).
+     2) 건물/층 구성 자체를 바꾸려면 아래 FACILITY_BUILDINGS 를 고친다.
+     3) 실제 도면 SVG가 준비되면 components/facility/*Map.tsx 의 그리기 코드만
         갈아끼우고, 여기 id(=DB facility_id)와 신청 로직은 그대로 둔다.
-     3) 나중에 시설 목록을 DB(facilities 테이블 등)로 옮길 경우,
+     4) 나중에 시설 목록을 DB(facilities 테이블 등)로 옮길 경우,
         이 파일이 노출하는 조회 함수(findBuilding/findFloor/findRoom)의
         구현만 DB 조회로 바꾸면 화면 코드는 손대지 않아도 된다.
 
@@ -64,128 +68,181 @@ export type FacilityBuilding = {
 };
 
 // -------------------------------------------------------------
-// 임시 건물 데이터
+// 층 슬러그 — B1 은 "b1", 지상층은 "1f"/"2f" 형태로 id에 쓴다
 // -------------------------------------------------------------
-export const FACILITY_BUILDINGS: FacilityBuilding[] = [
-  {
-    code: "main",
-    name: "본관",
-    description: "예배실·회의실",
-    block: { x: 0, y: 0, w: 4, d: 3, h: 3 },
+function floorSlug(floor: number): string {
+  return floor < 0 ? `b${-floor}` : `${floor}f`;
+}
+
+/** 세부 공간이 아직 확인되지 않은 층 — placeholder room 하나만 넣는다 */
+function pendingFloor(building: string, floor: number, label: string): FacilityFloor {
+  return {
+    floor,
+    label,
+    planCols: 4,
+    planRows: 3,
+    rooms: [
+      {
+        id: `${building}-${floorSlug(floor)}-pending`,
+        building,
+        floor,
+        name: label,
+        kind: "room",
+        capacity: null,
+        reservable: false,
+        facilities: [],
+        note: "세부 공간 정보 확인 후 반영 예정",
+        plan: { x: 0, y: 0, w: 4, h: 3 },
+      },
+    ],
+  };
+}
+
+/** 건물 내부의 주차 전용 층(비전센터 1·2층 등) — 예약 대상 방이 아니라 주차 공간임을 표시 */
+function parkingFloor(building: string, floor: number, label: string): FacilityFloor {
+  return {
+    floor,
+    label,
+    planCols: 4,
+    planRows: 3,
+    rooms: [
+      {
+        id: `${building}-${floorSlug(floor)}-parking`,
+        building,
+        floor,
+        name: "주차장",
+        kind: "outdoor",
+        capacity: null,
+        capacityUnit: "대",
+        reservable: false,
+        facilities: [],
+        note: "주차 공간 — 신청 대상이 아닙니다",
+        plan: { x: 0, y: 0, w: 4, h: 3 },
+      },
+    ],
+  };
+}
+
+/** 지상 평면 주차장(바울관주차장·맑은숲도서관주차장) 한 동 전체 */
+function surfaceParkingBuilding(code: string, name: string, block: IsoBox): FacilityBuilding {
+  return {
+    code,
+    name,
+    description: "지상 주차장",
+    block,
     floors: [
       {
         floor: 1,
-        label: "1층",
-        planCols: 6,
-        planRows: 4,
-        rooms: [
-          { id: "main-1f-sanctuary", building: "main", floor: 1, name: "대예배실", kind: "hall", capacity: 800, reservable: true, facilities: ["음향", "빔프로젝터", "냉난방"], note: "예배 일정과 겹치지 않는 시간만 승인됩니다", plan: { x: 0, y: 0, w: 4, h: 3 } },
-          { id: "main-1f-lobby", building: "main", floor: 1, name: "로비", kind: "corridor", capacity: null, reservable: false, facilities: [], plan: { x: 4, y: 0, w: 2, h: 2 } },
-          { id: "main-1f-prayer", building: "main", floor: 1, name: "기도실", kind: "room", capacity: 20, reservable: true, facilities: ["냉난방"], plan: { x: 4, y: 2, w: 2, h: 1 } },
-          { id: "main-1f-info", building: "main", floor: 1, name: "안내실", kind: "office", capacity: null, reservable: false, facilities: [], plan: { x: 0, y: 3, w: 2, h: 1 } },
-          { id: "main-1f-cafe", building: "main", floor: 1, name: "카페", kind: "room", capacity: 40, reservable: true, facilities: ["냉난방", "싱크대"], plan: { x: 2, y: 3, w: 4, h: 1 } },
-        ],
-      },
-      {
-        floor: 2,
-        label: "2층",
-        planCols: 6,
-        planRows: 4,
-        rooms: [
-          { id: "main-2f-chapel", building: "main", floor: 2, name: "소예배실", kind: "hall", capacity: 150, reservable: true, facilities: ["음향", "빔프로젝터", "냉난방"], plan: { x: 0, y: 0, w: 3, h: 2 } },
-          { id: "main-2f-conference", building: "main", floor: 2, name: "대회의실", kind: "room", capacity: 40, reservable: true, facilities: ["빔프로젝터", "화상회의", "냉난방"], plan: { x: 3, y: 0, w: 3, h: 2 } },
-          { id: "main-2f-office", building: "main", floor: 2, name: "사무실", kind: "office", capacity: null, reservable: false, facilities: [], plan: { x: 0, y: 2, w: 2, h: 2 } },
-          { id: "main-2f-201", building: "main", floor: 2, name: "201호", kind: "room", capacity: 30, reservable: true, facilities: ["빔프로젝터", "냉난방"], plan: { x: 2, y: 2, w: 2, h: 2 } },
-          { id: "main-2f-202", building: "main", floor: 2, name: "202호", kind: "room", capacity: 30, reservable: true, facilities: ["냉난방"], plan: { x: 4, y: 2, w: 2, h: 2 } },
-        ],
-      },
-      {
-        floor: 3,
-        label: "3층",
-        planCols: 6,
+        label: "지상",
+        planCols: 4,
         planRows: 3,
         rooms: [
-          { id: "main-3f-hall", building: "main", floor: 3, name: "다목적홀", kind: "hall", capacity: 200, reservable: true, facilities: ["음향", "빔프로젝터", "냉난방"], plan: { x: 0, y: 0, w: 4, h: 3 } },
-          { id: "main-3f-301", building: "main", floor: 3, name: "301호", kind: "room", capacity: 25, reservable: true, facilities: ["냉난방"], plan: { x: 4, y: 0, w: 2, h: 1 } },
-          { id: "main-3f-302", building: "main", floor: 3, name: "302호", kind: "room", capacity: 25, reservable: true, facilities: ["냉난방"], plan: { x: 4, y: 1, w: 2, h: 1 } },
-          { id: "main-3f-storage", building: "main", floor: 3, name: "창고", kind: "storage", capacity: null, reservable: false, facilities: [], plan: { x: 4, y: 2, w: 2, h: 1 } },
+          {
+            id: `${code}-1f-lot`,
+            building: code,
+            floor: 1,
+            name: "주차장",
+            kind: "outdoor",
+            capacity: null,
+            capacityUnit: "대",
+            reservable: false,
+            facilities: [],
+            note: "행사 시 사용 가능 여부 확인 필요",
+            plan: { x: 0, y: 0, w: 4, h: 3 },
+          },
         ],
       },
     ],
+  };
+}
+
+// -------------------------------------------------------------
+// 캠퍼스 건물 데이터
+//
+// 배치(block)는 명덕6길을 사이에 두고 비전센터가 맞은편에, 바울관·
+// 맑은숲작은도서관이 명성교회 본당보다 도로 쪽으로 나와 본당을 좌우에서
+// 감싸는 상대적 관계를 보여준다 — 실측 좌표가 아니다.
+// -------------------------------------------------------------
+export const FACILITY_BUILDINGS: FacilityBuilding[] = [
+  surfaceParkingBuilding("baul-parking", "바울관주차장", { x: -1.8, y: 2.65, w: 1.3, d: 1.1, h: 0.3 }),
+  {
+    code: "baul",
+    name: "바울관",
+    description: "1~4층",
+    block: { x: 2.1, y: 2.9, w: 1.7, d: 1.55, h: 4 },
+    floors: [1, 2, 3, 4].map((floor) => pendingFloor("baul", floor, `${floor}층`)),
   },
   {
-    code: "education",
-    name: "교육관",
-    description: "교육실·체육관",
-    block: { x: 4.7, y: 0, w: 3.2, d: 3, h: 4 },
+    code: "myungsung",
+    name: "명성교회",
+    description: "본당 (지하1층~3층)",
+    block: { x: 4.3, y: 3.85, w: 2.6, d: 2.1, h: 4 },
+    floors: [
+      pendingFloor("myungsung", -1, "지하1층"),
+      pendingFloor("myungsung", 1, "1층"),
+      pendingFloor("myungsung", 2, "2층"),
+      pendingFloor("myungsung", 3, "3층"),
+    ],
+  },
+  {
+    code: "library",
+    name: "맑은숲작은도서관",
+    description: "1~4층 (2·4층 대여 불가)",
+    block: { x: 7.4, y: 2.9, w: 1.7, d: 1.55, h: 4 },
     floors: [
       {
         floor: 1,
         label: "1층",
-        planCols: 6,
+        planCols: 4,
         planRows: 3,
         rooms: [
-          { id: "education-1f-hall", building: "education", floor: 1, name: "교육관홀", kind: "hall", capacity: 120, reservable: true, facilities: ["음향", "냉난방"], plan: { x: 0, y: 0, w: 4, h: 3 } },
-          { id: "education-1f-101", building: "education", floor: 1, name: "101호", kind: "room", capacity: 25, reservable: true, facilities: ["냉난방"], plan: { x: 4, y: 0, w: 2, h: 1 } },
-          { id: "education-1f-102", building: "education", floor: 1, name: "102호", kind: "room", capacity: 25, reservable: true, facilities: ["냉난방"], plan: { x: 4, y: 1, w: 2, h: 1 } },
-          { id: "education-1f-kitchen", building: "education", floor: 1, name: "조리실", kind: "office", capacity: null, reservable: false, facilities: [], plan: { x: 4, y: 2, w: 2, h: 1 } },
+          { id: "library-1f-reading", building: "library", floor: 1, name: "도서관", kind: "room", capacity: null, reservable: true, facilities: [], note: "정확한 수용인원·비품은 확인 후 반영 예정", plan: { x: 0, y: 0, w: 4, h: 3 } },
         ],
       },
       {
         floor: 2,
         label: "2층",
-        planCols: 6,
+        planCols: 4,
         planRows: 3,
         rooms: [
-          { id: "education-2f-201", building: "education", floor: 2, name: "201호", kind: "room", capacity: 35, reservable: true, facilities: ["빔프로젝터", "냉난방"], plan: { x: 0, y: 0, w: 2, h: 2 } },
-          { id: "education-2f-202", building: "education", floor: 2, name: "202호", kind: "room", capacity: 35, reservable: true, facilities: ["빔프로젝터", "냉난방"], plan: { x: 2, y: 0, w: 2, h: 2 } },
-          { id: "education-2f-meeting", building: "education", floor: 2, name: "회의실", kind: "room", capacity: 12, reservable: true, facilities: ["화상회의", "냉난방"], plan: { x: 4, y: 0, w: 2, h: 2 } },
-          { id: "education-2f-corridor", building: "education", floor: 2, name: "복도", kind: "corridor", capacity: null, reservable: false, facilities: [], plan: { x: 0, y: 2, w: 5, h: 1 } },
-          { id: "education-2f-storage", building: "education", floor: 2, name: "창고", kind: "storage", capacity: null, reservable: false, facilities: [], plan: { x: 5, y: 2, w: 1, h: 1 } },
+          { id: "library-2f-staff", building: "library", floor: 2, name: "교역자실", kind: "office", capacity: null, reservable: false, facilities: [], note: "교역자 전용 공간 — 대여 대상이 아닙니다", plan: { x: 0, y: 0, w: 4, h: 3 } },
         ],
       },
       {
         floor: 3,
         label: "3층",
-        planCols: 6,
+        planCols: 4,
         planRows: 3,
         rooms: [
-          { id: "education-3f-301", building: "education", floor: 3, name: "301호", kind: "room", capacity: 30, reservable: true, facilities: ["빔프로젝터", "냉난방"], plan: { x: 0, y: 0, w: 2, h: 2 } },
-          { id: "education-3f-302", building: "education", floor: 3, name: "302호", kind: "room", capacity: 30, reservable: true, facilities: ["냉난방"], plan: { x: 2, y: 0, w: 2, h: 2 } },
-          { id: "education-3f-303", building: "education", floor: 3, name: "303호", kind: "room", capacity: 20, reservable: true, facilities: ["냉난방"], plan: { x: 4, y: 0, w: 2, h: 2 } },
-          { id: "education-3f-corridor", building: "education", floor: 3, name: "복도", kind: "corridor", capacity: null, reservable: false, facilities: [], plan: { x: 0, y: 2, w: 6, h: 1 } },
+          { id: "library-3f-gathering", building: "library", floor: 3, name: "회집 장소", kind: "hall", capacity: null, reservable: true, facilities: [], note: "정확한 수용인원·비품은 확인 후 반영 예정", plan: { x: 0, y: 0, w: 4, h: 3 } },
         ],
       },
       {
         floor: 4,
         label: "4층",
-        planCols: 6,
+        planCols: 4,
         planRows: 3,
         rooms: [
-          { id: "education-4f-gym", building: "education", floor: 4, name: "체육관", kind: "hall", capacity: 150, reservable: true, facilities: ["음향", "냉난방"], note: "실내화 지참", plan: { x: 0, y: 0, w: 4, h: 3 } },
-          { id: "education-4f-401", building: "education", floor: 4, name: "401호", kind: "room", capacity: 20, reservable: true, facilities: ["냉난방"], plan: { x: 4, y: 0, w: 2, h: 1 } },
-          { id: "education-4f-storage", building: "education", floor: 4, name: "창고", kind: "storage", capacity: null, reservable: false, facilities: [], plan: { x: 4, y: 1, w: 2, h: 2 } },
+          { id: "library-4f-residence", building: "library", floor: 4, name: "관리집사님 생활공간", kind: "office", capacity: null, reservable: false, facilities: [], note: "관리집사님 사택 — 대여 대상이 아닙니다", plan: { x: 0, y: 0, w: 4, h: 3 } },
         ],
       },
     ],
   },
+  surfaceParkingBuilding("library-parking", "맑은숲도서관주차장", { x: 9.9, y: 2.65, w: 1.3, d: 1.1, h: 0.3 }),
   {
-    code: "parking",
-    name: "주차장",
-    description: "주차 구역·야외",
-    block: { x: 0, y: 3.7, w: 7.9, d: 2, h: 0.35 },
+    code: "vision",
+    name: "명성교회 비전센터",
+    description: "1~7층 + 옥상 (1·2층 주차장)",
+    block: { x: 4.4, y: 0, w: 2.4, d: 1.9, h: 7.6 },
     floors: [
-      {
-        floor: 1,
-        label: "지상",
-        planCols: 6,
-        planRows: 3,
-        rooms: [
-          { id: "parking-1f-area-a", building: "parking", floor: 1, name: "A구역", kind: "outdoor", capacity: 40, capacityUnit: "대", reservable: true, facilities: [], note: "행사 시 구역 통제용", plan: { x: 0, y: 0, w: 3, h: 2 } },
-          { id: "parking-1f-area-b", building: "parking", floor: 1, name: "B구역", kind: "outdoor", capacity: 30, capacityUnit: "대", reservable: true, facilities: [], plan: { x: 3, y: 0, w: 3, h: 2 } },
-          { id: "parking-1f-plaza", building: "parking", floor: 1, name: "야외마당", kind: "outdoor", capacity: 200, reservable: true, facilities: ["전기 콘센트"], plan: { x: 0, y: 2, w: 6, h: 1 } },
-        ],
-      },
+      parkingFloor("vision", 1, "1층"),
+      parkingFloor("vision", 2, "2층"),
+      pendingFloor("vision", 3, "3층"),
+      pendingFloor("vision", 4, "4층"),
+      pendingFloor("vision", 5, "5층"),
+      pendingFloor("vision", 6, "6층"),
+      pendingFloor("vision", 7, "7층"),
+      pendingFloor("vision", 8, "옥상"),
     ],
   },
 ];
