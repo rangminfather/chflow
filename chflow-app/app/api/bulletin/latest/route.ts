@@ -2,6 +2,15 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import iconv from "iconv-lite";
 import { syncJuboBulletin } from "@/lib/bulletin/jubo-sync";
+import {
+  claimBulletinDemandRetry,
+  finishBulletinDemandRetry,
+} from "@/lib/bulletin/demand-retry";
+import {
+  getBulletinSundayTargets as getPreferredSundayTargets,
+  getExpectedBulletinIssueDate as getExpectedIssueDate,
+  isBulletinDemandRetryWindow,
+} from "@/lib/bulletin/schedule";
 import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
 import { r2 } from "@/lib/r2";
 
@@ -45,7 +54,6 @@ const VIEW_BASE = "http://www.ums.or.kr/bbs/zboard.php";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const BUCKET = "bulletins";
 let publicListCache: CacheValue | null = null;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const BROWSER_HEADERS = {
   "User-Agent":
@@ -104,23 +112,6 @@ function absoluteJuboUrl(href: string) {
   return new URL(normalized, "http://www.ums.or.kr/bbs/").toString();
 }
 
-function isoDate(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function getPreferredSundayTargets(now = new Date()) {
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const todayUtc = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate());
-  const dayOfWeek = new Date(todayUtc).getUTCDay();
-  const currentSunday = new Date(todayUtc - dayOfWeek * DAY_MS);
-  const nextSunday = new Date(currentSunday.getTime() + 7 * DAY_MS);
-
-  return {
-    nextSunday: isoDate(nextSunday),
-    currentSunday: isoDate(currentSunday),
-  };
-}
-
 function pickPreferredBulletin(items: BulletinItem[]) {
   const targets = getPreferredSundayTargets();
   return (
@@ -134,26 +125,30 @@ function pickPreferredBulletin(items: BulletinItem[]) {
 // 이번 주에 "저장돼 있어야 할" 주보의 발행일(일요일자)을 달력만으로 계산한다.
 // 교회는 다가오는 주일 주보를 그 전 금요일에 올리므로, 금(5)·토(6)에는 다음 주일자,
 // 그 외 요일에는 직전 주일자를 기대 대상으로 본다. UMS를 다시 파싱하지 않는다.
-function getExpectedIssueDate(now = new Date()) {
-  const targets = getPreferredSundayTargets(now);
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const dayOfWeek = kst.getUTCDay(); // 0=일 .. 6=토
-  return dayOfWeek === 5 || dayOfWeek === 6 ? targets.nextSunday : targets.currentSunday;
-}
-
-// 조회 시 백그라운드 수집(self-heal). 같은 인스턴스에서 30분에 한 번으로 제한해
-// 클릭이 잦아도 UMS 트래픽이 늘지 않게 한다(수집 자체는 in-flight 잠금 + already_fetched 가드).
-let lastLazyTrigger = 0;
-const LAZY_TRIGGER_THROTTLE_MS = 30 * 60 * 1000;
-
-function scheduleLazyJuboSync(reason: string) {
-  const now = Date.now();
-  if (now - lastLazyTrigger < LAZY_TRIGGER_THROTTLE_MS) return;
-  lastLazyTrigger = now;
+// Weekend self-heal. The persisted DB claim limits all Vercel instances
+// together to one attempt per issue and source every 30 minutes.
+function scheduleLazyJuboSync(reason: string, issueDate: string) {
+  if (!isBulletinDemandRetryWindow()) return;
   after(async () => {
+    let claimed = false;
     try {
-      await syncJuboBulletin();
+      claimed = await claimBulletinDemandRetry("jubo", issueDate);
+      if (!claimed) return;
+
+      const result = await syncJuboBulletin();
+      await finishBulletinDemandRetry(
+        "jubo",
+        issueDate,
+        result.latest?.issue_date === issueDate ? "success" : "not_available",
+      );
     } catch (e) {
+      if (claimed) {
+        try {
+          await finishBulletinDemandRetry("jubo", issueDate, "error");
+        } catch (finishError) {
+          console.error("[bulletin-latest] lazy retry state update failed", finishError);
+        }
+      }
       console.error(`[bulletin-latest] lazy sync failed (${reason})`, e);
     }
   });
@@ -296,7 +291,7 @@ export async function GET(req: NextRequest) {
       // 저장본은 있지만 이번 주에 있어야 할 주보(날짜 기반)가 아직 없으면 백그라운드 수집.
       const expected = getExpectedIssueDate();
       if (!stored.some((item) => item.issue_date === expected)) {
-        scheduleLazyJuboSync("stored-missing-expected");
+        scheduleLazyJuboSync("stored-missing-expected", expected);
       }
       return NextResponse.json({
         ok: true,
@@ -304,6 +299,22 @@ export async function GET(req: NextRequest) {
         items: stored,
         source: "storage",
         cached: false,
+        preferred_dates: getPreferredSundayTargets(),
+      });
+    }
+
+    // If storage is empty during the weekend, enqueue the same persisted retry
+    // instead of making every viewer request query UMS directly.
+    if (isBulletinDemandRetryWindow()) {
+      const expected = getExpectedIssueDate();
+      scheduleLazyJuboSync("no-stored-weekend", expected);
+      return NextResponse.json({
+        ok: true,
+        latest: null,
+        items: [],
+        source: "storage",
+        cached: false,
+        retry_scheduled: true,
         preferred_dates: getPreferredSundayTargets(),
       });
     }
@@ -318,7 +329,7 @@ export async function GET(req: NextRequest) {
       preferred &&
       (preferred.issue_date === targets.nextSunday || preferred.issue_date === targets.currentSunday)
     ) {
-      scheduleLazyJuboSync("no-stored-fresh-upstream");
+      scheduleLazyJuboSync("no-stored-fresh-upstream", getExpectedIssueDate());
     }
 
     return NextResponse.json({

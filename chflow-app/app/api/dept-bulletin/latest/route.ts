@@ -1,6 +1,16 @@
 import { createHmac } from "crypto";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  claimBulletinDemandRetry,
+  finishBulletinDemandRetry,
+} from "@/lib/bulletin/demand-retry";
+import { syncDeptBulletinFor } from "@/lib/bulletin/dept-bulletin-sync";
+import {
+  getBulletinSundayTargets as getPreferredSundayTargets,
+  getExpectedBulletinIssueDate,
+  isBulletinDemandRetryWindow,
+} from "@/lib/bulletin/schedule";
 import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
 import {
   type DeptFileKind,
@@ -71,7 +81,6 @@ const DIRECT_POST_URL = (no: number) => `http://www.ums.or.kr/bbs/zboard.php?id=
 const VIEW_BASE = "http://www.ums.or.kr/bbs/zboard.php";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const PDF_URL_TTL_SECONDS = 10 * 60;
-const DAY_MS = 24 * 60 * 60 * 1000;
 const DEPT_MARKER_PREFIX = "Dept bulletin:";
 const UMS_SAMUSIL_MARKER = "UMS samusil no:";
 
@@ -170,23 +179,6 @@ async function enrichFromPost(item: ListedItem): Promise<ListedItem> {
   }
 }
 
-function isoDate(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function getPreferredSundayTargets(now = new Date()) {
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const todayUtc = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate());
-  const dayOfWeek = new Date(todayUtc).getUTCDay();
-  const currentSunday = new Date(todayUtc - dayOfWeek * DAY_MS);
-  const nextSunday = new Date(currentSunday.getTime() + 7 * DAY_MS);
-
-  return {
-    nextSunday: isoDate(nextSunday),
-    currentSunday: isoDate(currentSunday),
-  };
-}
-
 function pickPreferredBulletin(items: DeptBulletinItem[]) {
   const targets = getPreferredSundayTargets();
   return (
@@ -197,12 +189,10 @@ function pickPreferredBulletin(items: DeptBulletinItem[]) {
   );
 }
 
-// 저장본이 이번 주일(또는 다음 주일) 주보를 이미 갖고 있는가
+// 저장본이 오늘 기준으로 기대되는 주일자 주보를 이미 갖고 있는가
 function coversPreferredSunday(items: DeptBulletinItem[]) {
-  const targets = getPreferredSundayTargets();
-  return items.some(
-    (item) => item.issue_date === targets.nextSunday || item.issue_date === targets.currentSunday,
-  );
+  const expected = getExpectedBulletinIssueDate();
+  return items.some((item) => item.issue_date === expected);
 }
 
 // 저장본 + UMS 실시간 목록 병합. 같은 게시글(no)이면 저장본을 남긴다 (이미 정규화·보관된 파일).
@@ -235,6 +225,35 @@ function withSignedPdfUrls(items: ListedItem[], origin: string): DeptBulletinIte
       pdf_url: `${origin}/api/dept-bulletin/pdf?no=${item.no}&exp=${expiresAt}&sig=${sig}`,
       file_url: `${origin}/api/dept-bulletin/file?no=${item.no}&exp=${expiresAt}&sig=${sig}${fnPart}${namePart}`,
     };
+  });
+}
+
+function scheduleLazyDeptBulletinSync(deptKey: string, issueDate: string) {
+  if (!isBulletinDemandRetryWindow()) return;
+  const source = `dept:${deptKey}`;
+
+  after(async () => {
+    let claimed = false;
+    try {
+      claimed = await claimBulletinDemandRetry(source, issueDate);
+      if (!claimed) return;
+
+      const result = await syncDeptBulletinFor(deptKey);
+      await finishBulletinDemandRetry(
+        source,
+        issueDate,
+        result.ok && result.latest?.issue_date === issueDate ? "success" : "not_available",
+      );
+    } catch (e) {
+      if (claimed) {
+        try {
+          await finishBulletinDemandRetry(source, issueDate, "error");
+        } catch (finishError) {
+          console.error("[dept-bulletin-latest] lazy retry state update failed", finishError);
+        }
+      }
+      console.error(`[dept-bulletin-latest] lazy sync failed (${deptKey})`, e);
+    }
   });
 }
 
@@ -348,8 +367,23 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 저장본이 밀려 있는 부서(수집 크론이 없는 초등2부·유치부 등)는 UMS 실시간 목록을 합쳐
-    // 최신 주보까지 보이게 한다. UMS 가 죽어도 저장본이 있으면 그걸로 응답한다.
+    // 주말에는 저장본이 밀린 경우 DB 선점 후 백그라운드 수집을 예약한다.
+    // Weekend views only enqueue a persisted, throttled collection attempt.
+    // They never fan out into an uncontrolled live UMS lookup per user request.
+    if (isBulletinDemandRetryWindow()) {
+      const expected = getExpectedBulletinIssueDate();
+      scheduleLazyDeptBulletinSync(deptKey, expected);
+      return NextResponse.json({
+        ok: true,
+        latest: pickPreferredBulletin(stored),
+        items: stored,
+        source: "storage",
+        cached: false,
+        retry_scheduled: true,
+        preferred_dates: getPreferredSundayTargets(),
+      });
+    }
+
     const hadCache = (listCaches.get(deptKey)?.expiresAt ?? 0) > Date.now();
     let live: DeptBulletinItem[] = [];
     let liveError: string | null = null;

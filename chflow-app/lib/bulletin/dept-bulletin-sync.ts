@@ -254,6 +254,7 @@ async function syncOneDept(
 
 // 동시 호출 방지 (in-flight 잠금) — cron 과 사용자 트리거가 겹쳐도 1회만 수집
 let inFlight: Promise<DeptSyncResult> | null = null;
+const singleDeptInFlight = new Map<string, Promise<DeptSyncOutcome>>();
 
 export function syncDeptBulletin(): Promise<DeptSyncResult> {
   if (inFlight) return inFlight;
@@ -261,6 +262,41 @@ export function syncDeptBulletin(): Promise<DeptSyncResult> {
     inFlight = null;
   });
   return inFlight;
+}
+
+// Demand-triggered collection only checks the department the user is viewing.
+// This avoids running all six department parsers for every self-heal attempt.
+export function syncDeptBulletinFor(deptKey: string): Promise<DeptSyncOutcome> {
+  const dept = SYNC_DEPTS.find((candidate) => candidate.key === deptKey);
+  if (!dept) {
+    return Promise.resolve({
+      dept: deptKey,
+      ok: false,
+      error: "지원하지 않는 부서입니다.",
+    });
+  }
+
+  if (inFlight) {
+    return inFlight.then((result) => result.departments.find((item) => item.dept === deptKey) || {
+      dept: deptKey,
+      ok: false,
+      error: "부서 주보 수집 결과를 찾지 못했습니다.",
+    });
+  }
+
+  const running = singleDeptInFlight.get(deptKey);
+  if (running) return running;
+
+  const promise = (async () => {
+    const admin = adminClient();
+    const listHtml = await workerEucKr("/bbs/zboard.php?id=samusil&page=1");
+    return syncOneDept(admin, listHtml, dept);
+  })().finally(() => {
+    singleDeptInFlight.delete(deptKey);
+  });
+
+  singleDeptInFlight.set(deptKey, promise);
+  return promise;
 }
 
 async function doSyncDeptBulletin(): Promise<DeptSyncResult> {
