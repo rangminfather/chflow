@@ -1,6 +1,13 @@
 import JSZip from "jszip";
 import { extractHwpxTablesFromBuffer } from "../education/hwpx";
 import type { HwpBlock, HwpCell } from "./hwp-parse";
+import {
+  assertBulletinSourceSize,
+  assertSafeZipMetadata,
+  createArchiveOutputBudget,
+  isBulletinFileLimitError,
+  readLimitedZipEntry,
+} from "./attachment-limits";
 
 export async function parseHwpxBlocks(file: Uint8Array): Promise<HwpBlock[]> {
   const extraction = await extractHwpxTablesFromBuffer(file);
@@ -35,7 +42,9 @@ export async function extractHwpxPreview(
   file: Uint8Array,
 ): Promise<{ image: Uint8Array; contentType: string } | null> {
   try {
+    assertBulletinSourceSize(file.byteLength);
     const archive = await JSZip.loadAsync(file);
+    assertSafeZipMetadata(archive);
     const previewName = Object.keys(archive.files).find((name) =>
       /^Preview\/PrvImage\.(?:png|jpe?g|gif|webp|bmp)$/i.test(name),
     );
@@ -43,7 +52,7 @@ export async function extractHwpxPreview(
 
     const entry = archive.file(previewName);
     if (!entry) return null;
-    const image = await entry.async("uint8array");
+    const image = await readLimitedZipEntry(entry, createArchiveOutputBudget());
     if (image.length < 100) return null;
 
     const extension = previewName.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
@@ -55,7 +64,8 @@ export async function extractHwpxPreview(
       : extension === "bmp" ? "image/bmp"
       : null;
     return contentType ? { image, contentType } : null;
-  } catch {
+  } catch (error) {
+    if (isBulletinFileLimitError(error)) throw error;
     return null;
   }
 }
