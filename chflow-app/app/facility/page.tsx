@@ -32,8 +32,8 @@ import {
   listBuildings,
 } from "@/lib/facility/facility-map-config";
 import type { FacilityRoom } from "@/lib/facility/facility-map-config";
-import type { FacilityRoomOverride } from "@/lib/facility/facility-overrides";
-import { applyOverrides, toOverrideMap } from "@/lib/facility/facility-overrides";
+import type { FacilityBuildingOverride, FacilityRoomOverride } from "@/lib/facility/facility-overrides";
+import { applyOverrides, toBuildingOverrideMap, toOverrideMap } from "@/lib/facility/facility-overrides";
 
 const APPROVER_ROLES = ["admin", "office", "pastor"];
 
@@ -124,13 +124,17 @@ function FacilityRequestView() {
   const [notice, setNotice] = useState("");
 
   const [overrides, setOverrides] = useState(() => toOverrideMap([]));
+  const [buildingOverrides, setBuildingOverrides] = useState(() => toBuildingOverrideMap([]));
   const [editorOpen, setEditorOpen] = useState(false);
 
   const formRef = useRef<HTMLElement | null>(null);
 
   // 설정 파일 목록 위에 관리자가 고친 이름·대여 여부를 덮어쓴 것이 화면의 진실이다
   const defaults = useMemo(() => listBuildings(), []);
-  const buildings = useMemo(() => applyOverrides(defaults, overrides), [defaults, overrides]);
+  const buildings = useMemo(
+    () => applyOverrides(defaults, overrides, buildingOverrides),
+    [defaults, overrides, buildingOverrides],
+  );
 
   const building = findBuildingIn(buildings, selection.building);
   const floor = findFloorIn(buildings, selection.building, selection.floor);
@@ -144,6 +148,13 @@ function FacilityRequestView() {
       return;
     }
     setOverrides(toOverrideMap(data as FacilityRoomOverride[] | null));
+
+    const { data: buildingData, error: buildingError } = await supabase.rpc("get_facility_building_overrides");
+    if (buildingError) {
+      setError(`건물 정보를 불러오지 못했습니다: ${buildingError.message}`);
+      return;
+    }
+    setBuildingOverrides(toBuildingOverrideMap(buildingData as FacilityBuildingOverride[] | null));
   }, []);
 
   const loadMyBookings = useCallback(async () => {

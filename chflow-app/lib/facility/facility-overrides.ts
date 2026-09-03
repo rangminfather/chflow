@@ -37,6 +37,64 @@ export type FacilityRoomOverride = {
 
 export type OverrideMap = Map<string, FacilityRoomOverride>;
 
+/** DB get_facility_building_overrides() 한 행 — 건물 이름·설명 덮어쓰기 */
+export type FacilityBuildingOverride = {
+  building_code: string;
+  name: string | null;
+  description: string | null;
+};
+
+export type BuildingOverrideMap = Map<string, FacilityBuildingOverride>;
+
+export const BUILDING_NAME_MAX = 40;
+export const BUILDING_DESC_MAX = 60;
+
+export function toBuildingOverrideMap(
+  rows: FacilityBuildingOverride[] | null | undefined,
+): BuildingOverrideMap {
+  return new Map((rows ?? []).map((row) => [row.building_code, row]));
+}
+
+/** 관리자 편집 화면의 건물 머리말 값 */
+export type BuildingDraft = { name: string; description: string };
+
+export function draftFromBuilding(building: FacilityBuilding): BuildingDraft {
+  return { name: building.name, description: building.description };
+}
+
+export function isSameBuildingDraft(a: BuildingDraft, b: BuildingDraft): boolean {
+  return a.name.trim() === b.name.trim() && a.description.trim() === b.description.trim();
+}
+
+export function validateBuildingDraft(draft: BuildingDraft): string | null {
+  if (draft.name.trim() === "") return "건물 이름은 비워 둘 수 없습니다";
+  if (draft.name.trim().length > BUILDING_NAME_MAX) {
+    return `건물 이름은 ${BUILDING_NAME_MAX}자까지 입력할 수 있습니다`;
+  }
+  if (draft.description.trim().length > BUILDING_DESC_MAX) {
+    return `건물 설명은 ${BUILDING_DESC_MAX}자까지 입력할 수 있습니다`;
+  }
+  return null;
+}
+
+/**
+ * 저장할 건물 값 — 설정 파일 기본값과 같아지면 빈 문자열로 보내 행을 지운다.
+ * (RPC 는 이름·설명이 모두 비면 덮어쓰기 행을 삭제한다)
+ */
+export function buildBuildingSavePayload(
+  defaults: FacilityBuilding,
+  draft: BuildingDraft,
+): { p_building_code: string; p_name: string; p_description: string } | null {
+  if (isSameBuildingDraft(draft, draftFromBuilding(defaults))) {
+    return { p_building_code: defaults.code, p_name: "", p_description: "" };
+  }
+  return {
+    p_building_code: defaults.code,
+    p_name: draft.name.trim(),
+    p_description: draft.description.trim(),
+  };
+}
+
 /** 관리자 편집 화면이 다루는 값 — 입력창에 그대로 들어가는 문자열로 둔다 */
 export type RoomDraft = {
   name: string;
@@ -93,11 +151,21 @@ export function toOverrideMap(rows: FacilityRoomOverride[] | null | undefined): 
  * 덮어쓸 값이 하나도 없는 건물·층은 원래 객체를 그대로 돌려줘서
  * 불필요한 리렌더를 만들지 않는다.
  */
-export function applyOverrides(buildings: FacilityBuilding[], overrides: OverrideMap): FacilityBuilding[] {
-  if (overrides.size === 0) return buildings;
+export function applyOverrides(
+  buildings: FacilityBuilding[],
+  overrides: OverrideMap,
+  buildingOverrides?: BuildingOverrideMap,
+): FacilityBuilding[] {
+  if (overrides.size === 0 && (!buildingOverrides || buildingOverrides.size === 0)) return buildings;
 
   return buildings.map((building) => {
     let buildingChanged = false;
+
+    // 건물 머리말(이름·설명) 덮어쓰기 — 빈 값은 기본값 유지로 읽는다
+    const bo = buildingOverrides?.get(building.code);
+    const name = normalizeName(bo?.name) ?? building.name;
+    const description = normalizeName(bo?.description) ?? building.description;
+    const headChanged = name !== building.name || description !== building.description;
 
     const floors = building.floors.map((floor) => {
       let floorChanged = false;
@@ -113,7 +181,8 @@ export function applyOverrides(buildings: FacilityBuilding[], overrides: Overrid
       return { ...floor, rooms } satisfies FacilityFloor;
     });
 
-    return buildingChanged ? { ...building, floors } : building;
+    if (!buildingChanged && !headChanged) return building;
+    return { ...building, name, description, floors };
   });
 }
 
