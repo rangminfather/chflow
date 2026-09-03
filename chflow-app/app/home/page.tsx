@@ -23,6 +23,7 @@ import WeatherOverlay from "@/components/WeatherOverlay";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import {
   applyHomeMenuConfig, parseHomeMenuConfig, homeMenuKeyOf,
+  homeSectionKeyOf, resolveHomeSectionLabel,
   EMPTY_HOME_MENU_CONFIG, type HomeMenuConfig,
 } from "@/lib/homeMenuConfig";
 import {
@@ -139,6 +140,90 @@ type HomeMenuDragPreview = {
 
 // 편집 팝업에서 "기본값" 을 보여주려면 코드에 정의된 원래 메뉴가 필요하다
 const ALL_HOME_MENUS: CommonMenu[] = [...COMMON_MENUS, ...ADMIN_EXTRA_MENUS];
+
+// 관리자가 바꿀 수 있는 홈 섹션 제목의 기본값
+const HOME_SECTION_DEFAULT_LABELS: Record<string, string> = {
+  ministry: "내 사역 · 부서",
+  pasture: "나의 목장",
+  common: "공통 메뉴",
+};
+
+// 섹션 제목 저장 — 기본값과 같으면 덮어쓰기 값을 지운다
+async function saveHomeSectionLabel(
+  sectionId: string,
+  nextLabel: string,
+  onSaved: (next: HomeMenuConfig) => void,
+  onError: (message: string) => void,
+) {
+  const trimmed = nextLabel.trim();
+  const defaultLabel = HOME_SECTION_DEFAULT_LABELS[sectionId] ?? "";
+  const { error } = await supabase.rpc("set_home_menu_setting", {
+    p_menu_key: homeSectionKeyOf(sectionId),
+    p_label: !trimmed || trimmed === defaultLabel ? null : trimmed,
+    p_hidden: false,
+  });
+  if (error) { onError(`제목 저장 실패: ${error.message}`); return; }
+  const { data } = await supabase.rpc("get_home_menu_config");
+  onSaved(parseHomeMenuConfig(data));
+}
+
+// 편집모드 토글 톱니바퀴 (관리자 전용) — 교육부서 메뉴 편집과 같은 모양
+function MenuEditGearButton({ active, onClick, label }: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={active ? "편집 종료" : `${label} 편집`}
+      aria-label={active ? `${label} 편집 종료` : `${label} 편집`}
+      style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 32, height: 32, borderRadius: 8, cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
+        border: `1px solid ${active ? "var(--accent)" : "var(--hairline)"}`,
+        background: active ? "var(--accent-soft)" : "var(--card)",
+        color: active ? "var(--accent-strong)" : "var(--ink-soft)",
+      }}
+    >
+      <Cog
+        size={17}
+        strokeWidth={1.9}
+        className={active ? "animate-spin" : ""}
+        style={active ? { animationDuration: "3s" } : undefined}
+      />
+    </button>
+  );
+}
+
+// 편집모드에서 섹션 제목 자리에 들어가는 입력창 (포커스가 빠지면 저장)
+function SectionTitleInput({ sectionId, value, onSaved, onError }: {
+  sectionId: string;
+  value: string;
+  onSaved: (next: HomeMenuConfig) => void;
+  onError: (message: string) => void;
+}) {
+  return (
+    <input
+      defaultValue={value}
+      aria-label={`${HOME_SECTION_DEFAULT_LABELS[sectionId] ?? ""} 섹션 제목`}
+      maxLength={24}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") { e.currentTarget.value = value; e.currentTarget.blur(); }
+      }}
+      onBlur={(e) => { void saveHomeSectionLabel(sectionId, e.currentTarget.value, onSaved, onError); }}
+      style={{
+        width: "100%", maxWidth: "100%", boxSizing: "border-box",
+        padding: "4px 8px", borderRadius: 8,
+        border: "1.5px solid var(--accent)", background: "var(--card)",
+        fontFamily: "var(--app-serif)", fontSize: 18, fontWeight: 600, color: T.text,
+        outline: "none",
+      }}
+    />
+  );
+}
 
 // =============================================================
 // 메인
@@ -345,7 +430,13 @@ export default function HomePage() {
             {/* TODO: 나의 목장(가입신청/목장보기) — 구현 완료 후 아래 주석 해제, home-summary-grid 안으로 이동 */}
             {/* <MyMokjangSection user={user} /> */}
 
-            <CellShepherdSection user={user} router={router} />
+            <CellShepherdSection
+              user={user}
+              router={router}
+              canEditMenu={user.role === "admin"}
+              menuConfig={menuConfig}
+              onMenuConfigChange={setMenuConfig}
+            />
 
             <div className="home-summary-grid" style={{
               display: "grid",
@@ -353,7 +444,13 @@ export default function HomePage() {
               gap: 14,
               marginBottom: 18,
             }}>
-              <MinistrySection myDepartments={myDepartments} router={router} />
+              <MinistrySection
+                myDepartments={myDepartments}
+                router={router}
+                canEditMenu={user.role === "admin"}
+                menuConfig={menuConfig}
+                onMenuConfigChange={setMenuConfig}
+              />
             </div>
 
             <CommonMenuSection
@@ -676,27 +773,51 @@ function UserSummary({ user, photoUrl, userImage, router }: {
 // =============================================================
 // 1) 내 사역 · 부서
 // =============================================================
-function MinistrySection({ myDepartments, router }: { myDepartments: MyDepartment[]; router: RouterType }) {
+function MinistrySection({ myDepartments, router, canEditMenu, menuConfig, onMenuConfigChange }: {
+  myDepartments: MyDepartment[];
+  router: RouterType;
+  canEditMenu: boolean;
+  menuConfig: HomeMenuConfig;
+  onMenuConfigChange: (next: HomeMenuConfig) => void;
+}) {
   const approved = myDepartments.filter((d) => d.status === "approved");
   const pending = myDepartments.filter((d) => d.status === "pending");
   const empty = approved.length === 0 && pending.length === 0;
+  const [editingTitle, setEditingTitle] = useState(false);
+  const sectionLabel = resolveHomeSectionLabel(menuConfig, "ministry", HOME_SECTION_DEFAULT_LABELS.ministry);
 
   return (
     <Section bg="var(--surface)" style={{ height: "100%", marginBottom: 0, border: "1px solid var(--hairline)" }}>
       <SectionHeader
         icon={<Folder size={18} strokeWidth={1.75} />}
         iconColor="var(--accent)"
-        title="내 사역 · 부서"
+        title={editingTitle ? (
+          <SectionTitleInput
+            sectionId="ministry"
+            value={sectionLabel}
+            onSaved={onMenuConfigChange}
+            onError={(msg) => alert(msg)}
+          />
+        ) : sectionLabel}
         action={
-          <button
-            onClick={() => router.push("/departments")}
-            style={{
-              padding: "4px 10px", fontSize: 11, fontWeight: 700,
-              color: T.ministryPoint, background: "transparent",
-              border: `1.5px dashed ${T.ministryPoint}`, borderRadius: 8,
-              cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-            }}
-          >+ 가입</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {canEditMenu && (
+              <MenuEditGearButton
+                active={editingTitle}
+                onClick={() => setEditingTitle((v) => !v)}
+                label={HOME_SECTION_DEFAULT_LABELS.ministry}
+              />
+            )}
+            <button
+              onClick={() => router.push("/departments")}
+              style={{
+                padding: "4px 10px", fontSize: 11, fontWeight: 700,
+                color: T.ministryPoint, background: "transparent",
+                border: `1.5px dashed ${T.ministryPoint}`, borderRadius: 8,
+                cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+              }}
+            >+ 가입</button>
+          </div>
         }
       />
 
@@ -761,9 +882,17 @@ function MinistryCard({ dept, status, onClick }: {
 // 아래 MyMokjangSection(가입신청/목장보기)은 아직 미구현이라 계속 숨겨둔다.
 // 목장 모임은 소속 목장이 있으면 누구나, 목장일지는 예전처럼 목자·목녀만 본다.
 // =============================================================
-function CellShepherdSection({ user, router }: { user: UserInfo; router: RouterType }) {
+function CellShepherdSection({ user, router, canEditMenu, menuConfig, onMenuConfigChange }: {
+  user: UserInfo;
+  router: RouterType;
+  canEditMenu: boolean;
+  menuConfig: HomeMenuConfig;
+  onMenuConfigChange: (next: HomeMenuConfig) => void;
+}) {
+  const [editingTitle, setEditingTitle] = useState(false);
   const isCellShepherd = user.family_church === "목자" || user.family_church === "목녀";
   const hasPasture = !!user.pasture_name;
+  const sectionLabel = resolveHomeSectionLabel(menuConfig, "pasture", HOME_SECTION_DEFAULT_LABELS.pasture);
   if (!isCellShepherd && !hasPasture) return null;
 
   return (
@@ -771,7 +900,21 @@ function CellShepherdSection({ user, router }: { user: UserInfo; router: RouterT
       <SectionHeader
         icon={<Home size={18} strokeWidth={1.75} />}
         iconColor="var(--accent)"
-        title="나의 목장"
+        title={editingTitle ? (
+          <SectionTitleInput
+            sectionId="pasture"
+            value={sectionLabel}
+            onSaved={onMenuConfigChange}
+            onError={(msg) => alert(msg)}
+          />
+        ) : sectionLabel}
+        action={canEditMenu ? (
+          <MenuEditGearButton
+            active={editingTitle}
+            onClick={() => setEditingTitle((v) => !v)}
+            label={HOME_SECTION_DEFAULT_LABELS.pasture}
+          />
+        ) : undefined}
       />
       {hasPasture && (
         <SafeCard onClick={() => router.push("/pasture")} padding={12} style={{ borderRadius: 10, marginBottom: isCellShepherd ? 8 : 0 }}>
@@ -1080,6 +1223,7 @@ function CommonMenuSection({ isAdmin, canEditMenu, router, menuConfig, onMenuCon
     };
   }, []);
 
+  const sectionLabel = resolveHomeSectionLabel(menuConfig, "common", HOME_SECTION_DEFAULT_LABELS.common);
   // 저장된 이름·순서·숨김 적용 (편집모드에서는 숨긴 메뉴도 보여야 다시 켤 수 있다)
   const commonMenus = applyHomeMenuConfig("common", COMMON_MENUS, menuConfig, { includeHidden: editing });
   const adminGroups = ADMIN_MENU_GROUPS
@@ -1129,28 +1273,20 @@ function CommonMenuSection({ isAdmin, canEditMenu, router, menuConfig, onMenuCon
       <SectionHeader
         icon={<LayoutGrid size={18} strokeWidth={1.75} />}
         iconColor="var(--accent)"
-        title="공통 메뉴"
+        title={editing ? (
+          <SectionTitleInput
+            sectionId="common"
+            value={sectionLabel}
+            onSaved={onMenuConfigChange}
+            onError={showToast}
+          />
+        ) : sectionLabel}
         action={canEditMenu ? (
-          <button
-            type="button"
+          <MenuEditGearButton
+            active={editing}
             onClick={() => setEditing((v) => !v)}
-            title={editing ? "편집 종료" : "메인메뉴 편집"}
-            aria-label={editing ? "메인메뉴 편집 종료" : "메인메뉴 편집"}
-            style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              width: 32, height: 32, borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
-              border: `1px solid ${editing ? "var(--accent)" : "var(--hairline)"}`,
-              background: editing ? "var(--accent-soft)" : "var(--card)",
-              color: editing ? "var(--accent-strong)" : "var(--ink-soft)",
-            }}
-          >
-            <Cog
-              size={17}
-              strokeWidth={1.9}
-              className={editing ? "animate-spin" : ""}
-              style={editing ? { animationDuration: "3s" } : undefined}
-            />
-          </button>
+            label="메인메뉴"
+          />
         ) : undefined}
       />
 
@@ -1685,7 +1821,7 @@ function SidebarContent({ user, myDepartments, router, onNavigate, onLogout, men
 
   return (
     <div style={{ minWidth: 0 }}>
-      <SideLabel>내 사역 · 부서</SideLabel>
+      <SideLabel>{resolveHomeSectionLabel(menuConfig, "ministry", "내 사역 · 부서")}</SideLabel>
       {approved.length === 0 ? (
         <div className="kr-keep" style={{ padding: "8px 12px", fontSize: 11, color: T.textMuted, fontStyle: "italic" }}>
           배정된 사역이 없습니다
@@ -1726,7 +1862,7 @@ function SidebarContent({ user, myDepartments, router, onNavigate, onLogout, men
       {user.pasture_name && (
         <>
           <SideDivider />
-          <SideLabel>내 목장</SideLabel>
+          <SideLabel>{resolveHomeSectionLabel(menuConfig, "pasture", "내 목장")}</SideLabel>
           <SidebarItem onClick={() => alert("목장 상세 화면은 준비 중입니다.")}>
             <Home size={15} strokeWidth={1.75} style={{ marginRight: 6, flexShrink: 0 }} />
             <span className="kr-keep">{user.pasture_name}목장</span>
@@ -1735,7 +1871,7 @@ function SidebarContent({ user, myDepartments, router, onNavigate, onLogout, men
       )}
 
       <SideDivider />
-      <SideLabel>공통</SideLabel>
+      <SideLabel>{resolveHomeSectionLabel(menuConfig, "common", "공통")}</SideLabel>
       {sideMenus.map((m) => (
         <SidebarItem key={m.id} onClick={() => m.href ? go(m.href) : alert(`${m.label}은(는) 곧 추가됩니다.`)}>
           <m.icon size={15} strokeWidth={1.75} style={{ marginRight: 6, flexShrink: 0 }} />
