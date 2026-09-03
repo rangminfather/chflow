@@ -21,6 +21,24 @@ export function homeMenuKeyOf(groupId: string, menuId: string): string {
   return `${groupId === "common" ? "common" : "admin"}/${menuId}`;
 }
 
+// 섹션 제목 설정 키 — 메뉴와 같은 테이블을 쓰되 접두사로 구분한다
+export const HOME_SECTION_IDS = ["ministry", "pasture", "common"] as const;
+export type HomeSectionId = (typeof HOME_SECTION_IDS)[number];
+
+export function homeSectionKeyOf(sectionId: string): string {
+  return `section/${sectionId}`;
+}
+
+// 저장된 섹션 제목(없거나 공백이면 코드 기본값)
+export function resolveHomeSectionLabel(
+  config: HomeMenuConfig,
+  sectionId: string,
+  defaultLabel: string,
+): string {
+  const saved = config.settings[homeSectionKeyOf(sectionId)]?.label;
+  return saved && saved.trim() ? saved : defaultLabel;
+}
+
 // RPC 응답(jsonb)을 방어적으로 파싱 — 형태가 어긋나면 그 부분만 버린다
 export function parseHomeMenuConfig(raw: unknown): HomeMenuConfig {
   if (!raw || typeof raw !== "object") return EMPTY_HOME_MENU_CONFIG;

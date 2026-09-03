@@ -149,7 +149,8 @@ export function SectionHeader({
 }: {
   icon: ReactNode;
   iconColor: string;
-  title: string;
+  // 관리자 편집모드에서 제목 자리에 입력창을 넣을 수 있게 ReactNode 도 허용
+  title: ReactNode;
   subtitle?: string;
   action?: ReactNode;
 }) {

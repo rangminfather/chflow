@@ -3,6 +3,8 @@ import {
   applyHomeMenuConfig,
   parseHomeMenuConfig,
   homeMenuKeyOf,
+  homeSectionKeyOf,
+  resolveHomeSectionLabel,
   EMPTY_HOME_MENU_CONFIG,
 } from "./homeMenuConfig";
 
@@ -105,5 +107,38 @@ describe("applyHomeMenuConfig", () => {
     });
     expect(result.map((m) => m.id)).toEqual(["live", "bulletin", "directory"]);
     expect(result[0].label).toBe("예배");
+  });
+});
+
+describe("resolveHomeSectionLabel", () => {
+  it("섹션 키는 section/ 접두사를 쓴다", () => {
+    expect(homeSectionKeyOf("ministry")).toBe("section/ministry");
+  });
+
+  it("저장값이 없으면 기본 제목을 쓴다", () => {
+    expect(resolveHomeSectionLabel(EMPTY_HOME_MENU_CONFIG, "ministry", "내 사역 · 부서")).toBe("내 사역 · 부서");
+  });
+
+  it("저장된 제목으로 바꾼다", () => {
+    const config = {
+      settings: { "section/pasture": { label: "우리 목장", hidden: false } },
+      order: {},
+    };
+    expect(resolveHomeSectionLabel(config, "pasture", "나의 목장")).toBe("우리 목장");
+    // 사이드바처럼 기본값이 다른 자리에도 같은 저장값이 적용된다
+    expect(resolveHomeSectionLabel(config, "pasture", "내 목장")).toBe("우리 목장");
+  });
+
+  it("빈 제목은 무시하고 기본 제목을 쓴다", () => {
+    const config = { settings: { "section/common": { label: "  ", hidden: false } }, order: {} };
+    expect(resolveHomeSectionLabel(config, "common", "공통 메뉴")).toBe("공통 메뉴");
+  });
+
+  it("메뉴 설정과 섹션 설정은 서로 간섭하지 않는다", () => {
+    const config = {
+      settings: { "common/live": { label: "온라인 예배", hidden: false } },
+      order: {},
+    };
+    expect(resolveHomeSectionLabel(config, "common", "공통 메뉴")).toBe("공통 메뉴");
   });
 });
