@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { photoThumb } from "@/lib/photo";
@@ -14,11 +14,17 @@ import {
   Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid, MessagesSquare, SearchCheck,
   Sparkles, HeartHandshake, Sun, Moon, BarChart3, Radio, MapPin,
   GraduationCap, ChevronRight, CloudRain, CloudOff,
+  Cog, GripVertical, Eye, EyeOff, Pencil,
 } from "lucide-react";
 import { useTheme } from "@/lib/useTheme";
 import { useWeatherEffect } from "@/lib/useWeatherEffect";
 import { LoadingView } from "@/components/StatusViews";
 import WeatherOverlay from "@/components/WeatherOverlay";
+import ModalBackdrop from "@/components/ModalBackdrop";
+import {
+  applyHomeMenuConfig, parseHomeMenuConfig, homeMenuKeyOf,
+  EMPTY_HOME_MENU_CONFIG, type HomeMenuConfig,
+} from "@/lib/homeMenuConfig";
 import {
   T, PageShell, PageContent,
   Section, SectionHeader,
@@ -120,6 +126,20 @@ const ADMIN_MENU_GROUPS = [
 ] as const;
 type AdminMenuGroupId = (typeof ADMIN_MENU_GROUPS)[number]["id"];
 
+// 편집모드 드래그 중 커서를 따라다니는 미리보기 카드
+type HomeMenuDragPreview = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  offsetX: number;
+  offsetY: number;
+  menu: CommonMenu;
+};
+
+// 편집 팝업에서 "기본값" 을 보여주려면 코드에 정의된 원래 메뉴가 필요하다
+const ALL_HOME_MENUS: CommonMenu[] = [...COMMON_MENUS, ...ADMIN_EXTRA_MENUS];
+
 // =============================================================
 // 메인
 // =============================================================
@@ -132,6 +152,8 @@ export default function HomePage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
   const [showExitToast, setShowExitToast] = useState(false);
+  // 관리자가 바꾼 메인메뉴 이름·순서·숨김 (전 성도 공통) — 실패 시 기본 메뉴 그대로
+  const [menuConfig, setMenuConfig] = useState<HomeMenuConfig>(EMPTY_HOME_MENU_CONFIG);
 
   useEffect(() => {
     (async () => {
@@ -149,11 +171,13 @@ export default function HomePage() {
 
       // 일일 방문 기록은 GlobalNotifications(전역)에서 처리 — 어떤 경로로 들어와도 집계됨
 
-      const [{ data: depts }, { data: photos }] = await Promise.all([
+      const [{ data: depts }, { data: photos }, { data: menuCfg, error: menuCfgError }] = await Promise.all([
         supabase.rpc("get_my_departments"),
         supabase.rpc("get_my_photos"),
+        supabase.rpc("get_home_menu_config"),
       ]);
       if (depts) setMyDepartments(depts);
+      if (!menuCfgError && menuCfg) setMenuConfig(parseHomeMenuConfig(menuCfg));
       if (photos && photos[0]) {
         setPhotoUrl(photos[0].avatar_url || photos[0].member_photo_url || null);
       }
@@ -275,6 +299,9 @@ export default function HomePage() {
           .admin-menu-group-heading { display: none !important; }
           .admin-menu-group { margin-top: 0 !important; }
           .admin-menu-group[data-mobile-active="false"] { display: none; }
+          /* 편집모드에서는 탭 대신 모든 그룹을 펼치므로 소제목을 다시 보여준다 */
+          .admin-menu-group-editing .admin-menu-group-heading { display: block !important; }
+          .admin-menu-group-editing + .admin-menu-group-editing { margin-top: 16px !important; }
           .compact-action { width: 100% !important; justify-content: center !important; }
           .command-center { grid-template-columns: 1fr !important; padding: 18px !important; }
           .command-actions { justify-content: stretch !important; }
@@ -295,7 +322,7 @@ export default function HomePage() {
       />
 
       <div style={{ display: "flex", minHeight: "calc(100vh - 64px)", width: "100%", maxWidth: "100%", minWidth: 0 }}>
-        <DesktopSidebar user={user} myDepartments={myDepartments} router={router} onLogout={handleLogout} />
+        <DesktopSidebar user={user} myDepartments={myDepartments} router={router} onLogout={handleLogout} menuConfig={menuConfig} />
         <MobileSidebar
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
@@ -303,6 +330,7 @@ export default function HomePage() {
           myDepartments={myDepartments}
           router={router}
           onLogout={handleLogout}
+          menuConfig={menuConfig}
         />
 
         <div style={{ flex: 1, minWidth: 0, width: "100%", maxWidth: "100%" }}>
@@ -328,7 +356,13 @@ export default function HomePage() {
               <MinistrySection myDepartments={myDepartments} router={router} />
             </div>
 
-            <CommonMenuSection isAdmin={isAdmin} router={router} />
+            <CommonMenuSection
+              isAdmin={isAdmin}
+              canEditMenu={user.role === "admin"}
+              router={router}
+              menuConfig={menuConfig}
+              onMenuConfigChange={setMenuConfig}
+            />
           </PageContent>
         </div>
       </div>
@@ -865,11 +899,127 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
 // =============================================================
 // 3) 공통 메뉴
 // =============================================================
-function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: RouterType }) {
+function CommonMenuSection({ isAdmin, canEditMenu, router, menuConfig, onMenuConfigChange }: {
+  isAdmin: boolean;
+  canEditMenu: boolean;
+  router: RouterType;
+  menuConfig: HomeMenuConfig;
+  onMenuConfigChange: Dispatch<SetStateAction<HomeMenuConfig>>;
+}) {
   // 생방송 여부는 서버가 스로틀링하는 /api/live/status 에서 받는다 (YouTube 직접 호출 아님)
   // null = 아직 모름 → 표시등을 아예 띄우지 않는다 (모르는 상태를 OFF AIR 로 단정하지 않기)
   const [liveOn, setLiveOn] = useState<boolean | null>(null);
   const [activeAdminMenuGroup, setActiveAdminMenuGroup] = useState<AdminMenuGroupId>(ADMIN_MENU_GROUPS[0].id);
+  // 편집모드 (관리자만) — 카드 드래그로 순서, 카드 클릭으로 이름/숨김 변경
+  const [editing, setEditing] = useState(false);
+  const [editTarget, setEditTarget] = useState<{ groupId: string; menuId: string } | null>(null);
+  const [toast, setToast] = useState("");
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
+  const [dragPreview, setDragPreview] = useState<HomeMenuDragPreview | null>(null);
+  const itemRefs = useRef(new Map<string, HTMLDivElement>());
+  const dragRef = useRef<{
+    groupId: string;
+    menuId: string;
+    startOrder: string[];
+    currentOrder: string[];
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2800);
+  };
+
+  // 편집모드 그리드 순서 드래그 — 같은 그룹 안에서만 이동한다
+  const startItemDrag = (
+    e: React.PointerEvent,
+    groupId: string,
+    menuId: string,
+    orderedIds: string[],
+    menu: CommonMenu,
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const source = itemRefs.current.get(`${groupId}:${menuId}`);
+    const rect = source?.getBoundingClientRect();
+    const offsetX = rect ? e.clientX - rect.left : 24;
+    const offsetY = rect ? e.clientY - rect.top : 24;
+    dragRef.current = { groupId, menuId, startOrder: orderedIds, currentOrder: orderedIds, offsetX, offsetY };
+    setDraggingKey(`${groupId}:${menuId}`);
+    setDragPreview({
+      left: rect?.left ?? e.clientX - offsetX,
+      top: rect?.top ?? e.clientY - offsetY,
+      width: rect?.width ?? 200,
+      height: rect?.height ?? 64,
+      offsetX,
+      offsetY,
+      menu,
+    });
+
+    const onMove = (ev: PointerEvent) => {
+      ev.preventDefault();
+      const st = dragRef.current;
+      if (!st) return;
+      setDragPreview((preview) => preview ? {
+        ...preview,
+        left: ev.clientX - st.offsetX,
+        top: ev.clientY - st.offsetY,
+      } : null);
+
+      // 화면 위/아래 끝에 닿으면 자동 스크롤
+      const edge = 72;
+      if (ev.clientY < edge) {
+        window.scrollBy(0, -Math.max(4, Math.round((edge - ev.clientY) / 4)));
+      } else if (ev.clientY > window.innerHeight - edge) {
+        window.scrollBy(0, Math.max(4, Math.round((ev.clientY - (window.innerHeight - edge)) / 4)));
+      }
+
+      for (const otherId of st.currentOrder) {
+        if (otherId === st.menuId) continue;
+        const el = itemRefs.current.get(`${st.groupId}:${otherId}`);
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) continue;
+        const next = [...st.currentOrder];
+        const from = next.indexOf(st.menuId);
+        if (from < 0) return;
+        next.splice(from, 1);
+        const to = next.indexOf(otherId);
+        next.splice(to < 0 ? next.length : to, 0, st.menuId);
+        if (next.join("|") === st.currentOrder.join("|")) return;
+        st.currentOrder = next;
+        onMenuConfigChange((prev) => ({ ...prev, order: { ...prev.order, [st.groupId]: next } }));
+        return;
+      }
+    };
+
+    const onUp = async () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      const st = dragRef.current;
+      dragRef.current = null;
+      setDraggingKey(null);
+      setDragPreview(null);
+      if (!st) return;
+      if (st.currentOrder.join("|") === st.startOrder.join("|")) return;
+      const { error } = await supabase.rpc("set_home_menu_item_order", {
+        p_group: st.groupId,
+        p_order: st.currentOrder,
+      });
+      if (error) {
+        onMenuConfigChange((prev) => ({ ...prev, order: { ...prev.order, [st.groupId]: st.startOrder } }));
+        showToast(`순서 저장 실패: ${error.message}`);
+      } else {
+        showToast("메뉴 순서를 저장했습니다");
+      }
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -930,20 +1080,94 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
     };
   }, []);
 
+  // 저장된 이름·순서·숨김 적용 (편집모드에서는 숨긴 메뉴도 보여야 다시 켤 수 있다)
+  const commonMenus = applyHomeMenuConfig("common", COMMON_MENUS, menuConfig, { includeHidden: editing });
+  const adminGroups = ADMIN_MENU_GROUPS
+    .map((group) => ({
+      id: group.id,
+      label: group.label,
+      items: applyHomeMenuConfig(group.id, [...group.menus], menuConfig, { includeHidden: editing }),
+    }))
+    .filter((group) => group.items.length > 0);
+  const selectedAdminGroup = adminGroups.some((group) => group.id === activeAdminMenuGroup)
+    ? activeAdminMenuGroup
+    : adminGroups[0]?.id;
+
+  const renderMenuGrid = (
+    groupId: string,
+    items: (CommonMenu & { hidden: boolean })[],
+    options: { gap: number; className: string; compact?: boolean },
+  ) => {
+    const orderedIds = items.map((item) => item.id);
+    return (
+      <SafeGrid cols={2} gap={options.gap} className={options.className}>
+        {items.map((m) => (
+          <MenuCard
+            key={m.id}
+            menu={m}
+            router={router}
+            compact={options.compact}
+            live={groupId === "common" && m.id === "live" ? liveOn : undefined}
+            editing={editing}
+            menuHidden={m.hidden}
+            dragging={draggingKey === `${groupId}:${m.id}`}
+            cardRef={(el) => {
+              const key = `${groupId}:${m.id}`;
+              if (el) itemRefs.current.set(key, el);
+              else itemRefs.current.delete(key);
+            }}
+            onEdit={editing ? () => setEditTarget({ groupId, menuId: m.id }) : undefined}
+            onDragHandle={editing ? (e) => startItemDrag(e, groupId, m.id, orderedIds, m) : undefined}
+          />
+        ))}
+      </SafeGrid>
+    );
+  };
+
   return (
     <Section bg="var(--surface)" style={{ border: "1px solid var(--hairline)" }}>
       <SectionHeader
         icon={<LayoutGrid size={18} strokeWidth={1.75} />}
         iconColor="var(--accent)"
         title="공통 메뉴"
+        action={canEditMenu ? (
+          <button
+            type="button"
+            onClick={() => setEditing((v) => !v)}
+            title={editing ? "편집 종료" : "메인메뉴 편집"}
+            aria-label={editing ? "메인메뉴 편집 종료" : "메인메뉴 편집"}
+            style={{
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              width: 32, height: 32, borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+              border: `1px solid ${editing ? "var(--accent)" : "var(--hairline)"}`,
+              background: editing ? "var(--accent-soft)" : "var(--card)",
+              color: editing ? "var(--accent-strong)" : "var(--ink-soft)",
+            }}
+          >
+            <Cog
+              size={17}
+              strokeWidth={1.9}
+              className={editing ? "animate-spin" : ""}
+              style={editing ? { animationDuration: "3s" } : undefined}
+            />
+          </button>
+        ) : undefined}
       />
-      <SafeGrid cols={2} gap={10} className="home-menu-grid">
-        {COMMON_MENUS.map((m) => (
-          <MenuCard key={m.id} menu={m} router={router} live={m.id === "live" ? liveOn : undefined} />
-        ))}
-      </SafeGrid>
 
-      {isAdmin && (
+      {editing && (
+        <div style={{
+          marginBottom: 12, padding: "10px 12px", borderRadius: 10,
+          background: "var(--accent-soft)", border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)",
+          fontSize: 11.5, fontWeight: 600, lineHeight: 1.5, color: "var(--accent-strong)",
+        }}>
+          카드를 끌어 순서를 바꾸고(모바일은 길게 누른 뒤 이동), 카드를 눌러 이름·숨김을 바꿉니다.
+          <br />변경한 이름·순서·숨김은 <strong>모든 성도 화면</strong>에 그대로 적용됩니다.
+        </div>
+      )}
+
+      {renderMenuGrid("common", commonMenus, { gap: 10, className: "home-menu-grid" })}
+
+      {isAdmin && adminGroups.length > 0 && (
         <>
           <div style={{
             marginTop: 20, marginBottom: 10,
@@ -956,30 +1180,33 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
               textTransform: "uppercase",
             }}>ADMIN</span>
           </div>
-          <div className="admin-menu-tabs" role="tablist" aria-label="관리자 메뉴 분류" style={{ display: "none" }}>
-            {ADMIN_MENU_GROUPS.map((group) => (
-              <button
-                key={group.id}
-                type="button"
-                role="tab"
-                className="admin-menu-tab"
-                id={`admin-menu-tab-${group.id}`}
-                aria-selected={activeAdminMenuGroup === group.id}
-                aria-controls={`admin-menu-panel-${group.id}`}
-                onClick={() => setActiveAdminMenuGroup(group.id)}
-              >
-                {group.label}
-              </button>
-            ))}
-          </div>
-          {ADMIN_MENU_GROUPS.map((group, index) => (
+          {!editing && (
+            <div className="admin-menu-tabs" role="tablist" aria-label="관리자 메뉴 분류" style={{ display: "none" }}>
+              {adminGroups.map((group) => (
+                <button
+                  key={group.id}
+                  type="button"
+                  role="tab"
+                  className="admin-menu-tab"
+                  id={`admin-menu-tab-${group.id}`}
+                  aria-selected={selectedAdminGroup === group.id}
+                  aria-controls={`admin-menu-panel-${group.id}`}
+                  onClick={() => setActiveAdminMenuGroup(group.id)}
+                >
+                  {group.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {adminGroups.map((group, index) => (
             <div
               key={group.id}
               id={`admin-menu-panel-${group.id}`}
               role="tabpanel"
               aria-labelledby={`admin-menu-tab-${group.id}`}
-              className="admin-menu-group"
-              data-mobile-active={activeAdminMenuGroup === group.id}
+              className={`admin-menu-group${editing ? " admin-menu-group-editing" : ""}`}
+              // 편집모드에서는 모바일 탭 전환을 끄고 모든 그룹을 펼쳐 둔다 (숨긴 메뉴를 찾아 되살릴 수 있게)
+              data-mobile-active={editing ? true : selectedAdminGroup === group.id}
               style={{ marginTop: index === 0 ? 0 : 16 }}
             >
               <div
@@ -988,46 +1215,194 @@ function CommonMenuSection({ isAdmin, router }: { isAdmin: boolean; router: Rout
               >
                 {group.label}
               </div>
-              <SafeGrid cols={2} gap={9} className="admin-menu-grid">
-                {group.menus.map((m) => <MenuCard key={m.id} menu={m} router={router} compact />)}
-              </SafeGrid>
+              {renderMenuGrid(group.id, group.items, { gap: 9, className: "admin-menu-grid", compact: true })}
             </div>
           ))}
         </>
+      )}
+
+      {dragPreview && (() => {
+        const PreviewIcon = dragPreview.menu.icon;
+        return (
+          <div style={{
+            position: "fixed", left: dragPreview.left, top: dragPreview.top,
+            width: dragPreview.width, minHeight: dragPreview.height, zIndex: 2000,
+            boxSizing: "border-box", pointerEvents: "none", userSelect: "none",
+            background: "var(--card)", border: `2px solid ${dragPreview.menu.color}`,
+            borderRadius: 14, padding: 12, display: "flex", alignItems: "center", gap: 10,
+            boxShadow: "0 16px 36px rgba(43, 39, 34, 0.24)", opacity: 0.96,
+            transform: "scale(1.025) rotate(0.6deg)",
+            transformOrigin: `${dragPreview.offsetX}px ${dragPreview.offsetY}px`,
+          }}>
+            <IconBox bg={dragPreview.menu.bg} size={36}>
+              <PreviewIcon size={18} strokeWidth={1.8} color={dragPreview.menu.color} />
+            </IconBox>
+            <div className="kr-break" style={{ fontSize: 13, fontWeight: 800, color: T.text, lineHeight: 1.25, minWidth: 0 }}>
+              {dragPreview.menu.label}
+            </div>
+          </div>
+        );
+      })()}
+
+      {editTarget && (
+        <EditHomeMenuPopup
+          groupId={editTarget.groupId}
+          menuId={editTarget.menuId}
+          setting={menuConfig.settings[homeMenuKeyOf(editTarget.groupId, editTarget.menuId)]}
+          onClose={() => setEditTarget(null)}
+          onSaved={(next) => {
+            onMenuConfigChange(next);
+            setEditTarget(null);
+            showToast("메뉴를 수정했습니다");
+          }}
+        />
+      )}
+
+      {toast && (
+        <div style={{
+          position: "fixed", left: "50%", bottom: 28, transform: "translateX(-50%)", zIndex: 2100,
+          padding: "11px 18px", borderRadius: 999, background: "var(--ink)", color: "var(--card)",
+          fontSize: 12.5, fontWeight: 700, boxShadow: "0 10px 26px rgba(26, 22, 18, 0.22)", whiteSpace: "nowrap",
+        }}>{toast}</div>
       )}
     </Section>
   );
 }
 
-function MenuCard({ menu, router, compact, live }: { menu: CommonMenu; router: RouterType; compact?: boolean; live?: boolean | null }) {
+function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, onDragHandle, dragging, cardRef }: {
+  menu: CommonMenu;
+  router: RouterType;
+  compact?: boolean;
+  live?: boolean | null;
+  editing?: boolean;
+  menuHidden?: boolean;
+  onEdit?: () => void;
+  onDragHandle?: (e: React.PointerEvent) => void;
+  dragging?: boolean;
+  cardRef?: (el: HTMLDivElement | null) => void;
+}) {
+  // 편집모드 드래그 — PC 는 바로, 모바일은 길게 눌러야 시작한다 (스크롤과 충돌 방지)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pointerStart = useRef<{ x: number; y: number; type: string } | null>(null);
+  const touchGuardCleanup = useRef<(() => void) | null>(null);
+  const dragMoved = useRef(false);
+  const longPressFired = useRef(false);
+
+  const clearLongPress = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  };
+
+  const clearTouchGuard = () => {
+    touchGuardCleanup.current?.();
+    touchGuardCleanup.current = null;
+  };
+
+  const installTouchGuard = () => {
+    clearTouchGuard();
+    const blockActiveDrag = (event: TouchEvent) => {
+      if (longPressFired.current) event.preventDefault();
+    };
+    const finishTouch = () => clearTouchGuard();
+    window.addEventListener("touchmove", blockActiveDrag, { passive: false });
+    window.addEventListener("pointerup", finishTouch, { once: true });
+    window.addEventListener("pointercancel", finishTouch, { once: true });
+    touchGuardCleanup.current = () => {
+      window.removeEventListener("touchmove", blockActiveDrag);
+      window.removeEventListener("pointerup", finishTouch);
+      window.removeEventListener("pointercancel", finishTouch);
+    };
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!onDragHandle || e.button !== 0) return;
+    clearLongPress();
+    pointerStart.current = { x: e.clientX, y: e.clientY, type: e.pointerType };
+    dragMoved.current = false;
+    longPressFired.current = false;
+
+    if (e.pointerType !== "touch") {
+      onDragHandle(e);
+      return;
+    }
+
+    e.stopPropagation();
+    installTouchGuard();
+    const pointerId = e.pointerId;
+    const target = e.currentTarget;
+    longPressTimer.current = setTimeout(() => {
+      longPressTimer.current = null;
+      longPressFired.current = true;
+      try { target.setPointerCapture(pointerId); } catch { /* 이미 끝난 터치는 무시 */ }
+      onDragHandle(e);
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(25);
+    }, 450);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const start = pointerStart.current;
+    if (!start) return;
+    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6) return;
+    dragMoved.current = true;
+    if (start.type === "touch" && !longPressFired.current) clearLongPress();
+  };
+
+  const handlePointerEnd = () => {
+    clearLongPress();
+    clearTouchGuard();
+    pointerStart.current = null;
+  };
+
   const handleClick = () => {
+    if (dragMoved.current || longPressFired.current) {
+      dragMoved.current = false;
+      longPressFired.current = false;
+      return;
+    }
+    if (onEdit) { onEdit(); return; }
     if (menu.href) router.push(menu.href);
     else alert(`${menu.label}은(는) 곧 추가됩니다.`);
   };
-  return (
+
+  const card = (
     <SafeCard
       onClick={handleClick}
       padding={compact ? 12 : 14}
+      onPointerDown={onDragHandle ? handlePointerDown : undefined}
+      onPointerMove={onDragHandle ? handlePointerMove : undefined}
+      onPointerUp={onDragHandle ? handlePointerEnd : undefined}
+      onPointerCancel={onDragHandle ? handlePointerEnd : undefined}
+      onContextMenu={onDragHandle ? (e) => e.preventDefault() : undefined}
+      title={onDragHandle ? "PC: 카드를 드래그 · 모바일: 길게 누른 뒤 드래그 · 탭하면 이름·숨김 수정" : undefined}
       style={{
         minHeight: compact ? 58 : 68,
         borderRadius: 14,
         background: "var(--card)",
-        border: "1px solid var(--hairline)",
+        border: `1px solid ${dragging ? "var(--accent)" : "var(--hairline)"}`,
         boxShadow: "0 1px 4px rgba(26,22,18,0.04)",
-        transition: "border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease",
+        transition: dragging ? "none" : "border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease",
+        opacity: dragging ? 0.18 : menuHidden ? 0.5 : 1,
+        cursor: onDragHandle ? (dragging ? "grabbing" : "grab") : "pointer",
+        userSelect: onDragHandle ? "none" : undefined,
+        WebkitUserSelect: onDragHandle ? "none" : undefined,
+        WebkitTouchCallout: onDragHandle ? "none" : undefined,
       }}
       onMouseOver={(e) => {
+        if (dragging) return;
         e.currentTarget.style.borderColor = menu.color;
         e.currentTarget.style.transform = "translateY(-1px)";
         e.currentTarget.style.boxShadow = "0 8px 20px rgba(26,22,18,0.10)";
       }}
       onMouseOut={(e) => {
-        e.currentTarget.style.borderColor = "var(--hairline)";
+        e.currentTarget.style.borderColor = dragging ? "var(--accent)" : "var(--hairline)";
         e.currentTarget.style.transform = "translateY(0)";
         e.currentTarget.style.boxShadow = "0 1px 4px rgba(26,22,18,0.04)";
       }}
     >
       <SafeRow gap={10}>
+        {editing && (
+          <GripVertical size={15} strokeWidth={2} color="var(--ink-faint)" className="safe-shrink-0" />
+        )}
         <IconBox bg={menu.bg} size={compact ? 36 : 38}>
           <menu.icon size={compact ? 18 : 19} strokeWidth={1.8} color={menu.color} />
         </IconBox>
@@ -1060,8 +1435,140 @@ function MenuCard({ menu, router, compact, live }: { menu: CommonMenu; router: R
             {live ? "ON AIR" : "OFF AIR"}
           </span>
         )}
+        {editing && menuHidden && (
+          <span className="safe-shrink-0" style={{
+            alignSelf: "center", display: "inline-flex", alignItems: "center", gap: 3,
+            padding: "3px 7px", borderRadius: 999,
+            background: "color-mix(in srgb, var(--ink-faint) 18%, transparent)",
+            color: "var(--ink-mid)", fontSize: 9, fontWeight: 800, whiteSpace: "nowrap",
+          }}>
+            <EyeOff size={10} strokeWidth={2.2} /> 숨김
+          </span>
+        )}
+        {editing && <Pencil size={13} strokeWidth={2} color="var(--ink-faint)" className="safe-shrink-0" />}
       </SafeRow>
     </SafeCard>
+  );
+
+  // 편집모드에서만 래퍼 div 를 씌운다 (드래그 위치 계산용 ref — 평상시 DOM 은 그대로)
+  if (!editing) return card;
+  return <div ref={cardRef} style={{ minWidth: 0 }}>{card}</div>;
+}
+
+// =============================================================
+// 메인메뉴 수정 팝업 (관리자 전용) — 이름 변경 / 숨김
+//   저장 후 최신 설정을 다시 읽어 화면 전체에 반영한다
+// =============================================================
+function EditHomeMenuPopup({ groupId, menuId, setting, onClose, onSaved }: {
+  groupId: string;
+  menuId: string;
+  setting?: { label: string | null; hidden: boolean };
+  onClose: () => void;
+  onSaved: (next: HomeMenuConfig) => void;
+}) {
+  const base = ALL_HOME_MENUS.find((m) => m.id === menuId);
+  const defaultLabel = base?.label ?? "";
+  const menuKey = homeMenuKeyOf(groupId, menuId);
+
+  const [label, setLabel] = useState(setting?.label && setting.label.trim() ? setting.label : defaultLabel);
+  const [hidden, setHidden] = useState(setting?.hidden === true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async (nextLabel: string, nextHidden: boolean) => {
+    if (!nextLabel.trim()) { setError("메뉴 이름을 입력하세요"); return; }
+    setSaving(true);
+    setError("");
+    const { error: saveError } = await supabase.rpc("set_home_menu_setting", {
+      p_menu_key: menuKey,
+      // 기본 이름 그대로면 덮어쓰기 값을 지워 코드 기본값을 따라가게 한다
+      p_label: nextLabel.trim() === defaultLabel ? null : nextLabel.trim(),
+      p_hidden: nextHidden,
+    });
+    if (saveError) { setError(`저장 실패: ${saveError.message}`); setSaving(false); return; }
+    const { data } = await supabase.rpc("get_home_menu_config");
+    setSaving(false);
+    onSaved(parseHomeMenuConfig(data));
+  };
+
+  return (
+    <ModalBackdrop onClose={onClose}>
+      <div style={{ width: "100%", maxWidth: 420, background: "var(--card)", borderRadius: 18, overflow: "hidden" }}>
+        <div style={{ borderBottom: "1px solid var(--hairline)", padding: "15px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", display: "flex", alignItems: "center", gap: 7 }}>
+            <Pencil size={16} strokeWidth={2} /> 메뉴 수정
+          </div>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "none", background: "var(--bg-soft)", color: "var(--ink-mid)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <X size={16} strokeWidth={2} />
+          </button>
+        </div>
+
+        <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", letterSpacing: 0.2 }}>메뉴 이름</label>
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder={defaultLabel}
+              maxLength={40}
+              style={{
+                width: "100%", marginTop: 5, padding: "10px 12px", fontSize: 14, background: "var(--card)",
+                border: "1.5px solid var(--hairline)", borderRadius: 9, outline: "none", fontFamily: "inherit",
+                boxSizing: "border-box", color: "var(--ink)", fontWeight: 500,
+              }}
+            />
+            <div style={{ marginTop: 5, fontSize: 11, color: "var(--ink-faint)" }}>기본 이름: {defaultLabel}</div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", letterSpacing: 0.2 }}>홈 화면 표시</label>
+            <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+              {[{ v: false, t: "표시", Icon: Eye }, { v: true, t: "숨김", Icon: EyeOff }].map((opt) => {
+                const active = hidden === opt.v;
+                return (
+                  <button
+                    key={opt.t}
+                    type="button"
+                    onClick={() => setHidden(opt.v)}
+                    style={{
+                      flex: 1, padding: "10px", borderRadius: 9, cursor: "pointer", fontFamily: "inherit",
+                      fontSize: 13.5, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                      border: `1.5px solid ${active ? "var(--accent)" : "var(--hairline)"}`,
+                      background: active ? "var(--accent-soft)" : "var(--card)",
+                      color: active ? "var(--accent-strong)" : "var(--ink-soft)",
+                    }}
+                  >
+                    <opt.Icon size={14} strokeWidth={2} /> {opt.t}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: 5, fontSize: 11, color: "var(--ink-faint)" }}>
+              숨기면 성도 화면과 사이드바에서 사라집니다 (관리자 편집모드에서는 계속 보입니다).
+            </div>
+          </div>
+
+          {error && <div style={{ fontSize: 13, fontWeight: 700, color: "var(--danger)" }}>{error}</div>}
+        </div>
+
+        <div style={{ borderTop: "1px solid var(--hairline)", padding: "14px 18px", display: "flex", gap: 10 }}>
+          <button
+            onClick={() => { setLabel(defaultLabel); setHidden(false); save(defaultLabel, false); }}
+            disabled={saving}
+            style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1px solid var(--hairline-strong)", background: "var(--card)", color: "var(--ink-mid)", fontWeight: 700, fontSize: 13, cursor: saving ? "default" : "pointer", fontFamily: "inherit" }}
+          >기본값</button>
+          <button
+            onClick={onClose}
+            style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1px solid var(--hairline-strong)", background: "var(--card)", color: "var(--ink-mid)", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}
+          >취소</button>
+          <button
+            onClick={() => save(label, hidden)}
+            disabled={saving}
+            style={{ flex: 2, padding: "12px", borderRadius: 10, border: "none", background: "var(--accent)", color: "#fff", fontWeight: 800, fontSize: 14, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1, fontFamily: "inherit" }}
+          >{saving ? "저장 중..." : "저장"}</button>
+        </div>
+      </div>
+    </ModalBackdrop>
   );
 }
 
@@ -1101,11 +1608,12 @@ function NoticeBox() {
 // =============================================================
 // 사이드바
 // =============================================================
-function DesktopSidebar({ user, myDepartments, router, onLogout }: {
+function DesktopSidebar({ user, myDepartments, router, onLogout, menuConfig }: {
   user: UserInfo;
   myDepartments: MyDepartment[];
   router: RouterType;
   onLogout: () => void;
+  menuConfig: HomeMenuConfig;
 }) {
   return (
     <aside className="sidebar-desktop" style={{
@@ -1116,18 +1624,19 @@ function DesktopSidebar({ user, myDepartments, router, onLogout }: {
       flexShrink: 0,
       minWidth: 0,
     }}>
-      <SidebarContent user={user} myDepartments={myDepartments} router={router} onLogout={onLogout} />
+      <SidebarContent user={user} myDepartments={myDepartments} router={router} onLogout={onLogout} menuConfig={menuConfig} />
     </aside>
   );
 }
 
-function MobileSidebar({ open, onClose, user, myDepartments, router, onLogout }: {
+function MobileSidebar({ open, onClose, user, myDepartments, router, onLogout, menuConfig }: {
   open: boolean;
   onClose: () => void;
   user: UserInfo;
   myDepartments: MyDepartment[];
   router: RouterType;
   onLogout: () => void;
+  menuConfig: HomeMenuConfig;
 }) {
   if (!open) return null;
   return (
@@ -1148,21 +1657,28 @@ function MobileSidebar({ open, onClose, user, myDepartments, router, onLogout }:
             display: "inline-flex", alignItems: "center", justifyContent: "center",
           }}><X size={16} strokeWidth={1.75} /></button>
         </div>
-        <SidebarContent user={user} myDepartments={myDepartments} router={router} onNavigate={onClose} onLogout={onLogout} />
+        <SidebarContent user={user} myDepartments={myDepartments} router={router} onNavigate={onClose} onLogout={onLogout} menuConfig={menuConfig} />
       </div>
     </div>
   );
 }
 
-function SidebarContent({ user, myDepartments, router, onNavigate, onLogout }: {
+function SidebarContent({ user, myDepartments, router, onNavigate, onLogout, menuConfig }: {
   user: UserInfo;
   myDepartments: MyDepartment[];
   router: RouterType;
   onNavigate?: () => void;
   onLogout: () => void;
+  menuConfig: HomeMenuConfig;
 }) {
   const isAdmin = ["admin", "office", "pastor"].includes(user.role);
-  const sideMenus = isAdmin ? [...COMMON_MENUS, ...ADMIN_EXTRA_MENUS] : COMMON_MENUS;
+  // 홈 카드와 같은 이름·순서·숨김을 사이드바에도 적용 (같은 메뉴가 두 곳에서 다르게 보이지 않게)
+  const sideMenus: CommonMenu[] = [
+    ...applyHomeMenuConfig("common", COMMON_MENUS, menuConfig),
+    ...(isAdmin
+      ? ADMIN_MENU_GROUPS.flatMap((group) => applyHomeMenuConfig(group.id, [...group.menus], menuConfig))
+      : []),
+  ];
   const approved = myDepartments.filter((d) => d.status === "approved");
   const pending = myDepartments.filter((d) => d.status === "pending");
   const go = (path: string) => { router.push(path); onNavigate?.(); };
