@@ -104,9 +104,9 @@ describe("facility-map-config", () => {
     expect(room).not.toBeNull();
     expect(formatRoomPath(room!)).toBe("맑은숲작은도서관 · 1층 · 도서관");
 
-    // 세부 공간 확인 전이라 대부분 capacity 가 null —
-    // 표기 로직 자체(단위 있음/없음)는 합성 fixture로 따로 검증한다
-    expect(formatCapacity(room!)).toBeNull();
+    // 신청 가능한 공간에는 임의 기본값이 들어 있다 (확인되면 관리자 화면에서 수정)
+    expect(formatCapacity(room!)).toBe("수용인원 30명");
+    expect(formatCapacity({ ...room!, capacity: null })).toBeNull();
 
     const withCapacity: FacilityRoom = { ...room!, capacity: 35 };
     expect(formatCapacity(withCapacity)).toBe("수용인원 35명");

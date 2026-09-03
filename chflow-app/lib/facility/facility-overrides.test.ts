@@ -13,7 +13,12 @@ import {
 } from "./facility-map-config";
 import type { FacilityRoom } from "./facility-map-config";
 import {
+  CAPACITY_MAX,
+  CAPACITY_UNIT_MAX,
+  FACILITY_ITEM_MAX,
+  FACILITY_ITEM_NAME_MAX,
   ROOM_NAME_MAX,
+  ROOM_NOTE_MAX,
   applyOverrides,
   buildSavePayload,
   countOverridden,
@@ -28,6 +33,20 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 function allRooms(buildings = FACILITY_BUILDINGS): FacilityRoom[] {
   return buildings.flatMap((b) => b.floors.flatMap((f) => f.rooms));
+}
+
+const EMPTY_DRAFT: RoomDraft = { name: "", reservable: true, capacity: "", capacityUnit: "", facilities: "", note: "" };
+
+/** 비교 테스트용 draft — 필요한 필드만 지정한다 */
+function draft(patchFields: Partial<RoomDraft>): RoomDraft {
+  return { ...EMPTY_DRAFT, ...patchFields };
+}
+
+/** 그 공간의 현재 draft 에서 일부 필드만 바꾼다 */
+function patch(drafts: Map<string, RoomDraft>, id: string, patchFields: Partial<RoomDraft>): void {
+  const current = drafts.get(id);
+  if (!current) throw new Error(`draft 없음: ${id}`);
+  drafts.set(id, { ...current, ...patchFields });
 }
 
 describe("applyOverrides", () => {
@@ -138,14 +157,14 @@ describe("저장 payload", () => {
 
   it("고친 공간만 rows 에 담는다", () => {
     const drafts = draftsFrom(visionRooms);
-    drafts.set("vision-3f-seminar", { name: "대세미나실", reservable: true });
-    drafts.set("vision-3f-restroom", { name: "화장실", reservable: true });
+    patch(drafts, "vision-3f-seminar", { name: "대세미나실" });
+    patch(drafts, "vision-3f-restroom", { reservable: true });
 
     const payload = buildSavePayload(visionRooms, drafts, toOverrideMap([]));
-    expect(payload.rows).toEqual([
-      { facility_id: "vision-3f-seminar", name: "대세미나실", reservable: true },
-      { facility_id: "vision-3f-restroom", name: "화장실", reservable: true },
-    ]);
+    expect(payload.rows.map((r) => r.facility_id)).toEqual(["vision-3f-seminar", "vision-3f-restroom"]);
+    expect(payload.rows[0]).toMatchObject({ name: "대세미나실", reservable: true, capacity: 60 });
+    expect(payload.rows[0].facilities).toEqual(["빔프로젝터", "스크린", "화이트보드", "냉난방기"]);
+    expect(payload.rows[1]).toMatchObject({ name: "화장실", reservable: true, capacity: null });
     expect(payload.resets).toEqual([]);
   });
 
@@ -155,7 +174,7 @@ describe("저장 payload", () => {
     const drafts = draftsFrom(shown.flatMap((b) => b.floors.flatMap((f) => f.rooms)));
 
     // 화면에서 원래 이름으로 되돌린 상태
-    drafts.set("vision-3f-seminar", { name: "세미나실", reservable: true });
+    patch(drafts, "vision-3f-seminar", { name: "세미나실" });
 
     const payload = buildSavePayload(visionRooms, drafts, overrides);
     expect(payload.rows).toEqual([]);
@@ -164,7 +183,7 @@ describe("저장 payload", () => {
 
   it("덮어쓰기가 없던 공간을 기본값 그대로 두면 지울 것도 없다", () => {
     const drafts = draftsFrom(visionRooms);
-    drafts.set("vision-3f-seminar", { name: "  세미나실  ", reservable: true });
+    patch(drafts, "vision-3f-seminar", { name: "  세미나실  " });
     const payload = buildSavePayload(visionRooms, drafts, toOverrideMap([]));
     expect(payload.rows).toEqual([]);
     expect(payload.resets).toEqual([]);
@@ -172,14 +191,20 @@ describe("저장 payload", () => {
 
   it("앞뒤 공백은 떼고 보낸다", () => {
     const drafts = draftsFrom(visionRooms);
-    drafts.set("vision-3f-seminar", { name: "  대세미나실 ", reservable: false });
+    patch(drafts, "vision-3f-seminar", { name: "  대세미나실 ", reservable: false });
     const payload = buildSavePayload(visionRooms, drafts, toOverrideMap([]));
-    expect(payload.rows[0]).toEqual({ facility_id: "vision-3f-seminar", name: "대세미나실", reservable: false });
+    expect(payload.rows[0]).toMatchObject({ facility_id: "vision-3f-seminar", name: "대세미나실", reservable: false });
   });
 
   it("isSameDraft 는 공백 차이를 같다고 본다", () => {
-    expect(isSameDraft({ name: " 홀 ", reservable: true }, { name: "홀", reservable: true })).toBe(true);
-    expect(isSameDraft({ name: "홀", reservable: true }, { name: "홀", reservable: false })).toBe(false);
+    expect(isSameDraft(draft({ name: " 홀 " }), draft({ name: "홀" }))).toBe(true);
+    expect(isSameDraft(draft({ name: "홀" }), draft({ name: "홀", reservable: false }))).toBe(false);
+    // 새로 편집 가능해진 값들도 비교에 들어간다
+    expect(isSameDraft(draft({ capacity: "30" }), draft({ capacity: " 30 " }))).toBe(true);
+    expect(isSameDraft(draft({ capacity: "30" }), draft({ capacity: "40" }))).toBe(false);
+    expect(isSameDraft(draft({ facilities: "빔프로젝터, 화이트보드" }), draft({ facilities: "빔프로젝터,화이트보드" }))).toBe(true);
+    expect(isSameDraft(draft({ facilities: "빔프로젝터" }), draft({ facilities: "화이트보드" }))).toBe(false);
+    expect(isSameDraft(draft({ note: "안내" }), draft({ note: "다른 안내" }))).toBe(false);
   });
 });
 
@@ -197,25 +222,25 @@ describe("저장 전 검사", () => {
 
   it("빈 이름을 막는다", () => {
     const drafts = draftsFrom(visionRooms);
-    drafts.set("vision-3f-seminar", { name: "   ", reservable: true });
+    patch(drafts, "vision-3f-seminar", { name: "   " });
     expect(validateDrafts(visionRooms, drafts)).toBe("공간 이름은 비워 둘 수 없습니다");
   });
 
   it("너무 긴 이름을 막는다", () => {
     const drafts = draftsFrom(visionRooms);
-    drafts.set("vision-3f-seminar", { name: "가".repeat(ROOM_NAME_MAX + 1), reservable: true });
+    patch(drafts, "vision-3f-seminar", { name: "가".repeat(ROOM_NAME_MAX + 1) });
     expect(validateDrafts(visionRooms, drafts)).toContain(`${ROOM_NAME_MAX}자`);
   });
 
   it("같은 층에 같은 이름이 둘이면 막는다", () => {
     const drafts = draftsFrom(visionRooms);
-    drafts.set("vision-3f-seminar", { name: "유아부실", reservable: true });
+    patch(drafts, "vision-3f-seminar", { name: "유아부실" });
     expect(validateDrafts(visionRooms, drafts)).toBe('같은 층에 "유아부실" 이름이 두 개 있습니다');
   });
 
   it("다른 층에 같은 이름은 허용한다 (층마다 교육실1 이 있을 수 있다)", () => {
     const drafts = draftsFrom(visionRooms);
-    drafts.set("vision-3f-seminar", { name: "교육실1", reservable: true });
+    patch(drafts, "vision-3f-seminar", { name: "교육실1" });
     expect(validateDrafts(visionRooms, drafts)).toBeNull();
   });
 });
@@ -248,6 +273,47 @@ describe("마이그레이션 계약", () => {
 
   it("이름 길이 제한이 앱과 같다", () => {
     expect(sql).toContain(`char_length(v_name) > ${ROOM_NAME_MAX}`);
+  });
+
+  it("security definer + search_path 를 고정한다", () => {
+    const definers = sql.match(/security definer set search_path = public/g) ?? [];
+    expect(definers.length).toBe(2);
+  });
+});
+
+describe("마이그레이션 계약 — 수용인원·비품 확장", () => {
+  const sql = readFileSync(
+    resolve(here, "../../../MS_AX/chflow-project/supabase/migrations/20260903193000_facility_room_details.sql"),
+    "utf8",
+  );
+
+  it("확장 컬럼을 추가한다 (capacity 만 nullable)", () => {
+    expect(sql).toContain("add column if not exists capacity      int");
+    expect(sql).toContain("capacity_unit text        not null default ''");
+    expect(sql).toContain("facilities    text[]      not null default '{}'::text[]");
+    expect(sql).toContain("note          text        not null default ''");
+  });
+
+  it("읽기 RPC 가 확장 컬럼까지 돌려준다", () => {
+    const get = sql.slice(sql.indexOf("create function public.get_facility_room_overrides"));
+    for (const column of ["facility_id", "name", "reservable", "capacity", "capacity_unit", "facilities", "note"]) {
+      expect(get).toContain(column);
+    }
+  });
+
+  it("쓰기 권한 검사는 그대로 유지된다", () => {
+    const save = sql.slice(sql.indexOf("function public.save_facility_room_overrides"));
+    expect(save).toContain("if not public.facility_approver_ok() then");
+    expect(save).toContain("raise exception '시설 공간을 수정할 권한이 없습니다'");
+  });
+
+  it("입력 제한이 앱과 같다", () => {
+    expect(sql).toContain(`char_length(v_name) > ${ROOM_NAME_MAX}`);
+    expect(sql).toContain(`v_capacity > ${CAPACITY_MAX}`);
+    expect(sql).toContain(`char_length(v_unit) > ${CAPACITY_UNIT_MAX}`);
+    expect(sql).toContain(`array_length(v_facilities, 1) > ${FACILITY_ITEM_MAX}`);
+    expect(sql).toContain(`char_length(f) > ${FACILITY_ITEM_NAME_MAX}`);
+    expect(sql).toContain(`char_length(v_note) > ${ROOM_NOTE_MAX}`);
   });
 
   it("security definer + search_path 를 고정한다", () => {
