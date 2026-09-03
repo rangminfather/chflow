@@ -4,29 +4,36 @@
    시설 사용신청
 
    흐름: 건물 선택 → 층 선택 → 공간 선택 → 날짜/시간 → 신청내용 → 신청
-   상단의 건물도(2.5D SVG)는 components/facility/* 가 그리고,
+   캠퍼스 안내도·건물 단면·평면도는 components/facility/* 가 그리고,
    공간 데이터는 lib/facility/facility-map-config.ts 에서만 온다.
    ============================================================ */
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Construction, Landmark } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Construction, Landmark, Settings } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { EmptyState, LoadingView } from "@/components/StatusViews";
-import FacilityBuildingMap from "@/components/facility/FacilityBuildingMap";
+import FacilityCampusMap from "@/components/facility/FacilityCampusMap";
 import FacilityFloorMap from "@/components/facility/FacilityFloorMap";
 import FacilityRoomMap from "@/components/facility/FacilityRoomMap";
+import FacilityRoomEditor from "@/components/facility/FacilityRoomEditor";
 import FacilitySelectionCard from "@/components/facility/FacilitySelectionCard";
 import {
   findBuilding,
+  findBuildingIn,
   findFloor,
+  findFloorIn,
   findRoom,
+  findRoomIn,
   formatCapacity,
-  formatRoomPath,
+  formatRoomPathIn,
+  isBuildingSelectable,
   listBuildings,
 } from "@/lib/facility/facility-map-config";
 import type { FacilityRoom } from "@/lib/facility/facility-map-config";
+import type { FacilityRoomOverride } from "@/lib/facility/facility-overrides";
+import { applyOverrides, toOverrideMap } from "@/lib/facility/facility-overrides";
 
 const APPROVER_ROLES = ["admin", "office", "pastor"];
 
@@ -85,8 +92,10 @@ function parseSelection(params: URLSearchParams): Selection {
   const floor = Number.isFinite(floorNumber) ? findFloor(building.code, floorNumber) : null;
   if (!floor) return { building: building.code, floor: null, facilityId: null };
 
+  // 대여 가능 여부는 관리자가 바꿀 수 있으므로 여기서 판정하지 않는다.
+  // 설정 파일에 있는 공간인지, 이 건물·층 소속인지만 본다.
   const room = findRoom(params.get("facility"));
-  const roomOk = room && room.building === building.code && room.floor === floor.floor && room.reservable;
+  const roomOk = room && room.building === building.code && room.floor === floor.floor;
   return { building: building.code, floor: floor.floor, facilityId: roomOk ? room.id : null };
 }
 
@@ -114,12 +123,28 @@ function FacilityRequestView() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  const [overrides, setOverrides] = useState(() => toOverrideMap([]));
+  const [editorOpen, setEditorOpen] = useState(false);
+
   const formRef = useRef<HTMLElement | null>(null);
 
-  const buildings = useMemo(() => listBuildings(), []);
-  const building = findBuilding(selection.building);
-  const floor = findFloor(selection.building, selection.floor);
-  const room = findRoom(selection.facilityId);
+  // 설정 파일 목록 위에 관리자가 고친 이름·대여 여부를 덮어쓴 것이 화면의 진실이다
+  const defaults = useMemo(() => listBuildings(), []);
+  const buildings = useMemo(() => applyOverrides(defaults, overrides), [defaults, overrides]);
+
+  const building = findBuildingIn(buildings, selection.building);
+  const floor = findFloorIn(buildings, selection.building, selection.floor);
+  const picked = findRoomIn(buildings, selection.facilityId);
+  const room = picked && picked.reservable ? picked : null;
+
+  const loadOverrides = useCallback(async () => {
+    const { data, error: rpcError } = await supabase.rpc("get_facility_room_overrides");
+    if (rpcError) {
+      setError(`공간 정보를 불러오지 못했습니다: ${rpcError.message}`);
+      return;
+    }
+    setOverrides(toOverrideMap(data as FacilityRoomOverride[] | null));
+  }, []);
 
   const loadMyBookings = useCallback(async () => {
     const { data, error: rpcError } = await supabase.rpc("get_my_facility_bookings");
@@ -136,9 +161,9 @@ function FacilityRequestView() {
       const profile = profileData?.[0];
       setIsApprover(Boolean(profile && APPROVER_ROLES.includes(profile.role)));
       setAuthChecked(true);
-      await loadMyBookings();
+      await Promise.all([loadOverrides(), loadMyBookings()]);
     })();
-  }, [router, loadMyBookings]);
+  }, [router, loadOverrides, loadMyBookings]);
 
   // 선택한 공간·날짜의 기존 신청 현황 (시간 겹침 안내)
   useEffect(() => {
@@ -206,7 +231,7 @@ function FacilityRequestView() {
       p_facility_id: room.id,
       p_building_code: room.building,
       p_floor: room.floor,
-      p_facility_name: formatRoomPath(room),
+      p_facility_name: formatRoomPathIn(buildings, room),
       p_date: date,
       p_time_start: timeStart,
       p_time_end: timeEnd,
@@ -257,14 +282,15 @@ function FacilityRequestView() {
       </div>
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "18px 16px 60px" }}>
-        {/* 구현 중 안내 — 건물·층·공간 목록이 아직 임시 데이터라 사용자가
-            실제 시설 정보로 오해하지 않도록 화면 맨 위에 고정으로 보여준다.
-            실제 시설 목록으로 교체하면 이 블록을 지운다. */}
+        {/* 구현 중 안내 — 어디까지 확인된 정보인지 화면 맨 위에 고정으로 밝힌다.
+            층별 세부 공간이 모두 채워지면 이 블록을 지운다. */}
         <div style={wipBanner}>
           <Construction size={16} strokeWidth={1.8} style={{ flexShrink: 0, marginTop: 1 }} />
           <div>
-            <div style={{ fontWeight: 800 }}>현재 시설신청에 대해 구현중에 있습니다.</div>
-            <div style={{ marginTop: 2, fontWeight: 600 }}>본 화면은 샘플 화면입니다.</div>
+            <div style={{ fontWeight: 800 }}>현재 시설신청은 구현 중입니다.</div>
+            <div style={{ marginTop: 2, fontWeight: 600 }}>
+              비전센터 공간은 건축도면을 기준으로 넣었습니다. 수용인원·비품과 바울관·본당·도서관의 세부 공간은 확인 중입니다.
+            </div>
           </div>
         </div>
 
@@ -281,10 +307,14 @@ function FacilityRequestView() {
 
         {/* 1단계 — 건물 */}
         <section style={card}>
-          <StepTitle step={1} title="건물 선택" hint={building ? building.name : "지도를 눌러 건물을 고르세요"} />
-          <FacilityBuildingMap buildings={buildings} selectedCode={selection.building} onSelect={handleBuilding} />
+          <StepTitle
+            step={1}
+            title="건물 선택"
+            hint={building ? `${building.name} — ${building.description}` : "지도에서 건물을 눌러 고르세요"}
+          />
+          <FacilityCampusMap buildings={buildings} selectedCode={selection.building} onSelect={handleBuilding} />
           <p style={caption}>
-            실제 건축도면이 아닌 안내용 그림입니다. 위치를 알아보기 쉽도록 단순화했습니다.
+            위가 북쪽인 안내도입니다. 실제 대지 측량도가 아니라 건물끼리의 위치 관계를 보여줍니다.
           </p>
         </section>
 
@@ -294,7 +324,26 @@ function FacilityRequestView() {
             <StepTitle
               step={2}
               title="층 선택"
-              hint={floor ? `${building.name} ${floor.label}` : `${building.name} — 층을 고르세요`}
+              hint={
+                floor
+                  ? `${building.name} ${floor.label}`
+                  : isBuildingSelectable(building)
+                    ? `${building.name} — 층을 고르세요`
+                    : `${building.name} — 층별 세부 공간을 확인하는 중입니다`
+              }
+              action={
+                isApprover ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditorOpen(true)}
+                    style={editBtn}
+                    aria-label={`${building.name} 공간 편집`}
+                  >
+                    <Settings size={13} strokeWidth={2} />
+                    공간 편집
+                  </button>
+                ) : undefined
+              }
             />
             <FacilityFloorMap building={building} selectedFloor={selection.floor} onSelect={handleFloor} />
           </section>
@@ -314,10 +363,6 @@ function FacilityRequestView() {
               selectedRoomId={selection.facilityId}
               onSelect={handleRoom}
             />
-            <div style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 10 }}>
-              <LegendDot color="color-mix(in srgb, var(--accent) 24%, var(--card))" label="신청 가능" />
-              <LegendDot color="color-mix(in srgb, var(--ink) 12%, var(--card))" label="신청 불가" />
-            </div>
             {room && (
               <FacilitySelectionCard room={room} actionLabel="이 공간 신청하기" onAction={openForm} />
             )}
@@ -327,7 +372,7 @@ function FacilityRequestView() {
         {/* 4단계 — 날짜/시간 + 신청내용 */}
         {room && formOpen && (
           <section style={card} ref={formRef}>
-            <StepTitle step={4} title="날짜·시간과 신청내용" hint={formatRoomPath(room)} />
+            <StepTitle step={4} title="날짜·시간과 신청내용" hint={formatRoomPathIn(buildings, room)} />
 
             <form onSubmit={handleSubmit}>
               <div style={{ marginBottom: 12 }}>
@@ -474,6 +519,21 @@ function FacilityRequestView() {
           )}
         </section>
       </div>
+
+      {editorOpen && building && (
+        <FacilityRoomEditor
+          building={building}
+          defaults={findBuildingIn(defaults, building.code) ?? building}
+          overrides={overrides}
+          onClose={() => setEditorOpen(false)}
+          onSaved={async (message) => {
+            setEditorOpen(false);
+            setError("");
+            setNotice(message);
+            await loadOverrides();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -486,7 +546,18 @@ export default function FacilityPage() {
   );
 }
 
-function StepTitle({ step, title, hint }: { step: number; title: string; hint: string }) {
+function StepTitle({
+  step,
+  title,
+  hint,
+  action,
+}: {
+  step: number;
+  title: string;
+  hint: string;
+  /** 제목 오른쪽에 붙는 버튼 (예: 관리자 공간 편집) */
+  action?: React.ReactNode;
+}) {
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -496,18 +567,10 @@ function StepTitle({ step, title, hint }: { step: number; title: string; hint: s
           color: "var(--accent-strong)", background: "var(--accent-soft)",
         }}>{step}</span>
         <span style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>{title}</span>
+        {action && <span style={{ marginLeft: "auto" }}>{action}</span>}
       </div>
       <div style={{ marginTop: 4, fontSize: 12, color: "var(--ink-soft)", fontWeight: 500 }}>{hint}</div>
     </div>
-  );
-}
-
-function LegendDot({ color, label }: { color: string; label: string }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 600 }}>
-      <span style={{ width: 12, height: 12, borderRadius: 4, background: color, border: "1px solid var(--hairline-strong)" }} />
-      {label}
-    </span>
   );
 }
 
@@ -521,6 +584,13 @@ const card: React.CSSProperties = {
 const iconBtn: React.CSSProperties = {
   width: 36, height: 36, borderRadius: 10, background: "var(--bg-soft)",
   border: "none", fontSize: 16, cursor: "pointer", color: "var(--ink-mid)", flexShrink: 0,
+};
+const editBtn: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 5,
+  padding: "7px 11px", minHeight: 34, borderRadius: 999,
+  border: "1px solid var(--hairline)", background: "var(--card)",
+  color: "var(--ink-mid)", fontSize: 12, fontWeight: 700,
+  cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
 };
 const manageBtn: React.CSSProperties = {
   padding: "8px 12px", minHeight: 36, borderRadius: 10, border: "1px solid var(--accent-line)",
