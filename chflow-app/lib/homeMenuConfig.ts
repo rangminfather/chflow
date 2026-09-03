@@ -10,7 +10,7 @@ export type HomeMenuSettings = Record<string, HomeMenuSetting>;
 export type HomeMenuOrder = Record<string, string[]>;
 export type HomeMenuConfig = { settings: HomeMenuSettings; order: HomeMenuOrder };
 
-export const HOME_MENU_GROUP_IDS = ["common", "implemented", "unimplemented", "system"] as const;
+export const HOME_MENU_GROUP_IDS = ["ministry", "pasture", "common", "implemented", "unimplemented", "system"] as const;
 export type HomeMenuGroupId = (typeof HOME_MENU_GROUP_IDS)[number];
 
 export const EMPTY_HOME_MENU_CONFIG: HomeMenuConfig = { settings: {}, order: {} };
@@ -18,7 +18,10 @@ export const EMPTY_HOME_MENU_CONFIG: HomeMenuConfig = { settings: {}, order: {} 
 // 설정 키: 공통 메뉴는 common/<id>, 관리자 메뉴는 그룹과 무관하게 admin/<id>
 // (관리자 메뉴는 구현/미구현 그룹이 코드에서 href 유무로 갈리므로 그룹명을 키에 넣지 않는다)
 export function homeMenuKeyOf(groupId: string, menuId: string): string {
-  return `${groupId === "common" ? "common" : "admin"}/${menuId}`;
+  const prefix = groupId === "common" || groupId === "ministry" || groupId === "pasture"
+    ? groupId
+    : "admin";
+  return `${prefix}/${menuId}`;
 }
 
 // 섹션 제목 설정 키 — 메뉴와 같은 테이블을 쓰되 접두사로 구분한다

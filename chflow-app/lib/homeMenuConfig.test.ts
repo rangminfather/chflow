@@ -24,6 +24,11 @@ describe("homeMenuKeyOf", () => {
     expect(homeMenuKeyOf("unimplemented", "vehicle")).toBe("admin/vehicle");
     expect(homeMenuKeyOf("system", "usage-status")).toBe("admin/usage-status");
   });
+
+  it("사역·목장 하위메뉴는 섹션별 접두사를 쓴다", () => {
+    expect(homeMenuKeyOf("ministry", "dept-1")).toBe("ministry/dept-1");
+    expect(homeMenuKeyOf("pasture", "meeting")).toBe("pasture/meeting");
+  });
 });
 
 describe("parseHomeMenuConfig", () => {
