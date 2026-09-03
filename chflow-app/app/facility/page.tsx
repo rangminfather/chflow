@@ -4,7 +4,7 @@
    시설 사용신청
 
    흐름: 건물 선택 → 층 선택 → 공간 선택 → 날짜/시간 → 신청내용 → 신청
-   상단의 건물도(2.5D SVG)는 components/facility/* 가 그리고,
+   캠퍼스 안내도·건물 단면·평면도는 components/facility/* 가 그리고,
    공간 데이터는 lib/facility/facility-map-config.ts 에서만 온다.
    ============================================================ */
 
@@ -14,7 +14,7 @@ import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Construction
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { EmptyState, LoadingView } from "@/components/StatusViews";
-import FacilityBuildingMap from "@/components/facility/FacilityBuildingMap";
+import FacilityCampusMap from "@/components/facility/FacilityCampusMap";
 import FacilityFloorMap from "@/components/facility/FacilityFloorMap";
 import FacilityRoomMap from "@/components/facility/FacilityRoomMap";
 import FacilitySelectionCard from "@/components/facility/FacilitySelectionCard";
@@ -24,6 +24,7 @@ import {
   findRoom,
   formatCapacity,
   formatRoomPath,
+  isBuildingSelectable,
   listBuildings,
 } from "@/lib/facility/facility-map-config";
 import type { FacilityRoom } from "@/lib/facility/facility-map-config";
@@ -257,14 +258,15 @@ function FacilityRequestView() {
       </div>
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "18px 16px 60px" }}>
-        {/* 구현 중 안내 — 건물·층·공간 목록이 아직 임시 데이터라 사용자가
-            실제 시설 정보로 오해하지 않도록 화면 맨 위에 고정으로 보여준다.
-            실제 시설 목록으로 교체하면 이 블록을 지운다. */}
+        {/* 구현 중 안내 — 어디까지 확인된 정보인지 화면 맨 위에 고정으로 밝힌다.
+            층별 세부 공간이 모두 채워지면 이 블록을 지운다. */}
         <div style={wipBanner}>
           <Construction size={16} strokeWidth={1.8} style={{ flexShrink: 0, marginTop: 1 }} />
           <div>
-            <div style={{ fontWeight: 800 }}>현재 시설신청에 대해 구현중에 있습니다.</div>
-            <div style={{ marginTop: 2, fontWeight: 600 }}>본 화면은 샘플 화면입니다.</div>
+            <div style={{ fontWeight: 800 }}>현재 시설신청은 구현 중입니다.</div>
+            <div style={{ marginTop: 2, fontWeight: 600 }}>
+              비전센터 공간은 건축도면을 기준으로 넣었습니다. 수용인원·비품과 바울관·본당·도서관의 세부 공간은 확인 중입니다.
+            </div>
           </div>
         </div>
 
@@ -281,10 +283,14 @@ function FacilityRequestView() {
 
         {/* 1단계 — 건물 */}
         <section style={card}>
-          <StepTitle step={1} title="건물 선택" hint={building ? building.name : "지도를 눌러 건물을 고르세요"} />
-          <FacilityBuildingMap buildings={buildings} selectedCode={selection.building} onSelect={handleBuilding} />
+          <StepTitle
+            step={1}
+            title="건물 선택"
+            hint={building ? `${building.name} — ${building.description}` : "지도에서 건물을 눌러 고르세요"}
+          />
+          <FacilityCampusMap buildings={buildings} selectedCode={selection.building} onSelect={handleBuilding} />
           <p style={caption}>
-            실제 건축도면이 아닌 안내용 그림입니다. 위치를 알아보기 쉽도록 단순화했습니다.
+            위가 북쪽인 안내도입니다. 실제 대지 측량도가 아니라 건물끼리의 위치 관계를 보여줍니다.
           </p>
         </section>
 
@@ -294,7 +300,13 @@ function FacilityRequestView() {
             <StepTitle
               step={2}
               title="층 선택"
-              hint={floor ? `${building.name} ${floor.label}` : `${building.name} — 층을 고르세요`}
+              hint={
+                floor
+                  ? `${building.name} ${floor.label}`
+                  : isBuildingSelectable(building)
+                    ? `${building.name} — 층을 고르세요`
+                    : `${building.name} — 층별 세부 공간을 확인하는 중입니다`
+              }
             />
             <FacilityFloorMap building={building} selectedFloor={selection.floor} onSelect={handleFloor} />
           </section>
@@ -314,10 +326,6 @@ function FacilityRequestView() {
               selectedRoomId={selection.facilityId}
               onSelect={handleRoom}
             />
-            <div style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 10 }}>
-              <LegendDot color="color-mix(in srgb, var(--accent) 24%, var(--card))" label="신청 가능" />
-              <LegendDot color="color-mix(in srgb, var(--ink) 12%, var(--card))" label="신청 불가" />
-            </div>
             {room && (
               <FacilitySelectionCard room={room} actionLabel="이 공간 신청하기" onAction={openForm} />
             )}
@@ -499,15 +507,6 @@ function StepTitle({ step, title, hint }: { step: number; title: string; hint: s
       </div>
       <div style={{ marginTop: 4, fontSize: 12, color: "var(--ink-soft)", fontWeight: 500 }}>{hint}</div>
     </div>
-  );
-}
-
-function LegendDot({ color, label }: { color: string; label: string }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 600 }}>
-      <span style={{ width: 12, height: 12, borderRadius: 4, background: color, border: "1px solid var(--hairline-strong)" }} />
-      {label}
-    </span>
   );
 }
 

@@ -1097,8 +1097,8 @@ input::placeholder {
 }
 
 /* ============================================================
-   시설 사용신청 — 반입체(2.5D) 건물도
-   SVG 안의 선택 대상(건물/층/공간)에 붙는 최소한의 상호작용 스타일.
+   시설 사용신청 — 캠퍼스 안내도 · 건물 단면 · 평면도
+   선택 대상(건물 이름표/층 줄/공간 칸)에 붙는 최소한의 상호작용 스타일.
    hover 는 마우스가 있는 기기에서만 보조로 동작하고, 모바일은 tap 만으로 쓴다.
    ============================================================ */
 .facility-map-target {
@@ -1123,9 +1123,59 @@ input::placeholder {
   stroke-dasharray: 4 3;
 }
 
+/* 안내도의 건물 외곽선 — 이름표 버튼과 함께 같은 건물을 가리킨다 */
+.facility-map-shape {
+  transition: fill 180ms ease, stroke 180ms ease;
+}
+
+/* 안내도 위에 겹쳐 놓은 건물 이름표(HTML 버튼) */
+.facility-map-pin {
+  transition: transform 160ms ease;
+}
+
+.facility-map-pin:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+
+/* 층 목록 한 줄 · 공간 번호 칩 */
+.facility-floor-row,
+.facility-room-chip {
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.facility-floor-row:focus-visible,
+.facility-room-chip:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .facility-map-pin:hover {
+    transform: translate(-50%, calc(-50% - 3px));
+  }
+
+  .facility-floor-row:not([aria-pressed="true"]):hover {
+    background: color-mix(in srgb, var(--accent) 7%, var(--card));
+  }
+
+  .facility-room-chip:not([aria-pressed="true"]):hover {
+    border-color: var(--accent-line);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .facility-map-target,
-  .facility-map-target .facility-map-face {
+  .facility-map-target .facility-map-face,
+  .facility-map-shape,
+  .facility-map-pin,
+  .facility-floor-row,
+  .facility-room-chip {
     transition: none;
+  }
+
+  .facility-map-pin:hover {
+    transform: translate(-50%, -50%);
   }
 }
