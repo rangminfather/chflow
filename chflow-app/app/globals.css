@@ -1179,3 +1179,11 @@ input::placeholder {
     transform: translate(-50%, -50%);
   }
 }
+
+/* 예약현황 표 — PC 는 24칸, 모바일은 오전/오후 2시간 6칸 */
+.facility-grid-narrow { display: none; }
+@media (max-width: 720px) {
+  .facility-grid-wide { display: none !important; }
+  .facility-grid-narrow { display: table !important; }
+  .facility-grid-half { display: flex !important; }
+}

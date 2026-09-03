@@ -3,8 +3,8 @@
 /* ============================================================
    건물별 공간 편집 (결재 권한자 전용)
 
-   고칠 수 있는 것은 **공간 이름 · 대여 가능/불가 · 수용인원(단위) ·
-   비품 · 안내 문구** 다섯 가지다.
+   고칠 수 있는 것은 **공간 이름 · 대여 가능/불가 · 수용인원(단위) · 비품 ·
+   안내 문구 · 예약현황 목록 노출(대표/부속)** 이다.
    공간이 몇 개 있는지·평면도 어디에 놓이는지는 설정 파일
    (lib/facility/facility-map-config.ts)이 정하고, 여기서 고친 값은
    facility_room_overrides 테이블에 덮어쓰기로만 쌓인다.
@@ -59,7 +59,9 @@ export default function FacilityRoomEditor({ building, defaults, overrides, onCl
   const [drafts, setDrafts] = useState<Map<string, RoomDraft>>(() => {
     const initial = new Map<string, RoomDraft>();
     for (const floor of building.floors) {
-      for (const room of floor.rooms) initial.set(room.id, draftFromRoom(room));
+      for (const room of floor.rooms) {
+        initial.set(room.id, draftFromRoom(room, overrides.get(room.id)?.parent_id ?? ""));
+      }
     }
     return initial;
   });
@@ -87,7 +89,7 @@ export default function FacilityRoomEditor({ building, defaults, overrides, onCl
   function resetRow(id: string) {
     const base = defaultById.get(id);
     if (!base) return;
-    update(id, draftFromRoom(base));
+    update(id, draftFromRoom(base, ""));
   }
 
   // 화면을 연 시점의 값과 견줘 "지금 몇 곳을 손댔는지"
@@ -96,10 +98,11 @@ export default function FacilityRoomEditor({ building, defaults, overrides, onCl
     let count = 0;
     for (const room of shownRooms) {
       const draft = drafts.get(room.id);
-      if (draft && !isSameDraft(draft, draftFromRoom(room))) count += 1;
+      const shown = draftFromRoom(room, overrides.get(room.id)?.parent_id ?? "");
+      if (draft && !isSameDraft(draft, shown)) count += 1;
     }
     return count;
-  }, [shownRooms, drafts]);
+  }, [shownRooms, drafts, overrides]);
 
   async function handleSave() {
     setError("");
@@ -219,6 +222,7 @@ export default function FacilityRoomEditor({ building, defaults, overrides, onCl
             공간 이름 · 대여 여부 · 수용인원 · 비품 · 안내 문구를 고칠 수 있습니다.
             모든 공간이 기본 &quot;대여 가능&quot;이니, 신청받지 않을 곳은 여기서 &quot;대여 불가&quot;로 바꿔 주세요.
             수용인원과 비품은 실측 전 임의 기본값이니 확인되는 대로 여기서 고쳐 주세요.
+            화장실·창고처럼 따로 빌리지 않는 곳은 &quot;대표에 딸림&quot; 으로 두면 예약현황 목록에서 빠집니다.
             공간을 새로 만들거나 없애는 것은 여기서 할 수 없습니다.
             이름을 바꿔도 이미 접수된 신청 내역의 표기는 그대로 남습니다.
           </p>
@@ -283,6 +287,22 @@ export default function FacilityRoomEditor({ building, defaults, overrides, onCl
                             onClick={() => update(room.id, { reservable: false })}
                           />
                         </div>
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-faint)" }}>예약현황 목록</span>
+                        <StateButton
+                          label="따로 표시"
+                          active={draft.parentId.trim() === ""}
+                          tone="open"
+                          onClick={() => update(room.id, { parentId: "" })}
+                        />
+                        <StateButton
+                          label="대표에 딸림"
+                          active={draft.parentId.trim() !== ""}
+                          tone="closed"
+                          onClick={() => update(room.id, { parentId: floor.rooms.find((r) => r.id !== room.id)?.id ?? room.id })}
+                        />
                       </div>
 
                       <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>

@@ -37,7 +37,7 @@ function allRooms(buildings = FACILITY_BUILDINGS): FacilityRoom[] {
   return buildings.flatMap((b) => b.floors.flatMap((f) => f.rooms));
 }
 
-const EMPTY_DRAFT: RoomDraft = { name: "", reservable: true, capacity: "", capacityUnit: "", facilities: "", note: "" };
+const EMPTY_DRAFT: RoomDraft = { name: "", reservable: true, capacity: "", capacityUnit: "", facilities: "", note: "", parentId: "" };
 
 /** 비교 테스트용 draft — 필요한 필드만 지정한다 */
 function draft(patchFields: Partial<RoomDraft>): RoomDraft {

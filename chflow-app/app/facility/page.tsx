@@ -34,6 +34,7 @@ import {
 import type { FacilityRoom } from "@/lib/facility/facility-map-config";
 import type { FacilityBuildingOverride, FacilityRoomOverride } from "@/lib/facility/facility-overrides";
 import { applyOverrides, toBuildingOverrideMap, toOverrideMap } from "@/lib/facility/facility-overrides";
+import FacilityScheduleSearch from "@/components/facility/FacilityScheduleSearch";
 
 const APPROVER_ROLES = ["admin", "office", "pastor"];
 
@@ -135,6 +136,14 @@ function FacilityRequestView() {
     () => applyOverrides(defaults, overrides, buildingOverrides),
     [defaults, overrides, buildingOverrides],
   );
+  // 대표·부속 분류 — 관리자가 지정한 값만 넘기고, 없으면 kind 로 자동 분류된다
+  const parentMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [facilityId, row] of overrides) {
+      if (typeof row.parent_id === "string") map.set(facilityId, row.parent_id);
+    }
+    return map;
+  }, [overrides]);
 
   const building = findBuildingIn(buildings, selection.building);
   const floor = findFloorIn(buildings, selection.building, selection.floor);
@@ -315,6 +324,25 @@ function FacilityRequestView() {
             <AlertTriangle size={14} strokeWidth={1.8} /> {error}
           </div>
         )}
+
+        {/* 예약현황 검색 — 신청 전에 언제 비어 있는지 먼저 본다 */}
+        <section style={card}>
+          <StepTitle
+            step={0}
+            title="예약현황 검색"
+            hint="신청 전에 원하는 날짜·시설이 비어 있는지 먼저 확인하세요"
+          />
+          <FacilityScheduleSearch
+            buildings={buildings}
+            parents={parentMap}
+            onPickFacility={(facilityId) => {
+              const found = findRoomIn(buildings, facilityId);
+              if (!found) return;
+              applySelection({ building: found.building, floor: found.floor, facilityId });
+              setFormOpen(true);
+            }}
+          />
+        </section>
 
         {/* 1단계 — 건물 */}
         <section style={card}>

@@ -33,6 +33,8 @@ export type FacilityRoomOverride = {
   facilities?: string[] | null;
   /** "" = 안내문구 없음 */
   note?: string | null;
+  /** "" = 대표 공간, 그 외 = 딸린 대표 공간의 facility_id */
+  parent_id?: string | null;
 };
 
 export type OverrideMap = Map<string, FacilityRoomOverride>;
@@ -106,6 +108,8 @@ export type RoomDraft = {
   /** 쉼표로 구분한 비품 목록 */
   facilities: string;
   note: string;
+  /** "" = 대표 공간(목록에 표시), 그 외 = 딸린 대표 공간의 facility_id */
+  parentId: string;
 };
 
 export const ROOM_NAME_MAX = 40;
@@ -225,8 +229,9 @@ function normalizeName(value: string | null | undefined): string | null {
 }
 
 /** 편집 화면 초기값 — 지금 화면에 보이는 값 그대로 */
-export function draftFromRoom(room: FacilityRoom): RoomDraft {
+export function draftFromRoom(room: FacilityRoom, parentId = ""): RoomDraft {
   return {
+    parentId,
     name: room.name,
     reservable: room.reservable,
     capacity: room.capacity === null ? "" : String(room.capacity),
@@ -243,6 +248,7 @@ export function isSameDraft(a: RoomDraft, b: RoomDraft): boolean {
     && a.capacity.trim() === b.capacity.trim()
     && a.capacityUnit.trim() === b.capacityUnit.trim()
     && a.note.trim() === b.note.trim()
+    && a.parentId.trim() === b.parentId.trim()
     && sameList(facilitiesFromText(a.facilities), facilitiesFromText(b.facilities));
 }
 
@@ -255,6 +261,7 @@ export type SavePayload = {
     capacity_unit: string;
     facilities: string[];
     note: string;
+    parent_id: string;
   }[];
   resets: string[];
 };
@@ -299,6 +306,7 @@ export function buildSavePayload(
       capacity_unit: draft.capacityUnit.trim(),
       facilities: facilitiesFromText(draft.facilities),
       note: draft.note.trim(),
+      parent_id: draft.parentId.trim(),
     });
   }
 
