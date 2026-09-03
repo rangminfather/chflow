@@ -66,6 +66,7 @@ export type PastureMemberRow = {
   has_app: boolean;
   is_me: boolean;
   dup_in_household: boolean;
+  photo_url: string | null;
 };
 
 export type CalendarRow = {
