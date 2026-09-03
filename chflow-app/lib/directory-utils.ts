@@ -140,3 +140,17 @@ export function buildQuickEditChanges(member: DirectoryQuickEditMember, draft: Q
   }
   return changes;
 }
+
+export function quickEditNoChangeMessage(member: DirectoryQuickEditMember, draft: QuickEditDraft) {
+  const sameSelections: string[] = [];
+  if (draft.gender && draft.gender === (member.gender || "")) {
+    sameSelections.push(`성별의 현재 저장값이 이미 '${directoryGenderText(member.gender)}'입니다.`);
+  }
+  if (draft.is_child) {
+    const nextValue = draft.is_child === "true";
+    if (nextValue === !!member.is_child) {
+      sameSelections.push(`자녀 여부의 현재 저장값이 이미 '${directoryChildText(member.is_child)}'입니다.`);
+    }
+  }
+  return sameSelections.join("\n") || "변경할 값이 없습니다. 비워둔 항목은 기존 값을 유지합니다.";
+}

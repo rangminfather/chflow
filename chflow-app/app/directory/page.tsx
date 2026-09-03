@@ -7,7 +7,7 @@ import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { formatPhone, supabase } from "@/lib/supabase";
 import { photoThumb } from "@/lib/photo";
-import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryChildText, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, getDirectoryFilterOptions, hasDirectorySearchCriteria, moveDirectoryChild, type QuickEditChange, type QuickEditDraft } from "@/lib/directory-utils";
+import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryChildText, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, getDirectoryFilterOptions, hasDirectorySearchCriteria, moveDirectoryChild, quickEditNoChangeMessage, type QuickEditChange, type QuickEditDraft } from "@/lib/directory-utils";
 import { getAllSubRoleOptions, getRoleImageBySubRole } from "@/lib/roles";
 import { LoadingView } from "@/components/StatusViews";
 import BirthDateSelect from "@/components/BirthDateSelect";
@@ -609,7 +609,7 @@ function DirectoryProfileModal({
     if (!canQuickEdit) return;
     const changes = buildQuickEditChanges(member, quickEditDraft);
     if (changes.length === 0) {
-      alert("변경할 값이 없습니다. 비워둔 항목은 기존 값을 유지합니다.");
+      alert(quickEditNoChangeMessage(member, quickEditDraft));
       return;
     }
     setPendingChanges(changes);
@@ -679,6 +679,7 @@ function DirectoryProfileModal({
               phoneActions={member.phone || undefined}
             />
             <InfoLine label="배우자" value={member.spouse_name || "없음"} />
+            <InfoLine label="성별" value={genderText(member.gender)} />
             {member.birth_date && <InfoLine label="생년월일" value={member.birth_date} />}
             <InfoLine label="소속" value={locationText(member)} />
             {member.address && <InfoLine label="주소" value={member.address} />}
@@ -797,7 +798,7 @@ function DirectoryProfileModal({
                     onChange={(event) => setQuickEditDraft((draft) => ({ ...draft, gender: event.target.value as QuickEditDraft["gender"] }))}
                     style={quickEditInputStyle}
                   >
-                    <option value="">동일</option>
+                    <option value="">동일 (현재: {genderText(member.gender)})</option>
                     <option value="M">남</option>
                     <option value="F">여</option>
                   </select>
@@ -809,7 +810,7 @@ function DirectoryProfileModal({
                     onChange={(event) => setQuickEditDraft((draft) => ({ ...draft, is_child: event.target.value as QuickEditDraft["is_child"] }))}
                     style={quickEditInputStyle}
                   >
-                    <option value="">동일</option>
+                    <option value="">동일 (현재: {childText(member.is_child)})</option>
                     <option value="true">자녀</option>
                     <option value="false">성인</option>
                   </select>
