@@ -81,6 +81,14 @@ export type FacilityRoom = {
   facilities: string[];
   /** 신청 화면에 함께 보여줄 안내 문구 */
   note?: string;
+  /**
+   * 예약현황 목록에 한 줄로 올릴지("primary"), 대표 공간에 딸려 감출지("annex").
+   * 비워 두면 kind 로 정한다 — 화장실·창고·복도·사무실은 딸림, 나머지는 대표.
+   * "체육관을 빌리면 그 층 샤워실은 따라온다" 는 상식을 코드로 옮긴 것이고,
+   * 애매한 곳(대기차로·차량출입구처럼 kind 만으로는 안 갈리는 곳)만 여기서 못박는다.
+   * 관리자가 화면에서 바꾸면 그 값이 이보다 우선한다.
+   */
+  listAs?: "primary" | "annex";
   plan: FacilityPlanRect;
 };
 
@@ -233,10 +241,10 @@ const VISION_FLOORS: FacilityFloor[] = [
   ]),
   visionFloor(2, "2층", [
     { id: "vision-2f-parking", name: "주차장", kind: "outdoor", capacity: 20, capacityUnit: "대", reservable: true, facilities: [], note: "필로티 주차 공간 — 신청 대상이 아닙니다", plan: { x: 0, y: 0, w: 6, h: 4 } },
-    { id: "vision-2f-queue", name: "대기차로", kind: "outdoor", capacity: null, reservable: true, facilities: [], plan: { x: 6, y: 0, w: 2, h: 2 } },
+    { id: "vision-2f-queue", name: "대기차로", kind: "outdoor", capacity: null, reservable: true, facilities: [], listAs: "annex", plan: { x: 6, y: 0, w: 2, h: 2 } },
     { id: "vision-2f-hall", name: "홀", kind: "corridor", capacity: null, reservable: true, facilities: [], plan: { x: 6, y: 2, w: 2, h: 1 } },
     { id: "vision-2f-stair", name: "계단·엘리베이터", kind: "corridor", capacity: null, reservable: true, facilities: [], plan: { x: 6, y: 3, w: 2, h: 2 } },
-    { id: "vision-2f-gate", name: "차량 출입구", kind: "outdoor", capacity: null, reservable: true, facilities: [], plan: { x: 0, y: 4, w: 4, h: 1 } },
+    { id: "vision-2f-gate", name: "차량 출입구", kind: "outdoor", capacity: null, reservable: true, facilities: [], listAs: "annex", plan: { x: 0, y: 4, w: 4, h: 1 } },
   ]),
   visionFloor(3, "3층", [
     { id: "vision-3f-infant", name: "유아부실", kind: "room", capacity: 20, reservable: true, facilities: ["냉난방기", "놀이매트"], note: `유아부 전용 공간 · ${DETAIL_PENDING}`, plan: { x: 0, y: 0, w: 3, h: 3 } },
@@ -285,11 +293,11 @@ const VISION_FLOORS: FacilityFloor[] = [
     { id: "vision-6f-shower-w", name: "샤워실(여)", kind: "service", capacity: null, reservable: true, facilities: [], plan: { x: 4, y: 3, w: 2, h: 1 } },
     { id: "vision-6f-hall", name: "홀", kind: "corridor", capacity: null, reservable: true, facilities: [], plan: { x: 6, y: 3, w: 2, h: 1 } },
     { id: "vision-6f-guest", name: "게스트룸", kind: "room", capacity: 4, reservable: true, facilities: ["침구", "샤워실", "냉난방기"], note: `남서측 45° 별동 · ${DETAIL_PENDING}`, plan: { x: 0, y: 4, w: 3, h: 1 } },
-    { id: "vision-6f-roofdeck", name: "옥상", kind: "outdoor", capacity: null, reservable: true, facilities: [], note: "동측 저층부 옥상", plan: { x: 3, y: 4, w: 2, h: 1 } },
+    { id: "vision-6f-roofdeck", name: "옥상", kind: "outdoor", capacity: null, reservable: true, facilities: [], note: "동측 저층부 옥상", listAs: "annex", plan: { x: 3, y: 4, w: 2, h: 1 } },
     { id: "vision-6f-stair", name: "계단·엘리베이터", kind: "corridor", capacity: null, reservable: true, facilities: [], plan: { x: 5, y: 4, w: 3, h: 1 } },
   ]),
   visionFloor(7, "7층", [
-    { id: "vision-7f-gym-void", name: "체육관 상부", kind: "hall", capacity: null, reservable: true, facilities: [], note: "6층 체육관의 위쪽이 열린 공간 — 따로 신청할 수 없습니다", plan: { x: 0, y: 0, w: 8, h: 3 } },
+    { id: "vision-7f-gym-void", name: "체육관 상부", kind: "hall", capacity: null, reservable: true, facilities: [], note: "6층 체육관의 위쪽이 열린 공간 — 따로 신청할 수 없습니다", listAs: "annex", plan: { x: 0, y: 0, w: 8, h: 3 } },
     { id: "vision-7f-storage", name: "창고", kind: "storage", capacity: null, reservable: true, facilities: [], plan: { x: 0, y: 3, w: 1, h: 1 } },
     { id: "vision-7f-locker-m", name: "탈의실(남)", kind: "service", capacity: null, reservable: true, facilities: [], plan: { x: 1, y: 3, w: 2, h: 1 } },
     { id: "vision-7f-shower-m", name: "샤워실(남)", kind: "service", capacity: null, reservable: true, facilities: [], plan: { x: 3, y: 3, w: 2, h: 1 } },
