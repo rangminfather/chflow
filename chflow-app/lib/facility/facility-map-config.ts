@@ -459,26 +459,50 @@ export function listBuildings(): FacilityBuilding[] {
   return FACILITY_BUILDINGS;
 }
 
-export function findBuilding(code: string | null | undefined): FacilityBuilding | null {
+/* 관리자가 화면에서 고친 이름·대여 여부는 facility-overrides.ts 가 이 목록 위에
+   덮어써서 **새 배열**을 만든다. 그래서 조회는 "어떤 배열에서 찾을지"를 받는
+   *In 함수가 본체이고, 아래 findBuilding/findFloor/findRoom 은 설정 파일
+   원본에서 찾는 지름길이다. 화면 코드는 덮어쓴 배열을 쓰도록 *In 을 쓴다. */
+
+export function findBuildingIn(
+  buildings: FacilityBuilding[],
+  code: string | null | undefined,
+): FacilityBuilding | null {
   if (!code) return null;
-  return FACILITY_BUILDINGS.find((b) => b.code === code) ?? null;
+  return buildings.find((b) => b.code === code) ?? null;
 }
 
-export function findFloor(code: string | null | undefined, floor: number | null | undefined): FacilityFloor | null {
-  const building = findBuilding(code);
+export function findFloorIn(
+  buildings: FacilityBuilding[],
+  code: string | null | undefined,
+  floor: number | null | undefined,
+): FacilityFloor | null {
+  const building = findBuildingIn(buildings, code);
   if (!building || floor === null || floor === undefined) return null;
   return building.floors.find((f) => f.floor === floor) ?? null;
 }
 
-export function findRoom(id: string | null | undefined): FacilityRoom | null {
+export function findRoomIn(buildings: FacilityBuilding[], id: string | null | undefined): FacilityRoom | null {
   if (!id) return null;
-  for (const building of FACILITY_BUILDINGS) {
+  for (const building of buildings) {
     for (const floor of building.floors) {
       const room = floor.rooms.find((r) => r.id === id);
       if (room) return room;
     }
   }
   return null;
+}
+
+export function findBuilding(code: string | null | undefined): FacilityBuilding | null {
+  return findBuildingIn(FACILITY_BUILDINGS, code);
+}
+
+export function findFloor(code: string | null | undefined, floor: number | null | undefined): FacilityFloor | null {
+  return findFloorIn(FACILITY_BUILDINGS, code, floor);
+}
+
+export function findRoom(id: string | null | undefined): FacilityRoom | null {
+  return findRoomIn(FACILITY_BUILDINGS, id);
 }
 
 /** 예약 가능한 공간만 */
@@ -504,11 +528,15 @@ export function summarizeFloor(floor: FacilityFloor, limit = 3): string {
   return pool.length > limit ? `${shown} 외 ${pool.length - limit}곳` : shown;
 }
 
-/** "교육관 · 2층 · 201호" — 목록·신청내역에서 공통으로 쓰는 표기 */
-export function formatRoomPath(room: FacilityRoom): string {
-  const building = findBuilding(room.building);
-  const floor = findFloor(room.building, room.floor);
+/** "비전센터 · 3층 · 세미나실" — 목록·신청내역에서 공통으로 쓰는 표기 */
+export function formatRoomPathIn(buildings: FacilityBuilding[], room: FacilityRoom): string {
+  const building = findBuildingIn(buildings, room.building);
+  const floor = findFloorIn(buildings, room.building, room.floor);
   return [building?.name ?? room.building, floor?.label ?? `${room.floor}층`, room.name].join(" · ");
+}
+
+export function formatRoomPath(room: FacilityRoom): string {
+  return formatRoomPathIn(FACILITY_BUILDINGS, room);
 }
 
 /** 수용인원 표기 — 단위가 다른 공간(주차 "대")도 여기서 처리 */
