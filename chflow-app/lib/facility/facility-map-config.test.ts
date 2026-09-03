@@ -123,22 +123,25 @@ describe("facility-map-config", () => {
     }
   });
 
-  it("신청 가능한 공간이 있는지 — 주차면은 없고, 세부 확인 전인 건물도 아직 없다", () => {
-    expect(isBuildingSelectable(findBuilding("baul-parking")!)).toBe(false);
-    expect(isBuildingSelectable(findBuilding("baul")!)).toBe(false);
-    expect(isBuildingSelectable(findBuilding("myungsung")!)).toBe(false);
-    expect(isBuildingSelectable(findBuilding("vision")!)).toBe(true);
-    expect(isBuildingSelectable(findBuilding("library")!)).toBe(true);
+  it("모든 건물이 기본으로 신청 가능하다 — 무엇을 막을지는 관리자가 정한다", () => {
+    for (const building of FACILITY_BUILDINGS) {
+      expect(isBuildingSelectable(building)).toBe(true);
+    }
+  });
+
+  it("코드에는 대여 불가로 박아 둔 공간이 하나도 없다", () => {
+    const blocked = FACILITY_BUILDINGS
+      .flatMap((b) => b.floors.flatMap((f) => f.rooms))
+      .filter((room) => !room.reservable);
+    expect(blocked).toEqual([]);
   });
 
   it("층 요약 — 신청 가능한 공간 이름을 먼저 보여준다", () => {
     const gymFloor = findFloor("vision", 6)!;
-    expect(countReservableRooms(gymFloor)).toBe(2);
-    expect(summarizeFloor(gymFloor)).toBe("체육관 · 게스트룸");
+    expect(countReservableRooms(gymFloor)).toBe(gymFloor.rooms.length);
+    expect(summarizeFloor(gymFloor)).toContain("체육관");
 
-    // 신청 가능한 공간이 없는 층은 있는 공간 이름이라도 보여준다
     const parkingFloor = findFloor("vision", 1)!;
-    expect(countReservableRooms(parkingFloor)).toBe(0);
     expect(summarizeFloor(parkingFloor)).toContain("주차장");
   });
 });
@@ -168,16 +171,18 @@ describe("비전센터 층 구성", () => {
     }
   });
 
-  it("주차장 층은 신청 대상이 아니다", () => {
-    expect(countReservableRooms(findFloor("vision", 1)!)).toBe(0);
-    expect(countReservableRooms(findFloor("vision", 2)!)).toBe(0);
+  it("주차장 층도 열려 있다 — 대여 여부는 관리자가 정한다", () => {
+    expect(countReservableRooms(findFloor("vision", 1)!)).toBeGreaterThan(0);
+    expect(countReservableRooms(findFloor("vision", 2)!)).toBeGreaterThan(0);
     expect(findRoom("vision-1f-parking")!.capacity).toBe(18);
     expect(findRoom("vision-2f-parking")!.capacity).toBe(20);
   });
 
-  it("체육관 상부는 6층 체육관과 같은 공간이므로 따로 신청할 수 없다", () => {
+  it("체육관 상부는 6층 체육관과 같은 공간이라는 안내가 남아 있다", () => {
     expect(findRoom("vision-6f-gym")!.reservable).toBe(true);
-    expect(findRoom("vision-7f-gym-void")!.reservable).toBe(false);
+    // 신청 자체는 열려 있고(관리자가 막을 수 있다), 안내 문구로 관계를 알린다
+    expect(findRoom("vision-7f-gym-void")!.reservable).toBe(true);
+    expect(findRoom("vision-7f-gym-void")!.note).toContain("체육관");
   });
 });
 

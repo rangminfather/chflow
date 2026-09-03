@@ -13,6 +13,8 @@ import {
 } from "./facility-map-config";
 import type { FacilityRoom } from "./facility-map-config";
 import {
+  BUILDING_DESC_MAX,
+  BUILDING_NAME_MAX,
   CAPACITY_MAX,
   CAPACITY_UNIT_MAX,
   FACILITY_ITEM_MAX,
@@ -117,8 +119,18 @@ describe("applyOverrides", () => {
     expect(findFloorIn(next, "vision", 3)).not.toBe(findFloorIn(FACILITY_BUILDINGS, "vision", 3));
   });
 
-  it("대여 가능으로 바꾸면 확인 대기 건물도 신청 가능해진다", () => {
-    expect(isBuildingSelectable(findBuildingIn(FACILITY_BUILDINGS, "baul")!)).toBe(false);
+  it("관리자가 막으면 신청 목록에서 빠지고, 다시 열면 돌아온다", () => {
+    expect(isBuildingSelectable(findBuildingIn(FACILITY_BUILDINGS, "baul")!)).toBe(true);
+
+    const closed = applyOverrides(
+      listBuildings(),
+      toOverrideMap([1, 2, 3, 4].map((f) => ({
+        facility_id: "baul-" + f + "f-pending",
+        name: f + "층",
+        reservable: false,
+      }))),
+    );
+    expect(isBuildingSelectable(findBuildingIn(closed, "baul")!)).toBe(false);
 
     const next = applyOverrides(
       listBuildings(),
@@ -158,13 +170,13 @@ describe("저장 payload", () => {
   it("고친 공간만 rows 에 담는다", () => {
     const drafts = draftsFrom(visionRooms);
     patch(drafts, "vision-3f-seminar", { name: "대세미나실" });
-    patch(drafts, "vision-3f-restroom", { reservable: true });
+    patch(drafts, "vision-3f-restroom", { reservable: false });
 
     const payload = buildSavePayload(visionRooms, drafts, toOverrideMap([]));
     expect(payload.rows.map((r) => r.facility_id)).toEqual(["vision-3f-seminar", "vision-3f-restroom"]);
     expect(payload.rows[0]).toMatchObject({ name: "대세미나실", reservable: true, capacity: 60 });
     expect(payload.rows[0].facilities).toEqual(["빔프로젝터", "스크린", "화이트보드", "냉난방기"]);
-    expect(payload.rows[1]).toMatchObject({ name: "화장실", reservable: true, capacity: null });
+    expect(payload.rows[1]).toMatchObject({ name: "화장실", reservable: false, capacity: null });
     expect(payload.resets).toEqual([]);
   });
 
@@ -319,5 +331,43 @@ describe("마이그레이션 계약 — 수용인원·비품 확장", () => {
   it("security definer + search_path 를 고정한다", () => {
     const definers = sql.match(/security definer set search_path = public/g) ?? [];
     expect(definers.length).toBe(2);
+  });
+});
+
+describe("마이그레이션 계약 — 건물 이름·설명", () => {
+  const sql = readFileSync(
+    resolve(here, "../../../MS_AX/chflow-project/supabase/migrations/20260904090000_facility_building_overrides.sql"),
+    "utf8",
+  );
+
+  it("앱이 호출하는 RPC 이름·인자와 맞는다", () => {
+    expect(sql).toContain("create or replace function public.get_facility_building_overrides()");
+    expect(sql).toContain("create or replace function public.save_facility_building_override(");
+    expect(sql).toContain("p_building_code text");
+    expect(sql).toContain("p_name          text");
+    expect(sql).toContain("p_description   text");
+  });
+
+  it("쓰기는 결재 권한자만", () => {
+    const save = sql.slice(sql.indexOf("function public.save_facility_building_override"));
+    expect(save).toContain("if not public.facility_approver_ok() then");
+    expect(save).toContain("raise exception '시설 건물을 수정할 권한이 없습니다'");
+  });
+
+  it("테이블 직접 접근을 막고 RPC 만 통과시킨다", () => {
+    expect(sql).toContain("alter table public.facility_building_overrides enable row level security");
+    expect(sql).toContain("revoke all on table public.facility_building_overrides from anon, authenticated");
+    expect(sql).toContain("grant execute on function public.get_facility_building_overrides() to authenticated");
+    expect(sql).toContain("grant execute on function public.save_facility_building_override(text, text, text) to authenticated");
+  });
+
+  it("길이 제한이 앱과 같다", () => {
+    expect(sql).toContain(`char_length(v_name) > ${BUILDING_NAME_MAX}`);
+    expect(sql).toContain(`char_length(v_desc) > ${BUILDING_DESC_MAX}`);
+  });
+
+  it("이름·설명이 모두 비면 덮어쓰기 행을 지운다 (기본값 복귀)", () => {
+    expect(sql).toContain("if v_name = '' and v_desc = '' then");
+    expect(sql).toContain("delete from public.facility_building_overrides o where o.building_code = v_code");
   });
 });

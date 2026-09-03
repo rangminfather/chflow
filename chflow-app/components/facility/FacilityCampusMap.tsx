@@ -103,7 +103,8 @@ export default function FacilityCampusMap({ buildings, selectedCode, onSelect }:
           {buildings.map((building) => {
             const selected = building.code === selectedCode;
             const state = mapState(building);
-            const tappable = state !== "lot";
+            // 주차장을 포함해 모든 건물은 눌러서 들어갈 수 있다 — 대여 가능 여부는 관리자가 공간별로 정한다
+            const tappable = true;
             const points = polygonPoints(building.footprint.points);
 
             const fill =
@@ -177,7 +178,7 @@ export default function FacilityCampusMap({ buildings, selectedCode, onSelect }:
         {buildings.map((building) => {
           const selected = building.code === selectedCode;
           const state = mapState(building);
-          const tappable = state !== "lot";
+          const tappable = true;
           const Icon = ICONS[building.iconKey];
           const lines = building.footprint.labelLines ?? [building.name];
           const { left, top } = toPercent(building.footprint.pin);

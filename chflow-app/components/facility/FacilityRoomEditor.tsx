@@ -18,8 +18,14 @@ import { AlertTriangle, RotateCcw, Save, Settings, X } from "lucide-react";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { supabase } from "@/lib/supabase";
 import type { FacilityBuilding } from "@/lib/facility/facility-map-config";
-import type { OverrideMap, RoomDraft } from "@/lib/facility/facility-overrides";
+import type { BuildingDraft, OverrideMap, RoomDraft } from "@/lib/facility/facility-overrides";
 import {
+  BUILDING_DESC_MAX,
+  BUILDING_NAME_MAX,
+  buildBuildingSavePayload,
+  draftFromBuilding,
+  isSameBuildingDraft,
+  validateBuildingDraft,
   CAPACITY_UNIT_MAX,
   DEFAULT_CAPACITY_UNIT,
   ROOM_NAME_MAX,
@@ -57,6 +63,7 @@ export default function FacilityRoomEditor({ building, defaults, overrides, onCl
     }
     return initial;
   });
+  const [buildingDraft, setBuildingDraft] = useState<BuildingDraft>(() => draftFromBuilding(building));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -96,24 +103,37 @@ export default function FacilityRoomEditor({ building, defaults, overrides, onCl
 
   async function handleSave() {
     setError("");
+    const headProblem = validateBuildingDraft(buildingDraft);
+    if (headProblem) { setError(headProblem); return; }
     const problem = validateDrafts(defaultRooms, drafts);
     if (problem) { setError(problem); return; }
 
     const payload = buildSavePayload(defaultRooms, drafts, overrides);
-    if (payload.rows.length === 0 && payload.resets.length === 0) {
+    const headChanged = !isSameBuildingDraft(buildingDraft, draftFromBuilding(building));
+    if (payload.rows.length === 0 && payload.resets.length === 0 && !headChanged) {
       onSaved("바뀐 내용이 없습니다.");
       return;
     }
 
     setSaving(true);
-    const { error: rpcError } = await supabase.rpc("save_facility_room_overrides", {
-      p_rows: payload.rows,
-      p_resets: payload.resets,
-    });
+    // 건물 이름 → 공간 순서로 저장한다. 앞이 실패하면 뒤는 시도하지 않는다.
+    if (headChanged) {
+      const headPayload = buildBuildingSavePayload(defaults, buildingDraft);
+      if (headPayload) {
+        const { error: headError } = await supabase.rpc("save_facility_building_override", headPayload);
+        if (headError) { setSaving(false); setError(headError.message); return; }
+      }
+    }
+    const { error: rpcError } = payload.rows.length > 0 || payload.resets.length > 0
+      ? await supabase.rpc("save_facility_room_overrides", {
+          p_rows: payload.rows,
+          p_resets: payload.resets,
+        })
+      : { error: null };
     setSaving(false);
 
     if (rpcError) { setError(rpcError.message); return; }
-    onSaved(`${building.name} 공간 정보를 저장했습니다.`);
+    onSaved(`${buildingDraft.name.trim() || building.name} 정보를 저장했습니다.`);
   }
 
   return (
@@ -160,8 +180,44 @@ export default function FacilityRoomEditor({ building, defaults, overrides, onCl
 
         {/* 내용 */}
         <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 16px" }}>
+          {/* 건물 머리말 — 이름·설명도 관리자가 고친다 */}
+          <div style={{ ...row, marginBottom: 12 }}>
+            <label style={fieldLabel}>
+              건물 이름
+              <input
+                value={buildingDraft.name}
+                onChange={(e) => { setError(""); setBuildingDraft((d) => ({ ...d, name: e.target.value })); }}
+                maxLength={BUILDING_NAME_MAX}
+                aria-label="건물 이름"
+                style={input}
+              />
+            </label>
+            <label style={{ ...fieldLabel, marginTop: 8 }}>
+              건물 설명
+              <input
+                value={buildingDraft.description}
+                onChange={(e) => { setError(""); setBuildingDraft((d) => ({ ...d, description: e.target.value })); }}
+                maxLength={BUILDING_DESC_MAX}
+                placeholder="예: 1~7층 (1·2층 주차장)"
+                aria-label="건물 설명"
+                style={input}
+              />
+            </label>
+            {!isSameBuildingDraft(buildingDraft, draftFromBuilding(defaults)) && (
+              <button
+                type="button"
+                onClick={() => { setError(""); setBuildingDraft(draftFromBuilding(defaults)); }}
+                style={{ ...secondaryBtn, marginTop: 8, minHeight: 34, padding: "6px 12px", fontSize: 12 }}
+              >
+                <RotateCcw size={13} strokeWidth={2} style={{ marginRight: 4, verticalAlign: "-2px" }} />
+                건물 이름·설명 기본값으로
+              </button>
+            )}
+          </div>
+
           <p style={hint}>
             공간 이름 · 대여 여부 · 수용인원 · 비품 · 안내 문구를 고칠 수 있습니다.
+            모든 공간이 기본 &quot;대여 가능&quot;이니, 신청받지 않을 곳은 여기서 &quot;대여 불가&quot;로 바꿔 주세요.
             수용인원과 비품은 실측 전 임의 기본값이니 확인되는 대로 여기서 고쳐 주세요.
             공간을 새로 만들거나 없애는 것은 여기서 할 수 없습니다.
             이름을 바꿔도 이미 접수된 신청 내역의 표기는 그대로 남습니다.
