@@ -204,6 +204,8 @@ export default function DirectoryPage() {
     setSuggestions([]);
     setQuery(person.name);
     setPickedMemberId(person.id);
+    setPage(1);
+    searchMembers(1, person.name, plain, grassland, pasture, person.id);
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
