@@ -52,6 +52,14 @@ export type PastureHome = {
   my_availability_count: number;
 };
 
+export type PastureExploreRow = {
+  pasture_id: string;
+  pasture_name: string;
+  mission_area: string | null;
+  grassland_name: string | null;
+  plain_name: string | null;
+};
+
 export type PastureMemberRow = {
   member_id: string;
   name: string;
@@ -135,6 +143,62 @@ export async function fetchPastureMembers(): Promise<PastureMemberRow[]> {
   const { data, error } = await supabase.rpc("pasture_list_members");
   if (error) throw error;
   return (data ?? []) as PastureMemberRow[];
+}
+
+type PastureDirectoryRecord = {
+  id: string;
+  name: string;
+  mission_area: string | null;
+  grassland: {
+    name: string;
+    plain: { name: string; display_name: string | null } | null;
+  } | null;
+};
+
+const PASTURE_EXPLORE_SELECT = `
+  id,
+  name,
+  mission_area,
+  grassland:grasslands(name,plain:plains(name,display_name))
+`;
+
+function toPastureExploreRow(row: PastureDirectoryRecord): PastureExploreRow {
+  const plain = row.grassland?.plain;
+  return {
+    pasture_id: row.id,
+    pasture_name: row.name,
+    mission_area: row.mission_area || null,
+    grassland_name: row.grassland?.name || null,
+    plain_name: plain?.display_name || (plain?.name ? `${plain.name}평원` : null),
+  };
+}
+
+/** 목장탐방 목록. 소개 화면에서 필요한 공개 목장 정보만 가져온다. */
+export async function fetchPastureDirectory(): Promise<PastureExploreRow[]> {
+  const { data, error } = await supabase
+    .from("directory_pastures")
+    .select(PASTURE_EXPLORE_SELECT)
+    .order("name");
+  if (error) throw error;
+  return ((data ?? []) as unknown as PastureDirectoryRecord[]).map(toPastureExploreRow);
+}
+
+/** 목장탐방 상세. 이후 목장모임 요약도 이 결과 모델에 합쳐서 재사용한다. */
+export async function fetchPastureIntroduction(pastureId: string): Promise<PastureExploreRow | null> {
+  const { data, error } = await supabase
+    .from("directory_pastures")
+    .select(PASTURE_EXPLORE_SELECT)
+    .eq("id", pastureId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toPastureExploreRow(data as unknown as PastureDirectoryRecord) : null;
+}
+
+export function pastureSearchText(row: PastureExploreRow): string {
+  return [row.pasture_name, row.grassland_name, row.plain_name, row.mission_area]
+    .filter(Boolean)
+    .join(" ")
+    .toLocaleLowerCase("ko-KR");
 }
 
 export async function fetchCalendar(from: string, to: string): Promise<CalendarRow[]> {

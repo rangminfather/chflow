@@ -144,7 +144,7 @@ const ALL_HOME_MENUS: CommonMenu[] = [...COMMON_MENUS, ...ADMIN_EXTRA_MENUS];
 // 관리자가 바꿀 수 있는 홈 섹션 제목의 기본값
 const HOME_SECTION_DEFAULT_LABELS: Record<string, string> = {
   ministry: "내 사역 · 부서",
-  pasture: "나의 목장",
+  pasture: "목장 메뉴",
   common: "공통 메뉴",
 };
 
@@ -877,10 +877,10 @@ function MinistryCard({ dept, status, onClick }: {
 }
 
 // =============================================================
-// 1-1) 나의 목장 — 목장 모임(전 목원) + 목장일지(목자/목녀 전용)
+// 1-1) 목장 메뉴 — 목장탐방(전체) + 목장 모임(전 목원) + 목장일지(목자/목녀 전용)
 //
 // 아래 MyMokjangSection(가입신청/목장보기)은 아직 미구현이라 계속 숨겨둔다.
-// 목장 모임은 소속 목장이 있으면 누구나, 목장일지는 예전처럼 목자·목녀만 본다.
+// 목장탐방은 누구나, 목장 모임은 소속 목장 구성원, 목장일지는 목자·목녀만 본다.
 // =============================================================
 function CellShepherdSection({ user, router, canEditMenu, menuConfig, onMenuConfigChange }: {
   user: UserInfo;
@@ -893,7 +893,6 @@ function CellShepherdSection({ user, router, canEditMenu, menuConfig, onMenuConf
   const isCellShepherd = user.family_church === "목자" || user.family_church === "목녀";
   const hasPasture = !!user.pasture_name;
   const sectionLabel = resolveHomeSectionLabel(menuConfig, "pasture", HOME_SECTION_DEFAULT_LABELS.pasture);
-  if (!isCellShepherd && !hasPasture) return null;
 
   return (
     <Section bg="var(--surface)" style={{ marginBottom: 18, border: "1px solid var(--hairline)" }}>
@@ -917,7 +916,7 @@ function CellShepherdSection({ user, router, canEditMenu, menuConfig, onMenuConf
         ) : undefined}
       />
       {hasPasture && (
-        <SafeCard onClick={() => router.push("/pasture")} padding={12} style={{ borderRadius: 10, marginBottom: isCellShepherd ? 8 : 0 }}>
+        <SafeCard onClick={() => router.push("/pasture")} padding={12} style={{ borderRadius: 10, marginBottom: 8 }}>
           <SafeRow gap={12}>
             <IconBox bg="var(--accent-soft)" size={40}>
               <CalendarDays size={21} strokeWidth={1.75} color="var(--accent)" />
@@ -933,7 +932,7 @@ function CellShepherdSection({ user, router, canEditMenu, menuConfig, onMenuConf
         </SafeCard>
       )}
       {isCellShepherd && (
-        <SafeCard onClick={() => router.push("/pasture/journal")} padding={12} style={{ borderRadius: 10 }}>
+        <SafeCard onClick={() => router.push("/pasture/journal")} padding={12} style={{ borderRadius: 10, marginBottom: 8 }}>
           <SafeRow gap={12}>
             <IconBox bg="var(--accent-soft)" size={40}>
               <BookText size={21} strokeWidth={1.75} color="var(--accent)" />
@@ -948,6 +947,20 @@ function CellShepherdSection({ user, router, canEditMenu, menuConfig, onMenuConf
           </SafeRow>
         </SafeCard>
       )}
+      <SafeCard onClick={() => router.push("/pasture/explore")} padding={12} style={{ borderRadius: 10 }}>
+        <SafeRow gap={12}>
+          <IconBox bg="var(--accent-soft)" size={40}>
+            <SearchCheck size={21} strokeWidth={1.75} color="var(--accent)" />
+          </IconBox>
+          <SafeGrow>
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>목장탐방</div>
+            <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
+              목장을 검색하고 소개를 둘러보세요
+            </div>
+          </SafeGrow>
+          <ChevronRight size={16} strokeWidth={1.8} color={T.textMuted} />
+        </SafeRow>
+      </SafeCard>
     </Section>
   );
 }
@@ -1859,16 +1872,18 @@ function SidebarContent({ user, myDepartments, router, onNavigate, onLogout, men
         + 사역 · 부서 가입
       </button>
 
+      <SideDivider />
+      <SideLabel>{resolveHomeSectionLabel(menuConfig, "pasture", HOME_SECTION_DEFAULT_LABELS.pasture)}</SideLabel>
       {user.pasture_name && (
-        <>
-          <SideDivider />
-          <SideLabel>{resolveHomeSectionLabel(menuConfig, "pasture", "내 목장")}</SideLabel>
           <SidebarItem onClick={() => alert("목장 상세 화면은 준비 중입니다.")}>
             <Home size={15} strokeWidth={1.75} style={{ marginRight: 6, flexShrink: 0 }} />
             <span className="kr-keep">{user.pasture_name}목장</span>
           </SidebarItem>
-        </>
       )}
+      <SidebarItem onClick={() => go("/pasture/explore")}>
+        <SearchCheck size={15} strokeWidth={1.75} style={{ marginRight: 6, flexShrink: 0 }} />
+        <span className="kr-keep">목장탐방</span>
+      </SidebarItem>
 
       <SideDivider />
       <SideLabel>{resolveHomeSectionLabel(menuConfig, "common", "공통")}</SideLabel>
