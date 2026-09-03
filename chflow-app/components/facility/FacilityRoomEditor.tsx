@@ -3,7 +3,8 @@
 /* ============================================================
    건물별 공간 편집 (결재 권한자 전용)
 
-   고칠 수 있는 것은 **공간 이름**과 **대여 가능/불가** 둘뿐이다.
+   고칠 수 있는 것은 **공간 이름 · 대여 가능/불가 · 수용인원(단위) ·
+   비품 · 안내 문구** 다섯 가지다.
    공간이 몇 개 있는지·평면도 어디에 놓이는지는 설정 파일
    (lib/facility/facility-map-config.ts)이 정하고, 여기서 고친 값은
    facility_room_overrides 테이블에 덮어쓰기로만 쌓인다.
@@ -19,7 +20,10 @@ import { supabase } from "@/lib/supabase";
 import type { FacilityBuilding } from "@/lib/facility/facility-map-config";
 import type { OverrideMap, RoomDraft } from "@/lib/facility/facility-overrides";
 import {
+  CAPACITY_UNIT_MAX,
+  DEFAULT_CAPACITY_UNIT,
   ROOM_NAME_MAX,
+  ROOM_NOTE_MAX,
   buildSavePayload,
   draftFromRoom,
   isSameDraft,
@@ -157,7 +161,9 @@ export default function FacilityRoomEditor({ building, defaults, overrides, onCl
         {/* 내용 */}
         <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 16px" }}>
           <p style={hint}>
-            공간 이름과 대여 가능 여부를 고칠 수 있습니다. 공간을 새로 만들거나 없애는 것은 아직 여기서 할 수 없습니다.
+            공간 이름 · 대여 여부 · 수용인원 · 비품 · 안내 문구를 고칠 수 있습니다.
+            수용인원과 비품은 실측 전 임의 기본값이니 확인되는 대로 여기서 고쳐 주세요.
+            공간을 새로 만들거나 없애는 것은 여기서 할 수 없습니다.
             이름을 바꿔도 이미 접수된 신청 내역의 표기는 그대로 남습니다.
           </p>
 
@@ -221,12 +227,56 @@ export default function FacilityRoomEditor({ building, defaults, overrides, onCl
                             onClick={() => update(room.id, { reservable: false })}
                           />
                         </div>
-                        {room.note && (
-                          <span style={{ fontSize: 11, color: "var(--ink-faint)", fontWeight: 500, flex: 1, minWidth: 120 }}>
-                            {room.note}
-                          </span>
-                        )}
                       </div>
+
+                      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                        <label style={fieldLabel}>
+                          수용인원
+                          <input
+                            value={draft.capacity}
+                            onChange={(e) => update(room.id, { capacity: e.target.value })}
+                            inputMode="numeric"
+                            placeholder="미지정"
+                            maxLength={4}
+                            aria-label={`${floor.label} ${room.name} 수용인원`}
+                            style={{ ...input, flex: "none", width: 82 }}
+                          />
+                        </label>
+                        <label style={fieldLabel}>
+                          단위
+                          <input
+                            value={draft.capacityUnit}
+                            onChange={(e) => update(room.id, { capacityUnit: e.target.value })}
+                            placeholder={DEFAULT_CAPACITY_UNIT}
+                            maxLength={CAPACITY_UNIT_MAX}
+                            aria-label={`${floor.label} ${room.name} 수용 단위`}
+                            style={{ ...input, flex: "none", width: 66 }}
+                          />
+                        </label>
+                      </div>
+
+                      <label style={{ ...fieldLabel, marginTop: 8 }}>
+                        비품 (쉼표로 구분)
+                        <input
+                          value={draft.facilities}
+                          onChange={(e) => update(room.id, { facilities: e.target.value })}
+                          placeholder="예: 빔프로젝터, 화이트보드"
+                          aria-label={`${floor.label} ${room.name} 비품`}
+                          style={input}
+                        />
+                      </label>
+
+                      <label style={{ ...fieldLabel, marginTop: 8 }}>
+                        안내 문구
+                        <input
+                          value={draft.note}
+                          onChange={(e) => update(room.id, { note: e.target.value })}
+                          placeholder="신청 화면에 함께 보여줄 안내 (없으면 비워 두세요)"
+                          maxLength={ROOM_NOTE_MAX}
+                          aria-label={`${floor.label} ${room.name} 안내 문구`}
+                          style={input}
+                        />
+                      </label>
                     </div>
                   );
                 })}
@@ -357,6 +407,16 @@ const input: React.CSSProperties = {
   outline: "none",
   fontFamily: "inherit",
   boxSizing: "border-box",
+};
+const fieldLabel: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 4,
+  minWidth: 0,
+  flex: 1,
+  fontSize: 11,
+  fontWeight: 700,
+  color: "var(--ink-faint)",
 };
 const iconBtn: React.CSSProperties = {
   display: "inline-flex",
