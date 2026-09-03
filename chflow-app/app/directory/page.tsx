@@ -166,7 +166,7 @@ export default function DirectoryPage() {
   const filterOptions = useMemo(() => getDirectoryFilterOptions(dirTree, plain, grassland), [dirTree, plain, grassland]);
   const { plains: plainOptions, grasslands: grasslandOptions, pastures: pastureOptions } = filterOptions;
 
-  // 이름 입력 중 동명이인 등 후보가 여러 명이면, 검색을 누르기 전에 바로 골라서 카드로 이동할 수 있게 자동완성 목록을 보여준다.
+  // 이름 입력 중 매칭되는 사람이 있으면(한 명이든 동명이인이든), 검색을 누르기 전에 바로 골라서 카드로 이동할 수 있게 자동완성 목록을 보여준다.
   useEffect(() => {
     const trimmed = query.trim();
     if (!trimmed) {
@@ -328,7 +328,7 @@ export default function DirectoryPage() {
               placeholder="이름, 전화번호, 배우자 검색"
               style={{ ...inputStyle, width: "100%" }}
             />
-            {showSuggestions && suggestions.length > 1 && (
+            {showSuggestions && suggestions.length > 0 && (
               <div style={suggestionListStyle}>
                 {suggestions.map((person) => (
                   <button
