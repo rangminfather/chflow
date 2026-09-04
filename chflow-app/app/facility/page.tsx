@@ -112,8 +112,11 @@ function FacilityRequestView() {
   // 서리집사 이상 직분과 청년·청소년만 신청·조회할 수 있다 (DB facility_requester_ok 와 같은 규칙)
   const [canUse, setCanUse] = useState(false);
   const [selection, setSelection] = useState<Selection>(() => parseSelection(new URLSearchParams(searchParams.toString())));
-  // 메뉴 진입 시 먼저 고르는 검색 방식 — 고르기 전엔 이 화면만 보여준다
-  const [entryMode, setEntryMode] = useState<SearchMode | null>(null);
+  // 메뉴 진입 시 먼저 고르는 검색 방식 — 고르기 전엔 이 화면만 보여준다.
+  // URL 의 view= 값에서 매번 파생시킨다(별도 state 아님) — 모바일 뒤로가기로
+  // view 파라미터가 사라지면 렌더에서 곧바로 다시 null 이 되어 선택 화면이 뜬다.
+  const viewParam = searchParams.get("view");
+  const entryMode: SearchMode | null = viewParam === "date" || viewParam === "facility" ? viewParam : null;
 
   const [formOpen, setFormOpen] = useState(() => Boolean(parseSelection(new URLSearchParams(searchParams.toString())).facilityId));
   const [date, setDate] = useState("");
@@ -215,12 +218,20 @@ function FacilityRequestView() {
   const applySelection = useCallback((next: Selection) => {
     setSelection(next);
     const params = new URLSearchParams();
+    if (entryMode) params.set("view", entryMode);
     if (next.building) params.set("building", next.building);
     if (next.floor !== null) params.set("floor", String(next.floor));
     if (next.facilityId) params.set("facility", next.facilityId);
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [pathname, router]);
+  }, [pathname, router, entryMode]);
+
+  /** 검색 방식 선택 — 뒤로가기 한 단계로 이 선택 화면에 돌아오도록 히스토리를 쌓는다 */
+  const pickEntryMode = useCallback((mode: SearchMode) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("view", mode);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [pathname, router, searchParams]);
 
   function handleBuilding(code: string) {
     setNotice("");
@@ -323,7 +334,7 @@ function FacilityRequestView() {
 
   // 어떤 방식으로 찾아볼지 먼저 고르게 한다 — 고르기 전엔 이 화면 하나만 뜬다
   if (!entryMode) {
-    return <FacilityEntryGate onPick={setEntryMode} onBack={() => router.push("/home")} />;
+    return <FacilityEntryGate onPick={pickEntryMode} onBack={() => router.push("/home")} />;
   }
 
   return (
