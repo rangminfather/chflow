@@ -10,7 +10,8 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Building2, CalendarClock, CalendarSearch, CheckCircle2, ClipboardList, Construction, Landmark, Settings } from "lucide-react";
+import Image from "next/image";
+import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Construction, Landmark, Settings } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { EmptyState, LoadingView } from "@/components/StatusViews";
@@ -632,7 +633,7 @@ export default function FacilityPage() {
 
 function FacilityEntryGate({ onPick, onBack }: { onPick: (mode: SearchMode) => void; onBack: () => void }) {
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--app-sans)" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--app-sans)", display: "flex", flexDirection: "column" }}>
       <div style={{
         background: "var(--card)", borderBottom: "1px solid var(--hairline)",
         padding: "14px 20px", display: "flex", alignItems: "center", gap: 12,
@@ -644,24 +645,37 @@ function FacilityEntryGate({ onPick, onBack }: { onPick: (mode: SearchMode) => v
         </div>
       </div>
 
+      {/* 남는 세로 공간을 채우기보다 가운데로 시선을 모은다 */}
       <div style={{
-        maxWidth: 420, margin: "0 auto", padding: "56px 20px",
-        display: "flex", flexDirection: "column", gap: 16,
+        flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        padding: "32px 24px 64px", textAlign: "center",
       }}>
-        <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 700, color: "var(--ink-soft)", textAlign: "center" }}>
-          어떻게 찾아볼까요?
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <span style={{
+          display: "inline-flex", width: 64, height: 64, borderRadius: 20, marginBottom: 16,
+          alignItems: "center", justifyContent: "center",
+          background: "color-mix(in srgb, var(--accent) 14%, transparent)",
+          color: "var(--accent-strong)",
+        }}>
+          <Landmark size={30} strokeWidth={1.6} />
+        </span>
+        <div style={{ fontSize: 19, fontWeight: 800, color: "var(--ink)" }}>예약 현황, 어떻게 확인할까요?</div>
+        <div style={{ marginTop: 6, marginBottom: 28, fontSize: 12.5, color: "var(--ink-soft)", fontWeight: 600 }}>
+          편한 방식으로 먼저 시작하세요
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, width: "100%", maxWidth: 340 }}>
           <EntryGateCard
-            icon={<CalendarSearch size={34} strokeWidth={1.6} />}
+            image="/facility/search-by-date.png"
             title="날짜중심검색"
             desc="날짜로 조회"
+            tone="accent"
             onClick={() => onPick("date")}
           />
           <EntryGateCard
-            icon={<Building2 size={34} strokeWidth={1.6} />}
+            image="/facility/search-by-facility.png"
             title="시설물중심검색"
             desc="시설로 조회"
+            tone="info"
             onClick={() => onPick("facility")}
           />
         </div>
@@ -670,30 +684,28 @@ function FacilityEntryGate({ onPick, onBack }: { onPick: (mode: SearchMode) => v
   );
 }
 
-function EntryGateCard({ icon, title, desc, onClick }: {
-  icon: React.ReactNode;
+function EntryGateCard({ image, title, desc, tone, onClick }: {
+  image: string;
   title: string;
   desc: string;
+  tone: "accent" | "info";
   onClick: () => void;
 }) {
+  const color = tone === "accent" ? "var(--accent)" : "var(--info)";
   return (
     <button
       type="button"
       onClick={onClick}
       style={{
-        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10,
-        aspectRatio: "1 / 1", padding: 16, borderRadius: 20,
-        border: "1.5px solid var(--hairline)", background: "var(--card)",
-        boxShadow: "0 8px 24px color-mix(in srgb, var(--ink) 8%, transparent)",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+        aspectRatio: "1 / 1", padding: 14, borderRadius: 24,
+        border: `1.5px solid color-mix(in srgb, ${color} 30%, var(--hairline))`,
+        background: `color-mix(in srgb, ${color} 6%, var(--card))`,
+        boxShadow: "0 10px 28px color-mix(in srgb, var(--ink) 10%, transparent)",
         cursor: "pointer", fontFamily: "inherit", textAlign: "center", width: "100%", boxSizing: "border-box",
       }}
     >
-      <span style={{
-        width: 60, height: 60, borderRadius: 16, flexShrink: 0,
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-        background: "color-mix(in srgb, var(--accent) 13%, transparent)",
-        color: "var(--accent-strong)",
-      }}>{icon}</span>
+      <Image src={image} alt="" width={72} height={72} style={{ width: 72, height: 72, objectFit: "contain" }} />
       <span style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", lineHeight: 1.3 }}>{title}</span>
       <span style={{ fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 600 }}>{desc}</span>
     </button>
