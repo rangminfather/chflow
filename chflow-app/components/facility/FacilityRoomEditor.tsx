@@ -18,6 +18,7 @@ import { AlertTriangle, RotateCcw, Save, Settings, X } from "lucide-react";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { supabase } from "@/lib/supabase";
 import type { FacilityBuilding } from "@/lib/facility/facility-map-config";
+import { HIDDEN_PARENT } from "@/lib/facility/facility-groups";
 import type { BuildingDraft, OverrideMap, RoomDraft } from "@/lib/facility/facility-overrides";
 import {
   BUILDING_DESC_MAX,
@@ -222,7 +223,7 @@ export default function FacilityRoomEditor({ building, defaults, overrides, onCl
             공간 이름 · 대여 여부 · 수용인원 · 비품 · 안내 문구를 고칠 수 있습니다.
             모든 공간이 기본 &quot;대여 가능&quot;이니, 신청받지 않을 곳은 여기서 &quot;대여 불가&quot;로 바꿔 주세요.
             수용인원과 비품은 실측 전 임의 기본값이니 확인되는 대로 여기서 고쳐 주세요.
-            화장실·창고처럼 따로 빌리지 않는 곳은 &quot;대표에 딸림&quot; 으로 두면 예약현황 목록에서 빠집니다.
+            샤워실처럼 대표를 빌리면 따라오는 곳은 &quot;대표에 딸림&quot;, 층 공용 화장실·계단처럼 빌릴 일이 없는 곳은 &quot;목록에서 빼기&quot; 로 둡니다.
             공간을 새로 만들거나 없애는 것은 여기서 할 수 없습니다.
             이름을 바꿔도 이미 접수된 신청 내역의 표기는 그대로 남습니다.
           </p>
@@ -299,9 +300,15 @@ export default function FacilityRoomEditor({ building, defaults, overrides, onCl
                         />
                         <StateButton
                           label="대표에 딸림"
-                          active={draft.parentId.trim() !== ""}
+                          active={draft.parentId.trim() !== "" && draft.parentId.trim() !== HIDDEN_PARENT}
                           tone="closed"
                           onClick={() => update(room.id, { parentId: floor.rooms.find((r) => r.id !== room.id)?.id ?? room.id })}
+                        />
+                        <StateButton
+                          label="목록에서 빼기"
+                          active={draft.parentId.trim() === HIDDEN_PARENT}
+                          tone="closed"
+                          onClick={() => update(room.id, { parentId: HIDDEN_PARENT })}
                         />
                       </div>
 

@@ -35,6 +35,7 @@ import type { FacilityRoom } from "@/lib/facility/facility-map-config";
 import type { FacilityBuildingOverride, FacilityRoomOverride } from "@/lib/facility/facility-overrides";
 import { applyOverrides, toBuildingOverrideMap, toOverrideMap } from "@/lib/facility/facility-overrides";
 import FacilityScheduleSearch from "@/components/facility/FacilityScheduleSearch";
+import { FACILITY_ACCESS_NOTICE, canUseFacility } from "@/lib/facility/facility-access";
 
 const APPROVER_ROLES = ["admin", "office", "pastor"];
 
@@ -107,6 +108,8 @@ function FacilityRequestView() {
 
   const [authChecked, setAuthChecked] = useState(false);
   const [isApprover, setIsApprover] = useState(false);
+  // 서리집사 이상 직분과 청년·청소년만 신청·조회할 수 있다 (DB facility_requester_ok 와 같은 규칙)
+  const [canUse, setCanUse] = useState(false);
   const [selection, setSelection] = useState<Selection>(() => parseSelection(new URLSearchParams(searchParams.toString())));
 
   const [formOpen, setFormOpen] = useState(() => Boolean(parseSelection(new URLSearchParams(searchParams.toString())).facilityId));
@@ -180,7 +183,10 @@ function FacilityRequestView() {
       const { data: profileData } = await supabase.rpc("get_my_status");
       const profile = profileData?.[0];
       setIsApprover(Boolean(profile && APPROVER_ROLES.includes(profile.role)));
+      const allowed = canUseFacility(profile?.sub_role, profile?.role);
+      setCanUse(allowed);
       setAuthChecked(true);
+      if (!allowed) return;
       await Promise.all([loadOverrides(), loadMyBookings()]);
     })();
   }, [router, loadOverrides, loadMyBookings]);
@@ -280,6 +286,37 @@ function FacilityRequestView() {
   }
 
   if (!authChecked) return <LoadingView full />;
+
+  // 자격이 없으면 신청 화면 자체를 보여주지 않는다 (DB 쪽에도 같은 문이 걸려 있다)
+  if (!canUse) {
+    return (
+      <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--app-sans)" }}>
+        <header style={{
+          display: "flex", alignItems: "center", gap: 10, padding: "14px 16px",
+          background: "var(--card)", borderBottom: "1px solid var(--hairline)",
+        }}>
+          <HeaderLogo />
+          <strong style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>시설 사용신청</strong>
+        </header>
+        <div style={{ maxWidth: 520, margin: "0 auto", padding: "40px 20px" }}>
+          <EmptyState
+            icon={<Landmark size={28} strokeWidth={1.6} />}
+            message="이용 대상이 아닙니다"
+            hint={FACILITY_ACCESS_NOTICE}
+          />
+          <button
+            type="button"
+            onClick={() => router.push("/home")}
+            style={{
+              marginTop: 18, width: "100%", minHeight: 46, borderRadius: 12,
+              border: "1px solid var(--hairline-strong)", background: "var(--card)",
+              color: "var(--ink-mid)", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
+            }}
+          >홈으로</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--app-sans)" }}>

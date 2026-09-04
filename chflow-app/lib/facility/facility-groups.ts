@@ -31,11 +31,15 @@ export type RoomGroup = {
 /** facility_id → 대표 공간 id ("" 또는 없음 = 대표) */
 export type ParentMap = Map<string, string>;
 
-/** 설정 파일 기준 대표 여부 — 개별 지정(listAs)이 kind 기본값을 이긴다 */
-function isPrimaryByConfig(room: FacilityRoom): boolean {
-  if (room.listAs === "annex") return false;
-  if (room.listAs === "primary") return true;
-  return !ANNEX_KINDS.has(room.kind);
+/** 관리자가 "숨김" 으로 지정했을 때 parent_id 에 넣는 값 (공간 id 로 쓸 수 없는 문자) */
+export const HIDDEN_PARENT = "-";
+
+type Placement = "primary" | "annex" | "hidden";
+
+/** 설정 파일 기준 처지 — 개별 지정(listAs)이 kind 기본값을 이긴다 */
+function placementByConfig(room: FacilityRoom): Placement {
+  if (room.listAs) return room.listAs;
+  return ANNEX_KINDS.has(room.kind) ? "annex" : "primary";
 }
 
 /**
@@ -43,24 +47,33 @@ function isPrimaryByConfig(room: FacilityRoom): boolean {
  * 대표 순서는 원래 배열 순서를 지킨다(평면도 배치 순서 = 사람이 이해하는 순서).
  */
 export function groupFloorRooms(rooms: FacilityRoom[], parents?: ParentMap): RoomGroup[] {
+  // 관리자 지정이 있으면 그것이, 없으면 설정 파일이 처지를 정한다
+  const placementOf = (room: FacilityRoom): Placement => {
+    const saved = parents?.get(room.id);
+    if (saved === undefined) return placementByConfig(room);
+    const value = saved.trim();
+    if (value === "") return "primary";
+    if (value === HIDDEN_PARENT) return "hidden";
+    return "annex";
+  };
   const explicitParent = (room: FacilityRoom): string => {
-    const value = parents?.get(room.id) ?? "";
-    return value.trim();
+    const value = (parents?.get(room.id) ?? "").trim();
+    return value === HIDDEN_PARENT ? "" : value;
   };
 
-  // 1) 대표 후보를 먼저 고른다
+  // 빌릴 일이 없는 공간(층 공용 화장실·계단 등)은 아예 다루지 않는다
+  const live = rooms.filter((room) => placementOf(room) !== "hidden");
+  if (live.length === 0) return [];
+
   const primaryIds = new Set<string>();
-  for (const room of rooms) {
-    const parent = explicitParent(room);
-    if (parent === "") {
-      // 관리자가 "" 로 지정했으면 무조건 대표, 지정이 없으면 설정 파일 기준
-      if (parents?.has(room.id) || isPrimaryByConfig(room)) primaryIds.add(room.id);
-    }
+  for (const room of live) {
+    if (placementOf(room) === "primary") primaryIds.add(room.id);
   }
   // 대표가 하나도 없는 층은 전부 대표로 둔다 (목록에서 사라지지 않게)
   if (primaryIds.size === 0) {
-    return rooms.map((room) => ({ primary: room, annexes: [] }));
+    return live.map((room) => ({ primary: room, annexes: [] }));
   }
+  rooms = live;
 
   const groups = new Map<string, RoomGroup>();
   for (const room of rooms) {
