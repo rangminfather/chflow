@@ -10,7 +10,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Building2, CalendarClock, CalendarDays, CheckCircle2, ClipboardList, Construction, Landmark, Settings } from "lucide-react";
+import { AlertTriangle, Building2, CalendarClock, CalendarSearch, CheckCircle2, ClipboardList, Construction, Landmark, Settings } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { EmptyState, LoadingView } from "@/components/StatusViews";
@@ -646,23 +646,25 @@ function FacilityEntryGate({ onPick, onBack }: { onPick: (mode: SearchMode) => v
 
       <div style={{
         maxWidth: 420, margin: "0 auto", padding: "56px 20px",
-        display: "flex", flexDirection: "column", gap: 14,
+        display: "flex", flexDirection: "column", gap: 16,
       }}>
         <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 700, color: "var(--ink-soft)", textAlign: "center" }}>
           어떻게 찾아볼까요?
         </p>
-        <EntryGateCard
-          icon={<CalendarDays size={26} strokeWidth={1.8} />}
-          title="날짜중심검색"
-          desc="원하는 날짜에 시설물 예약상태 조회"
-          onClick={() => onPick("date")}
-        />
-        <EntryGateCard
-          icon={<Building2 size={26} strokeWidth={1.8} />}
-          title="시설물중심검색"
-          desc="이용하려는 시설물의 예약상태 조회"
-          onClick={() => onPick("facility")}
-        />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <EntryGateCard
+            icon={<CalendarSearch size={34} strokeWidth={1.6} />}
+            title="날짜중심검색"
+            desc="날짜로 조회"
+            onClick={() => onPick("date")}
+          />
+          <EntryGateCard
+            icon={<Building2 size={34} strokeWidth={1.6} />}
+            title="시설물중심검색"
+            desc="시설로 조회"
+            onClick={() => onPick("facility")}
+          />
+        </div>
       </div>
     </div>
   );
@@ -679,22 +681,21 @@ function EntryGateCard({ icon, title, desc, onClick }: {
       type="button"
       onClick={onClick}
       style={{
-        display: "flex", alignItems: "center", gap: 14,
-        padding: 20, minHeight: 92, borderRadius: 18,
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10,
+        aspectRatio: "1 / 1", padding: 16, borderRadius: 20,
         border: "1.5px solid var(--hairline)", background: "var(--card)",
-        cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%", boxSizing: "border-box",
+        boxShadow: "0 8px 24px color-mix(in srgb, var(--ink) 8%, transparent)",
+        cursor: "pointer", fontFamily: "inherit", textAlign: "center", width: "100%", boxSizing: "border-box",
       }}
     >
       <span style={{
-        width: 52, height: 52, borderRadius: 14, flexShrink: 0,
+        width: 60, height: 60, borderRadius: 16, flexShrink: 0,
         display: "inline-flex", alignItems: "center", justifyContent: "center",
         background: "color-mix(in srgb, var(--accent) 13%, transparent)",
         color: "var(--accent-strong)",
       }}>{icon}</span>
-      <span style={{ minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>{title}</span>
-        <span style={{ display: "block", fontSize: 12.5, color: "var(--ink-soft)", fontWeight: 600, marginTop: 3, lineHeight: 1.4 }}>{desc}</span>
-      </span>
+      <span style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", lineHeight: 1.3 }}>{title}</span>
+      <span style={{ fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 600 }}>{desc}</span>
     </button>
   );
 }
