@@ -21,6 +21,7 @@ import { useWeatherEffect } from "@/lib/useWeatherEffect";
 import { LoadingView } from "@/components/StatusViews";
 import WeatherOverlay from "@/components/WeatherOverlay";
 import ModalBackdrop from "@/components/ModalBackdrop";
+import { canUseFacility } from "@/lib/facility/facility-access";
 import {
   applyHomeMenuConfig, parseHomeMenuConfig, homeMenuKeyOf,
   homeSectionKeyOf, resolveHomeSectionLabel,
@@ -78,6 +79,9 @@ type CommonMenu = {
   bg: string;
   href?: string;
 };
+
+// 시설 사용신청은 서리집사 이상 직분과 청년·청소년만 쓴다 (lib/facility/facility-access.ts)
+const FACILITY_MENU_ID = "facility";
 
 const COMMON_MENUS: CommonMenu[] = [
   { id: "live",      label: "예배",  icon: Radio,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/live" },
@@ -503,6 +507,7 @@ export default function HomePage() {
 
             <CommonMenuSection
               isAdmin={isAdmin}
+              canUseFacility={canUseFacility(user.sub_role, user.role)}
               canEditMenu={user.role === "admin"}
               router={router}
               menuConfig={menuConfig}
@@ -1145,8 +1150,10 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
 // =============================================================
 // 3) 공통 메뉴
 // =============================================================
-function CommonMenuSection({ isAdmin, canEditMenu, router, menuConfig, onMenuConfigChange }: {
+function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMenu, router, menuConfig, onMenuConfigChange }: {
   isAdmin: boolean;
+  /** 시설 사용신청 자격 — 없으면 그 카드를 아예 띄우지 않는다 */
+  canUseFacility: boolean;
   canEditMenu: boolean;
   router: RouterType;
   menuConfig: HomeMenuConfig;
@@ -1328,7 +1335,10 @@ function CommonMenuSection({ isAdmin, canEditMenu, router, menuConfig, onMenuCon
 
   const sectionLabel = resolveHomeSectionLabel(menuConfig, "common", HOME_SECTION_DEFAULT_LABELS.common);
   // 저장된 이름·순서·숨김 적용 (편집모드에서는 숨긴 메뉴도 보여야 다시 켤 수 있다)
-  const commonMenus = applyHomeMenuConfig("common", COMMON_MENUS, menuConfig, { includeHidden: editing });
+  const commonSource = facilityAllowed
+    ? COMMON_MENUS
+    : COMMON_MENUS.filter((menu) => menu.id !== FACILITY_MENU_ID);
+  const commonMenus = applyHomeMenuConfig("common", commonSource, menuConfig, { includeHidden: editing });
   const adminGroups = ADMIN_MENU_GROUPS
     .map((group) => ({
       id: group.id,
@@ -1913,8 +1923,13 @@ function SidebarContent({ user, myDepartments, router, onNavigate, onLogout, men
 }) {
   const isAdmin = ["admin", "office", "pastor"].includes(user.role);
   // 홈 카드와 같은 이름·순서·숨김을 사이드바에도 적용 (같은 메뉴가 두 곳에서 다르게 보이지 않게)
+  const facilityAllowed = canUseFacility(user.sub_role, user.role);
   const sideMenus: CommonMenu[] = [
-    ...applyHomeMenuConfig("common", COMMON_MENUS, menuConfig),
+    ...applyHomeMenuConfig(
+      "common",
+      facilityAllowed ? COMMON_MENUS : COMMON_MENUS.filter((menu) => menu.id !== FACILITY_MENU_ID),
+      menuConfig,
+    ),
     ...(isAdmin
       ? ADMIN_MENU_GROUPS.flatMap((group) => applyHomeMenuConfig(group.id, [...group.menus], menuConfig))
       : []),

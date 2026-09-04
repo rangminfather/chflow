@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { FACILITY_BUILDINGS, findBuildingIn, type FacilityRoom } from "./facility-map-config";
-import { annexesOf, groupFloorRooms, listPrimaryRooms } from "./facility-groups";
+import { HIDDEN_PARENT, annexesOf, groupFloorRooms, listPrimaryRooms } from "./facility-groups";
 
 function room(patch: Partial<FacilityRoom> & { id: string; kind: FacilityRoom["kind"] }): FacilityRoom {
   return {
@@ -125,5 +125,57 @@ describe("실제 시설 데이터", () => {
     const annexes = annexesOf(FACILITY_BUILDINGS, "vision-6f-gym");
     expect(annexes.map((r) => r.id)).toContain("vision-6f-shower-w");
     expect(annexesOf(FACILITY_BUILDINGS, "없는공간")).toEqual([]);
+  });
+});
+
+describe("빌릴 일이 없는 공간은 아예 뺀다", () => {
+  it("listAs: hidden 은 목록에도 부속에도 나오지 않는다", () => {
+    const groups = groupFloorRooms([
+      room({ id: "gym", kind: "hall" }),
+      room({ id: "restroom", kind: "service", listAs: "hidden" }),
+      room({ id: "shower", kind: "service" }),
+    ]);
+    expect(groups.map((g) => g.primary.id)).toEqual(["gym"]);
+    expect(groups[0].annexes.map((r) => r.id)).toEqual(["shower"]);
+  });
+
+  it("관리자가 숨김으로 지정하면(parent_id = '-') 빠진다", () => {
+    const parents = new Map([["shower", HIDDEN_PARENT]]);
+    const groups = groupFloorRooms([
+      room({ id: "gym", kind: "hall" }),
+      room({ id: "shower", kind: "service" }),
+    ], parents);
+    expect(groups[0].annexes).toEqual([]);
+  });
+
+  it("전부 숨김인 층은 빈 목록이 된다", () => {
+    const groups = groupFloorRooms([
+      room({ id: "restroom", kind: "service", listAs: "hidden" }),
+      room({ id: "stair", kind: "corridor", listAs: "hidden" }),
+    ]);
+    expect(groups).toEqual([]);
+  });
+
+  it("실제 데이터 — 층 공용 화장실·계단·교사실은 목록에도 부속에도 없다", () => {
+    const shown = new Set(
+      listPrimaryRooms(FACILITY_BUILDINGS).flatMap(({ group }) => [
+        group.primary.id,
+        ...group.annexes.map((a) => a.id),
+      ]),
+    );
+    for (const id of [
+      "vision-3f-restroom", "vision-4f-restroom", "vision-5f-restroom",
+      "vision-3f-stair", "vision-4f-teacher1", "vision-5f-mid1",
+      "vision-2f-gate", "vision-7f-gym-void",
+      "library-2f-staff", "library-4f-residence",
+    ]) {
+      expect(shown.has(id), id).toBe(false);
+    }
+  });
+
+  it("실제 데이터 — 복도·홀은 따로 빌릴 수 있으므로 목록에 남는다", () => {
+    const primaries = new Set(listPrimaryRooms(FACILITY_BUILDINGS).map(({ group }) => group.primary.id));
+    expect(primaries.has("vision-3f-corridor")).toBe(true);
+    expect(primaries.has("vision-3f-hall")).toBe(true);
   });
 });
