@@ -37,10 +37,12 @@ type Props = {
   parents?: ParentMap;
   /** 현황에서 고른 시설로 신청 흐름을 열어 준다 */
   onPickFacility: (facilityId: string) => void;
+  /** 페이지 진입 전 고른 검색 방식 — 있으면 안내 카드 없이 바로 이 모드로 연다 */
+  initialMode?: SearchMode;
 };
 
-export default function FacilityScheduleSearch({ buildings, parents, onPickFacility }: Props) {
-  const [mode, setMode] = useState<SearchMode | null>(null);
+export default function FacilityScheduleSearch({ buildings, parents, onPickFacility, initialMode }: Props) {
+  const [mode, setMode] = useState<SearchMode | null>(initialMode ?? null);
   const [cursor, setCursor] = useState<MonthCursor>(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() + 1 };

@@ -10,7 +10,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Construction, Landmark, Settings } from "lucide-react";
+import { AlertTriangle, Building2, CalendarClock, CalendarDays, CheckCircle2, ClipboardList, Construction, Landmark, Settings } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { EmptyState, LoadingView } from "@/components/StatusViews";
@@ -34,7 +34,7 @@ import {
 import type { FacilityRoom } from "@/lib/facility/facility-map-config";
 import type { FacilityBuildingOverride, FacilityRoomOverride } from "@/lib/facility/facility-overrides";
 import { applyOverrides, toBuildingOverrideMap, toOverrideMap } from "@/lib/facility/facility-overrides";
-import FacilityScheduleSearch from "@/components/facility/FacilityScheduleSearch";
+import FacilityScheduleSearch, { type SearchMode } from "@/components/facility/FacilityScheduleSearch";
 import { FACILITY_ACCESS_NOTICE, canUseFacility } from "@/lib/facility/facility-access";
 
 const APPROVER_ROLES = ["admin", "office", "pastor"];
@@ -111,6 +111,8 @@ function FacilityRequestView() {
   // 서리집사 이상 직분과 청년·청소년만 신청·조회할 수 있다 (DB facility_requester_ok 와 같은 규칙)
   const [canUse, setCanUse] = useState(false);
   const [selection, setSelection] = useState<Selection>(() => parseSelection(new URLSearchParams(searchParams.toString())));
+  // 메뉴 진입 시 먼저 고르는 검색 방식 — 고르기 전엔 이 화면만 보여준다
+  const [entryMode, setEntryMode] = useState<SearchMode | null>(null);
 
   const [formOpen, setFormOpen] = useState(() => Boolean(parseSelection(new URLSearchParams(searchParams.toString())).facilityId));
   const [date, setDate] = useState("");
@@ -318,6 +320,11 @@ function FacilityRequestView() {
     );
   }
 
+  // 어떤 방식으로 찾아볼지 먼저 고르게 한다 — 고르기 전엔 이 화면 하나만 뜬다
+  if (!entryMode) {
+    return <FacilityEntryGate onPick={setEntryMode} onBack={() => router.push("/home")} />;
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--app-sans)" }}>
       {/* 헤더 */}
@@ -372,6 +379,7 @@ function FacilityRequestView() {
           <FacilityScheduleSearch
             buildings={buildings}
             parents={parentMap}
+            initialMode={entryMode}
             onPickFacility={(facilityId) => {
               const found = findRoomIn(buildings, facilityId);
               if (!found) return;
@@ -619,6 +627,75 @@ export default function FacilityPage() {
     <Suspense fallback={<LoadingView full />}>
       <FacilityRequestView />
     </Suspense>
+  );
+}
+
+function FacilityEntryGate({ onPick, onBack }: { onPick: (mode: SearchMode) => void; onBack: () => void }) {
+  return (
+    <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--app-sans)" }}>
+      <div style={{
+        background: "var(--card)", borderBottom: "1px solid var(--hairline)",
+        padding: "14px 20px", display: "flex", alignItems: "center", gap: 12,
+      }}>
+        <button onClick={onBack} style={iconBtn} aria-label="홈으로">←</button>
+        <HeaderLogo />
+        <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <Landmark size={16} strokeWidth={1.8} /> 시설 사용신청
+        </div>
+      </div>
+
+      <div style={{
+        maxWidth: 420, margin: "0 auto", padding: "56px 20px",
+        display: "flex", flexDirection: "column", gap: 14,
+      }}>
+        <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 700, color: "var(--ink-soft)", textAlign: "center" }}>
+          어떻게 찾아볼까요?
+        </p>
+        <EntryGateCard
+          icon={<CalendarDays size={26} strokeWidth={1.8} />}
+          title="날짜중심검색"
+          desc="원하는 날짜에 시설물 예약상태 조회"
+          onClick={() => onPick("date")}
+        />
+        <EntryGateCard
+          icon={<Building2 size={26} strokeWidth={1.8} />}
+          title="시설물중심검색"
+          desc="이용하려는 시설물의 예약상태 조회"
+          onClick={() => onPick("facility")}
+        />
+      </div>
+    </div>
+  );
+}
+
+function EntryGateCard({ icon, title, desc, onClick }: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 14,
+        padding: 20, minHeight: 92, borderRadius: 18,
+        border: "1.5px solid var(--hairline)", background: "var(--card)",
+        cursor: "pointer", fontFamily: "inherit", textAlign: "left", width: "100%", boxSizing: "border-box",
+      }}
+    >
+      <span style={{
+        width: 52, height: 52, borderRadius: 14, flexShrink: 0,
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        background: "color-mix(in srgb, var(--accent) 13%, transparent)",
+        color: "var(--accent-strong)",
+      }}>{icon}</span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>{title}</span>
+        <span style={{ display: "block", fontSize: 12.5, color: "var(--ink-soft)", fontWeight: 600, marginTop: 3, lineHeight: 1.4 }}>{desc}</span>
+      </span>
+    </button>
   );
 }
 
