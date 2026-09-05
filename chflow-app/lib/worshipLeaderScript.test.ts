@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildOpeningPrayer,
+  buildWorshipLeaderSections,
   normalizeBibleReference,
   prayerLeaderLabel,
   preacherLabel,
@@ -27,5 +28,46 @@ describe("worship leader script", () => {
   it("adds a missing ministry honorific without duplicating it", () => {
     expect(preacherLabel("김희숙 전도사")).toBe("김희숙 전도사님");
     expect(preacherLabel("김희숙 전도사님")).toBe("김희숙 전도사님");
+  });
+});
+
+describe("본문이 없을 때 대본 문구", () => {
+  const base = {
+    sunday: "2026-09-06",
+    prayerClass: "1-1",
+    sermonTitle: "제목",
+    preacher: "홍길동",
+  };
+
+  it("본문 표기 자체가 없으면 '아직 정해지지 않았다' 로 안내한다 (성경 DB 탓으로 오인하지 않게)", () => {
+    const sections = buildWorshipLeaderSections({ ...base, scripture: "", verses: [] });
+    const text = sections.map((s) => s.content).join("\n");
+    expect(text).toContain("아직 정해지지 않았습니다");
+    expect(text).not.toContain("성경 DB");
+  });
+
+  it("표기는 있는데 못 찾으면 그 표기를 짚어 준다", () => {
+    const sections = buildWorshipLeaderSections({
+      ...base,
+      scripture: "시편139:13~16",
+      normalizedScripture: "시편139:13-16",
+      verses: [],
+    });
+    const text = sections.map((s) => s.content).join("\n");
+    expect(text).toContain("시편139:13-16");
+    expect(text).toContain("찾지 못했습니다");
+  });
+
+  it("본문을 찾았으면 절 내용이 들어간다", () => {
+    const sections = buildWorshipLeaderSections({
+      ...base,
+      scripture: "요 3:16",
+      normalizedScripture: "요한복음 3:16",
+      testament: "신약",
+      verses: [{ chapter: 3, verse: 16, text: "하나님이 세상을 이처럼 사랑하사" }],
+    });
+    const text = sections.map((s) => s.content).join("\n");
+    expect(text).toContain("하나님이 세상을 이처럼 사랑하사");
+    expect(text).not.toContain("찾지 못했습니다");
   });
 });
