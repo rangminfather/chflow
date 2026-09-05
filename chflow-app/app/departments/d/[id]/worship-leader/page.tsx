@@ -191,6 +191,8 @@ export default function WorshipLeaderPage() {
         setNotice((message) => message || `말씀 본문을 성경 DB에서 찾지 못했습니다. 월간교육계획의 본문 표기를 확인해주세요.${detail}`);
       }
     } else {
+      // 말씀 본문은 월간교육계획에서 온다. 계획을 못 읽으면 성경 DB 문제가 아니라
+      // 계획서 문제이므로, 서버가 준 이유(파일 형식 등)를 그대로 보여준다.
       setNotice(planResponse?.error || "선택한 주일의 월간교육계획을 찾지 못했습니다.");
     }
     setLoading(false);

@@ -41,6 +41,43 @@ async function normalizeZip(bytes: Buffer | ArrayBuffer | Uint8Array): Promise<B
   return zip.generateAsync({ type: "nodebuffer" });
 }
 
+// 파일 앞머리 서명으로 형식을 가른다.
+//   xlsx/한셀 = ZIP(50 4B 03 04) · 구형 .xls = OLE2 복합문서(D0 CF 11 E0 A1 B1 1A E1)
+// exceljs 는 xlsx 만 읽는다. 구형 .xls 를 그냥 null 로 흘리면 화면에서는 "계획서가 없다"
+// 처럼 보여 원인을 못 찾는다. 그래서 형식을 따로 알려 준다.
+export type WorkbookFormat = "xlsx" | "legacy-xls" | "unknown";
+
+const OLE2_SIGNATURE = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+const ZIP_SIGNATURE = [0x50, 0x4b, 0x03, 0x04];
+
+export function detectWorkbookFormat(bytes: Buffer | ArrayBuffer | Uint8Array): WorkbookFormat {
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as ArrayBuffer);
+  const startsWith = (sig: number[]) => sig.every((byte, index) => view[index] === byte);
+  if (startsWith(ZIP_SIGNATURE)) return "xlsx";
+  if (startsWith(OLE2_SIGNATURE)) return "legacy-xls";
+  return "unknown";
+}
+
+/** 구형 .xls 를 올렸을 때 사람에게 보여줄 안내 */
+export const LEGACY_XLS_NOTICE =
+  "구형 엑셀(.xls) 파일이라 읽을 수 없습니다. 엑셀에서 [다른 이름으로 저장] → [Excel 통합 문서(*.xlsx)] 로 바꿔 다시 올려주세요.";
+
+/** 왜 못 읽었는지까지 돌려주는 판 — 화면에 원인을 띄워야 할 때 쓴다 */
+export async function loadWorkbookWithReason(
+  bytes: Buffer | ArrayBuffer | Uint8Array,
+): Promise<{ workbook: Workbook | null; format: WorkbookFormat; reason: string | null }> {
+  const format = detectWorkbookFormat(bytes);
+  if (format === "legacy-xls") {
+    return { workbook: null, format, reason: LEGACY_XLS_NOTICE };
+  }
+  const workbook = await loadWorkbook(bytes);
+  return {
+    workbook,
+    format,
+    reason: workbook ? null : "엑셀 파일을 열 수 없습니다. 파일이 손상되었는지 확인해주세요.",
+  };
+}
+
 // 로드 성공 시 Workbook, 파일이 깨졌거나 지원 불가 형식이면 null.
 export async function loadWorkbook(bytes: Buffer | ArrayBuffer | Uint8Array): Promise<Workbook | null> {
   const load = async (data: Buffer | ArrayBuffer | Uint8Array) => {
