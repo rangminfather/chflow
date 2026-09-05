@@ -21,6 +21,15 @@ import {
   parseDeptBulletinFields,
 } from "@/lib/bulletin/dept-bulletin-fields";
 import { correctNamesIn } from "@/lib/bulletin/name-correction";
+import {
+  type BibleVersion,
+  DEFAULT_BIBLE_VERSION,
+  parseBibleVersions,
+  readSavedBibleVersion,
+  resolveBibleVersion,
+  saveBibleVersion,
+  versionLabel,
+} from "@/lib/bible/versions";
 
 type ClassRow = { class_no: string };
 type GuideFields = { prayerClass?: string; prayerNext?: string; prayerFixed?: boolean };
@@ -28,6 +37,18 @@ type GuideRecord = { fields?: GuideFields } | null;
 type PlanFields = { prayerClass?: string; scripture?: string; sermonTitle?: string; preacher?: string };
 type PlanInfo = { fields: PlanFields; sourceFile: string; sheetName: string } | null;
 type BibleRow = BibleVerse & { book_id: number; book_name: string; normalized_label: string };
+
+/** 기기에 저장해 두는 대본 재료 — 다시 들어올 때 즉시 띄우기 위한 것 */
+type CachedScript = {
+  prayerClass?: string;
+  verses?: BibleVerse[];
+  normalizedScripture?: string;
+  testament?: "구약" | "신약";
+  scriptureSource?: string;
+  scriptureInput?: string;
+  plan?: PlanInfo;
+  savedAt?: string;
+};
 
 function toISO(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -155,6 +176,12 @@ export default function WorshipLeaderPage() {
   const [scriptureSource, setScriptureSource] = useState("");
   const [scriptureInput, setScriptureInput] = useState("");
   const [lookingUp, setLookingUp] = useState(false);
+  const [versions, setVersions] = useState<BibleVersion[]>([]);
+  const [version, setVersion] = useState(DEFAULT_BIBLE_VERSION);
+  const versionRef = useRef(DEFAULT_BIBLE_VERSION);
+  // 한 번 만든 대본은 이 기기에 주일별로 남긴다 — 다시 들어올 때 즉시 뜨고,
+  // 최신 값은 뒤에서 조용히 맞춘다 (주보 PDF 를 매번 새로 받으면 느리다)
+  const cacheKey = `worship-leader-cache:${deptId}:${sunday}`;
   const [editedContents, setEditedContents] = useState<Record<number, string>>({});
 
   // 고친 대본은 이 브라우저에 주일별로 남긴다.
@@ -184,13 +211,24 @@ export default function WorshipLeaderPage() {
     try { window.localStorage.removeItem(editStorageKey); } catch { /* 무시 */ }
   }, [editStorageKey]);
 
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.rpc("list_bible_versions");
+      const list = parseBibleVersions(data);
+      setVersions(list);
+      const picked = resolveBibleVersion(list, readSavedBibleVersion());
+      versionRef.current = picked;
+      setVersion(picked);
+    })();
+  }, []);
+
   /** 본문 표기 하나를 성경에서 찾아 화면에 채운다. 찾으면 true. */
   const lookupScripture = useCallback(async (rawReference: string) => {
     const reference = normalizeBibleReference(rawReference);
     if (!reference) return false;
     const { data, error } = await supabase.rpc("get_bible_reference", {
       p_ref: reference,
-      p_version: "KRV",
+      p_version: versionRef.current,
     });
     if (!error && Array.isArray(data) && data.length) {
       const rows = data as BibleRow[];
@@ -217,14 +255,17 @@ export default function WorshipLeaderPage() {
     setLookingUp(false);
   }, [scriptureInput, lookupScripture]);
 
-  const load = useCallback(async (date: string) => {
-    setLoading(true);
+  const load = useCallback(async (date: string, silent = false) => {
+    // 조용히 갱신할 때는 화면에 이미 저장본이 떠 있으므로 지우지 않는다
+    if (!silent) {
+      setLoading(true);
+      setVerses([]);
+      setNormalizedScripture("");
+      setTestament(undefined);
+      setScriptureSource("");
+      setScriptureInput("");
+    }
     setNotice("");
-    setVerses([]);
-    setNormalizedScripture("");
-    setTestament(undefined);
-    setScriptureSource("");
-    setScriptureInput("");
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -336,11 +377,49 @@ export default function WorshipLeaderPage() {
     setLoading(false);
   }, [deptId, router, lookupScripture]);
 
+  // 만들어진 대본 재료를 기기에 남긴다 — 다음에 들어올 때 즉시 뜬다
   useEffect(() => {
-    // 선택한 주일이 바뀔 때 외부 데이터 소스를 다시 동기화한다.
+    if (loading) return;
+    try {
+      const payload: CachedScript = {
+        prayerClass,
+        verses,
+        normalizedScripture,
+        testament,
+        scriptureSource,
+        scriptureInput,
+        plan,
+        savedAt: new Date().toISOString(),
+      };
+      window.localStorage.setItem(cacheKey, JSON.stringify(payload));
+    } catch {
+      /* 저장 실패는 무시 — 다음에 다시 만들면 된다 */
+    }
+  }, [cacheKey, loading, prayerClass, verses, normalizedScripture, testament, scriptureSource, scriptureInput, plan]);
+
+  useEffect(() => {
+    // 저장해 둔 대본이 있으면 먼저 띄우고, 최신 값은 뒤에서 맞춘다.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load(sunday);
-  }, [load, sunday]);
+    void (async () => {
+      let hadCache = false;
+      try {
+        const raw = window.localStorage.getItem(cacheKey);
+        if (raw) {
+          const cached = JSON.parse(raw) as CachedScript;
+          setPrayerClass(cached.prayerClass || "");
+          setVerses(cached.verses || []);
+          setNormalizedScripture(cached.normalizedScripture || "");
+          setTestament(cached.testament);
+          setScriptureSource(cached.scriptureSource || "");
+          setScriptureInput(cached.scriptureInput || "");
+          setPlan(cached.plan ?? null);
+          setLoading(false);
+          hadCache = true;
+        }
+      } catch { /* 캐시가 깨졌으면 그냥 새로 만든다 */ }
+      await load(sunday, hadCache);
+    })();
+  }, [load, sunday, cacheKey]);
 
   const generatedSections = useMemo(() => buildWorshipLeaderSections({
     sunday,
@@ -351,7 +430,8 @@ export default function WorshipLeaderPage() {
     verses,
     sermonTitle: plan?.fields.sermonTitle || "",
     preacher: plan?.fields.preacher || "",
-  }), [normalizedScripture, plan, prayerClass, sunday, testament, verses]);
+    versionName: versionLabel(versions, version),
+  }), [normalizedScripture, plan, prayerClass, sunday, testament, verses, versions, version]);
 
   const sections = useMemo(() => generatedSections.map((section) => ({
     ...section,
@@ -446,12 +526,36 @@ export default function WorshipLeaderPage() {
               aria-label="말씀 본문"
               style={{ flex: 1, minWidth: 180, padding: "10px 12px", fontSize: 14, fontWeight: 600, color: "var(--ink)", background: "var(--card)", border: "1.5px solid var(--line)", borderRadius: 10, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
             />
+            {versions.length > 1 && (
+              <select
+                value={version}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  versionRef.current = next;
+                  setVersion(next);
+                  saveBibleVersion(next);
+                  if (scriptureInput.trim()) void lookupScripture(scriptureInput.trim());
+                }}
+                aria-label="성경 역본"
+                style={{ minHeight: 42, padding: "0 10px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--card)", color: "var(--ink)", font: "inherit", fontSize: 14 }}
+              >
+                {versions.map((item) => (
+                  <option key={item.code} value={item.code}>{item.name_ko}</option>
+                ))}
+              </select>
+            )}
             <button
               type="button"
               onClick={() => void handleManualLookup()}
               disabled={lookingUp || !scriptureInput.trim()}
               style={{ ...buttonStyle, opacity: lookingUp || !scriptureInput.trim() ? 0.5 : 1 }}
             >{lookingUp ? "찾는 중..." : "본문 불러오기"}</button>
+            <button
+              type="button"
+              onClick={() => void load(sunday)}
+              title="주보·계획서를 다시 읽어 대본을 새로 만듭니다"
+              style={{ ...secondaryButtonStyle, whiteSpace: "nowrap" }}
+            ><RefreshCw size={15} /> 다시 만들기</button>
           </div>
         </div>
 
