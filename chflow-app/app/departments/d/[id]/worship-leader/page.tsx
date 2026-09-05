@@ -22,10 +22,7 @@ import {
 } from "@/lib/bulletin/dept-bulletin-fields";
 import { correctNamesIn } from "@/lib/bulletin/name-correction";
 
-type ClassRow = { class_no: string; teacher_name?: string | null; assistant_teacher_name?: string | null };
-
-// 예배인도 담당 임원 — edu_teachers 에 없는 직책이라 이름만 따로 둔다 (예배안내 화면과 같은 목록)
-const OFFICER_NAMES = ["최성헌", "김찬규", "박양흠"];
+type ClassRow = { class_no: string };
 type GuideFields = { prayerClass?: string; prayerNext?: string; prayerFixed?: boolean };
 type GuideRecord = { fields?: GuideFields } | null;
 type PlanFields = { prayerClass?: string; scripture?: string; sermonTitle?: string; preacher?: string };
@@ -252,20 +249,10 @@ export default function WorshipLeaderPage() {
     }
     setAuthorized(true);
 
-    const classRows = (classResponse.data as ClassRow[]) || [];
-    const classes = sortClasses(classRows.filter((row) => row.class_no));
+    const classes = sortClasses(((classResponse.data as ClassRow[]) || []).filter((row) => row.class_no));
 
-    // 주보는 사람이 만든 한글 파일이라 이름에 오타가 섞인다("최성헌"→"촤성헌").
-    // 부서에 실제로 있는 사람 이름과 대조해 한 글자 차이만 조용히 고친다.
-    const roster = [
-      ...OFFICER_NAMES,
-      ...classRows.flatMap((row) => [row.teacher_name, row.assistant_teacher_name]),
-    ].filter((name): name is string => Boolean(name && name.trim()));
-    const bulletin = correctNamesIn(
-      bulletinFields,
-      ["leader", "preacher", "prayer", "guide", "praise"],
-      roster,
-    );
+    // 주보에 섞인 확인된 오타만 고친다 (name-correction.ts 의 목록)
+    const bulletin = correctNamesIn(bulletinFields, ["leader", "preacher", "prayer", "guide", "praise"]);
     const payload = (guideResponse.data || {}) as { current?: GuideRecord; prev?: GuideRecord };
     const current = payload.current?.fields || {};
     const previous = payload.prev?.fields || {};

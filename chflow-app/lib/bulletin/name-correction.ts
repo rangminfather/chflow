@@ -2,63 +2,46 @@
    주보에 적힌 이름의 오타 교정
 
    주보는 사람이 한글 파일로 만들어 올리므로 이름에 오타가 섞인다
-   (실제 사례: "최성헌" → "촤성헌"). 주보를 그대로 읽어오는 화면들이
-   그 오타를 따라가지 않도록, 부서에 실제로 있는 사람 이름과 대조해 고친다.
+   (실제 사례: 예배인도자가 "최성헌" 대신 "촤성헌"으로 적혀 있었다).
 
-   원칙 — 애매하면 고치지 않는다.
-     · 명단에 있는 이름과 **한 글자만** 다를 때에만 바꾼다
-     · 그 한 글자 차이에 해당하는 명단 이름이 **딱 하나**일 때만 바꾼다
-       (김찬규/김찬수처럼 둘 다 후보면 손대지 않는다)
-     · 길이가 다르면 손대지 않는다 — 다른 사람일 가능성이 크다
+   ── 왜 "비슷한 이름 자동 교정"을 쓰지 않는가 ──────────────
+   처음엔 부서 명단과 한 글자 차이면 고치도록 만들었다가 실제 데이터를 망쳤다.
+   초등1부에는 **최성헌(부장)과 최성현(찬양율동)이 둘 다 있고**, 최성현은
+   edu_teachers 에 등록돼 있지 않다. 그래서 멀쩡한 "최성현"이 명단에 없는
+   이름으로 보여 "최성헌"으로 바뀌어 버렸다.
+
+   명단이 부서 사람 전부를 담고 있지 않는 한 유사도 교정은 위험하다.
+   그래서 **확인된 오타만** 아래 목록에 적어 바꾼다. 새 오타가 보이면 여기 한 줄
+   추가하면 된다. 목록에 없는 글자는 절대 건드리지 않는다.
    ============================================================ */
 
-/** 같은 길이의 두 이름이 몇 글자 다른지 */
-function differingChars(a: string, b: string): number {
-  if (a.length !== b.length) return Number.POSITIVE_INFINITY;
-  let count = 0;
-  for (let i = 0; i < a.length; i += 1) {
-    if (a[i] !== b[i]) count += 1;
+/** 주보에서 실제로 관찰된 오타 → 바른 표기 */
+export const KNOWN_NAME_TYPOS: Record<string, string> = {
+  촤성헌: "최성헌", // 2026-09-06·08-30 초등1부 주보 예배인도자
+};
+
+/** 알려진 오타만 바꾼다. 그 외에는 원문 그대로 둔다. */
+export function correctNames(value: string, typos: Record<string, string> = KNOWN_NAME_TYPOS): string {
+  const text = value ?? "";
+  if (!text.trim()) return text;
+  let out = text;
+  for (const [wrong, right] of Object.entries(typos)) {
+    if (out.includes(wrong)) out = out.split(wrong).join(right);
   }
-  return count;
-}
-
-/**
- * 문장 안에서 명단에 가까운 이름을 찾아 고친다.
- * 예: correctNames("촤성헌부장선생님", ["최성헌"]) → "최성헌부장선생님"
- */
-export function correctNames(value: string, roster: string[]): string {
-  const text = (value ?? "").trim();
-  if (!text) return text;
-
-  const names = [...new Set(roster.map((name) => (name ?? "").trim()).filter((name) => name.length >= 2))];
-  if (names.length === 0) return text;
-  // 이미 명단 이름이 그대로 들어 있으면 건드리지 않는다
-  if (names.some((name) => text.includes(name))) return text;
-
-  const lengths = [...new Set(names.map((name) => name.length))];
-  for (const length of lengths) {
-    for (let start = 0; start + length <= text.length; start += 1) {
-      const slice = text.slice(start, start + length);
-      if (!/^[가-힣]+$/.test(slice)) continue;
-      const close = names.filter((name) => name.length === length && differingChars(slice, name) === 1);
-      if (close.length !== 1) continue; // 후보가 둘 이상이면 판단 보류
-      return text.slice(0, start) + close[0] + text.slice(start + length);
-    }
-  }
-  return text;
+  return out;
 }
 
 /** 여러 항목을 한 번에 (값이 비어 있으면 그대로 둔다) */
 export function correctNamesIn<T extends object>(
   fields: T,
   keys: (keyof T)[],
-  roster: string[],
+  typos: Record<string, string> = KNOWN_NAME_TYPOS,
 ): T {
   const next = { ...fields };
   for (const key of keys) {
     const value = next[key];
     if (typeof value === "string" && value.trim()) {
-      next[key] = correctNames(value, roster) as T[keyof T];
+      next[key] = correctNames(value, typos) as T[keyof T];
     }
   }
   return next;
