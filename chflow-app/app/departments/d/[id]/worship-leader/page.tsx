@@ -20,8 +20,12 @@ import {
   normText,
   parseDeptBulletinFields,
 } from "@/lib/bulletin/dept-bulletin-fields";
+import { correctNamesIn } from "@/lib/bulletin/name-correction";
 
-type ClassRow = { class_no: string };
+type ClassRow = { class_no: string; teacher_name?: string | null; assistant_teacher_name?: string | null };
+
+// 예배인도 담당 임원 — edu_teachers 에 없는 직책이라 이름만 따로 둔다 (예배안내 화면과 같은 목록)
+const OFFICER_NAMES = ["최성헌", "김찬규", "박양흠"];
 type GuideFields = { prayerClass?: string; prayerNext?: string; prayerFixed?: boolean };
 type GuideRecord = { fields?: GuideFields } | null;
 type PlanFields = { prayerClass?: string; scripture?: string; sermonTitle?: string; preacher?: string };
@@ -156,6 +160,33 @@ export default function WorshipLeaderPage() {
   const [lookingUp, setLookingUp] = useState(false);
   const [editedContents, setEditedContents] = useState<Record<number, string>>({});
 
+  // 고친 대본은 이 브라우저에 주일별로 남긴다.
+  // 예배 직전에 손보는 경우가 많은데 새로고침 한 번에 날아가면 안 된다.
+  const editStorageKey = `worship-leader-edits:${deptId}:${sunday}`;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = window.localStorage.getItem(editStorageKey);
+      setEditedContents(saved ? (JSON.parse(saved) as Record<number, string>) : {});
+    } catch {
+      setEditedContents({});
+    }
+  }, [editStorageKey]);
+
+  const updateSection = useCallback((sectionNumber: number, value: string) => {
+    setEditedContents((current) => {
+      const next = { ...current, [sectionNumber]: value };
+      try { window.localStorage.setItem(editStorageKey, JSON.stringify(next)); } catch { /* 저장 실패는 무시 */ }
+      return next;
+    });
+  }, [editStorageKey]);
+
+  const resetSections = useCallback(() => {
+    setEditedContents({});
+    try { window.localStorage.removeItem(editStorageKey); } catch { /* 무시 */ }
+  }, [editStorageKey]);
+
   /** 본문 표기 하나를 성경에서 찾아 화면에 채운다. 찾으면 true. */
   const lookupScripture = useCallback(async (rawReference: string) => {
     const reference = normalizeBibleReference(rawReference);
@@ -191,7 +222,6 @@ export default function WorshipLeaderPage() {
 
   const load = useCallback(async (date: string) => {
     setLoading(true);
-    setEditedContents({});
     setNotice("");
     setVerses([]);
     setNormalizedScripture("");
@@ -222,7 +252,20 @@ export default function WorshipLeaderPage() {
     }
     setAuthorized(true);
 
-    const classes = sortClasses(((classResponse.data as ClassRow[]) || []).filter((row) => row.class_no));
+    const classRows = (classResponse.data as ClassRow[]) || [];
+    const classes = sortClasses(classRows.filter((row) => row.class_no));
+
+    // 주보는 사람이 만든 한글 파일이라 이름에 오타가 섞인다("최성헌"→"촤성헌").
+    // 부서에 실제로 있는 사람 이름과 대조해 한 글자 차이만 조용히 고친다.
+    const roster = [
+      ...OFFICER_NAMES,
+      ...classRows.flatMap((row) => [row.teacher_name, row.assistant_teacher_name]),
+    ].filter((name): name is string => Boolean(name && name.trim()));
+    const bulletin = correctNamesIn(
+      bulletinFields,
+      ["leader", "preacher", "prayer", "guide", "praise"],
+      roster,
+    );
     const payload = (guideResponse.data || {}) as { current?: GuideRecord; prev?: GuideRecord };
     const current = payload.current?.fields || {};
     const previous = payload.prev?.fields || {};
@@ -258,7 +301,7 @@ export default function WorshipLeaderPage() {
     const fromGuide = parseGuideMessage(guideMessage);
 
     // 그 주일 주보가 가장 확실하다 — 실제로 나눠 준 종이에 적힌 값이다
-    let scripture = (bulletinFields.scripture || "").trim();
+    let scripture = (bulletin.scripture || "").trim();
     let source = scripture ? "주보" : "";
 
     if (!scripture) {
@@ -281,7 +324,7 @@ export default function WorshipLeaderPage() {
     }
 
     // 설교 제목도 계획서에 없으면 예배안내 문구에서 보완한다
-    const titleFallback = (bulletinFields.sermonTitle || "").trim() || fromGuide.sermonTitle;
+    const titleFallback = (bulletin.sermonTitle || "").trim() || fromGuide.sermonTitle;
     if (!planInfo?.fields.sermonTitle?.trim() && titleFallback) {
       setPlan((current) => current
         ? { ...current, fields: { ...current.fields, sermonTitle: titleFallback } }
@@ -382,11 +425,11 @@ export default function WorshipLeaderPage() {
 
         <div style={{ margin: "12px 0", display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div style={{ flex: "1 1 260px", fontSize: 12, color: "var(--ink-soft)" }}>
-            각 내용을 눌러 직접 수정할 수 있습니다. 시작기도는 주차별로 다르게 자동 생성됩니다. {isFirstSunday(sunday) ? "첫째 주 고정 대표기도" : prayerClass ? `대표기도 ${prayerClass}반` : "대표기도 반 확인 필요"}
+각 내용을 눌러 직접 수정할 수 있습니다. 고친 내용은 이 기기에 주일별로 저장됩니다. 시작기도는 주차별로 다르게 자동 생성됩니다. {isFirstSunday(sunday) ? "첫째 주 고정 대표기도" : prayerClass ? `대표기도 ${prayerClass}반` : "대표기도 반 확인 필요"}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginLeft: "auto" }}>
             {Object.keys(editedContents).length > 0 && (
-              <button onClick={() => setEditedContents({})} style={{ ...secondaryButtonStyle, whiteSpace: "nowrap" }}><RotateCcw size={15} /> 원본 복원</button>
+              <button onClick={resetSections} style={{ ...secondaryButtonStyle, whiteSpace: "nowrap" }}><RotateCcw size={15} /> 원본 복원</button>
             )}
             <button onClick={() => void copyScript()} style={{ ...buttonStyle, whiteSpace: "nowrap" }}><Copy size={16} /> {copied ? "복사됨" : "전체 복사"}</button>
           </div>
@@ -435,7 +478,7 @@ export default function WorshipLeaderPage() {
               <ScriptEditor
                 label={`${section.title} 내용 수정`}
                 value={section.content}
-                onChange={(value) => setEditedContents((current) => ({ ...current, [section.number]: value }))}
+                onChange={(value) => updateSection(section.number, value)}
               />
             </section>
           ))}
