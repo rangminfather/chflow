@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildOpeningPrayer,
   buildWorshipLeaderSections,
+  parseGuideMessage,
   normalizeBibleReference,
   prayerLeaderLabel,
   preacherLabel,
@@ -69,5 +70,37 @@ describe("본문이 없을 때 대본 문구", () => {
     const text = sections.map((s) => s.content).join("\n");
     expect(text).toContain("하나님이 세상을 이처럼 사랑하사");
     expect(text).not.toContain("찾지 못했습니다");
+  });
+});
+
+describe("예배안내 문구에서 본문 뽑기", () => {
+  const real = `샬롬 2026년 하나님의 안경으로 세상을 바라보는 어린이 주일 예배 안내드립니다!
+~ 9월 6일 초등1부 예배 ~
+1. 안내 : 1-2반 황선영 선생님
+5. 말씀강론 : 김희숙 전도사님
+가. 제목 : 우리의생명은누구의것인가요?
+나. 성경 : 사무엘상31장3~5절
+6. 축도`;
+
+  it("실제 저장본에서 성경과 제목을 뽑는다", () => {
+    const parsed = parseGuideMessage(real);
+    expect(parsed.scripture).toBe("사무엘상31장3~5절");
+    expect(parsed.sermonTitle).toBe("우리의생명은누구의것인가요?");
+  });
+
+  it("뽑은 표기는 성경 조회용으로 정규화된다", () => {
+    expect(normalizeBibleReference(parseGuideMessage(real).scripture)).toBe("사무엘상31:3-5");
+  });
+
+  it("한 줄에 이어 붙어 있어도 항목 기호에서 끊는다", () => {
+    const oneLine = "가. 제목 : 예수님만 의지해요 나. 성경 : 눅8:40~56";
+    const parsed = parseGuideMessage(oneLine);
+    expect(parsed.sermonTitle).toBe("예수님만 의지해요");
+    expect(parsed.scripture).toBe("눅8:40~56");
+  });
+
+  it("문구가 없거나 항목이 빠져 있으면 빈 값", () => {
+    expect(parseGuideMessage(null)).toEqual({ scripture: "", sermonTitle: "" });
+    expect(parseGuideMessage("1. 안내 : 1-2반").scripture).toBe("");
   });
 });
