@@ -183,6 +183,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
     desc: "부서원 등급 · 설정",
     items: [
       { id: "worship-guide", label: "예배안내", icon: MessageSquareText, desc: "주일 예배 안내 메시지 생성·공유 (카톡용)", color: "#3E7D74", implemented: true, onlyForDept: "초등1부" },
+      { id: "worship-leader", label: "예배인도", icon: BookOpen, desc: "주일 예배인도 스크립트 자동 생성", color: "#3E7D74", implemented: true, onlyForDept: "초등1부" },
       { id: "members-grade", label: "부서원관리", icon: Award, desc: "부서원 등급(0~4) 변경 · 임명 — 전도사·부장만 가능", color: "var(--accent)", implemented: true },
       { id: "promote", label: "진급 마법사", icon: GraduationCap, desc: "매년 학년 진급 · 반편성 · 담임배정", color: "var(--danger)", implemented: true },
     ],
