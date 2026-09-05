@@ -143,6 +143,8 @@ export function buildWorshipLeaderSections(input: {
   verses?: BibleVerse[];
   sermonTitle: string;
   preacher: string;
+  /** 역본 이름 — 역본이 하나뿐이면 비워 둔다 */
+  versionName?: string;
 }): WorshipLeaderSection[] {
   const reference = (input.normalizedScripture || input.scripture || "").trim();
   const scripture = reference || "말씀 본문 확인 필요";
@@ -172,7 +174,7 @@ export function buildWorshipLeaderSections(input: {
     {
       number: 7,
       title: "말씀봉독",
-      content: `성경봉독 하도록 하겠습니다. 오늘 말씀은 ${scripture} 말씀입니다. (${input.testament || "구약/신약"} p.000)\n\n${scripture}\n\n${verseText}`,
+      content: `성경봉독 하도록 하겠습니다. 오늘 말씀은 ${scripture} 말씀입니다. (${[input.versionName, input.testament || "구약/신약"].filter(Boolean).join(" · ")} p.000)\n\n${scripture}\n\n${verseText}`,
     },
     {
       number: 8,
