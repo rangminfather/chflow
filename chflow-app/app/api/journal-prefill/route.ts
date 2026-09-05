@@ -37,8 +37,6 @@ const LIST_URL = `${PROXY_BASE}?action=list`;
 const FILE_URL = (no: number) => `${PROXY_BASE}?action=pdf&no=${no}`;
 // dept-bulletin 동기화가 주보 PDF 를 받아 두는 곳
 const BULLETIN_BUCKET = "bulletins";
-// 예배인도 담당 임원 — edu_teachers 에 없는 직책이라 이름만 따로 둔다
-const OFFICER_NAMES = ["최성헌", "김찬규", "박양흠"];
 
 // ─────────────────────────────────────────
 // 부서별 게시글 검색 패턴
@@ -344,19 +342,8 @@ async function prefillFromStoredBulletin(
     const { data: file, error: downloadError } = await r2.from(BULLETIN_BUCKET).download(row.pdf_url);
     if (downloadError || !file) return { result: null, reason: `주보 파일을 읽지 못함: ${downloadError?.message ?? "빈 응답"}` };
     const text = await pdfToText(new Uint8Array(await file.arrayBuffer()));
-    let parsed = parseFields(text);
-
-    // 주보는 사람이 만든 한글 파일이라 이름에 오타가 섞인다("최성헌"→"촤성헌").
-    // 부서 교사 명단과 대조해 한 글자 차이만 조용히 고친다.
-    const { data: teachers } = await supabase
-      .from("edu_teachers")
-      .select("name")
-      .eq("is_active", true);
-    const roster = [
-      ...OFFICER_NAMES,
-      ...((teachers as { name: string | null }[] | null) ?? []).map((row) => row.name),
-    ].filter((name): name is string => Boolean(name && name.trim()));
-    parsed = correctNamesIn(parsed, ["leader", "preacher", "prayer_lead", "praise"], roster);
+    // 주보에 섞인 확인된 오타만 고친다 (name-correction.ts 의 목록)
+    const parsed = correctNamesIn(parseFields(text), ["leader", "preacher", "prayer_lead", "praise"]);
     if (!parsed.scripture && !parsed.sermon_title) {
       return { result: null, reason: `주보에서 예배순서를 찾지 못함 (추출 ${text.length}자)` };
     }
