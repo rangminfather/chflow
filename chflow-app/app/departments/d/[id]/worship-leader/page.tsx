@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { BookOpen, ChevronLeft, ChevronRight, Copy, RefreshCw, RotateCcw } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -62,9 +62,31 @@ function nextClass(current: string | undefined, classes: string[]) {
   return classes[(index + 1) % classes.length];
 }
 
-function textareaRows(content: string) {
-  const visualLines = content.split("\n").reduce((total, line) => total + Math.max(1, Math.ceil(line.length / 42)), 0);
-  return Math.min(18, Math.max(3, visualLines));
+function ScriptEditor({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const resize = useCallback(() => {
+    const element = ref.current;
+    if (!element) return;
+    element.style.height = "auto";
+    element.style.height = `${element.scrollHeight + element.offsetHeight - element.clientHeight}px`;
+  }, []);
+
+  useLayoutEffect(resize, [resize, value]);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    let width = element.getBoundingClientRect().width;
+    const observer = new ResizeObserver(() => {
+      const nextWidth = element.getBoundingClientRect().width;
+      if (nextWidth !== width) { width = nextWidth; resize(); }
+    });
+    observer.observe(element);
+    let active = true;
+    void document.fonts.ready.then(() => { if (active) resize(); });
+    return () => { active = false; observer.disconnect(); };
+  }, [resize]);
+
+  return <textarea ref={ref} aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} rows={1} style={textareaStyle} />;
 }
 
 async function fetchWithAuth(url: string, token: string) {
@@ -269,12 +291,10 @@ export default function WorshipLeaderPage() {
                 <span style={{ width: 28, height: 28, borderRadius: 9, display: "grid", placeItems: "center", background: "#3E7D74", color: "white", fontSize: 13, fontWeight: 800 }}>{section.number}</span>
                 <h2 style={{ margin: 0, fontSize: 16, color: "var(--ink)" }}>{section.title}</h2>
               </div>
-              <textarea
-                aria-label={`${section.title} 내용 수정`}
+              <ScriptEditor
+                label={`${section.title} 내용 수정`}
                 value={section.content}
-                onChange={(event) => setEditedContents((current) => ({ ...current, [section.number]: event.target.value }))}
-                rows={textareaRows(section.content)}
-                style={textareaStyle}
+                onChange={(value) => setEditedContents((current) => ({ ...current, [section.number]: value }))}
               />
             </section>
           ))}
@@ -330,7 +350,10 @@ const textareaStyle: React.CSSProperties = {
   width: "100%",
   minHeight: 74,
   padding: 12,
-  resize: "vertical",
+  resize: "none",
+  overflow: "hidden",
+  boxSizing: "border-box",
+  display: "block",
   border: "1px solid var(--line)",
   borderRadius: 11,
   outline: "none",
