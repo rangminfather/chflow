@@ -185,3 +185,26 @@ export function buildWorshipLeaderSections(input: {
 export function worshipLeaderScriptText(dateLabel: string, sections: WorshipLeaderSection[]) {
   return [`${dateLabel} 예배인도`, ...sections.map((section) => `${section.number}. ${section.title}\n${section.content}`)].join("\n\n");
 }
+
+/**
+ * 예배안내 저장본 문구에서 성경 본문·설교 제목을 뽑는다.
+ *
+ * 예배안내는 매주 사람이 직접 채워 저장하므로, 월간교육계획이 아직 안 올라온
+ * 주일에도 값이 있다. 형식은 부서에서 쓰는 그대로다.
+ *   가. 제목 : 우리의 생명은 누구의 것인가요?
+ *   나. 성경 : 사무엘상31장3~5절
+ * 앞의 "가."·"나." 같은 항목 기호는 있을 수도 없을 수도 있어 느슨하게 본다.
+ */
+export function parseGuideMessage(message: string | null | undefined): {
+  scripture: string;
+  sermonTitle: string;
+} {
+  const text = (message ?? "").replace(/\r\n/g, "\n");
+  const pick = (label: string) => {
+    const matched = text.match(new RegExp(`${label}\\s*[:：]\\s*([^\\n]+)`));
+    if (!matched) return "";
+    // 다음 항목이 같은 줄에 이어 붙는 경우를 잘라 낸다 ("... 나. 성경 : ..." )
+    return matched[1].split(/\s+[가-힣]\.\s/)[0].trim();
+  };
+  return { scripture: pick("성경"), sermonTitle: pick("제목") };
+}

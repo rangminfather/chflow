@@ -12,6 +12,7 @@ import {
   isFirstSunday,
   normalizeBibleReference,
   normalizeClassToken,
+  parseGuideMessage,
   worshipLeaderScriptText,
 } from "@/lib/worshipLeaderScript";
 
@@ -213,9 +214,18 @@ export default function WorshipLeaderPage() {
     if (!resolvedPrayerClass) resolvedPrayerClass = classes[0] || "";
     setPrayerClass(resolvedPrayerClass);
 
-    // 본문 표기 찾기 — 계획서에 없으면 그 주일 주보 초안에서 가져온다
-    let scripture = planInfo?.fields.scripture?.trim() || "";
-    let source = scripture ? "월간교육계획" : "";
+    // 본문 표기 찾기 — 예배안내 저장본이 가장 확실하다.
+    // 예배안내는 매주 사람이 직접 채워 저장하므로, 월간교육계획이 아직 안 올라온
+    // 주일에도 본문이 들어 있다. 계획서·주보 초안은 그다음 순서로 본다.
+    const guideMessage = (payload.current as { message?: string } | null | undefined)?.message ?? "";
+    const fromGuide = parseGuideMessage(guideMessage);
+    let scripture = fromGuide.scripture.trim();
+    let source = scripture ? "예배안내" : "";
+
+    if (!scripture) {
+      scripture = planInfo?.fields.scripture?.trim() || "";
+      source = scripture ? "월간교육계획" : "";
+    }
     if (!scripture) {
       const { data: draft } = await supabase.rpc("bulletin_get_draft", {
         p_dept_id: deptId,
@@ -224,6 +234,13 @@ export default function WorshipLeaderPage() {
       const form = (draft as { form_data?: { scripture?: string } }[] | null)?.[0]?.form_data;
       const fromDraft = form?.scripture?.trim() || "";
       if (fromDraft) { scripture = fromDraft; source = "주보 초안"; }
+    }
+
+    // 설교 제목도 계획서에 없으면 예배안내 문구에서 보완한다
+    if (!planInfo?.fields.sermonTitle?.trim() && fromGuide.sermonTitle) {
+      setPlan((current) => current
+        ? { ...current, fields: { ...current.fields, sermonTitle: fromGuide.sermonTitle } }
+        : { fields: { sermonTitle: fromGuide.sermonTitle }, sourceFile: "예배안내", sheetName: "" });
     }
 
     setScriptureSource(source);
