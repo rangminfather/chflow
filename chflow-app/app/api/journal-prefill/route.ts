@@ -319,8 +319,8 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 async function prefillFromStoredBulletin(
   deptKey: string,
   issueDate: string | undefined,
-): Promise<Prefill | null> {
-  if (!issueDate) return null;
+): Promise<{ result: Prefill | null; reason: string }> {
+  if (!issueDate) return { result: null, reason: "날짜 없음" };
   try {
     const supabase = createClient(SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: { persistSession: false },
@@ -330,22 +330,28 @@ async function prefillFromStoredBulletin(
       .select("title, sunday_date, pdf_url")
       .eq("sunday_date", issueDate)
       .order("created_at", { ascending: false });
-    if (error || !data?.length) return null;
+    if (error) return { result: null, reason: `주보 조회 실패: ${error.message}` };
+    if (!data?.length) return { result: null, reason: "그 주일 주보가 저장돼 있지 않음" };
 
     // 같은 주일에 여러 부서 주보가 들어오므로 제목으로 부서를 가린다 ("초등1초원" 등)
     const deptToken = deptKey.replace(/부$/, "");
     const row = data.find((item) => (item.title || "").includes(deptToken) && item.pdf_url);
-    if (!row?.pdf_url) return null;
+    if (!row?.pdf_url) return { result: null, reason: `${deptToken} 주보를 찾지 못함 (그 주일 저장본 ${data.length}건)` };
 
     const { data: file, error: downloadError } = await r2.from(BULLETIN_BUCKET).download(row.pdf_url);
-    if (downloadError || !file) return null;
+    if (downloadError || !file) return { result: null, reason: `주보 파일을 읽지 못함: ${downloadError?.message ?? "빈 응답"}` };
     const text = await pdfToText(new Uint8Array(await file.arrayBuffer()));
     const parsed = parseFields(text);
-    if (!parsed.scripture && !parsed.sermon_title) return null;
+    if (!parsed.scripture && !parsed.sermon_title) {
+      return { result: null, reason: `주보에서 예배순서를 찾지 못함 (추출 ${text.length}자)` };
+    }
 
-    return { source_title: row.title, source_date: row.sunday_date, ...parsed };
-  } catch {
-    return null;
+    return {
+      result: { source_title: row.title, source_date: row.sunday_date, ...parsed },
+      reason: "",
+    };
+  } catch (e) {
+    return { result: null, reason: `저장본 처리 중 오류: ${(e as Error).message}` };
   }
 }
 
@@ -376,10 +382,11 @@ export async function POST(req: NextRequest) {
     // 돌아오고, 재시도하다 함수가 타임아웃난다. 주보는 dept-bulletin 동기화가
     // 매주 R2 에 받아 두므로 그것을 읽으면 차단과 무관하게 끝난다.
     const stored = await prefillFromStoredBulletin(deptKey, issueDate);
-    if (stored) {
-      RESULT_CACHE.set(cacheKey, { result: stored, expiresAt: Date.now() + CACHE_TTL_MS });
-      return NextResponse.json({ ok: true, data: stored, source: "stored" });
+    if (stored.result) {
+      RESULT_CACHE.set(cacheKey, { result: stored.result, expiresAt: Date.now() + CACHE_TTL_MS });
+      return NextResponse.json({ ok: true, data: stored.result, source: "stored" });
     }
+    const storedReason = stored.reason;
 
     const html = await fetchEucKr(LIST_URL);
     const rows = parseBoardList(html);
@@ -405,7 +412,7 @@ export async function POST(req: NextRequest) {
         hint = `'${pattern.author}' 글은 ${sameAuthor.length}개 있으나 제목에 ${pattern.titleIncludes.join(",")} 포함된 게 없음. 최근: '${sameAuthor[0]?.title}'`;
       }
       return NextResponse.json(
-        { ok: false, error: hint },
+        { ok: false, error: hint, storedReason },
         { status: 404 },
       );
     }
@@ -424,6 +431,9 @@ export async function POST(req: NextRequest) {
     RESULT_CACHE.set(cacheKey, { result, expiresAt: Date.now() + CACHE_TTL_MS });
     return NextResponse.json({ ok: true, data: result });
   } catch (e: unknown) {
-    return NextResponse.json({ ok: false, error: "주보 불러오기 실패" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: `주보 불러오기 실패: ${(e as Error)?.message ?? "알 수 없는 오류"}` },
+      { status: 500 },
+    );
   }
 }
