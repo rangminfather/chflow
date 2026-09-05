@@ -17,7 +17,7 @@ import {
 } from "@/components/PastureShell";
 import {
   fetchPastureHome, fetchPastureMembers, fetchCalendar, setRsvp, notifyPending,
-  formatMeetingDate, formatTime, monthRange, RSVP_LABEL,
+  formatMeetingDate, formatTime, monthRange, ymd, RSVP_LABEL,
   type PastureHome, type PastureMemberRow, type CalendarRow, type RsvpResponse,
 } from "@/lib/pasture";
 
@@ -143,6 +143,12 @@ export default function PastureHomePage() {
             householdCount={householdCount}
             childCount={childCount}
             onClick={() => router.push("/pasture/members")}
+          />
+
+          <PastureCalendarPreview
+            rows={items}
+            onOpenCalendar={() => router.push("/pasture/calendar?mode=schedule")}
+            onOpenSchedule={(scheduleId) => router.push(`/pasture/s/${scheduleId}`)}
           />
 
           {/* 다음 목장모임 */}
@@ -289,6 +295,86 @@ export default function PastureHomePage() {
   );
 }
 
+function PastureCalendarPreview({ rows, onOpenCalendar, onOpenSchedule }: {
+  rows: CalendarRow[];
+  onOpenCalendar: () => void;
+  onOpenSchedule: (scheduleId: string) => void;
+}) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = ymd(now);
+  const cells: (string | null)[] = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => ymd(new Date(year, month, index + 1))),
+  ];
+  const eventsByDate = new Map<string, CalendarRow[]>();
+  for (const row of rows) {
+    if (row.source === "availability") continue;
+    const dateRows = eventsByDate.get(row.on_date) ?? [];
+    dateRows.push(row);
+    eventsByDate.set(row.on_date, dateRows);
+  }
+
+  const openDate = (date: string) => {
+    const pastureSchedule = (eventsByDate.get(date) ?? []).find((row) => row.source === "pasture");
+    if (pastureSchedule) onOpenSchedule(pastureSchedule.ref_id);
+    else onOpenCalendar();
+  };
+
+  return (
+    <div style={cardStyle}>
+      <button type="button" onClick={onOpenCalendar} style={calendarHeadingStyle}>
+        <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <CalendarDays size={18} strokeWidth={1.9} style={{ color: "var(--accent)" }} />
+          <strong>{year}년 {month + 1}월</strong>
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--accent)", fontSize: 12, fontWeight: 800 }}>
+          전체 보기 <ChevronRight size={15} strokeWidth={2} />
+        </span>
+      </button>
+
+      <div style={calendarGridStyle}>
+        {["일", "월", "화", "수", "목", "금", "토"].map((weekday, index) => (
+          <div
+            key={weekday}
+            style={{ ...calendarWeekdayStyle, color: index === 0 ? "var(--danger)" : index === 6 ? "var(--accent)" : "var(--ink-faint)" }}
+          >
+            {weekday}
+          </div>
+        ))}
+        {cells.map((date, index) => {
+          if (!date) return <div key={`empty-${index}`} />;
+          const dateRows = eventsByDate.get(date) ?? [];
+          return (
+            <button
+              key={date}
+              type="button"
+              onClick={() => openDate(date)}
+              aria-label={`${Number(date.slice(-2))}일${dateRows.length ? ` 일정 ${dateRows.length}개` : ""}`}
+              style={{ ...calendarDayStyle, borderColor: date === today ? "var(--accent)" : "transparent" }}
+            >
+              <span style={{ fontSize: 13, fontWeight: date === today ? 800 : 600 }}>{Number(date.slice(-2))}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 2, height: 5 }}>
+                {dateRows.some((row) => row.source === "pasture") && <i style={dotStyle("var(--accent)")} />}
+                {dateRows.some((row) => row.source === "church") && <i style={dotStyle("var(--brass)")} />}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={calendarLegendStyle}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><i style={dotStyle("var(--accent)")} /> 목장 일정</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><i style={dotStyle("var(--brass)")} /> 교회 일정</span>
+        <span>날짜를 누르면 달력으로 이동합니다</span>
+      </div>
+    </div>
+  );
+}
+
 function Tally({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div style={{ flex: 1, textAlign: "center" }}>
@@ -383,6 +469,33 @@ const tallyRowStyle: React.CSSProperties = {
   padding: "10px 0",
   borderTop: "1px solid var(--hairline)",
   borderBottom: "1px solid var(--hairline)",
+};
+
+const calendarHeadingStyle: React.CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "space-between",
+  width: "100%", marginBottom: 10, padding: 0, border: "none",
+  background: "transparent", color: "var(--ink)", cursor: "pointer", fontFamily: "inherit",
+};
+
+const calendarGridStyle: React.CSSProperties = {
+  display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 3,
+};
+
+const calendarWeekdayStyle: React.CSSProperties = {
+  paddingBottom: 4, textAlign: "center", fontSize: 11, fontWeight: 700,
+};
+
+const calendarDayStyle: React.CSSProperties = {
+  aspectRatio: "1 / 1", minHeight: 38, padding: 0,
+  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
+  border: "1.5px solid transparent", borderRadius: 9,
+  background: "transparent", color: "var(--ink)", cursor: "pointer", fontFamily: "inherit",
+};
+
+const calendarLegendStyle: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+  marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--hairline)",
+  color: "var(--ink-faint)", fontSize: 11, lineHeight: 1.5,
 };
 
 const listRowStyle: React.CSSProperties = {
