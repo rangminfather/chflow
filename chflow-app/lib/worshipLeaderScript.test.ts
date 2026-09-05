@@ -19,6 +19,9 @@ describe("worship leader script", () => {
 
   it("normalizes Korean scripture references for the Bible database", () => {
     expect(normalizeBibleReference("시편 139편 13절 ~16절 말씀")).toBe("시편 139:13-16");
+    expect(normalizeBibleReference("시 139:13~16")).toBe("시 139:13-16");
+    expect(normalizeBibleReference("창세기 1장 31절~2장 3절")).toBe("창세기 1:31-2:3");
+    expect(normalizeBibleReference("(마태복음 5장 3-12절)")).toBe("마태복음 5:3-12");
   });
 
   it("adds a missing ministry honorific without duplicating it", () => {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { BookOpen, ChevronLeft, ChevronRight, Copy, RefreshCw } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Copy, RefreshCw, RotateCcw } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
 import { supabase } from "@/lib/supabase";
@@ -62,6 +62,11 @@ function nextClass(current: string | undefined, classes: string[]) {
   return classes[(index + 1) % classes.length];
 }
 
+function textareaRows(content: string) {
+  const visualLines = content.split("\n").reduce((total, line) => total + Math.max(1, Math.ceil(line.length / 42)), 0);
+  return Math.min(18, Math.max(3, visualLines));
+}
+
 async function fetchWithAuth(url: string, token: string) {
   let response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (response.status !== 401) return response;
@@ -85,9 +90,11 @@ export default function WorshipLeaderPage() {
   const [testament, setTestament] = useState<"구약" | "신약" | undefined>();
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
+  const [editedContents, setEditedContents] = useState<Record<number, string>>({});
 
   const load = useCallback(async (date: string) => {
     setLoading(true);
+    setEditedContents({});
     setNotice("");
     setVerses([]);
     setNormalizedScripture("");
@@ -158,7 +165,8 @@ export default function WorshipLeaderPage() {
         setTestament(Number(rows[0].book_id) <= 39 ? "구약" : "신약");
       } else {
         setNormalizedScripture(reference);
-        setNotice((message) => message || "말씀 본문을 성경 DB에서 찾지 못했습니다. 월간교육계획의 본문 표기를 확인해주세요.");
+        const detail = error?.message ? ` (${error.message})` : "";
+        setNotice((message) => message || `말씀 본문을 성경 DB에서 찾지 못했습니다. 월간교육계획의 본문 표기를 확인해주세요.${detail}`);
       }
     } else {
       setNotice(planResponse?.error || "선택한 주일의 월간교육계획을 찾지 못했습니다.");
@@ -172,7 +180,7 @@ export default function WorshipLeaderPage() {
     void load(sunday);
   }, [load, sunday]);
 
-  const sections = useMemo(() => buildWorshipLeaderSections({
+  const generatedSections = useMemo(() => buildWorshipLeaderSections({
     sunday,
     prayerClass,
     scripture: plan?.fields.scripture || "",
@@ -182,6 +190,11 @@ export default function WorshipLeaderPage() {
     sermonTitle: plan?.fields.sermonTitle || "",
     preacher: plan?.fields.preacher || "",
   }), [normalizedScripture, plan, prayerClass, sunday, testament, verses]);
+
+  const sections = useMemo(() => generatedSections.map((section) => ({
+    ...section,
+    content: editedContents[section.number] ?? section.content,
+  })), [editedContents, generatedSections]);
 
   const scriptText = useMemo(
     () => worshipLeaderScriptText(dateLabel(sunday), sections),
@@ -235,11 +248,16 @@ export default function WorshipLeaderPage() {
           <button onClick={() => setSunday(shiftSunday(sunday, 1))} aria-label="다음 주" style={iconButtonStyle}><ChevronRight size={20} /></button>
         </section>
 
-        <div style={{ margin: "12px 0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>
-            시작기도는 주차별로 다르게 자동 생성됩니다. {isFirstSunday(sunday) ? "첫째 주 고정 대표기도" : prayerClass ? `대표기도 ${prayerClass}반` : "대표기도 반 확인 필요"}
+        <div style={{ margin: "12px 0", display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ flex: "1 1 260px", fontSize: 12, color: "var(--ink-soft)" }}>
+            각 내용을 눌러 직접 수정할 수 있습니다. 시작기도는 주차별로 다르게 자동 생성됩니다. {isFirstSunday(sunday) ? "첫째 주 고정 대표기도" : prayerClass ? `대표기도 ${prayerClass}반` : "대표기도 반 확인 필요"}
           </div>
-          <button onClick={() => void copyScript()} style={{ ...buttonStyle, whiteSpace: "nowrap" }}><Copy size={16} /> {copied ? "복사됨" : "전체 복사"}</button>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginLeft: "auto" }}>
+            {Object.keys(editedContents).length > 0 && (
+              <button onClick={() => setEditedContents({})} style={{ ...secondaryButtonStyle, whiteSpace: "nowrap" }}><RotateCcw size={15} /> 원본 복원</button>
+            )}
+            <button onClick={() => void copyScript()} style={{ ...buttonStyle, whiteSpace: "nowrap" }}><Copy size={16} /> {copied ? "복사됨" : "전체 복사"}</button>
+          </div>
         </div>
 
         {notice && <div role="alert" style={{ padding: "12px 14px", marginBottom: 12, borderRadius: 12, background: "color-mix(in srgb, var(--warning) 12%, var(--surface))", color: "var(--ink-soft)", fontSize: 13 }}>{notice}</div>}
@@ -251,7 +269,13 @@ export default function WorshipLeaderPage() {
                 <span style={{ width: 28, height: 28, borderRadius: 9, display: "grid", placeItems: "center", background: "#3E7D74", color: "white", fontSize: 13, fontWeight: 800 }}>{section.number}</span>
                 <h2 style={{ margin: 0, fontSize: 16, color: "var(--ink)" }}>{section.title}</h2>
               </div>
-              <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.85, fontSize: 15, color: "var(--ink)", wordBreak: "keep-all" }}>{section.content}</div>
+              <textarea
+                aria-label={`${section.title} 내용 수정`}
+                value={section.content}
+                onChange={(event) => setEditedContents((current) => ({ ...current, [section.number]: event.target.value }))}
+                rows={textareaRows(section.content)}
+                style={textareaStyle}
+              />
             </section>
           ))}
         </div>
@@ -293,4 +317,27 @@ const buttonStyle: React.CSSProperties = {
   color: "white",
   fontWeight: 700,
   cursor: "pointer",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  ...buttonStyle,
+  border: "1px solid var(--line)",
+  background: "var(--surface)",
+  color: "var(--ink-soft)",
+};
+
+const textareaStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 74,
+  padding: 12,
+  resize: "vertical",
+  border: "1px solid var(--line)",
+  borderRadius: 11,
+  outline: "none",
+  background: "var(--bg-soft)",
+  color: "var(--ink)",
+  font: "inherit",
+  fontSize: 15,
+  lineHeight: 1.85,
+  wordBreak: "keep-all",
 };

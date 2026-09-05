@@ -116,8 +116,12 @@ export function prayerLeaderLabel(sunday: string, prayerClass: string) {
 export function normalizeBibleReference(reference: string) {
   return reference
     .replace(/말씀/g, "")
-    .replace(/(\d+)\s*(?:장|편)\s*(\d+)\s*절\s*[~～－–—-]\s*(\d+)\s*절/g, "$1:$2-$3")
-    .replace(/(\d+)\s*(?:장|편)\s*(\d+)\s*절/g, "$1:$2")
+    .replace(/[()（）]/g, "")
+    .replace(/[~～－–—]/g, "-")
+    .replace(/(\d+)\s*(?:장|편)\s*/g, "$1:")
+    .replace(/절/g, "")
+    .replace(/\s*:\s*/g, ":")
+    .replace(/\s*-\s*/g, "-")
     .replace(/\s+/g, " ")
     .trim();
 }
