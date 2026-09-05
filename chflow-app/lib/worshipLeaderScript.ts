@@ -144,11 +144,18 @@ export function buildWorshipLeaderSections(input: {
   sermonTitle: string;
   preacher: string;
 }): WorshipLeaderSection[] {
-  const scripture = input.normalizedScripture || input.scripture || "말씀 본문 확인 필요";
+  const reference = (input.normalizedScripture || input.scripture || "").trim();
+  const scripture = reference || "말씀 본문 확인 필요";
   const verses = input.verses || [];
+  // 본문이 안 채워지는 이유는 둘이고 조치도 다르다.
+  //   본문 표기 자체가 없다  → 월간교육계획에 그 주일 행이 없거나 본문 칸이 비었다
+  //   표기는 있는데 못 찾았다 → 성경 표기가 이상하다
+  // 둘을 "성경 DB 오류" 하나로 뭉뚱그리면 엉뚱한 곳을 찾게 된다.
   const verseText = verses.length
     ? verses.map((row) => `${row.verse}   ${row.text}`).join("\n")
-    : "성경 DB에서 본문을 불러오지 못했습니다.";
+    : reference
+      ? `"${reference}" 을(를) 성경에서 찾지 못했습니다. 본문 표기를 확인해주세요.`
+      : "이 주일의 말씀 본문이 아직 정해지지 않았습니다. 화면 위에서 본문을 직접 입력하면 여기에 채워집니다.";
   const sermonTitle = input.sermonTitle || "말씀 주제 확인 필요";
 
   return [
