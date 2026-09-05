@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractText, getDocumentProxy } from "unpdf";
+import { createClient } from "@supabase/supabase-js";
+import { r2 } from "@/lib/r2";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -32,6 +34,8 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const PROXY_BASE = `${SUPABASE_URL}/functions/v1/ums-fetch`;
 const LIST_URL = `${PROXY_BASE}?action=list`;
 const FILE_URL = (no: number) => `${PROXY_BASE}?action=pdf&no=${no}`;
+// dept-bulletin 동기화가 주보 PDF 를 받아 두는 곳
+const BULLETIN_BUCKET = "bulletins";
 
 // ─────────────────────────────────────────
 // 부서별 게시글 검색 패턴
@@ -308,6 +312,43 @@ export async function GET(req: NextRequest) {
 const RESULT_CACHE = new Map<string, { result: Prefill; expiresAt: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+/**
+ * 이미 받아 둔 주보(bulletins + R2)에서 값을 뽑는다.
+ * 찾지 못하거나 글자를 못 뽑으면 null — 그러면 기존 게시판 경로로 넘어간다.
+ */
+async function prefillFromStoredBulletin(
+  deptKey: string,
+  issueDate: string | undefined,
+): Promise<Prefill | null> {
+  if (!issueDate) return null;
+  try {
+    const supabase = createClient(SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { persistSession: false },
+    });
+    const { data, error } = await supabase
+      .from("bulletins")
+      .select("title, sunday_date, pdf_url")
+      .eq("sunday_date", issueDate)
+      .order("created_at", { ascending: false });
+    if (error || !data?.length) return null;
+
+    // 같은 주일에 여러 부서 주보가 들어오므로 제목으로 부서를 가린다 ("초등1초원" 등)
+    const deptToken = deptKey.replace(/부$/, "");
+    const row = data.find((item) => (item.title || "").includes(deptToken) && item.pdf_url);
+    if (!row?.pdf_url) return null;
+
+    const { data: file, error: downloadError } = await r2.from(BULLETIN_BUCKET).download(row.pdf_url);
+    if (downloadError || !file) return null;
+    const text = await pdfToText(new Uint8Array(await file.arrayBuffer()));
+    const parsed = parseFields(text);
+    if (!parsed.scripture && !parsed.sermon_title) return null;
+
+    return { source_title: row.title, source_date: row.sunday_date, ...parsed };
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as { dept_key?: string; issue_date?: string };
@@ -328,6 +369,16 @@ export async function POST(req: NextRequest) {
     const cached = RESULT_CACHE.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return NextResponse.json({ ok: true, data: cached.result, cached: true });
+    }
+
+    // 이미 우리 저장소에 받아 둔 주보를 먼저 쓴다.
+    // ums.or.kr 게시판은 우리 함수 IP 를 막을 때가 있어 직접 긁으면 "Access denied" 가
+    // 돌아오고, 재시도하다 함수가 타임아웃난다. 주보는 dept-bulletin 동기화가
+    // 매주 R2 에 받아 두므로 그것을 읽으면 차단과 무관하게 끝난다.
+    const stored = await prefillFromStoredBulletin(deptKey, issueDate);
+    if (stored) {
+      RESULT_CACHE.set(cacheKey, { result: stored, expiresAt: Date.now() + CACHE_TTL_MS });
+      return NextResponse.json({ ok: true, data: stored, source: "stored" });
     }
 
     const html = await fetchEucKr(LIST_URL);

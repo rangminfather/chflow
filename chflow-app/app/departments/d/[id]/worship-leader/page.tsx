@@ -15,6 +15,11 @@ import {
   parseGuideMessage,
   worshipLeaderScriptText,
 } from "@/lib/worshipLeaderScript";
+import {
+  type DeptBulletinFields,
+  normText,
+  parseDeptBulletinFields,
+} from "@/lib/bulletin/dept-bulletin-fields";
 
 type ClassRow = { class_no: string };
 type GuideFields = { prayerClass?: string; prayerNext?: string; prayerFixed?: boolean };
@@ -88,6 +93,37 @@ function ScriptEditor({ label, value, onChange }: { label: string; value: string
   }, [resize]);
 
   return <textarea ref={ref} aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} rows={1} style={textareaStyle} />;
+}
+
+/** 주보 PDF 에서 글자를 뽑는다 (예배안내 화면과 같은 방식) */
+async function extractPdfText(url: string, fromPage: number, toPage: number): Promise<string> {
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+  const doc = await pdfjs.getDocument({ url }).promise;
+  let text = "";
+  const last = Math.min(doc.numPages, toPage);
+  for (let page = Math.max(1, fromPage); page <= last; page += 1) {
+    const content = await (await doc.getPage(page)).getTextContent();
+    text += content.items.map((item) => ("str" in item ? item.str : "")).join(" ") + " ";
+  }
+  return normText(text);
+}
+
+/** 그 주일 초등1부 주보에서 예배순서 값을 읽는다. 없으면 빈 객체. */
+async function readBulletinFields(token: string, sunday: string): Promise<DeptBulletinFields> {
+  try {
+    const response = await fetchWithAuth(`/api/dept-bulletin/latest?dept=${encodeURIComponent("초등1부")}`, token);
+    const data = await response.json();
+    if (!response.ok || !data.ok) return {};
+    type Item = { issue_date: string | null; pdf_url?: string | null };
+    const item = ((data.items || []) as Item[]).find((row) => row.issue_date === sunday && row.pdf_url);
+    if (!item?.pdf_url) return {};
+    const text = await extractPdfText(item.pdf_url, 1, 3);
+    return text ? parseDeptBulletinFields(text) : {};
+  } catch {
+    // 주보를 못 읽어도 나머지 출처로 계속 간다
+    return {};
+  }
 }
 
 async function fetchWithAuth(url: string, token: string) {
@@ -169,12 +205,13 @@ export default function WorshipLeaderPage() {
       return;
     }
 
-    const [guideResponse, classResponse, planResponse] = await Promise.all([
+    const [guideResponse, classResponse, planResponse, bulletinFields] = await Promise.all([
       supabase.rpc("worship_guide_get", { p_dept_id: deptId, p_sunday: date }),
       supabase.rpc("list_dept_classes_full", { p_dept_id: deptId }),
       fetchWithAuth(`/api/edu/monthly-plans/bulletin-import?dept_id=${deptId}&date=${date}`, session.access_token)
         .then(async (response) => ({ status: response.status, ...(await response.json()) }))
         .catch(() => null),
+      readBulletinFields(session.access_token, date),
     ]);
 
     if (guideResponse.error) {
@@ -219,8 +256,15 @@ export default function WorshipLeaderPage() {
     // 주일에도 본문이 들어 있다. 계획서·주보 초안은 그다음 순서로 본다.
     const guideMessage = (payload.current as { message?: string } | null | undefined)?.message ?? "";
     const fromGuide = parseGuideMessage(guideMessage);
-    let scripture = fromGuide.scripture.trim();
-    let source = scripture ? "예배안내" : "";
+
+    // 그 주일 주보가 가장 확실하다 — 실제로 나눠 준 종이에 적힌 값이다
+    let scripture = (bulletinFields.scripture || "").trim();
+    let source = scripture ? "주보" : "";
+
+    if (!scripture) {
+      scripture = fromGuide.scripture.trim();
+      source = scripture ? "예배안내" : "";
+    }
 
     if (!scripture) {
       scripture = planInfo?.fields.scripture?.trim() || "";
@@ -237,10 +281,11 @@ export default function WorshipLeaderPage() {
     }
 
     // 설교 제목도 계획서에 없으면 예배안내 문구에서 보완한다
-    if (!planInfo?.fields.sermonTitle?.trim() && fromGuide.sermonTitle) {
+    const titleFallback = (bulletinFields.sermonTitle || "").trim() || fromGuide.sermonTitle;
+    if (!planInfo?.fields.sermonTitle?.trim() && titleFallback) {
       setPlan((current) => current
-        ? { ...current, fields: { ...current.fields, sermonTitle: fromGuide.sermonTitle } }
-        : { fields: { sermonTitle: fromGuide.sermonTitle }, sourceFile: "예배안내", sheetName: "" });
+        ? { ...current, fields: { ...current.fields, sermonTitle: titleFallback } }
+        : { fields: { sermonTitle: titleFallback }, sourceFile: source || "예배안내", sheetName: "" });
     }
 
     setScriptureSource(source);
