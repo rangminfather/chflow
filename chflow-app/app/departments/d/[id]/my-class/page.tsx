@@ -31,6 +31,10 @@ interface StudentRow {
   order_no: number | null;
   member_id: string | null;
   teacher_id: string | null;
+  phone: string | null;
+  birth_date: string | null;
+  gender: string | null;
+  address: string | null;
   photo_url: string | null;
 }
 
@@ -230,8 +234,8 @@ export default function MyClassPage() {
     setLoading(true);
 
     const { data: studentRows, error: studentErr } = await supabase
-        .from("edu_students")
-      .select("id, department_id, student_no, name, student_type, mgmt_status, grade, grade_year, class_no, school_name, is_active, order_no, member_id, teacher_id, photo_url")
+      .from("edu_students")
+      .select("id, department_id, student_no, name, student_type, mgmt_status, grade, grade_year, class_no, school_name, is_active, order_no, member_id, teacher_id, phone, birth_date, gender, address, photo_url")
       .eq("department_id", deptId)
       .eq("is_active", true)
       .order("order_no", { ascending: true })
@@ -273,10 +277,10 @@ export default function MyClassPage() {
         grade_year: student.grade_year,
         class_no: student.class_no,
         school_name: student.school_name || "",
-        phone: member?.phone || "",
-        birth_date: member?.birth_date || "",
-        gender: member?.gender || "",
-        address: member?.address || "",
+        phone: member?.phone || student.phone || "",
+        birth_date: member?.birth_date || student.birth_date || "",
+        gender: member?.gender || student.gender || "",
+        address: member?.address || student.address || "",
         photo_url: member?.photo_url || student.photo_url || null,
       };
     });
@@ -815,7 +819,7 @@ export default function MyClassPage() {
                     <input value={draft.name} onChange={(event) => updateDraft("name", event.target.value)} className={inputClass} />
                   </InfoField>
                   <InfoField label="성별" editMode={editMode} value={genderLabel(draft.gender)}>
-                    <select value={draft.gender} onChange={(event) => updateDraft("gender", event.target.value)} className={inputClass} disabled={!draft.member_id}>
+                    <select value={draft.gender} onChange={(event) => updateDraft("gender", event.target.value)} className={inputClass}>
                       <option value="">미등록</option>
                       <option value="M">남</option>
                       <option value="F">여</option>
@@ -835,13 +839,8 @@ export default function MyClassPage() {
 
                 <div className="rounded-lg border border-hairline bg-surface p-4">
                   <div className="mb-3 text-[16px] font-extrabold text-ink">연락 · 인적사항</div>
-                  {!draft.member_id && editMode && (
-                    <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[14px] leading-6 text-amber-900">
-                      연결된 교적 정보가 없어 이름·학교만 저장됩니다.
-                    </div>
-                  )}
                   <InfoField label="본인연락처" editMode={editMode} value={draft.phone ? formatPhone(draft.phone) : "미등록"}>
-                    <input value={draft.phone} onChange={(event) => updateDraft("phone", event.target.value)} placeholder="010-0000-0000" className={inputClass} disabled={!draft.member_id} />
+                    <input value={draft.phone} onChange={(event) => updateDraft("phone", event.target.value)} placeholder="010-0000-0000" className={inputClass} />
                   </InfoField>
                   <InfoField label="생년월일" editMode={editMode} value={draft.birth_date || "미등록"}>
                     <BirthDateSelect
@@ -850,11 +849,10 @@ export default function MyClassPage() {
                       minYear={STUDENT_BIRTH_MIN_YEAR}
                       monthDayOptional
                       className={inputClass}
-                      disabled={!draft.member_id}
                     />
                   </InfoField>
                   <InfoField label="주소" editMode={editMode} value={draft.address || "미등록"}>
-                    <input value={draft.address} onChange={(event) => updateDraft("address", event.target.value)} className={inputClass} disabled={!draft.member_id} />
+                    <input value={draft.address} onChange={(event) => updateDraft("address", event.target.value)} className={inputClass} />
                   </InfoField>
                 </div>
 
