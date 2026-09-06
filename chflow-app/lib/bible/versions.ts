@@ -73,8 +73,14 @@ export function saveBibleVersion(code: string): void {
   }
 }
 
-/** 대본에 적을 역본 이름 (역본이 하나뿐이면 굳이 적지 않는다) */
+/**
+ * 대본·화면에 적을 역본 이름.
+ * 역본이 하나뿐이어도 적는다 — 인도자가 강단 성경(개역개정)과 다른 역본을
+ * 보고 있다는 것을 알아야 하기 때문이다.
+ * 목록을 아직 못 읽었으면 코드라도 알아볼 수 있게 기본 이름을 돌려준다.
+ */
 export function versionLabel(versions: BibleVersion[], code: string): string {
-  if (versions.length <= 1) return "";
-  return versions.find((version) => version.code === code)?.name_ko || "";
+  const found = versions.find((version) => version.code === code)?.name_ko;
+  if (found) return found;
+  return code === "KRV" ? "개역한글" : code === "NKRV" ? "개역개정" : "";
 }

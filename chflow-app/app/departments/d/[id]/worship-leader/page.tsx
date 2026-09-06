@@ -513,6 +513,9 @@ export default function WorshipLeaderPage() {
                 {scriptureSource}
               </span>
             )}
+            <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "color-mix(in srgb, var(--ink) 8%, transparent)", color: "var(--ink-mid)" }}>
+              {versionLabel(versions, version)}
+            </span>
             {verses.length > 0 && (
               <span style={{ fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600 }}>{verses.length}절 불러옴</span>
             )}
