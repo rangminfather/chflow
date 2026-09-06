@@ -27,9 +27,15 @@ describe("역본 선택", () => {
     expect(resolveBibleVersion([KRV], "NKRV")).toBe("KRV");
   });
 
-  it("역본이 하나뿐이면 대본에 역본명을 적지 않는다", () => {
-    expect(versionLabel([KRV], "KRV")).toBe("");
+  it("역본이 하나뿐이어도 이름을 적는다 (강단 성경과 다른 역본임을 알아야 한다)", () => {
+    expect(versionLabel([KRV], "KRV")).toBe("개역한글");
     expect(versionLabel([KRV, NKRV], "NKRV")).toBe("개역개정");
+  });
+
+  it("목록을 아직 못 읽었어도 알아볼 이름을 준다", () => {
+    expect(versionLabel([], "KRV")).toBe("개역한글");
+    expect(versionLabel([], "NKRV")).toBe("개역개정");
+    expect(versionLabel([], "XYZ")).toBe("");
   });
 
   it("RPC 응답이 이상해도 죽지 않는다", () => {
