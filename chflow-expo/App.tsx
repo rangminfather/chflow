@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import * as Application from 'expo-application';
 import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
+import * as ImagePicker from 'expo-image-picker';
 import {
   applyGeofenceAndDetectPresence,
   attendancePermissionsGranted,
@@ -114,6 +115,38 @@ const SESSION_BRIDGE_SCRIPT = `
 })();
 `;
 
+// Image-only HTML file inputs use the system photo picker. The user can browse
+// their whole gallery, while the WebView receives only the image(s) selected.
+const IMAGE_PICKER_BRIDGE_SCRIPT = `
+(function () {
+  if (window.__SMARTMS_NATIVE_IMAGE_PICKER_BRIDGE__) return true;
+  window.__SMARTMS_NATIVE_IMAGE_PICKER_BRIDGE__ = true;
+
+  document.addEventListener('click', function (event) {
+    var target = event.target;
+    var input = target && target.tagName === 'INPUT' ? target : null;
+    if (!input || input.type !== 'file') return;
+
+    var accept = String(input.getAttribute('accept') || '').toLowerCase();
+    // Keep mixed document uploads (PDF, HWP, etc.) on the existing chooser.
+    if (!accept || accept.indexOf('image/') === -1 || /\\.(pdf|hwp|hwpx|doc|docx|ppt|pptx|xls|xlsx|txt)/.test(accept)) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    var requestId = 'smartms-image-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    input.setAttribute('data-smartms-image-picker-id', requestId);
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'CHFLOW_PICK_IMAGE',
+        requestId: requestId,
+        multiple: !!input.multiple
+      }));
+    }
+  }, true);
+  return true;
+})();
+`;
+
 export default function App() {
   return (
     <SafeAreaProvider>
@@ -158,6 +191,7 @@ function AppWebView() {
   const locationAckTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const locationRequestSeqRef = useRef(0);
   const locationRequestInFlightRef = useRef(false);
+  const imagePickerInFlightRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
   const updateBannerAnim = useRef(new Animated.Value(0)).current;
 
@@ -661,11 +695,68 @@ function AppWebView() {
     };
   }, [loadUrlInWebView]);
 
+  const pickImagesForWebView = async (requestId: string, multiple: boolean) => {
+    if (imagePickerInFlightRef.current) return;
+    imagePickerInFlightRef.current = true;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'images',
+        allowsMultipleSelection: multiple,
+        selectionLimit: multiple ? 0 : 1,
+        base64: true,
+        exif: false,
+        quality: 0.9,
+      });
+      if (result.canceled || result.assets.length === 0) return;
+
+      const files = result.assets
+        .filter((asset) => !!asset.base64)
+        .map((asset, index) => ({
+          base64: asset.base64!,
+          name: asset.fileName || `photo-${index + 1}.jpg`,
+          type: asset.mimeType || 'image/jpeg',
+        }));
+      if (files.length === 0) {
+        Alert.alert('사진을 불러오지 못했습니다', '다른 사진을 선택해 주세요.');
+        return;
+      }
+
+      const payload = JSON.stringify({ requestId, files });
+      webViewRef.current?.injectJavaScript(`
+        (function (payload) {
+          var input = document.querySelector('input[data-smartms-image-picker-id="' + payload.requestId + '"]');
+          if (!input) return true;
+          var transfer = new DataTransfer();
+          payload.files.forEach(function (source) {
+            var binary = atob(source.base64);
+            var bytes = new Uint8Array(binary.length);
+            for (var index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+            transfer.items.add(new File([bytes], source.name, { type: source.type }));
+          });
+          input.files = transfer.files;
+          input.removeAttribute('data-smartms-image-picker-id');
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        })(${payload});
+        true;
+      `);
+    } catch {
+      Alert.alert('사진 선택 오류', '사진을 불러오지 못했습니다. 다시 시도해 주세요.');
+    } finally {
+      imagePickerInFlightRef.current = false;
+    }
+  };
+
   const handleWebViewMessage = (event: WebViewMessageEvent) => {
-    let message: { type?: string; accessToken?: string; text?: string; count?: unknown; requestId?: string };
+    let message: { type?: string; accessToken?: string; text?: string; count?: unknown; requestId?: string; multiple?: boolean };
     try {
       message = JSON.parse(event.nativeEvent.data);
     } catch {
+      return;
+    }
+
+    if (message.type === 'CHFLOW_PICK_IMAGE' && message.requestId) {
+      void pickImagesForWebView(message.requestId, message.multiple === true);
       return;
     }
 
@@ -784,6 +875,7 @@ function AppWebView() {
     webViewReadyRef.current = true;
     setExitReloading(false);
     webViewRef.current?.injectJavaScript(SESSION_BRIDGE_SCRIPT);
+    webViewRef.current?.injectJavaScript(IMAGE_PICKER_BRIDGE_SCRIPT);
     flushPendingNotificationUrl();
   };
 
@@ -806,6 +898,7 @@ function AppWebView() {
           onNavigationStateChange={handleNavStateChange}
           onMessage={handleWebViewMessage}
           injectedJavaScript={SESSION_BRIDGE_SCRIPT}
+          injectedJavaScriptBeforeContentLoaded={IMAGE_PICKER_BRIDGE_SCRIPT}
           onLoadEnd={handleWebViewLoadEnd}
           // 쿠키/세션 유지 (로그인 지속)
           sharedCookiesEnabled={true}
@@ -816,10 +909,8 @@ function AppWebView() {
           javaScriptEnabled={true}
           // 자동출석 관리자 설정의 '현재 위치 사용' 허용
           geolocationEnabled={true}
-          // 파일 업로드 허용 (프로필 사진 등)
-          // allowFileAccess: 카메라로 찍은 임시 파일을 WebView 가 읽어야 업로드가 된다.
-          // 갤러리 선택지는 app.json 의 사진 권한(READ_MEDIA_IMAGES / NSPhotoLibraryUsageDescription)이
-          // 있어야 파일 선택기에 나타난다.
+          // Camera-captured temporary files still need WebView file access.
+          // Gallery selection is handled by the system photo picker bridge above.
           allowFileAccess={true}
           allowsInlineMediaPlayback={true}
           allowsFullscreenVideo={true}

@@ -2,7 +2,7 @@
   "expo": {
     "name": "스마트명성",
     "slug": "chflow-expo",
-    "version": "1.1.10",
+    "version": "1.1.12",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -22,7 +22,6 @@
         "UIBackgroundModes": [
           "location"
         ],
-        "NSPhotoLibraryUsageDescription": "성도·학생 사진을 등록하기 위해 사진 보관함에서 사진을 고릅니다.",
         "NSCameraUsageDescription": "사진을 새로 찍어 등록하기 위해 카메라를 사용합니다."
       }
     },
@@ -42,8 +41,6 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.CAMERA"
       ]
     },

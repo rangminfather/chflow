@@ -1,6 +1,6 @@
 {
   "name": "chflow-expo",
-  "version": "1.1.10",
+  "version": "1.1.12",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -20,6 +20,7 @@
     "expo-application": "~7.0.8",
     "expo-build-properties": "~1.0.10",
     "expo-constants": "~18.0.13",
+    "expo-image-picker": "~17.0.11",
     "expo-location": "~19.0.8",
     "expo-notifications": "~0.32.17",
     "expo-secure-store": "~15.0.8",
