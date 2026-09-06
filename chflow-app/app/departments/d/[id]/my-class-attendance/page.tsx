@@ -466,6 +466,22 @@ export default function MyClassAttendancePage() {
                     </div>
                   </header>
 
+                  {/* 안 누르면 미체크로 남는다 — 결석도 눌러야 한다는 것을 알려준다.
+                      다 찍은 주에는 굳이 띄우지 않는다. */}
+                  {summary.unchecked > 0 && isEditableWeek && (
+                    <div
+                      className="mx-3.5 mt-3 flex items-center gap-2 rounded-xl px-3 py-2 text-[12.5px] font-bold leading-snug"
+                      style={{
+                        background: "color-mix(in srgb, var(--warning) 14%, var(--surface))",
+                        color: "var(--warning)",
+                        border: "1px solid color-mix(in srgb, var(--warning) 30%, transparent)",
+                      }}
+                    >
+                      <CircleDashed size={15} strokeWidth={2.2} className="shrink-0" />
+                      <span>안 나온 학생도 <b>결석</b>을 눌러주세요. 안 누르면 미체크로 남습니다.</span>
+                    </div>
+                  )}
+
                   <section className="px-3.5 pt-3.5">
                     <div className={`grid gap-2 text-center ${summary.unchecked > 0 ? "grid-cols-4" : "grid-cols-3"}`}>
                       <SummaryBox label="출석" value={summary.attend} color="var(--success)" Icon={CheckCircle2} />

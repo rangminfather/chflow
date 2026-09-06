@@ -34,6 +34,8 @@ interface ClassRow {
   checked: number;
   missing_teacher_gender: string[];
   missing_student_gender: string[];
+  /** 요람·앱계정 어디에도 연결되지 않은 교사 — 성별을 읽어올 곳이 없다 */
+  unlinked_teachers: string[];
 }
 
 interface SundayStatRow {
@@ -430,7 +432,7 @@ export default function JournalPage() {
       ...f,
       class_stats: [
         ...f.class_stats,
-        { class_no: "", enrolled: 0, attend: 0, absent: 0, lead: 0, exemplary: 0, memory: 0, lesson: 0, bible: 0, quiz: 0, checked: 0, missing_teacher_gender: [], missing_student_gender: [] },
+        { class_no: "", enrolled: 0, attend: 0, absent: 0, lead: 0, exemplary: 0, memory: 0, lesson: 0, bible: 0, quiz: 0, checked: 0, missing_teacher_gender: [], missing_student_gender: [], unlinked_teachers: [] },
       ],
     }));
   };
@@ -1029,14 +1031,26 @@ function ClassCheckStatus({ row }: { row: ClassRow }) {
     : row.checked < row.enrolled
       ? { label: `일부체크 ${row.checked}/${row.enrolled}`, color: "#8A5A17", bg: "#FFF4D6" }
       : { label: "체크완료", color: "var(--success)", bg: "#E8F5EC" };
-  const warnings = [
+  // 원인이 다르면 조치도 다르다.
+  //   요람 미연결 → 교사 명단에서 그 사람을 요람에 연결해야 한다 (성별은 요람에 이미 있을 수 있다)
+  //   성별 미등록 → 요람·학생 정보에 성별을 넣어야 한다
+  const genderWarnings = [
     row.missing_teacher_gender.length > 0 ? `교사: ${row.missing_teacher_gender.join(", ")}` : "",
     row.missing_student_gender.length > 0 ? `학생: ${row.missing_student_gender.join(", ")}` : "",
   ].filter(Boolean);
   return (
     <div style={{ display: "grid", gap: 4 }}>
       <span style={{ justifySelf: "start", padding: "3px 7px", borderRadius: 999, color: status.color, background: status.bg, fontSize: 10, fontWeight: 800 }}>{status.label}</span>
-      {warnings.length > 0 && <div style={{ color: "var(--danger)", fontSize: 10, lineHeight: 1.45 }}>성별 미등록 · {warnings.join(" / ")}</div>}
+      {row.unlinked_teachers.length > 0 && (
+        <div style={{ color: "var(--warning)", fontSize: 10, lineHeight: 1.45 }}>
+          요람 미연결 · 교사: {row.unlinked_teachers.join(", ")}
+        </div>
+      )}
+      {genderWarnings.length > 0 && (
+        <div style={{ color: "var(--danger)", fontSize: 10, lineHeight: 1.45 }}>
+          성별 미등록 · {genderWarnings.join(" / ")}
+        </div>
+      )}
     </div>
   );
 }
@@ -1104,6 +1118,7 @@ function normalizeClassRows(raw: unknown): ClassRow[] {
       checked: num(o.checked),
       missing_teacher_gender: stringArray(o.missing_teacher_gender),
       missing_student_gender: stringArray(o.missing_student_gender),
+      unlinked_teachers: stringArray(o.unlinked_teachers),
     };
   });
 }
