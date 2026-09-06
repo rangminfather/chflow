@@ -31,10 +31,42 @@ interface ClassRow {
   lesson: number;     // 과제 (공과)
   bible: number;      // 성경 (성경읽기)
   quiz: number;       // 퀴즈 (수동 입력)
+  checked: number;
+  missing_teacher_gender: string[];
+  missing_student_gender: string[];
 }
 
+interface SundayStatRow {
+  category: "teacher" | "student" | "new_friend";
+  male: number;
+  female: number;
+  total: number;
+  missing_gender_names: string[];
+}
+
+interface OfferingItem {
+  label: string;
+  amount: number;
+}
+
+interface OfferingDetails {
+  tithe: number;
+  sunday: number;
+  thanksgiving: number;
+  others: OfferingItem[];
+}
+
+interface ExecutiveRow {
+  name: string;
+  role: string;
+}
+
+const EMPTY_OFFERING: OfferingDetails = { tithe: 0, sunday: 0, thanksgiving: 0, others: [] };
+
+type ClassMetricKey = "enrolled" | "attend" | "absent" | "lead" | "exemplary" | "memory" | "lesson" | "bible" | "quiz";
+
 // 반별표 편집 컬럼 정의 (반명 제외한 숫자 컬럼)
-const CLASS_COLS: { key: keyof Omit<ClassRow, "class_no">; label: string }[] = [
+const CLASS_COLS: { key: ClassMetricKey; label: string }[] = [
   { key: "enrolled",  label: "재적" },
   { key: "attend",    label: "출석" },
   { key: "absent",    label: "결석" },
@@ -67,6 +99,7 @@ interface JournalDetail {
   stat_attend: number;
   stat_absent: number;
   offering: number;
+  offering_details: OfferingDetails;
   volunteers: string;
   prayer_requests: string;
   class_stats: ClassRow[];
@@ -90,6 +123,7 @@ const EMPTY_FORM: Omit<JournalDetail, "id" | "department_id" | "journal_date"> =
   stat_attend: 0,
   stat_absent: 0,
   offering: 0,
+  offering_details: { ...EMPTY_OFFERING, others: [] },
   volunteers: "",
   prayer_requests: "",
   class_stats: [],
@@ -122,6 +156,9 @@ export default function JournalPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
   const [rollupLoading, setRollupLoading] = useState(false);
+  const [recorderName, setRecorderName] = useState("");
+  const [executives, setExecutives] = useState<ExecutiveRow[]>([]);
+  const [sundayStats, setSundayStats] = useState<SundayStatRow[]>([]);
 
   const MAX_PREFILL_ATTEMPTS = 5;
   const RETRY_DELAYS_MS = [0, 5000, 8000, 10000, 12000]; // 1차~5차 시도 직전 대기
@@ -130,9 +167,23 @@ export default function JournalPage() {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/login"); return; }
-      setAuthChecked(true);
-      const { data: deptInfo } = await supabase.rpc("get_department_info", { p_dept_id: deptId });
+      const [{ data: deptInfo }, { data: myStatus }] = await Promise.all([
+        supabase.rpc("get_department_info", { p_dept_id: deptId }),
+        supabase.rpc("get_my_status"),
+      ]);
       if (deptInfo && deptInfo[0]) setDeptName(deptInfo[0].name || "");
+      if (myStatus && myStatus[0]) setRecorderName(myStatus[0].name || myStatus[0].username || "이름 미등록");
+      try {
+        const response = await fetch(`/api/departments/members?department_id=${encodeURIComponent(deptId)}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store",
+        });
+        const payload = await response.json() as { ok: boolean; executives?: ExecutiveRow[] };
+        if (response.ok && payload.ok) setExecutives(payload.executives || []);
+      } catch {
+        setExecutives([]);
+      }
+      setAuthChecked(true);
       await loadList();
     })();
   }, []);
@@ -168,6 +219,7 @@ export default function JournalPage() {
         stat_attend: j.stat_attend || 0,
         stat_absent: j.stat_absent || 0,
         offering: j.offering || 0,
+        offering_details: normalizeOfferingDetails(j.offering_details, j.offering),
         volunteers: j.volunteers || "",
         prayer_requests: j.prayer_requests || "",
         class_stats: normalizeClassRows(j.class_stats),
@@ -178,7 +230,7 @@ export default function JournalPage() {
 
   const newJournal = () => {
     setSelected(null);
-    setForm({ date: todayDate(), ...EMPTY_FORM });
+    setForm({ date: todayDate(), ...EMPTY_FORM, offering_details: { ...EMPTY_OFFERING, others: [] } });
     setIsNew(true);
   };
 
@@ -324,22 +376,32 @@ export default function JournalPage() {
     setPrefillStatus("failed");
   };
 
-  // 반별 자동집계 불러오기 (기존 출결/달란트에서 합산)
-  const loadClassRollup = async () => {
+  // 날짜가 바뀌면 기존 출결/달란트에서 반별 출결과 주일통계를 자동으로 다시 집계한다.
+  const loadClassRollup = async (announce = false) => {
     setRollupLoading(true);
     try {
-      const { data, error } = await supabase.rpc("edu_journal_class_rollup", {
-        p_dept_id: deptId,
-        p_date: form.date,
-      });
-      if (error) throw error;
-      const rows = normalizeClassRows(data);
-      if (rows.length === 0) {
-        showToast("집계할 반/출결 데이터가 없습니다");
-      } else {
-        setForm((f) => ({ ...f, class_stats: rows }));
-        showToast(`반별 ${rows.length}개 자동집계 완료 - 확인 후 저장하세요`);
-      }
+      const [classResult, sundayResult] = await Promise.all([
+        supabase.rpc("edu_journal_class_rollup", { p_dept_id: deptId, p_date: form.date }),
+        supabase.rpc("edu_journal_sunday_rollup", { p_dept_id: deptId, p_date: form.date }),
+      ]);
+      if (classResult.error) throw classResult.error;
+      if (sundayResult.error) throw sundayResult.error;
+      const rows = normalizeClassRows(classResult.data);
+      setSundayStats(normalizeSundayStats(sundayResult.data));
+      setForm((current) => ({
+        ...current,
+        class_stats: rows.map((row) => {
+          const saved = current.class_stats.find((item) => item.class_no === row.class_no);
+          return { ...row, exemplary: saved?.exemplary || 0, quiz: saved?.quiz || 0 };
+        }),
+        stat_reg_male: Number(sundayResult.data?.find((row: SundayStatRow) => row.category === "new_friend")?.male) || 0,
+        stat_reg_female: Number(sundayResult.data?.find((row: SundayStatRow) => row.category === "new_friend")?.female) || 0,
+        stat_reg_total: Number(sundayResult.data?.find((row: SundayStatRow) => row.category === "new_friend")?.total) || 0,
+        stat_enrolled: rows.reduce((sum, row) => sum + row.enrolled, 0),
+        stat_attend: rows.reduce((sum, row) => sum + row.attend, 0),
+        stat_absent: rows.reduce((sum, row) => sum + row.absent, 0),
+      }));
+      if (announce) showToast(rows.length === 0 ? "집계할 반이 없습니다" : `반별 ${rows.length}개를 다시 집계했습니다`);
     } catch (e: unknown) {
       showToast("자동집계 실패: " + (e as Error).message);
     } finally {
@@ -347,7 +409,14 @@ export default function JournalPage() {
     }
   };
 
-  const updateClassCell = (idx: number, key: keyof ClassRow, val: string) => {
+  useEffect(() => {
+    if (!isNew && !selected) return;
+    void loadClassRollup();
+    // 선택한 일지/날짜가 바뀔 때만 원본 출결을 다시 집계한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.date, isNew, selected?.id]);
+
+  const updateClassCell = (idx: number, key: "class_no" | ClassMetricKey, val: string) => {
     setForm((f) => {
       const next = f.class_stats.map((r) => ({ ...r }));
       if (key === "class_no") next[idx].class_no = val;
@@ -361,7 +430,7 @@ export default function JournalPage() {
       ...f,
       class_stats: [
         ...f.class_stats,
-        { class_no: "", enrolled: 0, attend: 0, absent: 0, lead: 0, exemplary: 0, memory: 0, lesson: 0, bible: 0, quiz: 0 },
+        { class_no: "", enrolled: 0, attend: 0, absent: 0, lead: 0, exemplary: 0, memory: 0, lesson: 0, bible: 0, quiz: 0, checked: 0, missing_teacher_gender: [], missing_student_gender: [] },
       ],
     }));
   };
@@ -370,9 +439,46 @@ export default function JournalPage() {
     setForm((f) => ({ ...f, class_stats: f.class_stats.filter((_, i) => i !== idx) }));
   };
 
+  const updateOffering = (key: "tithe" | "sunday" | "thanksgiving", value: string) => {
+    const amount = Number(value.replace(/[^0-9]/g, "")) || 0;
+    setForm((current) => ({
+      ...current,
+      offering_details: { ...current.offering_details, [key]: amount },
+    }));
+  };
+
+  const updateOtherOffering = (index: number, key: keyof OfferingItem, value: string) => {
+    setForm((current) => ({
+      ...current,
+      offering_details: {
+        ...current.offering_details,
+        others: current.offering_details.others.map((item, itemIndex) => itemIndex === index
+          ? { ...item, [key]: key === "amount" ? Number(value.replace(/[^0-9]/g, "")) || 0 : value }
+          : item),
+      },
+    }));
+  };
+
+  const addOtherOffering = () => setForm((current) => ({
+    ...current,
+    offering_details: {
+      ...current.offering_details,
+      others: [...current.offering_details.others, { label: "", amount: 0 }],
+    },
+  }));
+
+  const removeOtherOffering = (index: number) => setForm((current) => ({
+    ...current,
+    offering_details: {
+      ...current.offering_details,
+      others: current.offering_details.others.filter((_, itemIndex) => itemIndex !== index),
+    },
+  }));
+
   const handleSave = async () => {
     setSaving(true);
     try {
+      const offeringTotal = offeringSum(form.offering_details);
       const { error } = await supabase.rpc("edu_upsert_journal", {
         p_dept_id:      deptId,
         p_date:         form.date,
@@ -392,10 +498,11 @@ export default function JournalPage() {
         p_enrolled:     form.stat_enrolled,
         p_attend:       form.stat_attend,
         p_absent:       form.stat_absent,
-        p_offering:     form.offering,
+        p_offering:     offeringTotal,
         p_volunteers:   form.volunteers,
         p_prayer:       form.prayer_requests,
         p_class_stats:  form.class_stats,
+        p_offering_details: form.offering_details,
       });
       if (error) throw error;
       showToast("저장되었습니다");
@@ -425,14 +532,12 @@ export default function JournalPage() {
     setTimeout(() => setToast(""), 2800);
   };
 
-  const setN = (key: string, val: string) => {
-    setForm((f) => ({ ...f, [key]: Number(val) || 0 }));
-  };
-
   if (!authChecked) return <LoadingView full />;
 
   const showForm = isNew || selected;
   const canPrefill = !!showForm && !!DEPT_PREFILL_KEY[deptName];
+  const organization = buildOrganization(executives);
+  const offeringTotal = offeringSum(form.offering_details);
 
   return (
     <div className="app-shell journal-page" style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
@@ -511,15 +616,49 @@ export default function JournalPage() {
 
               {/* ===== 종이 일지 순서대로 ===== */}
 
+              <div style={{ marginBottom: 14, padding: "10px 12px", borderRadius: 8, background: "var(--bg-soft)", fontSize: 12, color: "var(--ink-mid)" }}>
+                <b style={{ color: "var(--ink)" }}>기록자</b> · {recorderName || "이름 미등록"}
+              </div>
+
+              <details style={{ marginBottom: 16, border: "1px solid var(--hairline)", borderRadius: 10, overflow: "hidden" }}>
+                <summary style={{ padding: "11px 12px", cursor: "pointer", fontSize: 12, fontWeight: 800, color: "var(--ink)", background: "var(--bg-soft)" }}>
+                  주일학교 조직
+                </summary>
+                <div style={{ display: "grid", gridTemplateColumns: "72px minmax(0, 1fr)", gap: "8px 12px", padding: 12, fontSize: 12 }}>
+                  {[
+                    ["교장", "김종혁 담임목사"],
+                    ["국장", "박두재 장로님"],
+                    ["지도", organization.guide],
+                    ["부장", organization.head],
+                    ["부감", organization.deputy],
+                    ["총무", organization.manager],
+                    ["서기", organization.secretary],
+                    ["회계", organization.treasurer],
+                  ].map(([role, name]) => (
+                    <div key={role} style={{ display: "contents" }}>
+                      <div style={{ color: "var(--ink-soft)", fontWeight: 700 }}>{role}</div>
+                      <div style={{ color: name ? "var(--ink)" : "var(--ink-faint)" }}>{name || "미지정"}</div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+
               {/* 1) 날짜 */}
               <FormRow label="날짜">
-                <YmdSelect
-                  groupLabel="일지 날짜"
-                  value={form.date}
-                  onChange={(next) => setForm((f) => ({ ...f, date: next }))}
-                  minYear={JOURNAL_MIN_YEAR}
-                  selectStyle={inputStyle}
-                />
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+                    <YmdSelect
+                      groupLabel="일지 날짜"
+                      value={form.date}
+                      onChange={(next) => setForm((f) => ({ ...f, date: next }))}
+                      minYear={JOURNAL_MIN_YEAR}
+                      selectStyle={inputStyle}
+                    />
+                  </div>
+                  <span style={{ padding: "7px 11px", borderRadius: 999, background: "var(--accent-soft)", color: "var(--accent)", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap" }}>
+                    [{isoWeekNumber(form.date)}주차]
+                  </span>
+                </div>
               </FormRow>
 
               {/* 2) 주제 */}
@@ -637,18 +776,17 @@ export default function JournalPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)" }}>반별 출결</div>
                   <button
-                    onClick={loadClassRollup}
+                    onClick={() => void loadClassRollup(true)}
                     disabled={rollupLoading}
                     style={{ ...prefillBtnStyle, display: "inline-flex", alignItems: "center", gap: 6 }}
                   >
-                    {rollupLoading ? "집계 중..." : <><FileText size={14} strokeWidth={1.8} /> 자동집계 불러오기</>}
+                    {rollupLoading ? "집계 중..." : <><FileText size={14} strokeWidth={1.8} /> 다시 집계</>}
                   </button>
                 </div>
 
                 {form.class_stats.length === 0 ? (
                   <div style={{ fontSize: 12, color: "var(--ink-faint)", padding: "12px 0", lineHeight: 1.5 }}>
-                    출결·달란트에서 반별로 자동집계하려면 <b>자동집계 불러오기</b>를 누르세요.
-                    불러온 뒤 값 수정·저장이 가능합니다.
+                    선택한 날짜의 반 정보를 자동으로 집계하고 있습니다.
                   </div>
                 ) : (
                   <div style={{ overflowX: "auto", maxWidth: "100%" }}>
@@ -659,6 +797,7 @@ export default function JournalPage() {
                           {CLASS_COLS.map((c) => (
                             <th key={c.key} style={classThStyle}>{c.label}</th>
                           ))}
+                          <th style={classThStyle}>상태</th>
                           <th style={classThStyle}></th>
                         </tr>
                       </thead>
@@ -686,6 +825,9 @@ export default function JournalPage() {
                                 />
                               </td>
                             ))}
+                            <td style={{ ...classTdStyle, minWidth: 150, textAlign: "left" }}>
+                              <ClassCheckStatus row={row} />
+                            </td>
                             <td style={classTdStyle}>
                               <button onClick={() => removeClassRow(idx)} style={classRowDelBtn} title="반 삭제">×</button>
                             </td>
@@ -700,6 +842,7 @@ export default function JournalPage() {
                             </td>
                           ))}
                           <td style={classTdStyle}></td>
+                          <td style={classTdStyle}></td>
                         </tr>
                       </tbody>
                     </table>
@@ -709,32 +852,10 @@ export default function JournalPage() {
                 <button onClick={addClassRow} style={{ ...addRowBtnStyle, marginTop: 8 }}>+ 반 추가</button>
               </div>
 
-              {/* 12) 통계 */}
+              {/* 12) 주일통계 */}
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 8 }}>통계</div>
-                <div className="journal-stats-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
-                  {[
-                    { key: "stat_reg_male",   label: "등록 남" },
-                    { key: "stat_reg_female", label: "등록 여" },
-                    { key: "stat_reg_total",  label: "등록 계" },
-                    { key: "stat_enrolled",   label: "재적" },
-                    { key: "stat_attend",     label: "출석" },
-                    { key: "stat_absent",     label: "결석" },
-                  ].map(({ key, label }) => (
-                    <div key={key}>
-                      <div style={{ fontSize: 10, color: "var(--ink-faint)", marginBottom: 3 }}>{label}</div>
-                      <input
-                        type="number"
-                        min={0}
-                        inputMode="numeric"
-                        value={((form as Record<string, unknown>)[key] as number) || ""}
-                        onChange={(e) => setN(key, e.target.value)}
-                        placeholder="0"
-                        style={{ ...inputStyle, textAlign: "center" }}
-                      />
-                    </div>
-                  ))}
-                </div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 8 }}>주일통계</div>
+                <SundayStatsTable rows={sundayStats} />
               </div>
 
               {/* 13) 헌금 */}
@@ -742,14 +863,26 @@ export default function JournalPage() {
                   type="number" 는 콤마가 들어간 값을 표시하지 못해 text + inputMode="numeric" 으로 둔다.
                   (인원수 입력들은 콤마가 필요 없어 그대로 number 를 쓴다) */}
               <FormRow label="헌금 (원)">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={form.offering ? form.offering.toLocaleString("ko-KR") : ""}
-                  onChange={(e) => setN("offering", e.target.value.replace(/[^0-9]/g, ""))}
-                  placeholder="0"
-                  style={inputStyle}
-                />
+                <div style={{ display: "grid", gap: 8 }}>
+                  {([
+                    ["tithe", "십일조"],
+                    ["sunday", "주일헌금"],
+                    ["thanksgiving", "감사헌금"],
+                  ] as const).map(([key, label]) => (
+                    <MoneyRow key={key} label={label} value={form.offering_details[key]} onChange={(value) => updateOffering(key, value)} />
+                  ))}
+                  {form.offering_details.others.map((item, index) => (
+                    <div key={index} style={{ display: "grid", gridTemplateColumns: "minmax(100px, 1fr) minmax(120px, 1fr) 32px", gap: 8 }}>
+                      <input value={item.label} onChange={(event) => updateOtherOffering(index, "label", event.target.value)} placeholder="기타 항목명" style={inputStyle} />
+                      <input type="text" inputMode="numeric" value={item.amount ? item.amount.toLocaleString("ko-KR") : ""} onChange={(event) => updateOtherOffering(index, "amount", event.target.value)} placeholder="0" style={{ ...inputStyle, textAlign: "right" }} />
+                      <button type="button" onClick={() => removeOtherOffering(index)} style={classRowDelBtn} title="기타 헌금 삭제">×</button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={addOtherOffering} style={{ ...addRowBtnStyle, justifySelf: "start" }}>+ 기타 항목 추가</button>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 12px", borderRadius: 8, background: "var(--bg-soft)", fontSize: 13, fontWeight: 800 }}>
+                    <span>합계</span><span>{offeringTotal.toLocaleString("ko-KR")}원</span>
+                  </div>
+                </div>
               </FormRow>
 
               {/* 14) 봉사 */}
@@ -872,6 +1005,85 @@ function FormRow({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
+function MoneyRow({ label, value, onChange }: { label: string; value: number; onChange: (value: string) => void }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "100px minmax(0, 1fr)", gap: 8, alignItems: "center" }}>
+      <div style={{ fontSize: 12, color: "var(--ink-soft)", fontWeight: 700 }}>{label}</div>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={value ? value.toLocaleString("ko-KR") : ""}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="0"
+        style={{ ...inputStyle, textAlign: "right" }}
+      />
+    </div>
+  );
+}
+
+function ClassCheckStatus({ row }: { row: ClassRow }) {
+  const status = row.enrolled === 0
+    ? { label: "학생 없음", color: "var(--ink-soft)", bg: "var(--bg-soft)" }
+    : row.checked === 0
+    ? { label: "미체크", color: "var(--danger)", bg: "var(--danger-soft)" }
+    : row.checked < row.enrolled
+      ? { label: `일부체크 ${row.checked}/${row.enrolled}`, color: "#8A5A17", bg: "#FFF4D6" }
+      : { label: "체크완료", color: "var(--success)", bg: "#E8F5EC" };
+  const warnings = [
+    row.missing_teacher_gender.length > 0 ? `교사: ${row.missing_teacher_gender.join(", ")}` : "",
+    row.missing_student_gender.length > 0 ? `학생: ${row.missing_student_gender.join(", ")}` : "",
+  ].filter(Boolean);
+  return (
+    <div style={{ display: "grid", gap: 4 }}>
+      <span style={{ justifySelf: "start", padding: "3px 7px", borderRadius: 999, color: status.color, background: status.bg, fontSize: 10, fontWeight: 800 }}>{status.label}</span>
+      {warnings.length > 0 && <div style={{ color: "var(--danger)", fontSize: 10, lineHeight: 1.45 }}>성별 미등록 · {warnings.join(" / ")}</div>}
+    </div>
+  );
+}
+
+function SundayStatsTable({ rows }: { rows: SundayStatRow[] }) {
+  const byCategory = new Map(rows.map((row) => [row.category, row]));
+  const data = [
+    ["교사", byCategory.get("teacher")],
+    ["학생", byCategory.get("student")],
+    ["새친구", byCategory.get("new_friend")],
+  ] as const;
+  const totals = data.reduce((sum, [, row]) => ({
+    male: sum.male + (row?.male || 0),
+    female: sum.female + (row?.female || 0),
+    total: sum.total + (row?.total || 0),
+  }), { male: 0, female: 0, total: 0 });
+  const missing = data.flatMap(([label, row]) => row?.missing_gender_names?.map((name) => `${label} ${name}`) || []);
+  return (
+    <div>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead><tr>{["구분", "남", "여", "계"].map((label) => <th key={label} style={classThStyle}>{label}</th>)}</tr></thead>
+        <tbody>
+          {data.map(([label, row]) => (
+            <tr key={label}>
+              <td style={{ ...classTdStyle, fontWeight: 700 }}>{label}</td>
+              <td style={classTdStyle}>{row?.male || 0}</td>
+              <td style={classTdStyle}>{row?.female || 0}</td>
+              <td style={{ ...classTdStyle, fontWeight: 700 }}>{row?.total || 0}</td>
+            </tr>
+          ))}
+          <tr>
+            <td style={{ ...classTdStyle, fontWeight: 800 }}>합계</td>
+            <td style={{ ...classTdStyle, fontWeight: 800 }}>{totals.male}</td>
+            <td style={{ ...classTdStyle, fontWeight: 800 }}>{totals.female}</td>
+            <td style={{ ...classTdStyle, fontWeight: 800 }}>{totals.total}</td>
+          </tr>
+        </tbody>
+      </table>
+      {missing.length > 0 && (
+        <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 8, background: "var(--danger-soft)", color: "var(--danger)", fontSize: 11, lineHeight: 1.5 }}>
+          <b>성별 미등록:</b> {missing.join(", ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // RPC/저장본의 class_stats(jsonb | 배열)를 안전하게 ClassRow[] 로 정규화
 function normalizeClassRows(raw: unknown): ClassRow[] {
   if (!Array.isArray(raw)) return [];
@@ -889,8 +1101,77 @@ function normalizeClassRows(raw: unknown): ClassRow[] {
       lesson: num(o.lesson),
       bible: num(o.bible),
       quiz: num(o.quiz),
+      checked: num(o.checked),
+      missing_teacher_gender: stringArray(o.missing_teacher_gender),
+      missing_student_gender: stringArray(o.missing_student_gender),
     };
   });
+}
+
+function normalizeSundayStats(raw: unknown): SundayStatRow[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((row) => {
+    const value = (row || {}) as Record<string, unknown>;
+    return {
+      category: String(value.category) as SundayStatRow["category"],
+      male: Number(value.male) || 0,
+      female: Number(value.female) || 0,
+      total: Number(value.total) || 0,
+      missing_gender_names: stringArray(value.missing_gender_names),
+    };
+  }).filter((row) => ["teacher", "student", "new_friend"].includes(row.category));
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+}
+
+function normalizeOfferingDetails(raw: unknown, legacyTotal: unknown): OfferingDetails {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    const amount = Number(legacyTotal) || 0;
+    return { ...EMPTY_OFFERING, others: amount > 0 ? [{ label: "기존 통합헌금", amount }] : [] };
+  }
+  const value = raw as Record<string, unknown>;
+  const others = Array.isArray(value.others) ? value.others.map((item) => {
+    const entry = (item || {}) as Record<string, unknown>;
+    return { label: String(entry.label || ""), amount: Number(entry.amount) || 0 };
+  }) : [];
+  return {
+    tithe: Number(value.tithe) || 0,
+    sunday: Number(value.sunday) || 0,
+    thanksgiving: Number(value.thanksgiving) || 0,
+    others,
+  };
+}
+
+function offeringSum(details: OfferingDetails) {
+  return details.tithe + details.sunday + details.thanksgiving
+    + details.others.reduce((sum, item) => sum + item.amount, 0);
+}
+
+function isoWeekNumber(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return 0;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const weekday = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - weekday);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+}
+
+function buildOrganization(rows: ExecutiveRow[]) {
+  const namesFor = (roles: string[], withRole = false) => rows
+    .filter((row) => roles.includes(row.role))
+    .map((row) => withRole ? `${row.name} ${row.role}` : row.name)
+    .join(", ");
+  return {
+    guide: namesFor(["부목사", "전도사", "교육사", "전도사·교육사"], true),
+    head: namesFor(["부장"]),
+    deputy: namesFor(["부감"]),
+    manager: namesFor(["총무"]),
+    secretary: namesFor(["서기"]),
+    treasurer: namesFor(["회계"]),
+  };
 }
 
 function todayDate() {
