@@ -328,6 +328,8 @@ export async function POST(req: NextRequest) {
   const mgmtStatus = body.student.mgmt_status && MGMT_STATUSES.includes(body.student.mgmt_status)
     ? body.student.mgmt_status
     : "정상";
+  const memberBody = body.member;
+  const gender = memberBody?.gender === "M" || memberBody?.gender === "F" ? memberBody.gender : null;
   const { error: updateStudentErr } = await admin
     .from("edu_students")
     .update({
@@ -336,6 +338,12 @@ export async function POST(req: NextRequest) {
       mgmt_status: mgmtStatus,
       grade: body.student.grade?.trim() || null,
       school_name: body.student.school_name?.trim() || null,
+      ...(memberBody ? {
+        phone: cleanText(memberBody.phone),
+        birth_date: cleanText(memberBody.birth_date),
+        gender,
+        address: cleanText(memberBody.address),
+      } : {}),
     })
     .eq("id", body.student_id)
     .eq("department_id", body.dept_id);
@@ -344,9 +352,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "학생 정보 저장에 실패했습니다" }, { status: 500 });
   }
 
-  const memberBody = body.member;
   if (student.member_id && memberBody && memberBody.id === student.member_id) {
-    const gender = memberBody.gender === "M" || memberBody.gender === "F" ? memberBody.gender : null;
     const { error: updateMemberErr } = await admin
       .from("members")
       .update({
