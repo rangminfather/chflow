@@ -817,6 +817,10 @@ function AppWebView() {
           // 자동출석 관리자 설정의 '현재 위치 사용' 허용
           geolocationEnabled={true}
           // 파일 업로드 허용 (프로필 사진 등)
+          // allowFileAccess: 카메라로 찍은 임시 파일을 WebView 가 읽어야 업로드가 된다.
+          // 갤러리 선택지는 app.json 의 사진 권한(READ_MEDIA_IMAGES / NSPhotoLibraryUsageDescription)이
+          // 있어야 파일 선택기에 나타난다.
+          allowFileAccess={true}
           allowsInlineMediaPlayback={true}
           allowsFullscreenVideo={true}
           mediaPlaybackRequiresUserAction={false}
