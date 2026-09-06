@@ -12,7 +12,12 @@ import HeaderLogo from "@/components/HeaderLogo";
 import StudentPhotoEditor from "@/components/StudentPhotoEditor";
 import DeptMasterClassPicker from "@/components/DeptMasterClassPicker";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { type LucideIcon, BadgeCheck, CheckCircle2, ClipboardCheck, XCircle } from "lucide-react";
+import { type LucideIcon, BadgeCheck, CheckCircle2, CircleDashed, ClipboardCheck, XCircle } from "lucide-react";
+import {
+  attendanceStatusLabel,
+  normalizeAttendanceStatus,
+  summarizeAttendance,
+} from "@/lib/attendanceStatus";
 import { fetchDeptClassScope, type DeptClassOption } from "@/lib/deptClassScope";
 
 interface PromoRow {
@@ -72,6 +77,7 @@ const STATUS_COLOR: Record<string, string> = {
   출: "var(--success)",
   결: "var(--danger)",
   인: "var(--info)",
+  "": "var(--ink-faint)", // 미체크
 };
 
 export default function MyClassAttendancePage() {
@@ -268,10 +274,7 @@ export default function MyClassAttendancePage() {
 
   const weeklySummary = (date: string) => {
     const cells = students.map((student) => getCell(student.id, date));
-    const attend = cells.filter((c) => normalizeStatus(c?.attend_status) === "출").length;
-    const absent = cells.filter((c) => normalizeStatus(c?.attend_status) === "결").length;
-    const otherChurch = cells.filter((c) => normalizeStatus(c?.attend_status) === "인").length;
-    return { total: students.length, attend, absent, otherChurch };
+    return summarizeAttendance(cells.map((cell) => cell?.attend_status));
   };
 
   if (!authChecked) return <LoadingView full />;
@@ -464,17 +467,20 @@ export default function MyClassAttendancePage() {
                   </header>
 
                   <section className="px-3.5 pt-3.5">
-                    <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className={`grid gap-2 text-center ${summary.unchecked > 0 ? "grid-cols-4" : "grid-cols-3"}`}>
                       <SummaryBox label="출석" value={summary.attend} color="var(--success)" Icon={CheckCircle2} />
                       <SummaryBox label="결석" value={summary.absent} color="var(--danger)" Icon={XCircle} />
                       <SummaryBox label="출석인정" value={summary.otherChurch} color="var(--info)" Icon={BadgeCheck} />
+                      {summary.unchecked > 0 && (
+                        <SummaryBox label="미체크" value={summary.unchecked} color="var(--ink-faint)" Icon={CircleDashed} />
+                      )}
                     </div>
                   </section>
 
                   <section className="flex flex-col gap-2.5 px-3.5 py-3.5">
                     {students.map((student) => {
                       const cell = getCell(student.id, date);
-                      const currentStatus = normalizeStatus(cell?.attend_status);
+                      const currentStatus = normalizeAttendanceStatus(cell?.attend_status);
 
                       return (
                         <div
@@ -504,7 +510,7 @@ export default function MyClassAttendancePage() {
                               className="shrink-0 rounded-full px-3 py-1 text-[12px] font-extrabold"
                               style={{ color: STATUS_COLOR[currentStatus], background: `color-mix(in srgb, ${STATUS_COLOR[currentStatus]} 14%, transparent)` }}
                             >
-                              {statusLabel(currentStatus)}
+                              {attendanceStatusLabel(currentStatus)}
                             </span>
                           </div>
 
@@ -635,21 +641,15 @@ function nextMonth(year: number, month: number, setYear: (y: number) => void, se
   else setMonth(month + 1);
 }
 
-function statusLabel(status: string) {
-  const labels: Record<string, string> = { 출: "출석", 결: "결석", 인: "출석인정" };
-  return labels[status] || status;
-}
+
 
 function attendanceTone(status: string) {
   if (status === "출") return { Icon: CheckCircle2, color: "var(--success)" };
   if (status === "결") return { Icon: XCircle, color: "var(--danger)" };
-  return { Icon: BadgeCheck, color: "var(--info)" };
+  if (status === "인") return { Icon: BadgeCheck, color: "var(--info)" };
+  return { Icon: CircleDashed, color: "var(--ink-faint)" }; // 미체크
 }
 
-function normalizeStatus(status: string | null | undefined) {
-  if (status === "출" || status === "인") return status;
-  return "결";
-}
 
 type NormalizedGender = "male" | "female" | "neutral";
 
