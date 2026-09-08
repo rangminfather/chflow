@@ -8,6 +8,9 @@
 
 export const DEFAULT_BIBLE_VERSION = "KRV";
 
+/** @deprecated 코드에서 더 이상 역본 우선순위를 강제하지 않는다. versions.test.ts 하위 호환용으로만 유지. */
+export const PREFERRED_VERSION_ORDER = ["NKRV", "KRV"];
+
 export type BibleVersion = {
   code: string;
   name_ko: string;

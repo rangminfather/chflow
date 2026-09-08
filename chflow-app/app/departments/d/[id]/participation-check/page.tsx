@@ -21,6 +21,8 @@ interface StudentRow {
   teacher_name: string | null;
   status: "" | "참석" | "불참";
   note: string | null;
+  new_friend_male_count: number;
+  new_friend_female_count: number;
 }
 
 interface TeacherRow {
@@ -93,6 +95,7 @@ export default function ParticipationCheckPage() {
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
   const [noteDraft, setNoteDraft] = useState<Record<string, string>>({});
   const [teacherNoteDraft, setTeacherNoteDraft] = useState<Record<string, string>>({});
+  const [newFriendDraft, setNewFriendDraft] = useState<Record<string, { male: string; female: string }>>({});
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -124,6 +127,7 @@ export default function ParticipationCheckPage() {
     const rows = ((listResp.data || []) as StudentRow[]).slice().sort(compareRows);
     setStudents(rows);
     setNoteDraft({});
+    setNewFriendDraft({});
     if (teacherResp.error) {
       showToast(`교사 목록 조회 실패: ${teacherResp.error.message}`);
       setTeachers([]);
@@ -179,6 +183,31 @@ export default function ParticipationCheckPage() {
     if (error) showToast(`비고 저장 실패: ${error.message}`);
   };
 
+  const parseCount = (value: string) => {
+    const n = parseInt(value, 10);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  };
+
+  const saveNewFriends = async (row: StudentRow, maleValue: string, femaleValue: string) => {
+    const male = parseCount(maleValue);
+    const female = parseCount(femaleValue);
+    if (male === row.new_friend_male_count && female === row.new_friend_female_count) return;
+    setStudents((prev) => prev.map((s) => (
+      s.student_id === row.student_id ? { ...s, new_friend_male_count: male, new_friend_female_count: female } : s
+    )));
+    const { error } = await supabase.rpc("edu_participation_set_new_friends", {
+      p_dept_id: deptId, p_student_id: row.student_id, p_check_date: date, p_male: male, p_female: female,
+    });
+    if (error) {
+      setStudents((prev) => prev.map((s) => (
+        s.student_id === row.student_id
+          ? { ...s, new_friend_male_count: row.new_friend_male_count, new_friend_female_count: row.new_friend_female_count }
+          : s
+      )));
+      showToast(`새친구 수 저장 실패: ${error.message}`);
+    }
+  };
+
   const cycleTeacherStatus = async (row: TeacherRow) => {
     const next = NEXT_STATUS[row.status];
     setTeachers((prev) => prev.map((t) => (t.teacher_id === row.teacher_id ? { ...t, status: next } : t)));
@@ -227,6 +256,25 @@ export default function ParticipationCheckPage() {
     return { byGrade, total, totalMale, totalFemale };
   }, [students, gradeYears]);
 
+  const newFriendStats = useMemo(() => {
+    const byGrade: Record<number, { male: number; female: number; total: number }> = {};
+    gradeYears.forEach((g) => { byGrade[g] = { male: 0, female: 0, total: 0 }; });
+    let totalMale = 0, totalFemale = 0;
+    students.forEach((s) => {
+      const male = s.new_friend_male_count || 0;
+      const female = s.new_friend_female_count || 0;
+      if (male === 0 && female === 0) return;
+      totalMale += male;
+      totalFemale += female;
+      if (s.grade_year && byGrade[s.grade_year]) {
+        byGrade[s.grade_year].male += male;
+        byGrade[s.grade_year].female += female;
+        byGrade[s.grade_year].total += male + female;
+      }
+    });
+    return { byGrade, total: totalMale + totalFemale, totalMale, totalFemale };
+  }, [students, gradeYears]);
+
   const classGroups = useMemo(() => groupByClass(students), [students]);
 
   const teacherStats = useMemo(() => {
@@ -250,6 +298,12 @@ export default function ParticipationCheckPage() {
     lines.push(`총 참석: ${stats.total}명`);
     lines.push(`총 남/여: 남${stats.totalMale}·여${stats.totalFemale}`);
     lines.push(`교사 출석: ${teacherStats.present}/${teacherStats.total}명`);
+    lines.push("");
+    lines.push("■ 새친구");
+    lines.push(`학년별: ${gradeYears.length ? gradeYears.map((g) => `${g}학년 ${newFriendStats.byGrade[g].total}명`).join(" · ") : "-"}`);
+    lines.push(`학년별 남/여: ${gradeYears.length ? gradeYears.map((g) => `${g}학년(남${newFriendStats.byGrade[g].male}·여${newFriendStats.byGrade[g].female})`).join(" · ") : "-"}`);
+    lines.push(`총 새친구 수: ${newFriendStats.total}명`);
+    lines.push(`총 새친구 남/여: 남${newFriendStats.totalMale}·여${newFriendStats.totalFemale}`);
     lines.push("");
     lines.push("■ 참석자 명단");
     if (presentTeachers.length === 0 && presentClassGroups.length === 0) {
@@ -362,6 +416,25 @@ export default function ParticipationCheckPage() {
                 <span style={statsLabelStyle}>교사 출석</span>
                 <span>{teacherStats.present}/{teacherStats.total}명</span>
               </div>
+              <div style={listGroupStyle}>
+                <div style={listGroupTitleStyle}>새친구</div>
+                <div style={statsRowStyle}>
+                  <span style={statsLabelStyle}>학년별</span>
+                  <span>{gradeYears.length ? gradeYears.map((g) => `${g}학년 ${newFriendStats.byGrade[g].total}명`).join(" · ") : "-"}</span>
+                </div>
+                <div style={statsRowStyle}>
+                  <span style={statsLabelStyle}>학년별 남/여</span>
+                  <span>{gradeYears.length ? gradeYears.map((g) => `${g}학년(남${newFriendStats.byGrade[g].male}·여${newFriendStats.byGrade[g].female})`).join(" · ") : "-"}</span>
+                </div>
+                <div style={statsRowStyle}>
+                  <span style={statsLabelStyle}>총 새친구 수</span>
+                  <span style={{ fontWeight: 800, color: "var(--accent-strong)" }}>{newFriendStats.total}명</span>
+                </div>
+                <div style={statsRowStyle}>
+                  <span style={statsLabelStyle}>총 남/여</span>
+                  <span>남{newFriendStats.totalMale}명 · 여{newFriendStats.totalFemale}명</span>
+                </div>
+              </div>
             </div>
 
             {/* 참석자 명단 (실시간) */}
@@ -461,6 +534,39 @@ export default function ParticipationCheckPage() {
                           {row.name}
                           {genderLabel(row.gender) && <span style={{ color: "var(--ink-faint)", fontWeight: 600 }}> ({genderLabel(row.gender)})</span>}
                         </span>
+                        <div style={newFriendGroupStyle}>
+                          <span style={newFriendLabelStyle}>새친구</span>
+                          <label style={newFriendFieldStyle}>
+                            남
+                            <input
+                              type="number"
+                              min={0}
+                              inputMode="numeric"
+                              value={newFriendDraft[row.student_id]?.male ?? String(row.new_friend_male_count)}
+                              onChange={(e) => setNewFriendDraft((prev) => ({
+                                ...prev,
+                                [row.student_id]: { female: prev[row.student_id]?.female ?? String(row.new_friend_female_count), male: e.target.value },
+                              }))}
+                              onBlur={(e) => saveNewFriends(row, e.target.value, newFriendDraft[row.student_id]?.female ?? String(row.new_friend_female_count))}
+                              style={newFriendInputStyle}
+                            />
+                          </label>
+                          <label style={newFriendFieldStyle}>
+                            여
+                            <input
+                              type="number"
+                              min={0}
+                              inputMode="numeric"
+                              value={newFriendDraft[row.student_id]?.female ?? String(row.new_friend_female_count)}
+                              onChange={(e) => setNewFriendDraft((prev) => ({
+                                ...prev,
+                                [row.student_id]: { male: prev[row.student_id]?.male ?? String(row.new_friend_male_count), female: e.target.value },
+                              }))}
+                              onBlur={(e) => saveNewFriends(row, newFriendDraft[row.student_id]?.male ?? String(row.new_friend_male_count), e.target.value)}
+                              style={newFriendInputStyle}
+                            />
+                          </label>
+                        </div>
                         <input
                           type="text"
                           placeholder="비고"
@@ -504,8 +610,12 @@ const listRowStyle: CSSProperties = { fontSize: 12.5, color: "var(--ink)", lineH
 const copyButtonStyle: CSSProperties = { width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px", marginBottom: 18, background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 10, fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const classCardStyle: CSSProperties = { background: "var(--card)", borderRadius: 14, padding: "12px 14px", marginBottom: 10, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
 const classHeadStyle: CSSProperties = { fontSize: 13, fontWeight: 800, color: "var(--ink)", marginBottom: 8 };
-const studentRowStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderTop: "1px solid var(--hairline)" };
+const studentRowStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderTop: "1px solid var(--hairline)", flexWrap: "wrap" };
+const newFriendGroupStyle: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 8px", borderRadius: 8, background: "var(--bg-soft)", flexShrink: 0 };
+const newFriendLabelStyle: CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--ink-faint)" };
+const newFriendFieldStyle: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, color: "var(--ink-soft)" };
+const newFriendInputStyle: CSSProperties = { width: 36, padding: "3px 4px", border: "1px solid var(--hairline)", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "var(--card)", color: "var(--ink)", textAlign: "center" };
 const statusPillStyle: CSSProperties = { flexShrink: 0, minWidth: 56, padding: "6px 8px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" };
 const studentNameStyle: CSSProperties = { fontSize: 13.5, fontWeight: 700, color: "var(--ink)", flex: "0 1 auto", whiteSpace: "nowrap" };
-const noteInputStyle: CSSProperties = { flex: 1, minWidth: 0, padding: "6px 8px", border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 12.5, fontFamily: "inherit", background: "var(--card)", color: "var(--ink)" };
+const noteInputStyle: CSSProperties = { flex: "1 1 140px", minWidth: 100, padding: "6px 8px", border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 12.5, fontFamily: "inherit", background: "var(--card)", color: "var(--ink)" };
 const toastStyle: CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap" };
