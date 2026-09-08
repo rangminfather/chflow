@@ -426,6 +426,16 @@ export default function ParticipationCheckPage() {
     () => groupByClass(students.filter((s) => s.status === "참석")),
     [students],
   );
+  // 참석 명단 화면용 — 반 목록은 학생 참석 여부와 무관하게 전부 만들고(담임 참여여부를
+  // 반마다 보여주기 위해), 각 반 안에는 참석 체크된 학생만 담는다.
+  const rosterClassGroups = useMemo(
+    () => groupByClass(students).map(({ classNo, students: rows }) => ({
+      classNo,
+      head: rows[0],
+      present: rows.filter((r) => r.status === "참석"),
+    })),
+    [students],
+  );
 
   // ── 카톡 공유용 텍스트 ──
 
@@ -566,12 +576,11 @@ export default function ParticipationCheckPage() {
                 참석 명단
                 <span style={cardTitleSubStyle}>학생 {attend.total.total}명 · 교사 {teacherStats.present}명</span>
               </div>
-              {presentClassGroups.length === 0 && presentTeachers.length === 0 ? (
+              {rosterClassGroups.length === 0 && presentTeachers.length === 0 ? (
                 <div style={emptyLineStyle}>아직 참석 체크된 인원이 없습니다</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
-                  {presentClassGroups.map(({ classNo, students: rows }) => {
-                    const head = rows[0];
+                  {rosterClassGroups.map(({ classNo, head, present }) => {
                     return (
                       <div key={classNo}>
                         <div style={rosterGroupTitleStyle}>
@@ -584,9 +593,10 @@ export default function ParticipationCheckPage() {
                               </>
                             )}
                           </span>
-                          <span style={{ color: "var(--ink-faint)", fontWeight: 700 }}>{rows.length}명</span>
+                          <span style={{ color: "var(--ink-faint)", fontWeight: 700 }}>{present.length}명</span>
                         </div>
-                        {rows.map((r) => {
+                        {present.length === 0 && <div style={rosterEmptyRowStyle}>참석 체크된 학생이 없습니다</div>}
+                        {present.map((r) => {
                           const friends = (r.new_friend_male_count || 0) + (r.new_friend_female_count || 0);
                           return (
                             <div key={r.student_id} style={rosterRowStyle}>
@@ -813,6 +823,7 @@ const rosterRowStyle: CSSProperties = { display: "flex", alignItems: "center", f
 const rosterMetaStyle: CSSProperties = { fontSize: 11, color: "var(--ink-faint)", fontWeight: 600 };
 const rosterBadgeStyle: CSSProperties = { fontSize: 10.5, fontWeight: 700, color: "var(--accent-strong)", background: "color-mix(in srgb, var(--accent) 12%, transparent)", padding: "1px 6px", borderRadius: 999 };
 const teacherStatusChipStyle: CSSProperties = { display: "inline-block", marginLeft: 6, padding: "1px 7px", borderRadius: 999, fontSize: 10.5, fontWeight: 800, verticalAlign: "middle", whiteSpace: "nowrap" };
+const rosterEmptyRowStyle: CSSProperties = { fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 500, padding: "2px 0" };
 const rosterNoteStyle: CSSProperties = { fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 500 };
 
 const hintStyle: CSSProperties = { fontSize: 11.5, lineHeight: 1.6, color: "var(--ink-faint)", padding: "2px 4px 12px" };
