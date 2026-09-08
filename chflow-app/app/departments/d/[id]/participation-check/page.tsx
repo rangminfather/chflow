@@ -23,6 +23,14 @@ interface StudentRow {
   note: string | null;
 }
 
+interface TeacherRow {
+  teacher_id: string;
+  name: string;
+  teacher_role: string | null;
+  status: "" | "참석" | "불참";
+  note: string | null;
+}
+
 const CLASS_COLLATOR = new Intl.Collator("ko", { numeric: true, sensitivity: "base" });
 const NEXT_STATUS: Record<string, "" | "참석" | "불참"> = { "": "참석", 참석: "불참", 불참: "" };
 const STATUS_COLOR: Record<string, string> = {
@@ -82,7 +90,9 @@ export default function ParticipationCheckPage() {
   const [deptName, setDeptName] = useState("");
   const [date, setDate] = useState(() => toISO(new Date()));
   const [students, setStudents] = useState<StudentRow[]>([]);
+  const [teachers, setTeachers] = useState<TeacherRow[]>([]);
   const [noteDraft, setNoteDraft] = useState<Record<string, string>>({});
+  const [teacherNoteDraft, setTeacherNoteDraft] = useState<Record<string, string>>({});
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -91,9 +101,10 @@ export default function ParticipationCheckPage() {
 
   const load = useCallback(async (targetDate: string) => {
     setLoading(true);
-    const [deptResp, listResp] = await Promise.all([
+    const [deptResp, listResp, teacherResp] = await Promise.all([
       supabase.rpc("get_department_info", { p_dept_id: deptId }),
       supabase.rpc("edu_participation_list", { p_dept_id: deptId, p_check_date: targetDate }),
+      supabase.rpc("edu_participation_teacher_list", { p_dept_id: deptId, p_check_date: targetDate }),
     ]);
     if (!deptResp.error && deptResp.data && deptResp.data.length > 0) {
       setDeptName(deptResp.data[0].name || "");
@@ -105,6 +116,7 @@ export default function ParticipationCheckPage() {
         showToast(`조회 실패: ${listResp.error.message}`);
       }
       setStudents([]);
+      setTeachers([]);
       setLoading(false);
       return;
     }
@@ -112,6 +124,14 @@ export default function ParticipationCheckPage() {
     const rows = ((listResp.data || []) as StudentRow[]).slice().sort(compareRows);
     setStudents(rows);
     setNoteDraft({});
+    if (teacherResp.error) {
+      showToast(`교사 목록 조회 실패: ${teacherResp.error.message}`);
+      setTeachers([]);
+    } else {
+      const teacherRows = ((teacherResp.data || []) as TeacherRow[]).slice().sort((a, b) => a.name.localeCompare(b.name, "ko"));
+      setTeachers(teacherRows);
+    }
+    setTeacherNoteDraft({});
     setLoading(false);
   }, [deptId, showToast]);
 
@@ -159,6 +179,28 @@ export default function ParticipationCheckPage() {
     if (error) showToast(`비고 저장 실패: ${error.message}`);
   };
 
+  const cycleTeacherStatus = async (row: TeacherRow) => {
+    const next = NEXT_STATUS[row.status];
+    setTeachers((prev) => prev.map((t) => (t.teacher_id === row.teacher_id ? { ...t, status: next } : t)));
+    const { error } = await supabase.rpc("edu_participation_teacher_set_status", {
+      p_dept_id: deptId, p_teacher_id: row.teacher_id, p_check_date: date, p_status: next,
+    });
+    if (error) {
+      setTeachers((prev) => prev.map((t) => (t.teacher_id === row.teacher_id ? { ...t, status: row.status } : t)));
+      showToast(`저장 실패: ${error.message}`);
+    }
+  };
+
+  const saveTeacherNote = async (row: TeacherRow, value: string) => {
+    const trimmed = value;
+    if ((row.note || "") === trimmed) return;
+    setTeachers((prev) => prev.map((t) => (t.teacher_id === row.teacher_id ? { ...t, note: trimmed } : t)));
+    const { error } = await supabase.rpc("edu_participation_teacher_set_note", {
+      p_dept_id: deptId, p_teacher_id: row.teacher_id, p_check_date: date, p_note: trimmed,
+    });
+    if (error) showToast(`비고 저장 실패: ${error.message}`);
+  };
+
   const gradeYears = useMemo(() => {
     const set = new Set<number>();
     students.forEach((s) => { if (s.grade_year) set.add(s.grade_year); });
@@ -187,6 +229,17 @@ export default function ParticipationCheckPage() {
 
   const classGroups = useMemo(() => groupByClass(students), [students]);
 
+  const teacherStats = useMemo(() => {
+    const present = teachers.filter((t) => t.status === "참석").length;
+    return { present, total: teachers.length };
+  }, [teachers]);
+
+  const presentTeachers = useMemo(() => teachers.filter((t) => t.status === "참석"), [teachers]);
+  const presentClassGroups = useMemo(
+    () => groupByClass(students.filter((s) => s.status === "참석")),
+    [students],
+  );
+
   const buildOutputText = () => {
     const lines: string[] = [];
     lines.push(`[${deptName || "부서"} 참여율 조사] ${monthDayLabel(date)}`);
@@ -196,13 +249,21 @@ export default function ParticipationCheckPage() {
     lines.push(`학년별 남/여: ${gradeYears.length ? gradeYears.map((g) => `${g}학년(남${stats.byGrade[g].male}·여${stats.byGrade[g].female})`).join(" · ") : "-"}`);
     lines.push(`총 참석: ${stats.total}명`);
     lines.push(`총 남/여: 남${stats.totalMale}·여${stats.totalFemale}`);
+    lines.push(`교사 출석: ${teacherStats.present}/${teacherStats.total}명`);
     lines.push("");
     lines.push("■ 참석자 명단");
-    const present = students.filter((s) => s.status === "참석");
-    if (present.length === 0) {
+    if (presentTeachers.length === 0 && presentClassGroups.length === 0) {
       lines.push("(참석자 없음)");
     } else {
-      groupByClass(present).forEach(({ students: rows }) => {
+      if (presentTeachers.length > 0) {
+        lines.push("[교사]");
+        presentTeachers.forEach((t) => {
+          const noteTxt = t.note && t.note.trim() ? ` - 비고: ${t.note.trim()}` : "";
+          lines.push(`- ${t.name}${t.teacher_role ? `(${t.teacher_role})` : ""} 선생님${noteTxt}`);
+        });
+        lines.push("");
+      }
+      presentClassGroups.forEach(({ students: rows }) => {
         const head = rows[0];
         lines.push(`[${classLabel(head)}${head.teacher_name ? ` · ${head.teacher_name} 선생님` : ""}]`);
         rows.forEach((r) => {
@@ -297,11 +358,83 @@ export default function ParticipationCheckPage() {
                 <span style={statsLabelStyle}>총 남/여</span>
                 <span>남{stats.totalMale}명 · 여{stats.totalFemale}명</span>
               </div>
+              <div style={statsRowStyle}>
+                <span style={statsLabelStyle}>교사 출석</span>
+                <span>{teacherStats.present}/{teacherStats.total}명</span>
+              </div>
+            </div>
+
+            {/* 참석자 명단 (실시간) */}
+            <div style={statsCardStyle}>
+              <div style={statsTitleStyle}>참석자 명단</div>
+              {presentTeachers.length === 0 && presentClassGroups.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>아직 참석 체크된 인원이 없습니다</div>
+              ) : (
+                <>
+                  {presentTeachers.length > 0 && (
+                    <div style={listGroupStyle}>
+                      <div style={listGroupTitleStyle}>교사</div>
+                      {presentTeachers.map((t) => (
+                        <div key={t.teacher_id} style={listRowStyle}>
+                          - {t.name}{t.teacher_role ? `(${t.teacher_role})` : ""} 선생님
+                          {t.note && t.note.trim() && <span style={{ color: "var(--ink-faint)" }}> — 비고: {t.note.trim()}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {presentClassGroups.map(({ classNo, students: rows }) => {
+                    const head = rows[0];
+                    return (
+                      <div key={classNo} style={listGroupStyle}>
+                        <div style={listGroupTitleStyle}>
+                          {classLabel(head)}{head.teacher_name && ` · ${head.teacher_name} 선생님`}
+                        </div>
+                        {rows.map((r) => (
+                          <div key={r.student_id} style={listRowStyle}>
+                            - {r.name}{genderLabel(r.gender) && `(${genderLabel(r.gender)})`}
+                            {r.note && r.note.trim() && <span style={{ color: "var(--ink-faint)" }}> — 비고: {r.note.trim()}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </div>
 
             <button type="button" onClick={doCopy} style={copyButtonStyle}>
               <Copy size={15} strokeWidth={2} /> 통계·명단 복사하기
             </button>
+
+            {/* 교사 체크리스트 */}
+            {teachers.length > 0 && (
+              <div style={classCardStyle}>
+                <div style={classHeadStyle}>교사</div>
+                {teachers.map((row) => (
+                  <div key={row.teacher_id} style={studentRowStyle}>
+                    <button
+                      type="button"
+                      onClick={() => cycleTeacherStatus(row)}
+                      style={{ ...statusPillStyle, background: `color-mix(in srgb, ${STATUS_COLOR[row.status]} 14%, transparent)`, color: STATUS_COLOR[row.status] }}
+                    >
+                      {row.status || "미체크"}
+                    </button>
+                    <span style={studentNameStyle}>
+                      {row.name}
+                      {row.teacher_role && <span style={{ color: "var(--ink-faint)", fontWeight: 600 }}> ({row.teacher_role})</span>}
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="비고"
+                      value={teacherNoteDraft[row.teacher_id] ?? row.note ?? ""}
+                      onChange={(e) => setTeacherNoteDraft((prev) => ({ ...prev, [row.teacher_id]: e.target.value }))}
+                      onBlur={(e) => saveTeacherNote(row, e.target.value)}
+                      style={noteInputStyle}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* 반별 체크리스트 */}
             {classGroups.length === 0 ? (
@@ -365,6 +498,9 @@ const statsCardStyle: CSSProperties = { background: "var(--card)", borderRadius:
 const statsTitleStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 800, color: "var(--ink)", marginBottom: 4 };
 const statsRowStyle: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5, color: "var(--ink-mid)" };
 const statsLabelStyle: CSSProperties = { color: "var(--ink-faint)", fontWeight: 700, flexShrink: 0 };
+const listGroupStyle: CSSProperties = { marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--hairline)" };
+const listGroupTitleStyle: CSSProperties = { fontSize: 12, fontWeight: 800, color: "var(--ink-soft)", marginBottom: 4 };
+const listRowStyle: CSSProperties = { fontSize: 12.5, color: "var(--ink)", lineHeight: 1.7 };
 const copyButtonStyle: CSSProperties = { width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px", marginBottom: 18, background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 10, fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const classCardStyle: CSSProperties = { background: "var(--card)", borderRadius: 14, padding: "12px 14px", marginBottom: 10, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
 const classHeadStyle: CSSProperties = { fontSize: 13, fontWeight: 800, color: "var(--ink)", marginBottom: 8 };
