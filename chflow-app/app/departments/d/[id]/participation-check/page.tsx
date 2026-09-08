@@ -134,6 +134,21 @@ function GradeStatTable({ rows, total, emptyLabel }: { rows: GradeTally[]; total
   );
 }
 
+/** 담임 참석 여부 칩 — 참석 명단의 반 이름 옆에 표시만 한다(여기서는 저장하지 않는다). */
+function TeacherStatusChip({ status }: { status: "" | "참석" | "불참" }) {
+  return (
+    <span
+      style={{
+        ...teacherStatusChipStyle,
+        color: STATUS_COLOR[status],
+        background: `color-mix(in srgb, ${STATUS_COLOR[status]} 14%, transparent)`,
+      }}
+    >
+      {status || "미입력"}
+    </span>
+  );
+}
+
 export default function ParticipationCheckPage() {
   const router = useRouter();
   const params = useParams();
@@ -394,6 +409,17 @@ export default function ParticipationCheckPage() {
     total: teachers.length,
   }), [teachers]);
 
+  // 참석 명단에 담임 상태를 붙이기 위한 이름 → 상태 맵.
+  // edu_participation_list 는 담임을 teacher_name(텍스트)로만 주므로 이름으로 맞춘다.
+  const teacherStatusByName = useMemo(() => {
+    const map = new Map<string, "" | "참석" | "불참">();
+    teachers.forEach((t) => {
+      const key = t.name?.trim();
+      if (key && !map.has(key)) map.set(key, t.status);
+    });
+    return map;
+  }, [teachers]);
+
   const classGroups = useMemo(() => groupByClass(students), [students]);
   const presentTeachers = useMemo(() => teachers.filter((t) => t.status === "참석"), [teachers]);
   const presentClassGroups = useMemo(
@@ -549,7 +575,15 @@ export default function ParticipationCheckPage() {
                     return (
                       <div key={classNo}>
                         <div style={rosterGroupTitleStyle}>
-                          <span>{classLabel(head)}{head.teacher_name && ` · ${head.teacher_name} 선생님`}</span>
+                          <span>
+                            {classLabel(head)}
+                            {head.teacher_name && (
+                              <>
+                                {` · ${head.teacher_name} 선생님`}
+                                <TeacherStatusChip status={teacherStatusByName.get(head.teacher_name.trim()) ?? ""} />
+                              </>
+                            )}
+                          </span>
                           <span style={{ color: "var(--ink-faint)", fontWeight: 700 }}>{rows.length}명</span>
                         </div>
                         {rows.map((r) => {
@@ -778,6 +812,7 @@ const rosterGroupTitleStyle: CSSProperties = { display: "flex", justifyContent: 
 const rosterRowStyle: CSSProperties = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, fontSize: 12.5, color: "var(--ink)", padding: "2px 0" };
 const rosterMetaStyle: CSSProperties = { fontSize: 11, color: "var(--ink-faint)", fontWeight: 600 };
 const rosterBadgeStyle: CSSProperties = { fontSize: 10.5, fontWeight: 700, color: "var(--accent-strong)", background: "color-mix(in srgb, var(--accent) 12%, transparent)", padding: "1px 6px", borderRadius: 999 };
+const teacherStatusChipStyle: CSSProperties = { display: "inline-block", marginLeft: 6, padding: "1px 7px", borderRadius: 999, fontSize: 10.5, fontWeight: 800, verticalAlign: "middle", whiteSpace: "nowrap" };
 const rosterNoteStyle: CSSProperties = { fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 500 };
 
 const hintStyle: CSSProperties = { fontSize: 11.5, lineHeight: 1.6, color: "var(--ink-faint)", padding: "2px 4px 12px" };
