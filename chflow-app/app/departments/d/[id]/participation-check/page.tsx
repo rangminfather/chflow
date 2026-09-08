@@ -1,8 +1,9 @@
 "use client";
 
 // 참여율 조사 — 초등1부 부서관리 전용.
-// 반별 학생 명단에서 한 번 누르면 참석, 한 번 더 누르면 불참, 다시 누르면 미체크로 순환한다.
-// 학년별/성별 통계를 실시간으로 보여주고, 통계 + 참석자 명단(비고 포함)을 카톡에 붙여넣을 텍스트로 복사한다.
+// 상태 칩은 누르면 미체크 → 참석 → 불참 → 미체크 순으로 돌고, 누르는 즉시 저장된다.
+// 비고·새친구 수는 입력칸을 벗어날 때 저장되고, [저장] 버튼으로 남은 입력을 한 번에 확정할 수 있다.
+// 학년별 참석·새친구 통계는 표로, 카톡 공유용 텍스트는 복사 버튼으로 만든다.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
@@ -10,7 +11,7 @@ import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
-import { ChevronLeft, ChevronRight, Copy, Lock, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Lock, Save } from "lucide-react";
 
 interface StudentRow {
   student_id: string;
@@ -33,6 +34,9 @@ interface TeacherRow {
   note: string | null;
 }
 
+type Tally = { male: number; female: number; total: number };
+type GradeTally = Tally & { grade: number };
+
 const CLASS_COLLATOR = new Intl.Collator("ko", { numeric: true, sensitivity: "base" });
 const NEXT_STATUS: Record<string, "" | "참석" | "불참"> = { "": "참석", 참석: "불참", 불참: "" };
 const STATUS_COLOR: Record<string, string> = {
@@ -45,10 +49,11 @@ function toISO(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function monthDayLabel(iso: string) {
+/** 카톡 메시지·화면용 짧은 날짜 표기 ("9월 8일(월)") */
+function dateLabel(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
   const weekday = "일월화수목금토"[new Date(y, m - 1, d).getDay()];
-  return `${y}년 ${m}월 ${d}일(${weekday})`;
+  return `${m}월 ${d}일(${weekday})`;
 }
 
 function genderLabel(value: string | null | undefined) {
@@ -57,9 +62,18 @@ function genderLabel(value: string | null | undefined) {
   return "";
 }
 
+/** 반 이름. class_no 가 이미 "3-1"처럼 학년을 담고 있으면 학년을 앞에 또 붙이지 않는다. */
 function classLabel(row: { grade_year: number | null; class_no: string | null }) {
-  const grade = row.grade_year ? `${row.grade_year}학년 ` : "";
-  return `${grade}${row.class_no || "미배정"}반`;
+  const classNo = row.class_no?.trim();
+  if (!classNo) return row.grade_year ? `${row.grade_year}학년 미배정` : "반 미배정";
+  if (row.grade_year && classNo.startsWith(`${row.grade_year}-`)) return `${classNo}반`;
+  return row.grade_year ? `${row.grade_year}학년 ${classNo}반` : `${classNo}반`;
+}
+
+/** 직책 표기 — 그냥 "교사"는 굳이 적지 않는다(부장·임원·전도사 등만 표시) */
+function roleLabel(role: string | null) {
+  const value = role?.trim();
+  return value && value !== "교사" ? value : "";
 }
 
 function compareRows(a: StudentRow, b: StudentRow) {
@@ -80,6 +94,46 @@ function groupByClass(rows: StudentRow[]) {
   return Array.from(map.entries()).map(([classNo, students]) => ({ classNo, students }));
 }
 
+function parseCount(value: string) {
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+/** 학년별 표 — 학년 · 남 · 여 · 계 + 합계. 한 줄로 길게 늘어나 잘리지 않게 표로 고정한다. */
+function GradeStatTable({ rows, total, emptyLabel }: { rows: GradeTally[]; total: Tally; emptyLabel: string }) {
+  if (rows.length === 0) {
+    return <div style={emptyLineStyle}>{emptyLabel}</div>;
+  }
+  return (
+    <table style={tableStyle}>
+      <thead>
+        <tr>
+          <th style={{ ...thStyle, textAlign: "left" }}>학년</th>
+          <th style={thStyle}>남</th>
+          <th style={thStyle}>여</th>
+          <th style={thStyle}>계</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.grade}>
+            <td style={{ ...tdStyle, textAlign: "left", fontWeight: 600 }}>{r.grade}학년</td>
+            <td style={tdStyle}>{r.male}</td>
+            <td style={tdStyle}>{r.female}</td>
+            <td style={{ ...tdStyle, fontWeight: 700, color: "var(--ink)" }}>{r.total}</td>
+          </tr>
+        ))}
+        <tr>
+          <td style={{ ...totalTdStyle, textAlign: "left" }}>합계</td>
+          <td style={totalTdStyle}>{total.male}</td>
+          <td style={totalTdStyle}>{total.female}</td>
+          <td style={{ ...totalTdStyle, color: "var(--accent-strong)" }}>{total.total}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
 export default function ParticipationCheckPage() {
   const router = useRouter();
   const params = useParams();
@@ -88,6 +142,7 @@ export default function ParticipationCheckPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [authorized, setAuthorized] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
   const [deptName, setDeptName] = useState("");
   const [date, setDate] = useState(() => toISO(new Date()));
@@ -124,16 +179,15 @@ export default function ParticipationCheckPage() {
       return;
     }
     setAuthorized(true);
-    const rows = ((listResp.data || []) as StudentRow[]).slice().sort(compareRows);
-    setStudents(rows);
+    setStudents(((listResp.data || []) as StudentRow[]).slice().sort(compareRows));
     setNoteDraft({});
     setNewFriendDraft({});
     if (teacherResp.error) {
       showToast(`교사 목록 조회 실패: ${teacherResp.error.message}`);
       setTeachers([]);
     } else {
-      const teacherRows = ((teacherResp.data || []) as TeacherRow[]).slice().sort((a, b) => a.name.localeCompare(b.name, "ko"));
-      setTeachers(teacherRows);
+      setTeachers(((teacherResp.data || []) as TeacherRow[]).slice()
+        .sort((a, b) => a.name.localeCompare(b.name, "ko")));
     }
     setTeacherNoteDraft({});
     setLoading(false);
@@ -161,6 +215,8 @@ export default function ParticipationCheckPage() {
     changeDate(toISO(dt));
   };
 
+  // ── 저장 (개별) ──
+
   const cycleStatus = async (row: StudentRow) => {
     const next = NEXT_STATUS[row.status];
     setStudents((prev) => prev.map((s) => (s.student_id === row.student_id ? { ...s, status: next } : s)));
@@ -173,25 +229,19 @@ export default function ParticipationCheckPage() {
     }
   };
 
-  const saveNote = async (row: StudentRow, value: string) => {
-    const trimmed = value;
-    if ((row.note || "") === trimmed) return;
-    setStudents((prev) => prev.map((s) => (s.student_id === row.student_id ? { ...s, note: trimmed } : s)));
+  const persistNote = async (row: StudentRow, value: string) => {
+    setStudents((prev) => prev.map((s) => (s.student_id === row.student_id ? { ...s, note: value } : s)));
     const { error } = await supabase.rpc("edu_participation_set_note", {
-      p_dept_id: deptId, p_student_id: row.student_id, p_check_date: date, p_note: trimmed,
+      p_dept_id: deptId, p_student_id: row.student_id, p_check_date: date, p_note: value,
     });
-    if (error) showToast(`비고 저장 실패: ${error.message}`);
+    if (error) {
+      showToast(`비고 저장 실패: ${error.message}`);
+      return false;
+    }
+    return true;
   };
 
-  const parseCount = (value: string) => {
-    const n = parseInt(value, 10);
-    return Number.isFinite(n) && n >= 0 ? n : 0;
-  };
-
-  const saveNewFriends = async (row: StudentRow, maleValue: string, femaleValue: string) => {
-    const male = parseCount(maleValue);
-    const female = parseCount(femaleValue);
-    if (male === row.new_friend_male_count && female === row.new_friend_female_count) return;
+  const persistNewFriends = async (row: StudentRow, male: number, female: number) => {
     setStudents((prev) => prev.map((s) => (
       s.student_id === row.student_id ? { ...s, new_friend_male_count: male, new_friend_female_count: female } : s
     )));
@@ -205,7 +255,9 @@ export default function ParticipationCheckPage() {
           : s
       )));
       showToast(`새친구 수 저장 실패: ${error.message}`);
+      return false;
     }
+    return true;
   };
 
   const cycleTeacherStatus = async (row: TeacherRow) => {
@@ -220,15 +272,74 @@ export default function ParticipationCheckPage() {
     }
   };
 
-  const saveTeacherNote = async (row: TeacherRow, value: string) => {
-    const trimmed = value;
-    if ((row.note || "") === trimmed) return;
-    setTeachers((prev) => prev.map((t) => (t.teacher_id === row.teacher_id ? { ...t, note: trimmed } : t)));
+  const persistTeacherNote = async (row: TeacherRow, value: string) => {
+    setTeachers((prev) => prev.map((t) => (t.teacher_id === row.teacher_id ? { ...t, note: value } : t)));
     const { error } = await supabase.rpc("edu_participation_teacher_set_note", {
-      p_dept_id: deptId, p_teacher_id: row.teacher_id, p_check_date: date, p_note: trimmed,
+      p_dept_id: deptId, p_teacher_id: row.teacher_id, p_check_date: date, p_note: value,
     });
-    if (error) showToast(`비고 저장 실패: ${error.message}`);
+    if (error) {
+      showToast(`비고 저장 실패: ${error.message}`);
+      return false;
+    }
+    return true;
   };
+
+  // ── 저장 (남은 입력 일괄) ──
+  // 입력칸을 벗어나지 않은 값(모바일에서 키보드를 닫지 않은 경우 등)까지 확정 저장한다.
+
+  const pendingCount = useMemo(() => {
+    let count = 0;
+    students.forEach((s) => {
+      const note = noteDraft[s.student_id];
+      if (note !== undefined && note !== (s.note ?? "")) count += 1;
+      const nf = newFriendDraft[s.student_id];
+      if (nf) {
+        if (parseCount(nf.male) !== s.new_friend_male_count) count += 1;
+        else if (parseCount(nf.female) !== s.new_friend_female_count) count += 1;
+      }
+    });
+    teachers.forEach((t) => {
+      const note = teacherNoteDraft[t.teacher_id];
+      if (note !== undefined && note !== (t.note ?? "")) count += 1;
+    });
+    return count;
+  }, [students, teachers, noteDraft, teacherNoteDraft, newFriendDraft]);
+
+  const flushDrafts = async () => {
+    let saved = 0;
+    let failed = 0;
+    for (const row of students) {
+      const note = noteDraft[row.student_id];
+      if (note !== undefined && note !== (row.note ?? "")) {
+        if (await persistNote(row, note)) saved += 1; else failed += 1;
+      }
+      const nf = newFriendDraft[row.student_id];
+      if (nf) {
+        const male = parseCount(nf.male);
+        const female = parseCount(nf.female);
+        if (male !== row.new_friend_male_count || female !== row.new_friend_female_count) {
+          if (await persistNewFriends(row, male, female)) saved += 1; else failed += 1;
+        }
+      }
+    }
+    for (const row of teachers) {
+      const note = teacherNoteDraft[row.teacher_id];
+      if (note !== undefined && note !== (row.note ?? "")) {
+        if (await persistTeacherNote(row, note)) saved += 1; else failed += 1;
+      }
+    }
+    return { saved, failed };
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { saved, failed } = await flushDrafts();
+    setSaving(false);
+    if (failed > 0) return; // 실패 사유는 각 저장 함수가 토스트로 알린다
+    showToast(saved > 0 ? `${saved}건 저장했습니다` : "이미 모두 저장되어 있습니다");
+  };
+
+  // ── 통계 ──
 
   const gradeYears = useMemo(() => {
     const set = new Set<number>();
@@ -236,110 +347,124 @@ export default function ParticipationCheckPage() {
     return Array.from(set).sort((a, b) => a - b);
   }, [students]);
 
-  const stats = useMemo(() => {
-    const byGrade: Record<number, { male: number; female: number; total: number }> = {};
-    gradeYears.forEach((g) => { byGrade[g] = { male: 0, female: 0, total: 0 }; });
-    let totalMale = 0, totalFemale = 0, total = 0;
+  const attend = useMemo(() => {
+    const rows: GradeTally[] = gradeYears.map((grade) => ({ grade, male: 0, female: 0, total: 0 }));
+    const byGrade = new Map(rows.map((r) => [r.grade, r]));
+    const total: Tally = { male: 0, female: 0, total: 0 };
     students.forEach((s) => {
       if (s.status !== "참석") return;
-      total += 1;
-      const isMale = s.gender === "M" || s.gender === "남";
-      const isFemale = s.gender === "F" || s.gender === "여";
-      if (isMale) totalMale += 1;
-      if (isFemale) totalFemale += 1;
-      if (s.grade_year && byGrade[s.grade_year]) {
-        byGrade[s.grade_year].total += 1;
-        if (isMale) byGrade[s.grade_year].male += 1;
-        if (isFemale) byGrade[s.grade_year].female += 1;
+      const male = s.gender === "M" || s.gender === "남";
+      const female = s.gender === "F" || s.gender === "여";
+      total.total += 1;
+      if (male) total.male += 1;
+      if (female) total.female += 1;
+      const row = s.grade_year ? byGrade.get(s.grade_year) : undefined;
+      if (row) {
+        row.total += 1;
+        if (male) row.male += 1;
+        if (female) row.female += 1;
       }
     });
-    return { byGrade, total, totalMale, totalFemale };
+    return { rows, total };
   }, [students, gradeYears]);
 
-  const newFriendStats = useMemo(() => {
-    const byGrade: Record<number, { male: number; female: number; total: number }> = {};
-    gradeYears.forEach((g) => { byGrade[g] = { male: 0, female: 0, total: 0 }; });
-    let totalMale = 0, totalFemale = 0;
+  const newFriend = useMemo(() => {
+    const rows: GradeTally[] = gradeYears.map((grade) => ({ grade, male: 0, female: 0, total: 0 }));
+    const byGrade = new Map(rows.map((r) => [r.grade, r]));
+    const total: Tally = { male: 0, female: 0, total: 0 };
     students.forEach((s) => {
       const male = s.new_friend_male_count || 0;
       const female = s.new_friend_female_count || 0;
       if (male === 0 && female === 0) return;
-      totalMale += male;
-      totalFemale += female;
-      if (s.grade_year && byGrade[s.grade_year]) {
-        byGrade[s.grade_year].male += male;
-        byGrade[s.grade_year].female += female;
-        byGrade[s.grade_year].total += male + female;
+      total.male += male;
+      total.female += female;
+      total.total += male + female;
+      const row = s.grade_year ? byGrade.get(s.grade_year) : undefined;
+      if (row) {
+        row.male += male;
+        row.female += female;
+        row.total += male + female;
       }
     });
-    return { byGrade, total: totalMale + totalFemale, totalMale, totalFemale };
+    return { rows, total };
   }, [students, gradeYears]);
 
+  const teacherStats = useMemo(() => ({
+    present: teachers.filter((t) => t.status === "참석").length,
+    total: teachers.length,
+  }), [teachers]);
+
   const classGroups = useMemo(() => groupByClass(students), [students]);
-
-  const teacherStats = useMemo(() => {
-    const present = teachers.filter((t) => t.status === "참석").length;
-    return { present, total: teachers.length };
-  }, [teachers]);
-
   const presentTeachers = useMemo(() => teachers.filter((t) => t.status === "참석"), [teachers]);
   const presentClassGroups = useMemo(
     () => groupByClass(students.filter((s) => s.status === "참석")),
     [students],
   );
 
+  // ── 카톡 공유용 텍스트 ──
+
   const buildOutputText = () => {
     const lines: string[] = [];
-    lines.push(`[${deptName || "부서"} 참여율 조사] ${monthDayLabel(date)}`);
+    lines.push(`[${deptName || "부서"} 참여현황] ${dateLabel(date)}`);
     lines.push("");
-    lines.push("■ 통계");
-    lines.push(`학년별 참석: ${gradeYears.length ? gradeYears.map((g) => `${g}학년 ${stats.byGrade[g].total}명`).join(" · ") : "-"}`);
-    lines.push(`학년별 남/여: ${gradeYears.length ? gradeYears.map((g) => `${g}학년(남${stats.byGrade[g].male}·여${stats.byGrade[g].female})`).join(" · ") : "-"}`);
-    lines.push(`총 참석: ${stats.total}명`);
-    lines.push(`총 남/여: 남${stats.totalMale}·여${stats.totalFemale}`);
-    lines.push(`교사 출석: ${teacherStats.present}/${teacherStats.total}명`);
-    lines.push("");
-    lines.push("■ 새친구");
-    lines.push(`학년별: ${gradeYears.length ? gradeYears.map((g) => `${g}학년 ${newFriendStats.byGrade[g].total}명`).join(" · ") : "-"}`);
-    lines.push(`학년별 남/여: ${gradeYears.length ? gradeYears.map((g) => `${g}학년(남${newFriendStats.byGrade[g].male}·여${newFriendStats.byGrade[g].female})`).join(" · ") : "-"}`);
-    lines.push(`총 새친구 수: ${newFriendStats.total}명`);
-    lines.push(`총 새친구 남/여: 남${newFriendStats.totalMale}·여${newFriendStats.totalFemale}`);
-    lines.push("");
-    lines.push("■ 참석자 명단");
-    if (presentTeachers.length === 0 && presentClassGroups.length === 0) {
-      lines.push("(참석자 없음)");
+    lines.push(`■ 학생 출석 — 총 ${attend.total.total}명 (남${attend.total.male}·여${attend.total.female})`);
+    if (attend.rows.length === 0) {
+      lines.push("  등록된 학생이 없습니다");
     } else {
-      if (presentTeachers.length > 0) {
-        lines.push("[교사]");
-        presentTeachers.forEach((t) => {
-          const noteTxt = t.note && t.note.trim() ? ` - 비고: ${t.note.trim()}` : "";
-          lines.push(`- ${t.name}${t.teacher_role ? `(${t.teacher_role})` : ""} 선생님${noteTxt}`);
-        });
-        lines.push("");
-      }
+      attend.rows.forEach((r) => lines.push(`  ${r.grade}학년 ${r.total}명 (남${r.male}·여${r.female})`));
+    }
+    lines.push("");
+    lines.push(`■ 새친구 — 총 ${newFriend.total.total}명 (남${newFriend.total.male}·여${newFriend.total.female})`);
+    if (newFriend.total.total === 0) {
+      lines.push("  없음");
+    } else {
+      newFriend.rows.forEach((r) => lines.push(`  ${r.grade}학년 ${r.total}명 (남${r.male}·여${r.female})`));
+    }
+    lines.push("");
+    lines.push(`■ 교사 출석 — ${teacherStats.present}/${teacherStats.total}명`);
+    lines.push("");
+    lines.push("■ 참석 명단");
+    if (presentClassGroups.length === 0 && presentTeachers.length === 0) {
+      lines.push("  참석 체크된 인원이 없습니다");
+    } else {
       presentClassGroups.forEach(({ students: rows }) => {
         const head = rows[0];
-        lines.push(`[${classLabel(head)}${head.teacher_name ? ` · ${head.teacher_name} 선생님` : ""}]`);
+        const teacher = head.teacher_name ? ` (${head.teacher_name} 선생님)` : "";
+        lines.push(`· ${classLabel(head)}${teacher} ${rows.length}명`);
         rows.forEach((r) => {
-          const g = genderLabel(r.gender);
-          const noteTxt = r.note && r.note.trim() ? ` - 비고: ${r.note.trim()}` : "";
-          lines.push(`- ${r.name}${g ? `(${g})` : ""}${noteTxt}`);
+          const parts = [`${r.name}${genderLabel(r.gender) ? `(${genderLabel(r.gender)})` : ""}`];
+          const friends = (r.new_friend_male_count || 0) + (r.new_friend_female_count || 0);
+          if (friends > 0) parts.push(`새친구 ${friends}명`);
+          if (r.note && r.note.trim()) parts.push(r.note.trim());
+          lines.push(`  - ${parts.join(" / ")}`);
         });
-        lines.push("");
       });
+      if (presentTeachers.length > 0) {
+        lines.push(`· 교사 ${presentTeachers.length}명`);
+        presentTeachers.forEach((t) => {
+          const parts = [`${t.name}${roleLabel(t.teacher_role) ? `(${roleLabel(t.teacher_role)})` : ""}`];
+          if (t.note && t.note.trim()) parts.push(t.note.trim());
+          lines.push(`  - ${parts.join(" / ")}`);
+        });
+      }
     }
     return lines.join("\n").trimEnd();
   };
 
   const doCopy = async () => {
-    const text = buildOutputText();
+    setSaving(true);
+    const { failed } = await flushDrafts();
+    setSaving(false);
+    if (failed > 0) return;
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(buildOutputText());
       showToast("복사되었습니다 — 카톡방에 붙여넣기 하세요");
     } catch {
       showToast("복사에 실패했습니다");
     }
   };
+
+  // ── 렌더 ──
 
   if (!authChecked) return <main style={pageStyle}><LoadingView full /></main>;
 
@@ -369,7 +494,7 @@ export default function ParticipationCheckPage() {
       </header>
 
       <div style={containerStyle}>
-        <div style={titleRowStyle}>
+        <div style={{ marginBottom: 14 }}>
           <div style={eyebrowStyle}>{deptName} · 부서관리</div>
           <h1 style={titleStyle}>참여율 조사</h1>
         </div>
@@ -394,193 +519,227 @@ export default function ParticipationCheckPage() {
         ) : (
           <>
             {/* 통계 */}
-            <div style={statsCardStyle}>
-              <div style={statsTitleStyle}><Users size={15} strokeWidth={2} /> 통계 (참석 기준)</div>
-              <div style={statsRowStyle}>
-                <span style={statsLabelStyle}>학년별</span>
-                <span>{gradeYears.length ? gradeYears.map((g) => `${g}학년 ${stats.byGrade[g].total}명`).join(" · ") : "-"}</span>
-              </div>
-              <div style={statsRowStyle}>
-                <span style={statsLabelStyle}>학년별 남/여</span>
-                <span>{gradeYears.length ? gradeYears.map((g) => `${g}학년(남${stats.byGrade[g].male}·여${stats.byGrade[g].female})`).join(" · ") : "-"}</span>
-              </div>
-              <div style={statsRowStyle}>
-                <span style={statsLabelStyle}>총 참석</span>
-                <span style={{ fontWeight: 800, color: "var(--accent-strong)" }}>{stats.total}명</span>
-              </div>
-              <div style={statsRowStyle}>
-                <span style={statsLabelStyle}>총 남/여</span>
-                <span>남{stats.totalMale}명 · 여{stats.totalFemale}명</span>
-              </div>
-              <div style={statsRowStyle}>
-                <span style={statsLabelStyle}>교사 출석</span>
-                <span>{teacherStats.present}/{teacherStats.total}명</span>
-              </div>
-              <div style={listGroupStyle}>
-                <div style={listGroupTitleStyle}>새친구</div>
-                <div style={statsRowStyle}>
-                  <span style={statsLabelStyle}>학년별</span>
-                  <span>{gradeYears.length ? gradeYears.map((g) => `${g}학년 ${newFriendStats.byGrade[g].total}명`).join(" · ") : "-"}</span>
-                </div>
-                <div style={statsRowStyle}>
-                  <span style={statsLabelStyle}>학년별 남/여</span>
-                  <span>{gradeYears.length ? gradeYears.map((g) => `${g}학년(남${newFriendStats.byGrade[g].male}·여${newFriendStats.byGrade[g].female})`).join(" · ") : "-"}</span>
-                </div>
-                <div style={statsRowStyle}>
-                  <span style={statsLabelStyle}>총 새친구 수</span>
-                  <span style={{ fontWeight: 800, color: "var(--accent-strong)" }}>{newFriendStats.total}명</span>
-                </div>
-                <div style={statsRowStyle}>
-                  <span style={statsLabelStyle}>총 남/여</span>
-                  <span>남{newFriendStats.totalMale}명 · 여{newFriendStats.totalFemale}명</span>
-                </div>
-              </div>
-            </div>
+            <section style={cardStyle}>
+              <div style={cardTitleStyle}>학생 출석 <span style={cardTitleSubStyle}>참석 체크 기준</span></div>
+              <GradeStatTable rows={attend.rows} total={attend.total} emptyLabel="등록된 학생이 없습니다" />
 
-            {/* 참석자 명단 (실시간) */}
-            <div style={statsCardStyle}>
-              <div style={statsTitleStyle}>참석자 명단</div>
-              {presentTeachers.length === 0 && presentClassGroups.length === 0 ? (
-                <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>아직 참석 체크된 인원이 없습니다</div>
+              <div style={cardDividerStyle} />
+              <div style={cardTitleStyle}>새친구 <span style={cardTitleSubStyle}>학생이 데려온 인원</span></div>
+              <GradeStatTable rows={newFriend.rows} total={newFriend.total} emptyLabel="등록된 학생이 없습니다" />
+
+              <div style={cardDividerStyle} />
+              <div style={inlineStatStyle}>
+                <span style={inlineStatLabelStyle}>교사 출석</span>
+                <span style={inlineStatValueStyle}>{teacherStats.present}<span style={{ color: "var(--ink-faint)", fontWeight: 600 }}> / {teacherStats.total}명</span></span>
+              </div>
+            </section>
+
+            {/* 참석 명단 (실시간) */}
+            <section style={cardStyle}>
+              <div style={cardTitleStyle}>
+                참석 명단
+                <span style={cardTitleSubStyle}>학생 {attend.total.total}명 · 교사 {teacherStats.present}명</span>
+              </div>
+              {presentClassGroups.length === 0 && presentTeachers.length === 0 ? (
+                <div style={emptyLineStyle}>아직 참석 체크된 인원이 없습니다</div>
               ) : (
-                <>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+                  {presentClassGroups.map(({ classNo, students: rows }) => {
+                    const head = rows[0];
+                    return (
+                      <div key={classNo}>
+                        <div style={rosterGroupTitleStyle}>
+                          <span>{classLabel(head)}{head.teacher_name && ` · ${head.teacher_name} 선생님`}</span>
+                          <span style={{ color: "var(--ink-faint)", fontWeight: 700 }}>{rows.length}명</span>
+                        </div>
+                        {rows.map((r) => {
+                          const friends = (r.new_friend_male_count || 0) + (r.new_friend_female_count || 0);
+                          return (
+                            <div key={r.student_id} style={rosterRowStyle}>
+                              <span style={{ fontWeight: 600 }}>{r.name}</span>
+                              {genderLabel(r.gender) && <span style={rosterMetaStyle}>{genderLabel(r.gender)}</span>}
+                              {friends > 0 && <span style={rosterBadgeStyle}>새친구 {friends}</span>}
+                              {r.note && r.note.trim() && <span style={rosterNoteStyle}>{r.note.trim()}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
                   {presentTeachers.length > 0 && (
-                    <div style={listGroupStyle}>
-                      <div style={listGroupTitleStyle}>교사</div>
+                    <div>
+                      <div style={rosterGroupTitleStyle}>
+                        <span>교사</span>
+                        <span style={{ color: "var(--ink-faint)", fontWeight: 700 }}>{presentTeachers.length}명</span>
+                      </div>
                       {presentTeachers.map((t) => (
-                        <div key={t.teacher_id} style={listRowStyle}>
-                          - {t.name}{t.teacher_role ? `(${t.teacher_role})` : ""} 선생님
-                          {t.note && t.note.trim() && <span style={{ color: "var(--ink-faint)" }}> — 비고: {t.note.trim()}</span>}
+                        <div key={t.teacher_id} style={rosterRowStyle}>
+                          <span style={{ fontWeight: 600 }}>{t.name}</span>
+                          {roleLabel(t.teacher_role) && <span style={rosterMetaStyle}>{roleLabel(t.teacher_role)}</span>}
+                          {t.note && t.note.trim() && <span style={rosterNoteStyle}>{t.note.trim()}</span>}
                         </div>
                       ))}
                     </div>
                   )}
-                  {presentClassGroups.map(({ classNo, students: rows }) => {
-                    const head = rows[0];
-                    return (
-                      <div key={classNo} style={listGroupStyle}>
-                        <div style={listGroupTitleStyle}>
-                          {classLabel(head)}{head.teacher_name && ` · ${head.teacher_name} 선생님`}
-                        </div>
-                        {rows.map((r) => (
-                          <div key={r.student_id} style={listRowStyle}>
-                            - {r.name}{genderLabel(r.gender) && `(${genderLabel(r.gender)})`}
-                            {r.note && r.note.trim() && <span style={{ color: "var(--ink-faint)" }}> — 비고: {r.note.trim()}</span>}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </>
+                </div>
               )}
+            </section>
+
+            <div style={hintStyle}>
+              참석·불참 체크는 누르는 즉시 저장됩니다. 비고와 새친구 수는 입력칸을 벗어날 때 저장되며,
+              아래 <strong style={{ fontWeight: 700 }}>저장</strong> 버튼으로 한 번에 확정할 수 있습니다.
             </div>
 
-            <button type="button" onClick={doCopy} style={copyButtonStyle}>
-              <Copy size={15} strokeWidth={2} /> 통계·명단 복사하기
-            </button>
-
-            {/* 교사 체크리스트 */}
+            {/* 교사 체크 */}
             {teachers.length > 0 && (
-              <div style={classCardStyle}>
-                <div style={classHeadStyle}>교사</div>
+              <section style={cardStyle}>
+                <div style={cardTitleStyle}>교사 체크 <span style={cardTitleSubStyle}>{teachers.length}명</span></div>
                 {teachers.map((row) => (
-                  <div key={row.teacher_id} style={studentRowStyle}>
-                    <button
-                      type="button"
-                      onClick={() => cycleTeacherStatus(row)}
-                      style={{ ...statusPillStyle, background: `color-mix(in srgb, ${STATUS_COLOR[row.status]} 14%, transparent)`, color: STATUS_COLOR[row.status] }}
-                    >
-                      {row.status || "미체크"}
-                    </button>
-                    <span style={studentNameStyle}>
-                      {row.name}
-                      {row.teacher_role && <span style={{ color: "var(--ink-faint)", fontWeight: 600 }}> ({row.teacher_role})</span>}
-                    </span>
-                    <input
-                      type="text"
-                      placeholder="비고"
-                      value={teacherNoteDraft[row.teacher_id] ?? row.note ?? ""}
-                      onChange={(e) => setTeacherNoteDraft((prev) => ({ ...prev, [row.teacher_id]: e.target.value }))}
-                      onBlur={(e) => saveTeacherNote(row, e.target.value)}
-                      style={noteInputStyle}
-                    />
+                  <div key={row.teacher_id} style={checkRowStyle}>
+                    <div style={checkRowTopStyle}>
+                      <button
+                        type="button"
+                        onClick={() => cycleTeacherStatus(row)}
+                        style={{
+                          ...statusPillStyle,
+                          background: `color-mix(in srgb, ${STATUS_COLOR[row.status]} 14%, transparent)`,
+                          color: STATUS_COLOR[row.status],
+                        }}
+                      >
+                        {row.status || "미체크"}
+                      </button>
+                      <span style={personNameStyle}>
+                        {row.name}
+                        {roleLabel(row.teacher_role) && <span style={personMetaStyle}> {roleLabel(row.teacher_role)}</span>}
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="비고"
+                        value={teacherNoteDraft[row.teacher_id] ?? row.note ?? ""}
+                        onChange={(e) => setTeacherNoteDraft((prev) => ({ ...prev, [row.teacher_id]: e.target.value }))}
+                        onBlur={(e) => {
+                          if (e.target.value !== (row.note ?? "")) persistTeacherNote(row, e.target.value);
+                        }}
+                        style={noteInputStyle}
+                      />
+                    </div>
                   </div>
                 ))}
-              </div>
+              </section>
             )}
 
-            {/* 반별 체크리스트 */}
+            {/* 반별 학생 체크 */}
             {classGroups.length === 0 ? (
-              <div style={{ padding: 40, textAlign: "center", color: "var(--ink-faint)", fontSize: 13 }}>등록된 학생이 없습니다</div>
+              <div style={emptyLineStyle}>등록된 학생이 없습니다</div>
             ) : (
               classGroups.map(({ classNo, students: rows }) => {
                 const head = rows[0];
+                const presentCount = rows.filter((r) => r.status === "참석").length;
                 return (
-                  <div key={classNo} style={classCardStyle}>
-                    <div style={classHeadStyle}>
+                  <section key={classNo} style={cardStyle}>
+                    <div style={cardTitleStyle}>
                       {classLabel(head)}
-                      {head.teacher_name && <span style={{ color: "var(--ink-faint)", fontWeight: 600 }}> · {head.teacher_name} 선생님</span>}
+                      <span style={cardTitleSubStyle}>
+                        {head.teacher_name ? `${head.teacher_name} 선생님 · ` : ""}참석 {presentCount}/{rows.length}
+                      </span>
                     </div>
-                    {rows.map((row) => (
-                      <div key={row.student_id} style={studentRowStyle}>
-                        <button
-                          type="button"
-                          onClick={() => cycleStatus(row)}
-                          style={{ ...statusPillStyle, background: `color-mix(in srgb, ${STATUS_COLOR[row.status]} 14%, transparent)`, color: STATUS_COLOR[row.status] }}
-                        >
-                          {row.status || "미체크"}
-                        </button>
-                        <span style={studentNameStyle}>
-                          {row.name}
-                          {genderLabel(row.gender) && <span style={{ color: "var(--ink-faint)", fontWeight: 600 }}> ({genderLabel(row.gender)})</span>}
-                        </span>
-                        <div style={newFriendGroupStyle}>
-                          <span style={newFriendLabelStyle}>새친구</span>
-                          <label style={newFriendFieldStyle}>
-                            남
+                    {rows.map((row) => {
+                      const draft = newFriendDraft[row.student_id];
+                      const maleValue = draft?.male ?? String(row.new_friend_male_count);
+                      const femaleValue = draft?.female ?? String(row.new_friend_female_count);
+                      return (
+                        <div key={row.student_id} style={checkRowStyle}>
+                          <div style={checkRowTopStyle}>
+                            <button
+                              type="button"
+                              onClick={() => cycleStatus(row)}
+                              style={{
+                                ...statusPillStyle,
+                                background: `color-mix(in srgb, ${STATUS_COLOR[row.status]} 14%, transparent)`,
+                                color: STATUS_COLOR[row.status],
+                              }}
+                            >
+                              {row.status || "미체크"}
+                            </button>
+                            <span style={personNameStyle}>
+                              {row.name}
+                              {genderLabel(row.gender) && <span style={personMetaStyle}> {genderLabel(row.gender)}</span>}
+                            </span>
+                          </div>
+                          <div style={checkRowBottomStyle}>
+                            <div style={newFriendGroupStyle}>
+                              <span style={newFriendLabelStyle}>새친구</span>
+                              <label style={newFriendFieldStyle}>
+                                남
+                                <input
+                                  type="number"
+                                  min={0}
+                                  inputMode="numeric"
+                                  value={maleValue}
+                                  onChange={(e) => setNewFriendDraft((prev) => ({
+                                    ...prev,
+                                    [row.student_id]: { female: femaleValue, male: e.target.value },
+                                  }))}
+                                  onBlur={(e) => {
+                                    const male = parseCount(e.target.value);
+                                    const female = parseCount(femaleValue);
+                                    if (male !== row.new_friend_male_count || female !== row.new_friend_female_count) {
+                                      persistNewFriends(row, male, female);
+                                    }
+                                  }}
+                                  style={newFriendInputStyle}
+                                />
+                              </label>
+                              <label style={newFriendFieldStyle}>
+                                여
+                                <input
+                                  type="number"
+                                  min={0}
+                                  inputMode="numeric"
+                                  value={femaleValue}
+                                  onChange={(e) => setNewFriendDraft((prev) => ({
+                                    ...prev,
+                                    [row.student_id]: { male: maleValue, female: e.target.value },
+                                  }))}
+                                  onBlur={(e) => {
+                                    const male = parseCount(maleValue);
+                                    const female = parseCount(e.target.value);
+                                    if (male !== row.new_friend_male_count || female !== row.new_friend_female_count) {
+                                      persistNewFriends(row, male, female);
+                                    }
+                                  }}
+                                  style={newFriendInputStyle}
+                                />
+                              </label>
+                            </div>
                             <input
-                              type="number"
-                              min={0}
-                              inputMode="numeric"
-                              value={newFriendDraft[row.student_id]?.male ?? String(row.new_friend_male_count)}
-                              onChange={(e) => setNewFriendDraft((prev) => ({
-                                ...prev,
-                                [row.student_id]: { female: prev[row.student_id]?.female ?? String(row.new_friend_female_count), male: e.target.value },
-                              }))}
-                              onBlur={(e) => saveNewFriends(row, e.target.value, newFriendDraft[row.student_id]?.female ?? String(row.new_friend_female_count))}
-                              style={newFriendInputStyle}
+                              type="text"
+                              placeholder="비고 (특이사항)"
+                              value={noteDraft[row.student_id] ?? row.note ?? ""}
+                              onChange={(e) => setNoteDraft((prev) => ({ ...prev, [row.student_id]: e.target.value }))}
+                              onBlur={(e) => {
+                                if (e.target.value !== (row.note ?? "")) persistNote(row, e.target.value);
+                              }}
+                              style={noteInputStyle}
                             />
-                          </label>
-                          <label style={newFriendFieldStyle}>
-                            여
-                            <input
-                              type="number"
-                              min={0}
-                              inputMode="numeric"
-                              value={newFriendDraft[row.student_id]?.female ?? String(row.new_friend_female_count)}
-                              onChange={(e) => setNewFriendDraft((prev) => ({
-                                ...prev,
-                                [row.student_id]: { male: prev[row.student_id]?.male ?? String(row.new_friend_male_count), female: e.target.value },
-                              }))}
-                              onBlur={(e) => saveNewFriends(row, newFriendDraft[row.student_id]?.male ?? String(row.new_friend_male_count), e.target.value)}
-                              style={newFriendInputStyle}
-                            />
-                          </label>
+                          </div>
                         </div>
-                        <input
-                          type="text"
-                          placeholder="비고"
-                          value={noteDraft[row.student_id] ?? row.note ?? ""}
-                          onChange={(e) => setNoteDraft((prev) => ({ ...prev, [row.student_id]: e.target.value }))}
-                          onBlur={(e) => saveNote(row, e.target.value)}
-                          style={noteInputStyle}
-                        />
-                      </div>
-                    ))}
-                  </div>
+                      );
+                    })}
+                  </section>
                 );
               })
             )}
+
+            {/* 하단 고정 액션 */}
+            <div style={actionBarStyle}>
+              <button type="button" onClick={handleSave} disabled={saving} style={saveButtonStyle}>
+                <Save size={15} strokeWidth={2} /> 저장{pendingCount > 0 ? ` (${pendingCount})` : ""}
+              </button>
+              <button type="button" onClick={doCopy} disabled={saving} style={copyButtonStyle}>
+                <Copy size={15} strokeWidth={2} /> 통계·명단 복사
+              </button>
+            </div>
           </>
         )}
       </div>
@@ -593,29 +752,50 @@ export default function ParticipationCheckPage() {
 const pageStyle: CSSProperties = { minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" };
 const headerStyle: CSSProperties = { background: "var(--card)", borderBottom: "1px solid var(--hairline)", padding: "10px clamp(12px,4vw,20px)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 };
 const backBtnStyle: CSSProperties = { padding: "8px 14px", background: "var(--bg-soft)", border: "none", borderRadius: 8, fontSize: 13, color: "var(--ink-mid)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 };
-const containerStyle: CSSProperties = { maxWidth: 640, margin: "0 auto", padding: "20px 16px 60px" };
-const titleRowStyle: CSSProperties = { marginBottom: 14 };
+const containerStyle: CSSProperties = { maxWidth: 640, margin: "0 auto", padding: "20px 16px 24px" };
 const eyebrowStyle: CSSProperties = { fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600 };
 const titleStyle: CSSProperties = { fontSize: 20, fontWeight: 800, color: "var(--ink)", margin: "2px 0 0" };
-const dateBarStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 16 };
+const dateBarStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 14 };
 const iconButtonStyle: CSSProperties = { width: 34, height: 34, display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--card)", color: "var(--ink-mid)", cursor: "pointer" };
 const dateInputStyle: CSSProperties = { padding: "8px 10px", border: "1.5px solid var(--hairline)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "var(--card)", color: "var(--ink)" };
-const statsCardStyle: CSSProperties = { background: "var(--card)", borderRadius: 14, padding: "14px 16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.05)", display: "flex", flexDirection: "column", gap: 6 };
-const statsTitleStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 800, color: "var(--ink)", marginBottom: 4 };
-const statsRowStyle: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12.5, color: "var(--ink-mid)" };
-const statsLabelStyle: CSSProperties = { color: "var(--ink-faint)", fontWeight: 700, flexShrink: 0 };
-const listGroupStyle: CSSProperties = { marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--hairline)" };
-const listGroupTitleStyle: CSSProperties = { fontSize: 12, fontWeight: 800, color: "var(--ink-soft)", marginBottom: 4 };
-const listRowStyle: CSSProperties = { fontSize: 12.5, color: "var(--ink)", lineHeight: 1.7 };
-const copyButtonStyle: CSSProperties = { width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px", marginBottom: 18, background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 10, fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const classCardStyle: CSSProperties = { background: "var(--card)", borderRadius: 14, padding: "12px 14px", marginBottom: 10, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
-const classHeadStyle: CSSProperties = { fontSize: 13, fontWeight: 800, color: "var(--ink)", marginBottom: 8 };
-const studentRowStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderTop: "1px solid var(--hairline)", flexWrap: "wrap" };
-const newFriendGroupStyle: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 8px", borderRadius: 8, background: "var(--bg-soft)", flexShrink: 0 };
+
+const cardStyle: CSSProperties = { background: "var(--card)", borderRadius: 14, padding: "14px 16px", marginBottom: 10, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
+const cardTitleStyle: CSSProperties = { display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, fontSize: 13.5, fontWeight: 800, color: "var(--ink)", marginBottom: 8 };
+const cardTitleSubStyle: CSSProperties = { fontSize: 11.5, fontWeight: 600, color: "var(--ink-faint)", textAlign: "right" };
+const cardDividerStyle: CSSProperties = { height: 1, background: "var(--hairline)", margin: "14px 0" };
+const emptyLineStyle: CSSProperties = { fontSize: 12.5, color: "var(--ink-faint)", padding: "6px 0" };
+
+const tableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse", tableLayout: "fixed" };
+const thStyle: CSSProperties = { padding: "4px 6px", textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--ink-faint)", borderBottom: "1px solid var(--hairline)" };
+const tdStyle: CSSProperties = { padding: "6px", textAlign: "center", fontSize: 13, fontWeight: 500, color: "var(--ink-mid)" };
+const totalTdStyle: CSSProperties = { padding: "7px 6px", textAlign: "center", fontSize: 13.5, fontWeight: 800, color: "var(--ink)", borderTop: "1px solid var(--hairline)" };
+
+const inlineStatStyle: CSSProperties = { display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 };
+const inlineStatLabelStyle: CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--ink)" };
+const inlineStatValueStyle: CSSProperties = { fontSize: 15, fontWeight: 800, color: "var(--accent-strong)" };
+
+const rosterGroupTitleStyle: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12, fontWeight: 800, color: "var(--ink-soft)", padding: "4px 0", borderBottom: "1px solid var(--hairline)", marginBottom: 3 };
+const rosterRowStyle: CSSProperties = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, fontSize: 12.5, color: "var(--ink)", padding: "2px 0" };
+const rosterMetaStyle: CSSProperties = { fontSize: 11, color: "var(--ink-faint)", fontWeight: 600 };
+const rosterBadgeStyle: CSSProperties = { fontSize: 10.5, fontWeight: 700, color: "var(--accent-strong)", background: "color-mix(in srgb, var(--accent) 12%, transparent)", padding: "1px 6px", borderRadius: 999 };
+const rosterNoteStyle: CSSProperties = { fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 500 };
+
+const hintStyle: CSSProperties = { fontSize: 11.5, lineHeight: 1.6, color: "var(--ink-faint)", padding: "2px 4px 12px" };
+
+const checkRowStyle: CSSProperties = { padding: "8px 0", borderTop: "1px solid var(--hairline)" };
+const checkRowTopStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 8 };
+const checkRowBottomStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 8, marginTop: 6, paddingLeft: 64 };
+const statusPillStyle: CSSProperties = { flexShrink: 0, width: 56, padding: "7px 0", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" };
+const personNameStyle: CSSProperties = { fontSize: 14, fontWeight: 700, color: "var(--ink)", flex: "0 1 auto", minWidth: 0 };
+const personMetaStyle: CSSProperties = { fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600 };
+
+const newFriendGroupStyle: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 8, background: "var(--bg-soft)", flexShrink: 0 };
 const newFriendLabelStyle: CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--ink-faint)" };
 const newFriendFieldStyle: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 600, color: "var(--ink-soft)" };
-const newFriendInputStyle: CSSProperties = { width: 36, padding: "3px 4px", border: "1px solid var(--hairline)", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "var(--card)", color: "var(--ink)", textAlign: "center" };
-const statusPillStyle: CSSProperties = { flexShrink: 0, minWidth: 56, padding: "6px 8px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" };
-const studentNameStyle: CSSProperties = { fontSize: 13.5, fontWeight: 700, color: "var(--ink)", flex: "0 1 auto", whiteSpace: "nowrap" };
-const noteInputStyle: CSSProperties = { flex: "1 1 140px", minWidth: 100, padding: "6px 8px", border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 12.5, fontFamily: "inherit", background: "var(--card)", color: "var(--ink)" };
-const toastStyle: CSSProperties = { position: "fixed", bottom: 40, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap" };
+const newFriendInputStyle: CSSProperties = { width: 34, padding: "3px 2px", border: "1px solid var(--hairline)", borderRadius: 6, fontSize: 12, fontFamily: "inherit", background: "var(--card)", color: "var(--ink)", textAlign: "center" };
+const noteInputStyle: CSSProperties = { flex: "1 1 90px", minWidth: 0, padding: "6px 8px", border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 12.5, fontFamily: "inherit", background: "var(--card)", color: "var(--ink)" };
+
+const actionBarStyle: CSSProperties = { position: "sticky", bottom: 0, display: "flex", gap: 8, padding: "10px 0 4px", background: "linear-gradient(to top, var(--bg-soft) 70%, transparent)", zIndex: 5 };
+const saveButtonStyle: CSSProperties = { flex: "0 0 auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 18px", background: "var(--card)", color: "var(--ink)", border: "1.5px solid var(--accent)", borderRadius: 10, fontSize: 13.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" };
+const copyButtonStyle: CSSProperties = { flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 10, fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const toastStyle: CSSProperties = { position: "fixed", bottom: 88, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap" };
