@@ -1,22 +1,11 @@
 /* ============================================================
    성경 역본 선택
-
-   지금 쓸 수 있는 역본은 보호기간이 끝난 개역한글(KRV) 하나다.
-   교회에서 실제로 봉독하는 개역개정(NKRV)은 대한성서공회 허락을 받아
-   본문을 넣고 is_active 를 켜면 자동으로 목록에 나타난다 — 앱 코드는 그대로다.
-
-   그래서 화면은 "역본이 하나뿐이면 선택 UI 를 감추고, 둘 이상이면 고르게"
-   동작한다. 고른 값은 그 기기에 남는다.
+   사용 가능한 역본은 서버(또는 DB)에서 내려주는 목록을 그대로 따른다.
+   역본이 하나뿐이면 선택 UI를 감추고, 둘 이상이면 사용자가 고른다.
+   사용자가 고른 값은 해당 기기의 localStorage에만 저장된다.
+   앱/코드 쪽에서 특정 역본을 우선시하거나 강제하지 않는다.
    ============================================================ */
 
-/**
- * 기본으로 쓸 역본 우선순위.
- * 교회에서 실제 봉독하는 것은 개역개정(NKRV)이므로 그것을 1순위로 둔다.
- * 다만 저작권 허락 전까지 NKRV 는 is_active = false 라 목록에 없고,
- * 자동으로 개역한글(KRV)로 내려간다. 허락받아 본문을 넣고 켜는 순간
- * 코드 수정 없이 개역개정이 기본이 된다.
- */
-export const PREFERRED_VERSION_ORDER = ["NKRV", "KRV"];
 export const DEFAULT_BIBLE_VERSION = "KRV";
 
 export type BibleVersion = {
@@ -46,11 +35,14 @@ export function parseBibleVersions(raw: unknown): BibleVersion[] {
     .filter((version) => version.code && version.name_ko);
 }
 
-/** 저장된 선택이 아직 쓸 수 있는 역본이면 그것을, 아니면 기본값을 쓴다 */
+/**
+ * 저장된 선택이 아직 쓸 수 있는 역본이면 그것을 사용한다.
+ * 없으면 목록의 첫 번째 역본을 쓰고, 목록이 비어 있으면 DEFAULT만 반환한다.
+ * 어떤 역본을 우선할지 코드에서 결정하지 않는다.
+ */
 export function resolveBibleVersion(versions: BibleVersion[], saved: string | null): string {
-  if (saved && versions.some((version) => version.code === saved)) return saved;
-  for (const code of PREFERRED_VERSION_ORDER) {
-    if (versions.some((version) => version.code === code)) return code;
+  if (saved && versions.some((version) => version.code === saved)) {
+    return saved;
   }
   return versions[0]?.code || DEFAULT_BIBLE_VERSION;
 }
@@ -74,13 +66,11 @@ export function saveBibleVersion(code: string): void {
 }
 
 /**
- * 대본·화면에 적을 역본 이름.
- * 역본이 하나뿐이어도 적는다 — 인도자가 강단 성경(개역개정)과 다른 역본을
- * 보고 있다는 것을 알아야 하기 때문이다.
- * 목록을 아직 못 읽었으면 코드라도 알아볼 수 있게 기본 이름을 돌려준다.
+ * 대본·화면에 표시할 역본 이름.
+ * 목록에 있으면 그 name_ko를 쓰고, 없으면 코드만 그대로 돌려준다.
+ * 특정 역본 이름을 코드에 하드코딩하지 않는다.
  */
 export function versionLabel(versions: BibleVersion[], code: string): string {
   const found = versions.find((version) => version.code === code)?.name_ko;
-  if (found) return found;
-  return code === "KRV" ? "개역한글" : code === "NKRV" ? "개역개정" : "";
+  return found ?? code;
 }
