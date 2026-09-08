@@ -422,12 +422,8 @@ export default function ParticipationCheckPage() {
 
   const classGroups = useMemo(() => groupByClass(students), [students]);
   const presentTeachers = useMemo(() => teachers.filter((t) => t.status === "참석"), [teachers]);
-  const presentClassGroups = useMemo(
-    () => groupByClass(students.filter((s) => s.status === "참석")),
-    [students],
-  );
-  // 참석 명단 화면용 — 반 목록은 학생 참석 여부와 무관하게 전부 만들고(담임 참여여부를
-  // 반마다 보여주기 위해), 각 반 안에는 참석 체크된 학생만 담는다.
+  // 참석 명단(화면·카톡 공통) — 반 목록은 학생 참석 여부와 무관하게 전부 만들고(담임
+  // 참여여부를 반마다 보여주기 위해), 각 반 안에는 참석 체크된 학생만 담는다.
   const rosterClassGroups = useMemo(
     () => groupByClass(students).map(({ classNo, students: rows }) => ({
       classNo,
@@ -438,6 +434,10 @@ export default function ParticipationCheckPage() {
   );
 
   // ── 카톡 공유용 텍스트 ──
+
+  /** "홍길동 선생님 참석" — 담임 이름 + 참여여부(미입력 포함) */
+  const teacherLabelWithStatus = (teacherName: string) =>
+    `${teacherName} 선생님 ${teacherStatusByName.get(teacherName.trim()) || "미입력"}`;
 
   const buildOutputText = () => {
     const lines: string[] = [];
@@ -460,14 +460,16 @@ export default function ParticipationCheckPage() {
     lines.push(`■ 교사 출석 — ${teacherStats.present}/${teacherStats.total}명`);
     lines.push("");
     lines.push("■ 참석 명단");
-    if (presentClassGroups.length === 0 && presentTeachers.length === 0) {
+    if (rosterClassGroups.length === 0 && presentTeachers.length === 0) {
       lines.push("  참석 체크된 인원이 없습니다");
     } else {
-      presentClassGroups.forEach(({ students: rows }) => {
-        const head = rows[0];
-        const teacher = head.teacher_name ? ` (${head.teacher_name} 선생님)` : "";
-        lines.push(`· ${classLabel(head)}${teacher} ${rows.length}명`);
-        rows.forEach((r) => {
+      rosterClassGroups.forEach(({ head, present }) => {
+        const teacher = head.teacher_name ? ` (${teacherLabelWithStatus(head.teacher_name)})` : "";
+        lines.push(`· ${classLabel(head)}${teacher} ${present.length}명`);
+        if (present.length === 0) {
+          lines.push("  - 참석 체크된 학생 없음");
+        }
+        present.forEach((r) => {
           const parts = [`${r.name}${genderLabel(r.gender) ? `(${genderLabel(r.gender)})` : ""}`];
           const friends = (r.new_friend_male_count || 0) + (r.new_friend_female_count || 0);
           if (friends > 0) parts.push(`새친구 ${friends}명`);
