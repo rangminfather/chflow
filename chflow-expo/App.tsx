@@ -436,10 +436,25 @@ function AppWebView() {
       return;
     }
 
+    const continueToLocationPermission = async () => {
+      // 권한 요청으로 앱이 백그라운드로 전환되기 전에 안내 확인값 저장을 완료한다.
+      await SecureStore.setItemAsync(ATTENDANCE_DISCLOSURE_KEY, 'accepted').catch(() => {});
+      syncAttendanceGeofence(accessToken)
+        .catch(() => {})
+        .finally(() => { sendAttendanceSnapshot().catch(() => {}); });
+    };
+
     Alert.alert(
       '위치정보 수집·사용 안내',
       '스마트명성은 자동출석 후보를 생성하고 출석 여부를 확인하기 위해 앱이 닫혀 있거나 사용 중이 아닐 때에도 기기의 정확한 위치정보를 수집·사용합니다.\n\n위치정보는 교회 반경 진입과 체류 여부를 확인하는 자동출석 기능에만 사용됩니다. 원시 GPS 좌표는 기기 안에서만 처리하며 서버로 전송하거나 저장하지 않습니다. 광고에 사용하거나 판매하지 않습니다.\n\n동의하지 않아도 자동출석 외의 기능은 계속 이용할 수 있습니다.',
-      [
+      Platform.OS === 'ios' ? [
+        {
+          // Apple 5.1.1(iv): 사전 안내에서는 중립적인 버튼을 사용하고,
+          // 안내를 닫은 뒤 항상 시스템 권한 요청으로 이어져야 한다.
+          text: '계속',
+          onPress: continueToLocationPermission,
+        },
+      ] : [
         {
           text: '동의 안 함',
           style: 'cancel',
@@ -451,13 +466,7 @@ function AppWebView() {
         },
         {
           text: '동의하고 계속',
-          onPress: async () => {
-            // 권한 요청으로 앱이 백그라운드로 전환되기 전에 동의값 저장을 완료한다.
-            await SecureStore.setItemAsync(ATTENDANCE_DISCLOSURE_KEY, 'accepted').catch(() => {});
-            syncAttendanceGeofence(accessToken)
-              .catch(() => {})
-              .finally(() => { sendAttendanceSnapshot().catch(() => {}); });
-          },
+          onPress: continueToLocationPermission,
         },
       ],
     );
