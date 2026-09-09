@@ -4,7 +4,12 @@
    시설 예약현황 검색 — 두 갈래
 
      1) 날짜중심 : 달력에서 날짜를 고르면 그 날 전체 시설의 24시간 현황
-     2) 시설물중심 : 시설을 여러 곳 고르면 그 달의 날짜별 현황
+     2) 시설물중심 : 건물 → 층 → 시설물 순으로 좁혀 고르면(복수 가능)
+                    그 달 사용 날짜(달력) + 고른 날의 사용 시간(표)
+
+   시설물중심은 예전에 전체 시설 40여 개를 한 줄로 늘어놓았다. 모바일에서
+   답답해서 건물 → 층 → 시설물 3단으로 좁힌다. 고른 시설물은 건물·층을
+   옮겨도 유지되므로 여러 건물에 걸쳐 비교할 수 있다.
 
    둘 다 달 단위로 넘겨본다(◀ ▶). 목록에 올리는 줄은 "대표 공간"뿐이고
    부속(화장실·샤워실 등)은 대표에 딸려 감춘다 — facility-groups.ts.
@@ -14,14 +19,13 @@
    ============================================================ */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, LayoutGrid, Search, X } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, LayoutGrid, Search, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import type { FacilityBuilding } from "@/lib/facility/facility-map-config";
+import type { FacilityBuilding, FacilityFloor } from "@/lib/facility/facility-map-config";
 import { listPrimaryRooms, type ParentMap } from "@/lib/facility/facility-groups";
 import {
   type MonthCursor,
   type RangeBooking,
-  byFacility,
   monthGrid,
   monthLabel,
   monthRange,
@@ -49,6 +53,9 @@ export default function FacilityScheduleSearch({ buildings, parents, onPickFacil
   });
   const [pickedDate, setPickedDate] = useState<string>(() => toDateKey(new Date()));
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // 시설물중심에서 좁혀 보는 위치 — 건물을 바꾸면 층은 다시 고른다
+  const [pickedBuilding, setPickedBuilding] = useState<string | null>(null);
+  const [pickedFloor, setPickedFloor] = useState<number | null>(null);
   const [bookings, setBookings] = useState<RangeBooking[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -105,7 +112,47 @@ export default function FacilityScheduleSearch({ buildings, parents, onPickFacil
     bookings: dayBookings.filter((b) => b.facility_id === group.primary.id),
   }));
 
-  const perFacility = byFacility(bookings);
+  // 시설물중심 — 건물 → 층 → 시설물
+  const buildingRows: { building: FacilityBuilding; count: number }[] = [];
+  const buildingSeen = new Map<string, { building: FacilityBuilding; count: number }>();
+  for (const { building } of primaries) {
+    const row = buildingSeen.get(building.code);
+    if (row) { row.count += 1; continue; }
+    const created = { building, count: 1 };
+    buildingSeen.set(building.code, created);
+    buildingRows.push(created);
+  }
+
+  const floorRows: { floor: FacilityFloor; count: number }[] = [];
+  const floorSeen = new Map<number, { floor: FacilityFloor; count: number }>();
+  for (const { building, floor } of primaries) {
+    if (building.code !== pickedBuilding) continue;
+    const row = floorSeen.get(floor.floor);
+    if (row) { row.count += 1; continue; }
+    const created = { floor, count: 1 };
+    floorSeen.set(floor.floor, created);
+    floorRows.push(created);
+  }
+
+  const floorFacilities = primaries.filter(
+    ({ building, floor }) => building.code === pickedBuilding && floor.floor === pickedFloor,
+  );
+
+  // 고른 시설물 — 고른 순서를 지킨다
+  const selectedRows = selectedIds
+    .map((id) => primaries.find((row) => row.group.primary.id === id))
+    .filter((row): row is (typeof primaries)[number] => Boolean(row));
+
+  // 달을 넘겼는데 고른 날이 그 달이 아니면 그 달 1일을 본다
+  const monthPrefix = `${cursor.year}-${String(cursor.month).padStart(2, "0")}`;
+  const facilityDate = pickedDate.startsWith(monthPrefix) ? pickedDate : `${monthPrefix}-01`;
+  const facilityDayBookings = bookings.filter((b) => b.date.slice(0, 10) === facilityDate);
+  const facilityRows: GridRow[] = selectedRows.map(({ building, floor, group }) => ({
+    facilityId: group.primary.id,
+    label: group.primary.name,
+    sublabel: `${building.name} · ${floor.label}`,
+    bookings: facilityDayBookings.filter((b) => b.facility_id === group.primary.id),
+  }));
 
   return (
     <div>
@@ -153,76 +200,156 @@ export default function FacilityScheduleSearch({ buildings, parents, onPickFacil
         </>
       ) : (
         <>
-          <p style={{ margin: "0 0 8px", fontSize: 12.5, fontWeight: 700, color: "var(--ink-mid)" }}>
-            이용하고자 하는 시설물을 선택해주세요 (복수 선택 가능)
-          </p>
-          <div style={chipWrap}>
-            {primaries.map(({ building, floor, group }) => {
-              const id = group.primary.id;
-              const on = selectedIds.includes(id);
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => { setLoading(true); setSelectedIds((prev) => (on ? prev.filter((x) => x !== id) : [...prev, id])); }}
-                  aria-pressed={on}
-                  style={chip(on)}
-                >
-                  {group.primary.name}
-                  <span style={{ fontSize: 10, opacity: 0.75, marginLeft: 4 }}>{building.name} {floor.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {selectedIds.length === 0 ? (
-            <p style={{ margin: "14px 0 0", fontSize: 13, color: "var(--ink-soft)", fontWeight: 600 }}>
-              시설을 하나 이상 고르면 그 달의 예약 현황이 바로 나옵니다.
-            </p>
-          ) : (
-            <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 16 }}>
-              {selectedIds.map((id) => {
-                const found = primaries.find((p) => p.group.primary.id === id);
-                if (!found) return null;
-                const mine = perFacility.get(id) ?? [];
-                const grid = monthGrid(cursor);
+          {/* 건물 → 층 → 시설물. 40여 개를 한 줄로 늘어놓지 않기 위한 3단이다. */}
+          <div style={pickerRow}>
+            <span style={pickerLabel}>건물</span>
+            <div style={chipWrap}>
+              {buildingRows.map(({ building, count }) => {
+                const on = building.code === pickedBuilding;
                 return (
-                  <section key={id} style={facilityBlock}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-                      <strong style={{ fontSize: 14, color: "var(--ink)" }}>{found.group.primary.name}</strong>
-                      <span style={{ fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600 }}>
-                        {found.building.name} · {found.floor.label}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onPickFacility(id)}
-                        style={{ ...backBtn, marginLeft: "auto" }}
-                      >이 시설 신청하기</button>
-                    </div>
-                    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
-                      {grid.filter((key): key is string => key !== null).map((key) => {
-                        const day = mine.filter((b) => b.date.slice(0, 10) === key);
-                        if (day.length === 0) return null;
-                        return (
-                          <li key={key} style={dayLine}>
-                            <span style={{ fontWeight: 800, fontSize: 12.5, color: "var(--ink)", minWidth: 78 }}>
-                              {key.slice(5).replace("-", "/")} ({"일월화수목금토"[new Date(key).getDay()]})
-                            </span>
-                            <span style={{ fontSize: 12, color: "var(--ink-mid)", fontWeight: 600 }}>
-                              {day.map((b) => `${b.time_start.slice(0, 5)}~${b.time_end.slice(0, 5)} ${b.requester_name}${b.purpose ? ` (${b.purpose})` : ""}${b.contact ? ` · ${b.contact}` : ""}`).join(" / ")}
-                            </span>
-                          </li>
-                        );
-                      })}
-                      {mine.length === 0 && (
-                        <li style={{ fontSize: 12.5, color: "var(--success)", fontWeight: 700 }}>
-                          이 달에는 예약이 없습니다 — 아무 날이나 신청할 수 있습니다.
-                        </li>
-                      )}
-                    </ul>
-                  </section>
+                  <button
+                    key={building.code}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => {
+                      setPickedBuilding(on ? null : building.code);
+                      setPickedFloor(null);
+                    }}
+                    style={chip(on)}
+                  >
+                    {building.name}
+                    <span style={countTag}>{count}</span>
+                  </button>
                 );
               })}
+            </div>
+          </div>
+
+          {pickedBuilding && (
+            <div style={pickerRow}>
+              <span style={pickerLabel}>층</span>
+              <div style={chipWrap}>
+                {floorRows.map(({ floor, count }) => {
+                  const on = floor.floor === pickedFloor;
+                  return (
+                    <button
+                      key={floor.floor}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setPickedFloor(on ? null : floor.floor)}
+                      style={chip(on)}
+                    >
+                      {floor.label}
+                      <span style={countTag}>{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {pickedBuilding && pickedFloor !== null && (
+            <div style={pickerRow}>
+              <span style={pickerLabel}>
+                시설물 <span style={{ fontWeight: 600, color: "var(--ink-faint)" }}>복수 선택 가능</span>
+              </span>
+              <div style={chipWrap}>
+                {floorFacilities.map(({ group }) => {
+                  const id = group.primary.id;
+                  const on = selectedIds.includes(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => {
+                        setLoading(true);
+                        setSelectedIds((prev) => (on ? prev.filter((x) => x !== id) : [...prev, id]));
+                      }}
+                      style={chip(on)}
+                    >
+                      {on && <Check size={12} strokeWidth={3} style={{ verticalAlign: -1, marginRight: 3 }} />}
+                      {group.primary.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {!pickedBuilding && <p style={hintText}>건물을 먼저 고르세요 — 건물 → 층 → 시설물 순으로 좁혀집니다.</p>}
+          {pickedBuilding && pickedFloor === null && <p style={hintText}>층을 고르면 그 층의 시설물이 나옵니다.</p>}
+
+          {/* 고른 시설물 — 건물·층을 옮겨도 남는다 */}
+          {selectedRows.length > 0 && (
+            <div style={selectedBox}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
+                <strong style={{ fontSize: 12.5, fontWeight: 800, color: "var(--ink)" }}>
+                  고른 시설물 {selectedRows.length}곳
+                </strong>
+                <button
+                  type="button"
+                  onClick={() => { setLoading(true); setSelectedIds([]); }}
+                  style={{ ...backBtn, marginLeft: "auto" }}
+                >
+                  <X size={13} strokeWidth={2} /> 전체 해제
+                </button>
+              </div>
+              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
+                {selectedRows.map(({ building, floor, group }) => (
+                  <li key={group.primary.id} style={selectedLine}>
+                    <strong style={{ fontSize: 13, fontWeight: 800, color: "var(--ink)" }}>{group.primary.name}</strong>
+                    <span style={{ fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600 }}>
+                      {building.name} · {floor.label}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onPickFacility(group.primary.id)}
+                      style={{ ...backBtn, marginLeft: "auto" }}
+                    >이 시설 신청하기</button>
+                    <button
+                      type="button"
+                      aria-label={`${group.primary.name} 선택 해제`}
+                      onClick={() => {
+                        setLoading(true);
+                        setSelectedIds((prev) => prev.filter((x) => x !== group.primary.id));
+                      }}
+                      style={iconBtn}
+                    >
+                      <X size={14} strokeWidth={2.2} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* 사용현황 — 윗층은 그 달 사용 날짜, 아래층은 고른 날의 사용 시간 */}
+          {selectedRows.length === 0 ? (
+            <p style={{ margin: "14px 0 0", fontSize: 13, color: "var(--ink-soft)", fontWeight: 600 }}>
+              시설을 하나 이상 고르면 그 달의 사용현황이 바로 나옵니다.
+            </p>
+          ) : (
+            <div style={{ marginTop: 14 }}>
+              <MonthCalendar
+                cursor={cursor}
+                picked={facilityDate}
+                countOf={(key) => bookings.filter((b) => b.date.slice(0, 10) === key).length}
+                onPick={setPickedDate}
+              />
+              {bookings.length === 0 && (
+                <p style={hintText}>이 달에는 예약이 없습니다 — 아무 날이나 신청할 수 있습니다.</p>
+              )}
+              <div style={{ marginTop: 14 }}>
+                <FacilityBookingGrid
+                  rows={facilityRows}
+                  caption={`${facilityDate} — 고른 시설물의 사용 시간입니다. 칸을 누르면 누가 무슨 목적으로 쓰는지 볼 수 있습니다.`}
+                  emptyText="고른 시설물이 없습니다."
+                />
+                {facilityDayBookings.length === 0 && (
+                  <p style={hintText}>이날은 예약이 없습니다 — 아무 시간이나 신청할 수 있습니다.</p>
+                )}
+              </div>
             </div>
           )}
         </>
@@ -398,18 +525,55 @@ function chip(on: boolean): React.CSSProperties {
     cursor: "pointer",
   };
 }
-const facilityBlock: React.CSSProperties = {
+const pickerRow: React.CSSProperties = {
+  marginBottom: 12,
+};
+const pickerLabel: React.CSSProperties = {
+  display: "block",
+  marginBottom: 6,
+  fontSize: 12,
+  fontWeight: 800,
+  color: "var(--ink-mid)",
+};
+const countTag: React.CSSProperties = {
+  marginLeft: 5,
+  fontSize: 10,
+  fontWeight: 700,
+  opacity: 0.7,
+};
+const hintText: React.CSSProperties = {
+  margin: "8px 0 0",
+  fontSize: 11.5,
+  lineHeight: 1.5,
+  color: "var(--ink-faint)",
+  fontWeight: 600,
+};
+const selectedBox: React.CSSProperties = {
+  marginTop: 12,
   padding: 12,
   borderRadius: 12,
-  background: "var(--card)",
+  background: "var(--bg-soft)",
   border: "1px solid var(--hairline)",
 };
-const dayLine: React.CSSProperties = {
+const selectedLine: React.CSSProperties = {
   display: "flex",
   gap: 8,
-  alignItems: "baseline",
+  alignItems: "center",
   flexWrap: "wrap",
   padding: "6px 8px",
   borderRadius: 8,
-  background: "var(--bg-soft)",
+  background: "var(--card)",
+};
+const iconBtn: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 30,
+  height: 30,
+  borderRadius: 8,
+  border: "1px solid var(--hairline)",
+  background: "var(--card)",
+  color: "var(--ink-faint)",
+  cursor: "pointer",
+  flexShrink: 0,
 };
