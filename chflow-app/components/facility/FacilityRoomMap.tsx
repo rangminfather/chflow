@@ -21,6 +21,17 @@ type Props = {
   buildingName: string;
   selectedRoomId: string | null;
   onSelect: (room: FacilityRoom) => void;
+  /**
+   * 복수 선택용 — 넘기면 selectedRoomId 대신 이 목록으로 강조한다.
+   * (예약현황 검색은 여러 공간을 동시에 고른다)
+   */
+  selectedRoomIds?: string[];
+  /**
+   * 고를 수 있는 공간을 이 목록으로 좁힌다. 넘기지 않으면 reservable 인 공간 전부다.
+   * 설정 파일은 계단·전기실까지 reservable: true 이고 대표/부속은 listAs 로 갈리므로,
+   * 대표 공간만 고르게 하려는 쪽에서 그 id 목록을 넘긴다.
+   */
+  selectableIds?: string[];
 };
 
 /** 격자 한 칸의 viewBox 크기 — 실제 면적비가 아니라 배치 관계만 나타낸다 */
@@ -40,16 +51,29 @@ const KIND_TINT: Record<FacilityRoomKind, number> = {
   outdoor: 5,
 };
 
-export default function FacilityRoomMap({ floor, buildingName, selectedRoomId, onSelect }: Props) {
+export default function FacilityRoomMap({
+  floor,
+  buildingName,
+  selectedRoomId,
+  onSelect,
+  selectedRoomIds,
+  selectableIds,
+}: Props) {
   const width = floor.planCols * CELL_W + PAD * 2;
   const height = floor.planRows * CELL_H + PAD * 2;
 
+  const allowed = selectableIds ? new Set(selectableIds) : null;
+  const canPick = (room: FacilityRoom) => room.reservable && (allowed === null || allowed.has(room.id));
+  const picked = selectedRoomIds
+    ? new Set(selectedRoomIds)
+    : new Set(selectedRoomId ? [selectedRoomId] : []);
+
   // 평면도와 목록이 같은 번호를 쓰도록 여기서 한 번만 매긴다
   const numbers = new Map<string, number>();
-  floor.rooms.filter((r) => r.reservable).forEach((room, i) => numbers.set(room.id, i + 1));
+  floor.rooms.filter(canPick).forEach((room, i) => numbers.set(room.id, i + 1));
 
-  const reservable = floor.rooms.filter((r) => r.reservable);
-  const others = floor.rooms.filter((r) => !r.reservable);
+  const reservable = floor.rooms.filter(canPick);
+  const others = floor.rooms.filter((r) => !canPick(r));
 
   return (
     <div>
@@ -76,16 +100,17 @@ export default function FacilityRoomMap({ floor, buildingName, selectedRoomId, o
           const y = PAD + room.plan.y * CELL_H;
           const w = room.plan.w * CELL_W - GAP;
           const h = room.plan.h * CELL_H - GAP;
-          const selected = room.id === selectedRoomId;
+          const selected = picked.has(room.id);
+          const pickable = canPick(room);
           const number = numbers.get(room.id);
           const capacity = formatCapacity(room);
 
-          const fill = room.reservable
+          const fill = pickable
             ? selected
               ? "color-mix(in srgb, var(--accent) 26%, var(--card))"
               : "color-mix(in srgb, var(--accent) 9%, var(--card))"
             : `color-mix(in srgb, var(--ink) ${KIND_TINT[room.kind]}%, var(--card))`;
-          const stroke = room.reservable
+          const stroke = pickable
             ? selected
               ? "var(--accent-strong)"
               : "var(--accent-line)"
@@ -99,7 +124,7 @@ export default function FacilityRoomMap({ floor, buildingName, selectedRoomId, o
             : { cx: x + 15, cy: short ? y + h / 2 : y + 15 };
           const textLeft = badge && short ? x + 28 : x;
           const textWidth = badge && short ? w - 30 : w;
-          const label = fitLabel(room.name, textWidth, room.reservable);
+          const label = fitLabel(room.name, textWidth, pickable);
           const labelBase = short ? y + h / 2 : y + h / 2 + (badge ? 9 : 4);
 
           const body = (
@@ -114,7 +139,7 @@ export default function FacilityRoomMap({ floor, buildingName, selectedRoomId, o
                 fill={fill}
                 stroke={stroke}
                 strokeWidth={selected ? 2.2 : 1.2}
-                strokeDasharray={room.reservable ? undefined : "5 4"}
+                strokeDasharray={pickable ? undefined : "5 4"}
               />
               <rect className="facility-map-outline" x={x} y={y} width={w} height={h} rx={7} fill="none" stroke="none" />
 
@@ -139,8 +164,8 @@ export default function FacilityRoomMap({ floor, buildingName, selectedRoomId, o
                   textAnchor="middle"
                   style={{
                     fontSize: label.size,
-                    fontWeight: room.reservable ? 700 : 500,
-                    fill: room.reservable ? "var(--ink)" : "var(--ink-soft)",
+                    fontWeight: pickable ? 700 : 500,
+                    fill: pickable ? "var(--ink)" : "var(--ink-soft)",
                     pointerEvents: "none",
                   }}
                 >
@@ -158,7 +183,7 @@ export default function FacilityRoomMap({ floor, buildingName, selectedRoomId, o
             </>
           );
 
-          if (!room.reservable) {
+          if (!pickable) {
             return (
               <g key={room.id}>
                 <title>{`${room.name} — 신청 대상이 아닙니다`}</title>
@@ -174,7 +199,7 @@ export default function FacilityRoomMap({ floor, buildingName, selectedRoomId, o
               role="button"
               tabIndex={0}
               aria-pressed={selected}
-              aria-label={`${number}번 ${room.name} 선택${capacity ? `, ${capacity}` : ""}`}
+              aria-label={`${number}번 ${room.name} ${selected ? "선택 해제" : "선택"}${capacity ? `, ${capacity}` : ""}`}
               onClick={() => onSelect(room)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
@@ -194,7 +219,7 @@ export default function FacilityRoomMap({ floor, buildingName, selectedRoomId, o
       {reservable.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
           {reservable.map((room) => {
-            const selected = room.id === selectedRoomId;
+            const selected = picked.has(room.id);
             return (
               <button
                 key={room.id}

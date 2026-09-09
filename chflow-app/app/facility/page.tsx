@@ -118,6 +118,11 @@ function FacilityRequestView() {
   const viewParam = searchParams.get("view");
   const entryMode: SearchMode | null = viewParam === "date" || viewParam === "facility" ? viewParam : null;
 
+  // 지금 열려 있는 검색 방식. 시설물중심은 검색 자체가 건물 → 층 → 시설물
+  // wizard 라서, 아래 1~3단계를 그대로 두면 같은 지도가 두 번 나온다.
+  const [searchMode, setSearchMode] = useState<SearchMode | null>(entryMode);
+  const wizardActive = searchMode === "facility";
+
   const [formOpen, setFormOpen] = useState(() => Boolean(parseSelection(new URLSearchParams(searchParams.toString())).facilityId));
   const [date, setDate] = useState("");
   const [timeStart, setTimeStart] = useState("09:00");
@@ -392,6 +397,7 @@ function FacilityRequestView() {
             buildings={buildings}
             parents={parentMap}
             initialMode={entryMode}
+            onModeChange={setSearchMode}
             onPickFacility={(facilityId) => {
               const found = findRoomIn(buildings, facilityId);
               if (!found) return;
@@ -401,7 +407,8 @@ function FacilityRequestView() {
           />
         </section>
 
-        {/* 1단계 — 건물 */}
+        {/* 1~3단계 — 건물·층·공간. 시설물중심 검색은 같은 흐름을 이미 담고 있어 감춘다. */}
+        {!wizardActive && (
         <section style={card}>
           <StepTitle
             step={1}
@@ -413,9 +420,10 @@ function FacilityRequestView() {
             위가 북쪽인 안내도입니다. 실제 대지 측량도가 아니라 건물끼리의 위치 관계를 보여줍니다.
           </p>
         </section>
+        )}
 
         {/* 2단계 — 층 */}
-        {building && (
+        {!wizardActive && building && (
           <section style={card}>
             <StepTitle
               step={2}
@@ -446,7 +454,7 @@ function FacilityRequestView() {
         )}
 
         {/* 3단계 — 공간 */}
-        {building && floor && (
+        {!wizardActive && building && floor && (
           <section style={card}>
             <StepTitle
               step={3}

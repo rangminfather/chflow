@@ -1180,6 +1180,26 @@ input::placeholder {
   }
 }
 
+/* 시설물중심 검색 — 단계가 넘어갈 때 스르륵 나타난다 */
+@keyframes chflowStepIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.chflow-step-in {
+  animation: chflowStepIn 220ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chflow-step-in {
+    animation: none;
+  }
+}
+
 /* 예약현황 표 — PC 는 24칸, 모바일은 오전/오후 2시간 6칸 */
 .facility-grid-narrow { display: none; }
 @media (max-width: 720px) {
