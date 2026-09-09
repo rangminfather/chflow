@@ -16,11 +16,14 @@ import {
 } from "@/lib/pasture";
 import { photoThumb } from "@/lib/photo";
 
+const PLAIN_TABS = ["1평원", "2평원", "3평원", "젊은이평원"] as const;
+
 export default function PastureExplorePage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
   const [pastures, setPastures] = useState<PastureExploreRow[]>([]);
   const [query, setQuery] = useState("");
+  const [selectedPlain, setSelectedPlain] = useState<(typeof PLAIN_TABS)[number]>("1평원");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -50,15 +53,36 @@ export default function PastureExplorePage() {
 
   const filtered = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase("ko-KR");
-    if (!keyword) return pastures;
-    return pastures.filter((pasture) => pastureSearchText(pasture).includes(keyword));
-  }, [pastures, query]);
+    return pastures.filter((pasture) =>
+      pasture.plain_name === selectedPlain
+      && (!keyword || pastureSearchText(pasture).includes(keyword))
+    );
+  }, [pastures, query, selectedPlain]);
 
   if (!authChecked) return <main style={{ minHeight: "100vh" }}><LoadingView full /></main>;
 
   return (
     <PastureShell eyebrow="목장" title="목장탐방" chip={!loading ? `${filtered.length}개 목장` : undefined}>
       <div style={{ ...cardStyle, padding: 12 }}>
+        <div role="tablist" aria-label="평원 선택" style={plainTabsStyle}>
+          {PLAIN_TABS.map((plain) => {
+            const selected = plain === selectedPlain;
+            const count = pastures.filter((pasture) => pasture.plain_name === plain).length;
+            return (
+              <button
+                key={plain}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setSelectedPlain(plain)}
+                style={plainTabStyle(selected)}
+              >
+                <span>{plain}</span>
+                {!loading && <span style={plainCountStyle(selected)}>{count}</span>}
+              </button>
+            );
+          })}
+        </div>
         <label htmlFor="pasture-search" style={searchBoxStyle}>
           <Search size={19} strokeWidth={1.8} style={{ color: "var(--ink-faint)", flexShrink: 0 }} />
           <input
@@ -202,6 +226,45 @@ const missionStyle: React.CSSProperties = {
   fontSize: 11.5,
   fontWeight: 700,
 };
+
+const plainTabsStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(4, minmax(max-content, 1fr))",
+  gap: 7,
+  marginBottom: 10,
+  overflowX: "auto",
+  scrollbarWidth: "none",
+};
+
+const plainTabStyle = (selected: boolean): React.CSSProperties => ({
+  minHeight: 42,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 5,
+  padding: "8px 10px",
+  border: selected ? "1px solid var(--accent)" : "1px solid var(--hairline)",
+  borderRadius: 10,
+  background: selected ? "var(--accent)" : "var(--surface)",
+  color: selected ? "white" : "var(--ink-soft)",
+  fontFamily: "inherit",
+  fontSize: 12.5,
+  fontWeight: 800,
+  whiteSpace: "nowrap",
+  cursor: "pointer",
+});
+
+const plainCountStyle = (selected: boolean): React.CSSProperties => ({
+  minWidth: 19,
+  height: 19,
+  display: "inline-grid",
+  placeItems: "center",
+  padding: "0 5px",
+  borderRadius: 999,
+  background: selected ? "rgba(255,255,255,0.2)" : "var(--bg-soft)",
+  color: selected ? "white" : "var(--ink-faint)",
+  fontSize: 10.5,
+});
 
 const leaderListStyle: React.CSSProperties = {
   display: "flex",
