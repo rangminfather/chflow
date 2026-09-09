@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import type React from "react";
 import { useParams, useRouter } from "next/navigation";
-import { CalendarDays, HeartHandshake, MapPin } from "lucide-react";
+import Image from "next/image";
+import { CalendarDays, HeartHandshake, MapPin, UserRound } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
 import {
@@ -13,7 +14,8 @@ import {
   primaryButtonStyle,
   sectionTitleStyle,
 } from "@/components/PastureShell";
-import { fetchPastureIntroduction, type PastureExploreRow } from "@/lib/pasture";
+import { fetchPastureIntroduction, type PastureExploreRow, type PastureLeader } from "@/lib/pasture";
+import { photoThumb } from "@/lib/photo";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -92,6 +94,14 @@ export default function PastureIntroductionPage() {
               label="선교후원"
               value={pasture.mission_area || "등록된 정보가 없습니다"}
             />
+            <div style={{ ...sectionTitleStyle, marginTop: 18 }}>목장 리더</div>
+            {pasture.leaders.length > 0 ? (
+              <div style={leaderGridStyle}>
+                {pasture.leaders.map((leader) => <LeaderCard key={leader.member_id} leader={leader} />)}
+              </div>
+            ) : (
+              <div style={noLeaderStyle}><UserRound size={18} /> 등록된 목장 리더가 없습니다.</div>
+            )}
           </div>
 
           <div style={futureCardStyle}>
@@ -110,6 +120,35 @@ export default function PastureIntroductionPage() {
         </>
       )}
     </PastureShell>
+  );
+}
+
+function LeaderCard({ leader }: { leader: PastureLeader }) {
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const photo = photoThumb(leader.photo_url, 128);
+
+  return (
+    <div style={leaderCardStyle}>
+      <div style={leaderAvatarStyle}>
+        {photo && !photoFailed ? (
+          <Image
+            src={photo}
+            alt={`${leader.name} ${leader.role}`}
+            width={52}
+            height={52}
+            unoptimized
+            onError={() => setPhotoFailed(true)}
+            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }}
+          />
+        ) : (
+          <UserRound size={30} strokeWidth={1.45} aria-hidden="true" />
+        )}
+      </div>
+      <div>
+        <div style={{ color: "var(--ink-faint)", fontSize: 11.5, fontWeight: 700 }}>{leader.role}</div>
+        <div style={{ marginTop: 3, fontSize: 15, fontWeight: 800 }}>{leader.name}</div>
+      </div>
+    </div>
   );
 }
 
@@ -157,4 +196,42 @@ const futureCardStyle: React.CSSProperties = {
   alignItems: "flex-start",
   gap: 10,
   background: "var(--accent-soft)",
+};
+
+const leaderGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))",
+  gap: 9,
+};
+
+const leaderCardStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  minWidth: 0,
+  padding: 10,
+  border: "1px solid var(--hairline)",
+  borderRadius: 12,
+  background: "var(--surface)",
+};
+
+const leaderAvatarStyle: React.CSSProperties = {
+  width: 52,
+  height: 52,
+  flexShrink: 0,
+  display: "grid",
+  placeItems: "center",
+  overflow: "hidden",
+  borderRadius: "50%",
+  background: "var(--bg-soft)",
+  color: "var(--ink-faint)",
+};
+
+const noLeaderStyle: React.CSSProperties = {
+  minHeight: 52,
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  color: "var(--ink-faint)",
+  fontSize: 13,
 };

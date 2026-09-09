@@ -3,15 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import type React from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight, MapPin, Search } from "lucide-react";
+import Image from "next/image";
+import { ChevronRight, MapPin, Search, UserRound } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
 import { PastureEmpty, PastureShell, cardStyle, primaryButtonStyle } from "@/components/PastureShell";
 import {
   fetchPastureDirectory,
   pastureSearchText,
+  type PastureLeader,
   type PastureExploreRow,
 } from "@/lib/pasture";
+import { photoThumb } from "@/lib/photo";
 
 export default function PastureExplorePage() {
   const router = useRouter();
@@ -100,6 +103,7 @@ export default function PastureExplorePage() {
                     선교후원 {pasture.mission_area}
                   </div>
                 )}
+                <PastureLeaders leaders={pasture.leaders} />
               </div>
               <ChevronRight size={19} strokeWidth={1.8} style={{ color: "var(--ink-faint)", flexShrink: 0 }} />
             </button>
@@ -107,6 +111,48 @@ export default function PastureExplorePage() {
         </div>
       )}
     </PastureShell>
+  );
+}
+
+function PastureLeaders({ leaders }: { leaders: PastureLeader[] }) {
+  if (leaders.length === 0) {
+    return <div style={noLeaderStyle}><UserRound size={15} /> 등록된 목장 리더 없음</div>;
+  }
+
+  return (
+    <div style={leaderListStyle}>
+      {leaders.map((leader) => <LeaderBadge key={leader.member_id} leader={leader} />)}
+    </div>
+  );
+}
+
+function LeaderBadge({ leader }: { leader: PastureLeader }) {
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const photo = photoThumb(leader.photo_url, 128);
+
+  return (
+    <span style={leaderBadgeStyle}>
+      <span style={leaderAvatarStyle}>
+        {photo && !photoFailed ? (
+          <Image
+            src={photo}
+            alt={`${leader.name} ${leader.role}`}
+            width={36}
+            height={36}
+            unoptimized
+            loading="lazy"
+            onError={() => setPhotoFailed(true)}
+            style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }}
+          />
+        ) : (
+          <UserRound size={22} strokeWidth={1.55} aria-hidden="true" />
+        )}
+      </span>
+      <span style={{ minWidth: 0 }}>
+        <span style={leaderRoleStyle}>{leader.role}</span>
+        <span style={leaderNameStyle}>{leader.name}</span>
+      </span>
+    </span>
   );
 }
 
@@ -155,4 +201,60 @@ const missionStyle: React.CSSProperties = {
   color: "var(--accent)",
   fontSize: 11.5,
   fontWeight: 700,
+};
+
+const leaderListStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 8,
+  marginTop: 10,
+};
+
+const leaderBadgeStyle: React.CSSProperties = {
+  minWidth: 0,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 7,
+  padding: "5px 9px 5px 5px",
+  border: "1px solid var(--hairline)",
+  borderRadius: 999,
+  background: "var(--surface)",
+};
+
+const leaderAvatarStyle: React.CSSProperties = {
+  width: 36,
+  height: 36,
+  flexShrink: 0,
+  display: "grid",
+  placeItems: "center",
+  overflow: "hidden",
+  borderRadius: "50%",
+  background: "var(--bg-soft)",
+  color: "var(--ink-faint)",
+};
+
+const leaderRoleStyle: React.CSSProperties = {
+  display: "block",
+  color: "var(--ink-faint)",
+  fontSize: 10.5,
+  fontWeight: 700,
+  lineHeight: 1.2,
+};
+
+const leaderNameStyle: React.CSSProperties = {
+  display: "block",
+  marginTop: 2,
+  fontSize: 12.5,
+  fontWeight: 800,
+  lineHeight: 1.2,
+  whiteSpace: "nowrap",
+};
+
+const noLeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 5,
+  marginTop: 10,
+  color: "var(--ink-faint)",
+  fontSize: 12,
 };
