@@ -172,7 +172,6 @@ export default function MyClassPage() {
   const [myClassNos, setMyClassNos] = useState<string[]>([]);
   const [myClassName, setMyClassName] = useState("");
   const [isMaster, setIsMaster] = useState(false);
-  const [canUseHomeroomViews, setCanUseHomeroomViews] = useState(false);
   const [masterClasses, setMasterClasses] = useState<DeptClassOption[]>([]);
   const [myGradeYear, setMyGradeYear] = useState<number | null>(null);
   const [students, setStudents] = useState<EditableStudent[]>([]);
@@ -208,7 +207,6 @@ export default function MyClassPage() {
       setMyClassNos(classNos);
       setMyTeacherId(scope.teacherId);
       setIsMaster(scope.isMaster);
-      setCanUseHomeroomViews(scope.canUseHomeroomViews);
       setMasterClasses(scope.classes);
       if (selectedClassNo) setMyClassName(selectedClassNo);
       setAuthChecked(true);
@@ -679,7 +677,7 @@ export default function MyClassPage() {
 
   if (!authChecked) return <LoadingView full />;
 
-  if (!canUseHomeroomViews) {
+  if (!myTeacherId && !isMaster) {
     return (
       <div style={pageStyle}>
         <PageHeader deptId={deptId} router={router} myClassName="" />

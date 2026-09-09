@@ -114,7 +114,6 @@ export default function TalentPage() {
   const [myClassNos, setMyClassNos] = useState<string[]>([]);
   const [myClassName, setMyClassName] = useState("");
   const [isMaster, setIsMaster] = useState(false);
-  const [canUseHomeroomViews, setCanUseHomeroomViews] = useState(false);
   const [masterClasses, setMasterClasses] = useState<DeptClassOption[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<AttendRow[]>([]);
@@ -148,7 +147,6 @@ export default function TalentPage() {
       setMyClassNos(scope.isMaster ? (selectedClassNo ? [selectedClassNo] : []) : scope.ownClassNos);
       setMyTeacherId(scope.teacherId);
       setIsMaster(scope.isMaster);
-      setCanUseHomeroomViews(scope.canUseHomeroomViews);
       setMasterClasses(scope.classes);
       if (selectedClassNo) setMyClassName(selectedClassNo);
       setAuthChecked(true);
@@ -568,7 +566,7 @@ export default function TalentPage() {
 
   if (!authChecked) return <LoadingView full />;
 
-  if (!canUseHomeroomViews) {
+  if (!myTeacherId && !isMaster) {
     return (
       <div style={pageStyle}>
         <div className="app-subpage-header" style={headerStyle}>

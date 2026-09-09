@@ -98,7 +98,6 @@ export default function MyClassAttendancePage() {
   const [myClassNos, setMyClassNos] = useState<string[]>([]);
   const [myClassName, setMyClassName] = useState<string>("");
   const [isMaster, setIsMaster] = useState(false);
-  const [canUseHomeroomViews, setCanUseHomeroomViews] = useState(false);
   const [masterClasses, setMasterClasses] = useState<DeptClassOption[]>([]);
   const [saving, setSaving] = useState<string>("");
   const [board, setBoard] = useState<PromoRow[]>([]);
@@ -115,7 +114,6 @@ export default function MyClassAttendancePage() {
       const classNos = scope.isMaster ? (selectedClassNo ? [selectedClassNo] : []) : scope.ownClassNos;
       setMyTeacherId(scope.teacherId);
       setIsMaster(scope.isMaster);
-      setCanUseHomeroomViews(scope.canUseHomeroomViews);
       setMasterClasses(scope.classes);
       setMyClassNos(classNos);
       if (selectedClassNo) setMyClassName(selectedClassNo);
@@ -280,7 +278,7 @@ export default function MyClassAttendancePage() {
   if (!authChecked) return <LoadingView full />;
 
   // 담임 아닌 경우
-  if (!canUseHomeroomViews) {
+  if (!myTeacherId && !isMaster) {
     return (
       <div style={{ minHeight: "100vh", background: "var(--bg-soft)", fontFamily: "'Noto Sans KR', sans-serif" }}>
         <div className="app-subpage-header" style={headerStyle}>
