@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { BookOpen, ChevronLeft, ChevronRight, Copy, RefreshCw, RotateCcw } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Copy, ExternalLink, RefreshCw, RotateCcw } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
 import { supabase } from "@/lib/supabase";
@@ -30,6 +30,11 @@ import {
   saveBibleVersion,
   versionLabel,
 } from "@/lib/bible/versions";
+import {
+  type BibleRefTarget,
+  BSKOREA_VERSION,
+  bskoreaReadUrl,
+} from "@/lib/bible/bskorea";
 
 type ClassRow = { class_no: string };
 type GuideFields = { prayerClass?: string; prayerNext?: string; prayerFixed?: boolean };
@@ -43,6 +48,7 @@ type CachedScript = {
   prayerClass?: string;
   verses?: BibleVerse[];
   normalizedScripture?: string;
+  refTarget?: BibleRefTarget | null;
   testament?: "구약" | "신약";
   scriptureSource?: string;
   scriptureInput?: string;
@@ -168,6 +174,8 @@ export default function WorshipLeaderPage() {
   const [prayerClass, setPrayerClass] = useState("");
   const [verses, setVerses] = useState<BibleVerse[]>([]);
   const [normalizedScripture, setNormalizedScripture] = useState("");
+  // 성서공회 딥링크에 쓸 구절 위치. 본문을 못 찾으면 null 이고 버튼도 감춘다.
+  const [refTarget, setRefTarget] = useState<BibleRefTarget | null>(null);
   const [testament, setTestament] = useState<"구약" | "신약" | undefined>();
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
@@ -234,11 +242,13 @@ export default function WorshipLeaderPage() {
       const rows = data as BibleRow[];
       setVerses(rows.map((row) => ({ chapter: row.chapter, verse: row.verse, text: row.text })));
       setNormalizedScripture(rows[0].normalized_label || reference);
+      setRefTarget({ bookId: Number(rows[0].book_id), chapter: rows[0].chapter, verse: rows[0].verse });
       setTestament(Number(rows[0].book_id) <= 39 ? "구약" : "신약");
       return true;
     }
     setVerses([]);
     setNormalizedScripture(reference);
+    setRefTarget(null);
     const detail = error?.message ? ` (${error.message})` : "";
     setNotice(`"${rawReference}" 을(를) 성경에서 찾지 못했습니다. 표기를 확인해주세요.${detail}`);
     return false;
@@ -385,6 +395,7 @@ export default function WorshipLeaderPage() {
         prayerClass,
         verses,
         normalizedScripture,
+        refTarget,
         testament,
         scriptureSource,
         scriptureInput,
@@ -395,7 +406,7 @@ export default function WorshipLeaderPage() {
     } catch {
       /* 저장 실패는 무시 — 다음에 다시 만들면 된다 */
     }
-  }, [cacheKey, loading, prayerClass, verses, normalizedScripture, testament, scriptureSource, scriptureInput, plan]);
+  }, [cacheKey, loading, prayerClass, verses, normalizedScripture, refTarget, testament, scriptureSource, scriptureInput, plan]);
 
   useEffect(() => {
     // 저장해 둔 대본이 있으면 먼저 띄우고, 최신 값은 뒤에서 맞춘다.
@@ -409,6 +420,7 @@ export default function WorshipLeaderPage() {
           setPrayerClass(cached.prayerClass || "");
           setVerses(cached.verses || []);
           setNormalizedScripture(cached.normalizedScripture || "");
+          setRefTarget(cached.refTarget ?? null);
           setTestament(cached.testament);
           setScriptureSource(cached.scriptureSource || "");
           setScriptureInput(cached.scriptureInput || "");
@@ -420,6 +432,9 @@ export default function WorshipLeaderPage() {
       await load(sunday, hadCache);
     })();
   }, [load, sunday, cacheKey]);
+
+  // 개역개정은 저작권 때문에 본문을 앱에 넣을 수 없다 — 성서공회 성경읽기로 보낸다.
+  const nkrvUrl = useMemo(() => bskoreaReadUrl(refTarget, BSKOREA_VERSION.개역개정), [refTarget]);
 
   const generatedSections = useMemo(() => buildWorshipLeaderSections({
     sunday,
@@ -516,6 +531,17 @@ export default function WorshipLeaderPage() {
             <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "color-mix(in srgb, var(--ink) 8%, transparent)", color: "var(--ink-mid)" }}>
               {versionLabel(versions, version)}
             </span>
+            {nkrvUrl && (
+              <a
+                href={nkrvUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="대한성서공회 성경읽기에서 개역개정 본문을 새 창으로 엽니다"
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, border: "1px solid var(--line)", background: "var(--card)", color: "var(--ink-mid)", textDecoration: "none" }}
+              >
+                <ExternalLink size={11} strokeWidth={2} /> 개역개정 보기
+              </a>
+            )}
             {verses.length > 0 && (
               <span style={{ fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600 }}>{verses.length}절 불러옴</span>
             )}
