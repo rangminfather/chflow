@@ -50,7 +50,7 @@ interface MenuItem {
   desc: string;
   color: string;
   implemented: boolean;  // 구현 안 된 페이지는 클릭 시 "준비 중" 토스트
-  onlyForDept?: string | null; // null = 모든 부서 (카테고리 onlyForDept 무시)
+  onlyForDept?: string | string[] | null; // null = 모든 부서 (카테고리 onlyForDept 무시)
   onlyForCategory?: string | null; // null = 카테고리 제한 없음(카테고리 onlyForCategory 무시)
   maxGrade?: number;
   /** 행정관리 전용 — 섹션 id (ADMIN_SECTIONS). 부서별 설정으로 변경 가능 */
@@ -184,7 +184,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
     items: [
       { id: "worship-guide", label: "예배안내", icon: MessageSquareText, desc: "주일 예배 안내 메시지 생성·공유 (카톡용)", color: "#3E7D74", implemented: true, onlyForDept: "초등1부" },
       { id: "worship-leader", label: "예배인도", icon: BookOpen, desc: "주일 예배인도 스크립트 자동 생성", color: "#3E7D74", implemented: true, onlyForDept: "초등1부" },
-      { id: "participation-check", label: "참여율 조사", icon: CircleCheck, desc: "반별 참석 체크 · 통계 · 카톡 공유", color: "#2E8B57", implemented: true, onlyForDept: "초등1부" },
+      { id: "participation-check", label: "참여율 조사", icon: CircleCheck, desc: "반별 참석 체크 · 통계 · 카톡 공유", color: "#2E8B57", implemented: true, onlyForDept: ["초등1부", "초등2부"] },
       { id: "members-grade", label: "부서원관리", icon: Award, desc: "부서원 등급(0~4) 변경 · 임명 — 전도사·부장만 가능", color: "var(--accent)", implemented: true },
       { id: "promote", label: "진급 마법사", icon: GraduationCap, desc: "매년 학년 진급 · 반편성 · 담임배정", color: "var(--danger)", implemented: true },
     ],
@@ -749,8 +749,11 @@ export default function DepartmentDetailPage() {
 
   // 부서명/카테고리 필터 (item 값 우선, null = 제한 없음, undefined = cat 상속)
   const itemDeptOk = (cat: MenuCategory, item: MenuItem): boolean => {
-    const deptName = item.onlyForDept !== undefined ? item.onlyForDept : cat.onlyForDept;
-    if (deptName && deptName !== dept!.name) return false;
+    const deptFilter = item.onlyForDept !== undefined ? item.onlyForDept : cat.onlyForDept;
+    if (deptFilter) {
+      const allowedDepartments = Array.isArray(deptFilter) ? deptFilter : [deptFilter];
+      if (!allowedDepartments.includes(dept!.name)) return false;
+    }
     const catFilter = item.onlyForCategory !== undefined ? item.onlyForCategory : cat.onlyForCategory;
     if (catFilter && catFilter !== dept!.category) return false;
     return true;
