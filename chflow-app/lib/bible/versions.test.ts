@@ -8,6 +8,7 @@ import {
 
 const KRV = { code: "KRV", name_ko: "개역한글", name_en: null, language_code: "ko", copyright_note: null, is_public_domain: true };
 const NKRV = { code: "NKRV", name_ko: "개역개정", name_en: null, language_code: "ko", copyright_note: "허락 필요", is_public_domain: false };
+const SAE = { code: "SAE", name_ko: "표준새번역", name_en: null, language_code: "ko", copyright_note: null, is_public_domain: false };
 
 describe("역본 선택", () => {
   it("개역개정이 1순위 — 쓸 수 있게 되면 자동으로 기본이 된다", () => {
@@ -17,6 +18,10 @@ describe("역본 선택", () => {
 
   it("개역개정이 아직 없으면 개역한글로 내려간다", () => {
     expect(resolveBibleVersion([KRV], null)).toBe("KRV");
+  });
+
+  it("우선순위 역본이 둘 다 없으면 남은 활성 역본을 쓴다", () => {
+    expect(resolveBibleVersion([SAE], null)).toBe("SAE");
   });
 
   it("사용자가 고른 역본이 아직 유효하면 그것을 쓴다", () => {

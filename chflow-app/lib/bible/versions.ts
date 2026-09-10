@@ -3,12 +3,19 @@
    사용 가능한 역본은 서버(또는 DB)에서 내려주는 목록을 그대로 따른다.
    역본이 하나뿐이면 선택 UI를 감추고, 둘 이상이면 사용자가 고른다.
    사용자가 고른 값은 해당 기기의 localStorage에만 저장된다.
-   앱/코드 쪽에서 특정 역본을 우선시하거나 강제하지 않는다.
+   사용자가 아직 고르지 않았을 때의 기본 역본만 코드가 정한다 (PREFERRED_VERSION_ORDER).
    ============================================================ */
 
 export const DEFAULT_BIBLE_VERSION = "KRV";
 
-/** @deprecated 코드에서 더 이상 역본 우선순위를 강제하지 않는다. versions.test.ts 하위 호환용으로만 유지. */
+/**
+ * 사용자가 아직 역본을 고르지 않았을 때 쓸 기본 역본 우선순위.
+ * 교회에서 실제로 봉독하는 것은 개역개정(NKRV)이므로 그것을 1순위로 둔다.
+ * 허락받아 본문을 넣고 is_active 를 켜는 순간 코드 수정 없이 개역개정이 기본이 된다.
+ *
+ * 목록 자체의 정렬 순서에 이 정책을 맡기지 않는다 — list_bible_versions() 는
+ * `order by v.code` 라서 알파벳순으로 KRV 가 NKRV 보다 앞에 온다.
+ */
 export const PREFERRED_VERSION_ORDER = ["NKRV", "KRV"];
 
 export type BibleVersion = {
@@ -40,12 +47,17 @@ export function parseBibleVersions(raw: unknown): BibleVersion[] {
 
 /**
  * 저장된 선택이 아직 쓸 수 있는 역본이면 그것을 사용한다.
- * 없으면 목록의 첫 번째 역본을 쓰고, 목록이 비어 있으면 DEFAULT만 반환한다.
- * 어떤 역본을 우선할지 코드에서 결정하지 않는다.
+ * 없으면 PREFERRED_VERSION_ORDER 순서로 찾고(NKRV → KRV),
+ * 둘 다 없으면 목록의 첫 번째 역본, 목록이 비어 있으면 DEFAULT만 반환한다.
  */
 export function resolveBibleVersion(versions: BibleVersion[], saved: string | null): string {
   if (saved && versions.some((version) => version.code === saved)) {
     return saved;
+  }
+  for (const code of PREFERRED_VERSION_ORDER) {
+    if (versions.some((version) => version.code === code)) {
+      return code;
+    }
   }
   return versions[0]?.code || DEFAULT_BIBLE_VERSION;
 }
@@ -69,11 +81,21 @@ export function saveBibleVersion(code: string): void {
 }
 
 /**
+ * 목록을 아직 못 읽었을 때 쓸 이름. 첫 페인트에서 배지·대본에 "KRV" 같은
+ * 내부 코드가 노출되지 않게 한다. 목록이 오면 서버의 name_ko 가 이긴다.
+ */
+const FALLBACK_VERSION_NAMES: Record<string, string> = {
+  NKRV: "개역개정",
+  KRV: "개역한글",
+};
+
+/**
  * 대본·화면에 표시할 역본 이름.
- * 목록에 있으면 그 name_ko를 쓰고, 없으면 코드만 그대로 돌려준다.
- * 특정 역본 이름을 코드에 하드코딩하지 않는다.
+ * 목록에 있으면 그 name_ko를 쓰고, 아직 목록이 없으면 알아볼 수 있는 이름을 돌려준다.
+ * 모르는 코드면 빈 문자열 — 내부 코드를 사람에게 보여주지 않는다.
  */
 export function versionLabel(versions: BibleVersion[], code: string): string {
   const found = versions.find((version) => version.code === code)?.name_ko;
-  return found ?? code;
+  if (found) return found;
+  return FALLBACK_VERSION_NAMES[code] ?? "";
 }
