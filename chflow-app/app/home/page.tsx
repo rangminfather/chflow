@@ -14,7 +14,7 @@ import {
   Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid, MessagesSquare, SearchCheck,
   Sparkles, HeartHandshake, Sun, Moon, BarChart3, Radio, MapPin,
   GraduationCap, ChevronRight, ChevronUp, ChevronDown, CloudRain, CloudOff,
-  Cog, GripVertical, Eye, EyeOff, Pencil,
+  Cog, GripVertical, Eye, EyeOff, Pencil, Copyright,
 } from "lucide-react";
 import { useTheme } from "@/lib/useTheme";
 import { useWeatherEffect } from "@/lib/useWeatherEffect";
@@ -103,6 +103,7 @@ const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "messenger-diagnostics", label: "메신저 진단", icon: SearchCheck, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/messenger-diagnostics" },
   { id: "usage-status", label: "이용 현황", icon: BarChart3, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/usage-status" },
   { id: "live-status", label: "실시간예배 점검", icon: Radio, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/live-status" },
+  { id: "copyright", label: "저작권관련", icon: Copyright, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/copyright" },
   { id: "events",   label: "행사 공지",   icon: Megaphone,     color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "calendar", label: "행사 달력",   icon: CalendarDays,  color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
   { id: "life-study-apply", label: "삶공부 신청", icon: GraduationCap, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
