@@ -15,11 +15,23 @@
 | `NEXT_PUBLIC_SUPABASE_URL` | Vercel, `.env.local` | Supabase 프로젝트 URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel, `.env.local` | 브라우저/앱용 Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Vercel | 서버 API에서 RLS를 우회해 운영 작업 수행 |
-| `DEPT_BULLETIN_SIGNING_SECRET` | Vercel Preview/Production, `.env.local` | 부서 주보 파일 URL 전용 HMAC 키(최소 32바이트). 미설정 또는 짧은 값이면 파일 URL 생성·검증이 fail closed 됨 |
+| `DEPT_BULLETIN_SIGNING_SECRET` | Vercel **Production 필수** + Preview, `.env.local` | 부서 주보 파일 URL 전용 HMAC 키(**UTF-8 기준** 최소 32바이트). 미설정 또는 짧은 값이면 `/api/dept-bulletin/file`·`/api/dept-bulletin/latest`가 `503 Bulletin file service unavailable`로 fail closed 됨 |
 | `NEXT_PUBLIC_SITE_URL` | Vercel | 비밀번호 재설정 등 절대 URL 기준 |
 | `CRON_SECRET` | Vercel | Vercel Cron 보호용 토큰. **미설정 시 production에서 모든 cron이 401로 거부됨** |
 | `PUSH_DISPATCH_SECRET` | Vercel, Supabase Vault | 모바일 푸시 dispatch API 보호 토큰 |
 | `UMS_JUBO_USER_ID` / `UMS_JUBO_PASSWORD` | Vercel | 메인 주보 자동 수집(`/api/bulletin/sync`)용 UMS 계정. fallback: `UMS_BULLETIN_*` 또는 `UMS_USER_ID`/`UMS_PASSWORD`. **로컬 `.env.local`뿐 아니라 Vercel production에도 반드시 설정** |
+
+### 환경변수를 추가·변경한 뒤 (중요)
+
+Vercel 환경변수는 **배포에 실려 있는 값이 쓰입니다.** 값을 새로 넣거나 고쳐도 기존 Production
+배포는 예전 값을 계속 쓰므로, **새 Production deployment가 나가야 런타임에 반영됩니다.**
+scope 체크박스도 함께 확인하세요 — Preview에만 켜 두면 운영에서는 미설정과 같습니다.
+
+`DEPT_BULLETIN_SIGNING_SECRET`이 실제로 그렇게 막힌 적이 있습니다. 이 값이 운영에 실리지 않은
+채로 배포가 나가 부서 주보 파일 기능만 `503`으로 통째로 멈췄습니다(앱의 다른 화면은 정상).
+확인 순서는 ① Production scope 체크 ② UTF-8 32바이트 충족 ③ 그 뒤 새 배포 여부입니다.
+
+비밀값 자체는 commit·로그·문서에 남기지 않습니다 (아래 Supabase Vault 항목과 같은 원칙).
 
 ## 주보 자동 수집 cron 시간 (중요)
 
