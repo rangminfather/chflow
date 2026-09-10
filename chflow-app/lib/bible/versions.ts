@@ -6,7 +6,8 @@
    사용자가 아직 고르지 않았을 때의 기본 역본만 코드가 정한다 (PREFERRED_VERSION_ORDER).
    ============================================================ */
 
-export const DEFAULT_BIBLE_VERSION = "KRV";
+/** 스마트명성 성경 기능의 단일 기본 역본. 본문은 R2에서 제공한다. */
+export const DEFAULT_BIBLE_VERSION = "NKRV";
 
 /**
  * 사용자가 아직 역본을 고르지 않았을 때 쓸 기본 역본 우선순위.
@@ -51,15 +52,9 @@ export function parseBibleVersions(raw: unknown): BibleVersion[] {
  * 둘 다 없으면 목록의 첫 번째 역본, 목록이 비어 있으면 DEFAULT만 반환한다.
  */
 export function resolveBibleVersion(versions: BibleVersion[], saved: string | null): string {
-  if (saved && versions.some((version) => version.code === saved)) {
-    return saved;
-  }
-  for (const code of PREFERRED_VERSION_ORDER) {
-    if (versions.some((version) => version.code === code)) {
-      return code;
-    }
-  }
-  return versions[0]?.code || DEFAULT_BIBLE_VERSION;
+  void versions;
+  void saved;
+  return DEFAULT_BIBLE_VERSION;
 }
 
 export function readSavedBibleVersion(): string | null {
@@ -81,21 +76,10 @@ export function saveBibleVersion(code: string): void {
 }
 
 /**
- * 목록을 아직 못 읽었을 때 쓸 이름. 첫 페인트에서 배지·대본에 "KRV" 같은
- * 내부 코드가 노출되지 않게 한다. 목록이 오면 서버의 name_ko 가 이긴다.
- */
-const FALLBACK_VERSION_NAMES: Record<string, string> = {
-  NKRV: "개역개정",
-  KRV: "개역한글",
-};
-
-/**
  * 대본·화면에 표시할 역본 이름.
- * 목록에 있으면 그 name_ko를 쓰고, 아직 목록이 없으면 알아볼 수 있는 이름을 돌려준다.
- * 모르는 코드면 빈 문자열 — 내부 코드를 사람에게 보여주지 않는다.
+ * 목록에 있으면 그 name_ko를 쓰고, 아직 목록이 없으면 코드만 그대로 돌려준다.
  */
 export function versionLabel(versions: BibleVersion[], code: string): string {
   const found = versions.find((version) => version.code === code)?.name_ko;
-  if (found) return found;
-  return FALLBACK_VERSION_NAMES[code] ?? "";
+  return found ?? code;
 }

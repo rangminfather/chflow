@@ -16,6 +16,7 @@
     "education:import": "tsx scripts/import-education-history.ts",
     "education:parse:general": "tsx scripts/parse-general-education-hwpx.ts",
     "education:parse:lmtc": "tsx scripts/parse-lmtc-hwpx.ts",
+    "bible:import:nkrv": "node scripts/import-nkrv-to-r2.mjs",
     "manual": "node scripts/generate-manual.js",
     "manual:install": "npx playwright install chromium",
     "prepare": "husky"

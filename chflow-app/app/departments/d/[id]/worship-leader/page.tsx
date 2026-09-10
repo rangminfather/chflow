@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { BookOpen, ChevronLeft, ChevronRight, Copy, ExternalLink, RefreshCw, RotateCcw } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Copy, RefreshCw, RotateCcw } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
 import { supabase } from "@/lib/supabase";
@@ -21,27 +21,13 @@ import {
   parseDeptBulletinFields,
 } from "@/lib/bulletin/dept-bulletin-fields";
 import { correctNamesIn } from "@/lib/bulletin/name-correction";
-import {
-  type BibleVersion,
-  DEFAULT_BIBLE_VERSION,
-  parseBibleVersions,
-  readSavedBibleVersion,
-  resolveBibleVersion,
-  saveBibleVersion,
-  versionLabel,
-} from "@/lib/bible/versions";
-import {
-  type BibleRefTarget,
-  BSKOREA_VERSION,
-  bskoreaReadUrl,
-} from "@/lib/bible/bskorea";
+import { type BibleRefTarget } from "@/lib/bible/bskorea";
 
 type ClassRow = { class_no: string };
 type GuideFields = { prayerClass?: string; prayerNext?: string; prayerFixed?: boolean };
 type GuideRecord = { fields?: GuideFields } | null;
 type PlanFields = { prayerClass?: string; scripture?: string; sermonTitle?: string; preacher?: string };
 type PlanInfo = { fields: PlanFields; sourceFile: string; sheetName: string } | null;
-type BibleRow = BibleVerse & { book_id: number; book_name: string; normalized_label: string };
 
 /** 기기에 저장해 두는 대본 재료 — 다시 들어올 때 즉시 띄우기 위한 것 */
 type CachedScript = {
@@ -184,9 +170,6 @@ export default function WorshipLeaderPage() {
   const [scriptureSource, setScriptureSource] = useState("");
   const [scriptureInput, setScriptureInput] = useState("");
   const [lookingUp, setLookingUp] = useState(false);
-  const [versions, setVersions] = useState<BibleVersion[]>([]);
-  const [version, setVersion] = useState(DEFAULT_BIBLE_VERSION);
-  const versionRef = useRef(DEFAULT_BIBLE_VERSION);
   // 한 번 만든 대본은 이 기기에 주일별로 남긴다 — 다시 들어올 때 즉시 뜨고,
   // 최신 값은 뒤에서 조용히 맞춘다 (주보 PDF 를 매번 새로 받으면 느리다)
   const cacheKey = `worship-leader-cache:${deptId}:${sunday}`;
@@ -219,40 +202,41 @@ export default function WorshipLeaderPage() {
     try { window.localStorage.removeItem(editStorageKey); } catch { /* 무시 */ }
   }, [editStorageKey]);
 
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase.rpc("list_bible_versions");
-      const list = parseBibleVersions(data);
-      setVersions(list);
-      const picked = resolveBibleVersion(list, readSavedBibleVersion());
-      versionRef.current = picked;
-      setVersion(picked);
-    })();
-  }, []);
-
   /** 본문 표기 하나를 성경에서 찾아 화면에 채운다. 찾으면 true. */
   const lookupScripture = useCallback(async (rawReference: string) => {
     const reference = normalizeBibleReference(rawReference);
     if (!reference) return false;
-    const { data, error } = await supabase.rpc("get_bible_reference", {
-      p_ref: reference,
-      p_version: versionRef.current,
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      router.replace("/login");
+      return false;
+    }
+    const response = await fetch(`/api/bible/reference?ref=${encodeURIComponent(reference)}`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      cache: "no-store",
     });
-    if (!error && Array.isArray(data) && data.length) {
-      const rows = data as BibleRow[];
+    const payload = await response.json() as {
+      ok?: boolean;
+      normalizedLabel?: string;
+      bookId?: number;
+      rows?: BibleVerse[];
+      error?: string;
+    };
+    if (response.ok && payload.ok && Array.isArray(payload.rows) && payload.rows.length) {
+      const rows = payload.rows;
       setVerses(rows.map((row) => ({ chapter: row.chapter, verse: row.verse, text: row.text })));
-      setNormalizedScripture(rows[0].normalized_label || reference);
-      setRefTarget({ bookId: Number(rows[0].book_id), chapter: rows[0].chapter, verse: rows[0].verse });
-      setTestament(Number(rows[0].book_id) <= 39 ? "구약" : "신약");
+      setNormalizedScripture(payload.normalizedLabel || reference);
+      setRefTarget({ bookId: Number(payload.bookId), chapter: rows[0].chapter, verse: rows[0].verse });
+      setTestament(Number(payload.bookId) <= 39 ? "구약" : "신약");
       return true;
     }
     setVerses([]);
     setNormalizedScripture(reference);
     setRefTarget(null);
-    const detail = error?.message ? ` (${error.message})` : "";
+    const detail = payload.error ? ` (${payload.error})` : "";
     setNotice(`"${rawReference}" 을(를) 성경에서 찾지 못했습니다. 표기를 확인해주세요.${detail}`);
     return false;
-  }, []);
+  }, [router]);
 
   /** 인도자가 직접 친 본문으로 다시 찾기 */
   const handleManualLookup = useCallback(async () => {
@@ -433,9 +417,6 @@ export default function WorshipLeaderPage() {
     })();
   }, [load, sunday, cacheKey]);
 
-  // 개역개정은 저작권 때문에 본문을 앱에 넣을 수 없다 — 성서공회 성경읽기로 보낸다.
-  const nkrvUrl = useMemo(() => bskoreaReadUrl(refTarget, BSKOREA_VERSION.개역개정), [refTarget]);
-
   const generatedSections = useMemo(() => buildWorshipLeaderSections({
     sunday,
     prayerClass,
@@ -445,8 +426,8 @@ export default function WorshipLeaderPage() {
     verses,
     sermonTitle: plan?.fields.sermonTitle || "",
     preacher: plan?.fields.preacher || "",
-    versionName: versionLabel(versions, version),
-  }), [normalizedScripture, plan, prayerClass, sunday, testament, verses, versions, version]);
+    versionName: "개역개정",
+  }), [normalizedScripture, plan, prayerClass, sunday, testament, verses]);
 
   const sections = useMemo(() => generatedSections.map((section) => ({
     ...section,
@@ -529,19 +510,8 @@ export default function WorshipLeaderPage() {
               </span>
             )}
             <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "color-mix(in srgb, var(--ink) 8%, transparent)", color: "var(--ink-mid)" }}>
-              {versionLabel(versions, version)}
+              개역개정
             </span>
-            {nkrvUrl && (
-              <a
-                href={nkrvUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="대한성서공회 성경읽기에서 개역개정 본문을 새 창으로 엽니다"
-                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, border: "1px solid var(--line)", background: "var(--card)", color: "var(--ink-mid)", textDecoration: "none" }}
-              >
-                <ExternalLink size={11} strokeWidth={2} /> 개역개정 보기
-              </a>
-            )}
             {verses.length > 0 && (
               <span style={{ fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600 }}>{verses.length}절 불러옴</span>
             )}
@@ -555,24 +525,6 @@ export default function WorshipLeaderPage() {
               aria-label="말씀 본문"
               style={{ flex: 1, minWidth: 180, padding: "10px 12px", fontSize: 14, fontWeight: 600, color: "var(--ink)", background: "var(--card)", border: "1.5px solid var(--line)", borderRadius: 10, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
             />
-            {versions.length > 1 && (
-              <select
-                value={version}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  versionRef.current = next;
-                  setVersion(next);
-                  saveBibleVersion(next);
-                  if (scriptureInput.trim()) void lookupScripture(scriptureInput.trim());
-                }}
-                aria-label="성경 역본"
-                style={{ minHeight: 42, padding: "0 10px", borderRadius: 10, border: "1px solid var(--line)", background: "var(--card)", color: "var(--ink)", font: "inherit", fontSize: 14 }}
-              >
-                {versions.map((item) => (
-                  <option key={item.code} value={item.code}>{item.name_ko}</option>
-                ))}
-              </select>
-            )}
             <button
               type="button"
               onClick={() => void handleManualLookup()}

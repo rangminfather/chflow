@@ -84,6 +84,7 @@ type CommonMenu = {
 const FACILITY_MENU_ID = "facility";
 
 const COMMON_MENUS: CommonMenu[] = [
+  { id: "bible",     label: "성경책",       icon: BookText,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "개역개정 성경 읽기", href: "/bible" },
   { id: "live",      label: "예배",  icon: Radio,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/live" },
   { id: "bulletin",  label: "주보 보기",     icon: BookOpen,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/bulletin" },
   { id: "directory", label: "성도 요람",     icon: Users,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/directory" },
