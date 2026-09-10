@@ -1,5 +1,14 @@
-import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  MAX_BULLETIN_SOURCE_BYTES,
+  isBulletinFileLimitError,
+  readLimitedResponseBytes,
+} from "@/lib/bulletin/attachment-limits";
+import {
+  isDeptBulletinUrlExpired,
+  isDeptBulletinSigningConfigurationError,
+  verifyDeptBulletinPostSignature,
+} from "@/lib/bulletin/dept-bulletin-signing";
 import { normalizeBulletinAttachmentAsPdf } from "@/lib/bulletin/attachment-to-pdf";
 import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
 
@@ -8,8 +17,6 @@ export const maxDuration = 30;
 export const preferredRegion = "icn1";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const SIGNING_SECRET = process.env.SUPABASE_SERVICE_ROLE_KEY || ANON_KEY;
 const PROXY_BASE = `${SUPABASE_URL}/functions/v1/ums-fetch`;
 const UMS_BBS_BASE = "http://ums.or.kr/bbs";
 
@@ -22,20 +29,9 @@ const BROWSER_HEADERS = {
   "Referer": "http://www.ums.or.kr/",
 } as const;
 
-function sign(no: number, expiresAt: number) {
-  return createHmac("sha256", SIGNING_SECRET).update(`samusil:${no}:${expiresAt}`).digest("hex");
-}
-
-function validSignature(no: number, expiresAt: number, sig: string) {
-  const expected = sign(no, expiresAt);
-  const expectedBuf = Buffer.from(expected, "hex");
-  const actualBuf = Buffer.from(sig, "hex");
-  return expectedBuf.length === actualBuf.length && timingSafeEqual(expectedBuf, actualBuf);
-}
-
 async function fetchBuffer(url: string, headers?: HeadersInit) {
   const res = await fetch(url, { cache: "no-store", headers });
-  const buf = new Uint8Array(await res.arrayBuffer());
+  const buf = await readLimitedResponseBytes(res);
   return { ok: res.ok, status: res.status, buf };
 }
 
@@ -54,6 +50,7 @@ async function findRawPdfPathFromPost(no: number) {
     if (attempt.type === "worker") {
       const res = await umsViaCf(attempt.path, {
         referer: "http://www.ums.or.kr/",
+        maxResponseBytes: MAX_BULLETIN_SOURCE_BYTES,
       });
       if (res.status < 200 || res.status >= 300) continue;
       html = new TextDecoder("euc-kr").decode(res.body);
@@ -73,6 +70,7 @@ async function downloadPdf(no: number) {
   if (rawPath) {
     const workerRaw = await umsViaCf(`/bbs/${rawPath}`, {
       referer: `${UMS_BBS_BASE}/zboard.php?id=samusil&no=${no}`,
+      maxResponseBytes: MAX_BULLETIN_SOURCE_BYTES,
     });
     if (workerRaw.status >= 200 && workerRaw.status < 300) {
       const normalized = await normalizeBulletinAttachmentAsPdf(workerRaw.body);
@@ -126,10 +124,10 @@ export async function GET(req: NextRequest) {
     if (!Number.isInteger(no) || no <= 0 || !Number.isInteger(expiresAt) || expiresAt <= 0 || !/^[0-9a-f]{64}$/i.test(sig)) {
       return NextResponse.json({ ok: false, error: "Invalid PDF URL" }, { status: 400 });
     }
-    if (expiresAt < Math.floor(Date.now() / 1000)) {
+    if (isDeptBulletinUrlExpired(expiresAt)) {
       return NextResponse.json({ ok: false, error: "PDF URL expired" }, { status: 401 });
     }
-    if (!validSignature(no, expiresAt, sig)) {
+    if (!verifyDeptBulletinPostSignature(no, expiresAt, sig)) {
       return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
     }
 
@@ -142,6 +140,19 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (e) {
+    if (isDeptBulletinSigningConfigurationError(e)) {
+      return NextResponse.json(
+        { ok: false, error: "Bulletin file service unavailable" },
+        { status: 503 },
+      );
+    }
+    if (isBulletinFileLimitError(e)) {
+      console.warn(`[dept-bulletin-pdf] rejected attachment (${e.code})`);
+      return NextResponse.json(
+        { ok: false, error: "Attachment exceeds the allowed processing limits" },
+        { status: 413 },
+      );
+    }
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "PDF 불러오기 실패" },
       { status: 502 },

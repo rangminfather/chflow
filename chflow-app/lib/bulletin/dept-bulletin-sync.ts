@@ -2,6 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 import { umsViaCf } from "@/lib/bulletin/ums-via-cf";
 import { normalizeBulletinAttachmentAsPdf } from "@/lib/bulletin/attachment-to-pdf";
 import {
+  MAX_BULLETIN_SOURCE_BYTES,
+  assertBulletinSourceSize,
+  isBulletinFileLimitError,
+} from "@/lib/bulletin/attachment-limits";
+import {
   type SamusilListItem,
   extractAttachments,
   extractDateFromTitle,
@@ -46,6 +51,7 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const BUCKET = "bulletins";
 const UMS_MARKER = "UMS samusil no:";
 const BOARD_URL = "http://www.ums.or.kr/bbs/zboard.php?id=samusil";
+const SUPPORTED_EXTENSIONS = new Set(["pdf", "pptx", "hwp", "hwpx", "jpg", "jpeg"]);
 
 // 수집 대상 부서와 저장 폴더.
 // 영아부는 사무실 게시판에 주보를 올리지 않아 매번 "게시글 없음"으로 건너뛴다
@@ -145,7 +151,10 @@ async function findLatestDeptBulletin(listHtml: string, deptKey: string): Promis
 async function downloadAttachment(no: number, fn: number) {
   const res = await umsViaCf(
     `/bbs/skin/PSM_Revolution_DragDrop_board_domi_t_reply_comment/m_download.php?id=samusil&no=${no}&filenum=${fn}&snum=0&hit=0`,
-    { referer: `${BOARD_URL}&no=${no}` },
+    {
+      referer: `${BOARD_URL}&no=${no}`,
+      maxResponseBytes: MAX_BULLETIN_SOURCE_BYTES,
+    },
   );
   if (res.status < 200 || res.status >= 300) throw new Error(`첨부파일 다운로드 실패 (HTTP ${res.status})`);
   if (res.body.byteLength < 1000) throw new Error(`첨부파일이 비어 있음 (${res.body.byteLength} bytes)`);
@@ -159,6 +168,7 @@ async function downloadRenderedPdf(no: number) {
   if (!match) return null;
   const raw = await umsViaCf(`/bbs/${match[0].replace(/__pdf\.jpg$/i, ".pdf")}`, {
     referer: `${BOARD_URL}&no=${no}`,
+    maxResponseBytes: MAX_BULLETIN_SOURCE_BYTES,
   });
   return normalizeBulletinAttachmentAsPdf(raw.body);
 }
@@ -176,10 +186,6 @@ const CONTENT_TYPES: Record<string, string> = {
   hwpx: "application/vnd.hancom.hwpx",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
-  webp: "image/webp",
-  bmp: "image/bmp",
 };
 
 async function syncOneDept(
@@ -223,6 +229,10 @@ async function syncOneDept(
       bytes = rendered;
       extension = "pdf";
     }
+    assertBulletinSourceSize(bytes.byteLength);
+    if (!SUPPORTED_EXTENSIONS.has(extension)) {
+      throw new Error("unsupported_bulletin_file_type");
+    }
 
     const objectPath = `dept/${dept.slug}/${issueDate}_${latest.no}.${extension}`;
     const { error: uploadError } = await r2.from(BUCKET).upload(objectPath, bytes, {
@@ -245,7 +255,11 @@ async function syncOneDept(
     await logSync(admin, dept.key, "success", { detail: objectPath, item_no: latest.no, issue_date: issueDate });
     return { dept: dept.key, ok: true, skipped: false, latest, pdf_path: objectPath, bytes: bytes.byteLength };
   } catch (e) {
-    const detail = e instanceof Error ? e.message : `${dept.key} 주보 수집 실패`;
+    const detail = isBulletinFileLimitError(e)
+      ? e.message
+      : e instanceof Error
+        ? e.message
+        : "dept_bulletin_sync_failed";
     await logSync(admin, dept.key, "error", { detail });
     // 한 부서가 실패해도 나머지 부서 수집은 계속한다.
     return { dept: dept.key, ok: false, error: detail };

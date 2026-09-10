@@ -1,4 +1,3 @@
-import { createHmac } from "crypto";
 import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -6,6 +5,11 @@ import {
   finishBulletinDemandRetry,
 } from "@/lib/bulletin/demand-retry";
 import { syncDeptBulletinFor } from "@/lib/bulletin/dept-bulletin-sync";
+import {
+  isDeptBulletinSigningConfigurationError,
+  signDeptBulletinPost,
+  signDeptBulletinStoragePath,
+} from "@/lib/bulletin/dept-bulletin-signing";
 import {
   getBulletinSundayTargets as getPreferredSundayTargets,
   getExpectedBulletinIssueDate,
@@ -72,7 +76,6 @@ type FetchAttempt = {
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-const SIGNING_SECRET = process.env.SUPABASE_SERVICE_ROLE_KEY || ANON_KEY;
 const BUCKET = "bulletins";
 const PROXY_LIST_URL = `${SUPABASE_URL}/functions/v1/ums-fetch?action=list&board=samusil`;
 const PROXY_POST_URL = (no: number) => `${SUPABASE_URL}/functions/v1/ums-fetch?action=post&board=samusil&no=${no}`;
@@ -205,13 +208,13 @@ function mergeBulletinItems(stored: DeptBulletinItem[], live: DeptBulletinItem[]
 }
 
 function signPdfUrl(no: number, expiresAt: number) {
-  return createHmac("sha256", SIGNING_SECRET).update(`samusil:${no}:${expiresAt}`).digest("hex");
+  return signDeptBulletinPost(no, expiresAt);
 }
 
 // 저장본(R2) 경로 서명 — hwp/hwpx 저장본은 &as=hwp-json / &as=hwp-preview 가공이 필요해
 // 스토리지 프록시가 아니라 /api/dept-bulletin/file 을 거쳐야 한다.
 function signStoragePath(path: string, expiresAt: number) {
-  return createHmac("sha256", SIGNING_SECRET).update(`storage:${path}:${expiresAt}`).digest("hex");
+  return signDeptBulletinStoragePath(path, expiresAt);
 }
 
 function withSignedPdfUrls(items: ListedItem[], origin: string): DeptBulletinItem[] {
@@ -406,6 +409,12 @@ export async function GET(req: NextRequest) {
       preferred_dates: getPreferredSundayTargets(),
     });
   } catch (e) {
+    if (isDeptBulletinSigningConfigurationError(e)) {
+      return NextResponse.json(
+        { ok: false, error: "Bulletin file service unavailable" },
+        { status: 503 },
+      );
+    }
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "부서 주보 목록 불러오기 실패" },
       { status: 502 },
