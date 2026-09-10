@@ -1,0 +1,58 @@
+name: Mobile update quality
+
+on:
+  pull_request:
+    paths:
+      - "chflow-expo/App.tsx"
+      - "chflow-expo/appUpdate.ts"
+      - "chflow-expo/appUpdate.test.ts"
+      - "chflow-expo/package.json"
+      - "chflow-expo/package-lock.json"
+      - "scripts/sync-app-store-release.py"
+      - "scripts/test_sync_app_store_release.py"
+      - ".github/workflows/ios-app-store-sync.yml"
+      - ".github/workflows/mobile-update-quality.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "chflow-expo/App.tsx"
+      - "chflow-expo/appUpdate.ts"
+      - "chflow-expo/appUpdate.test.ts"
+      - "chflow-expo/package.json"
+      - "chflow-expo/package-lock.json"
+      - "scripts/sync-app-store-release.py"
+      - "scripts/test_sync_app_store_release.py"
+      - ".github/workflows/ios-app-store-sync.yml"
+      - ".github/workflows/mobile-update-quality.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Mobile types, update tests, and sync tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: chflow-expo/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install mobile dependencies
+        working-directory: chflow-expo
+        run: npm ci
+      - name: Typecheck mobile app
+        working-directory: chflow-expo
+        run: npm run typecheck
+      - name: Test mobile app
+        working-directory: chflow-expo
+        run: npm run test:unit
+      - name: Validate and test App Store sync
+        run: |
+          python -m py_compile scripts/sync-app-store-release.py
+          python -m unittest discover -s scripts -p "test_sync_app_store_release.py"

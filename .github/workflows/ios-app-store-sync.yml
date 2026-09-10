@@ -1,0 +1,47 @@
+name: Sync released iOS version to Vercel
+
+on:
+  schedule:
+    # GitHub Actions cron is evaluated in UTC. Every 15 minutes in every timezone.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Read the KR App Store and public config without changing Vercel
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-app-store-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Detect KR App Store release and sync Vercel
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Detect and sync public iOS version
+        if: ${{ inputs.dry_run != true }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: python scripts/sync-app-store-release.py
+
+      - name: Rehearse detection without external changes
+        if: ${{ inputs.dry_run == true }}
+        run: python scripts/sync-app-store-release.py --dry-run

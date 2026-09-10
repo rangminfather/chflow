@@ -15,6 +15,13 @@ import {
   stopAttendanceGeofence,
   syncAttendanceGeofence,
 } from './attendanceGeofence';
+import {
+  APP_STORE_URL,
+  APP_STORE_URL_WEB,
+  PLAY_STORE_URL,
+  PLAY_STORE_URL_WEB,
+  checkForAppUpdate,
+} from './appUpdate';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -49,6 +56,8 @@ const LAST_KNOWN_MAX_AGE_MS = 5 * 60_000;
 const LAST_KNOWN_MAX_ACCURACY_M = 200;
 // 웹이 결과를 받았다는 ACK 가 이 시간 안에 오지 않으면 네이티브 Alert 로 알린다.
 const LOCATION_ACK_TIMEOUT_MS = 3_000;
+const UPDATE_CHECK_TIMEOUT_MS = 5_000;
+const UPDATE_CHECK_THROTTLE_MS = 60_000;
 
 class StepTimeoutError extends Error {
   constructor(public step: string, public ms: number) {
@@ -155,11 +164,23 @@ export default function App() {
   );
 }
 
-function ForceUpdateScreen({ storeUrl }: { storeUrl: string }) {
+function openStoreUrl(storeUrl: string, storeUrlWeb: string) {
+  Linking.openURL(storeUrl)
+    .catch(() => Linking.openURL(storeUrlWeb))
+    .catch(() => {});
+}
+
+function ForceUpdateScreen({
+  storeUrl,
+  storeUrlWeb,
+  storeName,
+}: {
+  storeUrl: string;
+  storeUrlWeb: string;
+  storeName: 'Play Store' | 'App Store';
+}) {
   const open = () => {
-    Linking.openURL(storeUrl).catch(() =>
-      Linking.openURL('https://play.google.com/store/apps/details?id=com.smartmyungsung.app')
-    );
+    openStoreUrl(storeUrl, storeUrlWeb);
   };
   return (
     <View style={styles.updateContainer}>
@@ -168,7 +189,7 @@ function ForceUpdateScreen({ storeUrl }: { storeUrl: string }) {
         원활한 서비스 이용을 위해{'\n'}최신 버전으로 업데이트해 주세요.
       </Text>
       <TouchableOpacity style={styles.updateButton} onPress={open}>
-        <Text style={styles.updateButtonText}>Play Store에서 업데이트</Text>
+        <Text style={styles.updateButtonText}>{storeName}에서 업데이트</Text>
       </TouchableOpacity>
     </View>
   );
@@ -181,7 +202,13 @@ function AppWebView() {
   const [needsUpdate, setNeedsUpdate] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [updateDismissed, setUpdateDismissed] = useState(false);
-  const [storeUrl, setStoreUrl] = useState('market://details?id=com.smartmyungsung.app');
+  const [storeUrl, setStoreUrl] = useState(Platform.OS === 'ios' ? APP_STORE_URL : PLAY_STORE_URL);
+  const [storeUrlWeb, setStoreUrlWeb] = useState(
+    Platform.OS === 'ios' ? APP_STORE_URL_WEB : PLAY_STORE_URL_WEB,
+  );
+  const [storeName, setStoreName] = useState<'Play Store' | 'App Store'>(
+    Platform.OS === 'ios' ? 'App Store' : 'Play Store',
+  );
   const pendingAccessTokenRef = useRef<string | null>(null);
   const attendanceDisclosureShownRef = useRef(false);
   const registeredKeyRef = useRef<string | null>(null);
@@ -193,6 +220,8 @@ function AppWebView() {
   const locationRequestInFlightRef = useRef(false);
   const imagePickerInFlightRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
+  const lastUpdateCheckAtRef = useRef(0);
+  const updateCheckInFlightRef = useRef(false);
   const updateBannerAnim = useRef(new Animated.Value(0)).current;
 
   const runAttendanceConfirmation = useCallback((accessToken: string) => {
@@ -467,35 +496,37 @@ function AppWebView() {
     registerForPushNotifications().then(setExpoPushToken).catch(() => setExpoPushToken(null));
   }, []);
 
-  useEffect(() => {
-    // Play versionCode 기반 판정이라 iOS 빌드번호와 비교할 수 없다. iOS는 건너뛴다.
-    if (Platform.OS !== 'android') return;
+  const runUpdateCheck = useCallback(async () => {
+    if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
+    const now = Date.now();
+    if (
+      updateCheckInFlightRef.current
+      || now - lastUpdateCheckAtRef.current < UPDATE_CHECK_THROTTLE_MS
+    ) return;
 
-    const check = async () => {
-      try {
-        const res = await fetch(`${TARGET_URL}/api/app-config`);
-        if (!res.ok) return;
-        const config = await res.json() as {
-          min_android_build: number;
-          latest_android_build?: number;
-          play_store_url: string;
-        };
-        const build = parseInt(Application.nativeBuildVersion ?? '0', 10);
-        if (config.play_store_url) setStoreUrl(config.play_store_url);
-        if (build <= 0) return;
-        if (build < config.min_android_build) {
-          // 치명적: 차단형 강제 업데이트
-          setNeedsUpdate(true);
-        } else if (config.latest_android_build && build < config.latest_android_build) {
-          // 일반 신규 버전: 닫기 가능한 권장 업데이트 안내
-          setUpdateAvailable(true);
-        }
-      } catch {
-        // 실패 시 앱 사용 허용 (fail open)
-      }
-    };
-    check();
+    updateCheckInFlightRef.current = true;
+    lastUpdateCheckAtRef.current = now;
+    try {
+      const result = await checkForAppUpdate({
+        platform: Platform.OS,
+        configUrl: `${TARGET_URL}/api/app-config`,
+        nativeBuildVersion: Application.nativeBuildVersion,
+        nativeApplicationVersion: Application.nativeApplicationVersion,
+        timeoutMs: UPDATE_CHECK_TIMEOUT_MS,
+      });
+      setStoreUrl(result.storeUrl);
+      setStoreUrlWeb(result.storeUrlWeb);
+      setStoreName(result.storeName);
+      setNeedsUpdate(result.decision === 'required');
+      setUpdateAvailable(result.decision === 'recommended');
+    } finally {
+      updateCheckInFlightRef.current = false;
+    }
   }, []);
+
+  useEffect(() => {
+    runUpdateCheck();
+  }, [runUpdateCheck]);
 
   // 신규 버전 배너 등장 애니메이션 (아래에서 위로 슬라이드 + 페이드인)
   useEffect(() => {
@@ -569,6 +600,9 @@ function AppWebView() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       appStateRef.current = state;
+      if (state === 'active') {
+        runUpdateCheck();
+      }
       if (state === 'active' && pendingAccessTokenRef.current) {
         runAttendanceConfirmation(pendingAccessTokenRef.current);
       }
@@ -581,7 +615,7 @@ function AppWebView() {
       }
     });
     return () => sub.remove();
-  }, [runAttendanceConfirmation]);
+  }, [runAttendanceConfirmation, runUpdateCheck]);
 
   // 덮개 안전장치: 로드가 끝나지 않아도 4초 후엔 걷어냄
   useEffect(() => {
@@ -883,7 +917,11 @@ function AppWebView() {
     return (
       <View style={styles.safe}>
         <StatusBar style="dark" backgroundColor="#FBF8F1" translucent={false} />
-        <ForceUpdateScreen storeUrl={storeUrl} />
+        <ForceUpdateScreen
+          storeUrl={storeUrl}
+          storeUrlWeb={storeUrlWeb}
+          storeName={storeName}
+        />
       </View>
     );
   }
@@ -961,9 +999,7 @@ function AppWebView() {
               <TouchableOpacity
                 style={styles.updateBannerBtn}
                 onPress={() => {
-                  Linking.openURL(storeUrl).catch(() =>
-                    Linking.openURL('https://play.google.com/store/apps/details?id=com.smartmyungsung.app')
-                  );
+                  openStoreUrl(storeUrl, storeUrlWeb);
                 }}
               >
                 <Text style={styles.updateBannerBtnText}>업데이트</Text>
