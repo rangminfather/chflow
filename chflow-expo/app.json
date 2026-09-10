@@ -2,7 +2,7 @@
   "expo": {
     "name": "스마트명성",
     "slug": "chflow-expo",
-    "version": "1.1.12",
+    "version": "1.1.13",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
