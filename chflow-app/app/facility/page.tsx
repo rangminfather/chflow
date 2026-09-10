@@ -4,29 +4,39 @@
    시설 사용신청
 
    흐름: 건물 선택 → 층 선택 → 공간 선택 → 날짜/시간 → 신청내용 → 신청
-   상단의 건물도(2.5D SVG)는 components/facility/* 가 그리고,
+   캠퍼스 안내도·건물 단면·평면도는 components/facility/* 가 그리고,
    공간 데이터는 lib/facility/facility-map-config.ts 에서만 온다.
    ============================================================ */
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Construction, Landmark } from "lucide-react";
+import Image from "next/image";
+import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Construction, Landmark, Settings } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { EmptyState, LoadingView } from "@/components/StatusViews";
-import FacilityBuildingMap from "@/components/facility/FacilityBuildingMap";
+import FacilityCampusMap from "@/components/facility/FacilityCampusMap";
 import FacilityFloorMap from "@/components/facility/FacilityFloorMap";
 import FacilityRoomMap from "@/components/facility/FacilityRoomMap";
+import FacilityRoomEditor from "@/components/facility/FacilityRoomEditor";
 import FacilitySelectionCard from "@/components/facility/FacilitySelectionCard";
 import {
   findBuilding,
+  findBuildingIn,
   findFloor,
+  findFloorIn,
   findRoom,
+  findRoomIn,
   formatCapacity,
-  formatRoomPath,
+  formatRoomPathIn,
+  isBuildingSelectable,
   listBuildings,
 } from "@/lib/facility/facility-map-config";
 import type { FacilityRoom } from "@/lib/facility/facility-map-config";
+import type { FacilityBuildingOverride, FacilityRoomOverride } from "@/lib/facility/facility-overrides";
+import { applyOverrides, toBuildingOverrideMap, toOverrideMap } from "@/lib/facility/facility-overrides";
+import FacilityScheduleSearch, { type SearchMode } from "@/components/facility/FacilityScheduleSearch";
+import { FACILITY_ACCESS_NOTICE, canUseFacility } from "@/lib/facility/facility-access";
 
 const APPROVER_ROLES = ["admin", "office", "pastor"];
 
@@ -85,8 +95,10 @@ function parseSelection(params: URLSearchParams): Selection {
   const floor = Number.isFinite(floorNumber) ? findFloor(building.code, floorNumber) : null;
   if (!floor) return { building: building.code, floor: null, facilityId: null };
 
+  // 대여 가능 여부는 관리자가 바꿀 수 있으므로 여기서 판정하지 않는다.
+  // 설정 파일에 있는 공간인지, 이 건물·층 소속인지만 본다.
   const room = findRoom(params.get("facility"));
-  const roomOk = room && room.building === building.code && room.floor === floor.floor && room.reservable;
+  const roomOk = room && room.building === building.code && room.floor === floor.floor;
   return { building: building.code, floor: floor.floor, facilityId: roomOk ? room.id : null };
 }
 
@@ -97,7 +109,19 @@ function FacilityRequestView() {
 
   const [authChecked, setAuthChecked] = useState(false);
   const [isApprover, setIsApprover] = useState(false);
+  // 서리집사 이상 직분과 청년·청소년만 신청·조회할 수 있다 (DB facility_requester_ok 와 같은 규칙)
+  const [canUse, setCanUse] = useState(false);
   const [selection, setSelection] = useState<Selection>(() => parseSelection(new URLSearchParams(searchParams.toString())));
+  // 메뉴 진입 시 먼저 고르는 검색 방식 — 고르기 전엔 이 화면만 보여준다.
+  // URL 의 view= 값에서 매번 파생시킨다(별도 state 아님) — 모바일 뒤로가기로
+  // view 파라미터가 사라지면 렌더에서 곧바로 다시 null 이 되어 선택 화면이 뜬다.
+  const viewParam = searchParams.get("view");
+  const entryMode: SearchMode | null = viewParam === "date" || viewParam === "facility" ? viewParam : null;
+
+  // 지금 열려 있는 검색 방식. 시설물중심은 검색 자체가 건물 → 층 → 시설물
+  // wizard 라서, 아래 1~3단계를 그대로 두면 같은 지도가 두 번 나온다.
+  const [searchMode, setSearchMode] = useState<SearchMode | null>(entryMode);
+  const wizardActive = searchMode === "facility";
 
   const [formOpen, setFormOpen] = useState(() => Boolean(parseSelection(new URLSearchParams(searchParams.toString())).facilityId));
   const [date, setDate] = useState("");
@@ -114,12 +138,47 @@ function FacilityRequestView() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  const [overrides, setOverrides] = useState(() => toOverrideMap([]));
+  const [buildingOverrides, setBuildingOverrides] = useState(() => toBuildingOverrideMap([]));
+  const [editorOpen, setEditorOpen] = useState(false);
+
   const formRef = useRef<HTMLElement | null>(null);
 
-  const buildings = useMemo(() => listBuildings(), []);
-  const building = findBuilding(selection.building);
-  const floor = findFloor(selection.building, selection.floor);
-  const room = findRoom(selection.facilityId);
+  // 설정 파일 목록 위에 관리자가 고친 이름·대여 여부를 덮어쓴 것이 화면의 진실이다
+  const defaults = useMemo(() => listBuildings(), []);
+  const buildings = useMemo(
+    () => applyOverrides(defaults, overrides, buildingOverrides),
+    [defaults, overrides, buildingOverrides],
+  );
+  // 대표·부속 분류 — 관리자가 지정한 값만 넘기고, 없으면 kind 로 자동 분류된다
+  const parentMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [facilityId, row] of overrides) {
+      if (typeof row.parent_id === "string") map.set(facilityId, row.parent_id);
+    }
+    return map;
+  }, [overrides]);
+
+  const building = findBuildingIn(buildings, selection.building);
+  const floor = findFloorIn(buildings, selection.building, selection.floor);
+  const picked = findRoomIn(buildings, selection.facilityId);
+  const room = picked && picked.reservable ? picked : null;
+
+  const loadOverrides = useCallback(async () => {
+    const { data, error: rpcError } = await supabase.rpc("get_facility_room_overrides");
+    if (rpcError) {
+      setError(`공간 정보를 불러오지 못했습니다: ${rpcError.message}`);
+      return;
+    }
+    setOverrides(toOverrideMap(data as FacilityRoomOverride[] | null));
+
+    const { data: buildingData, error: buildingError } = await supabase.rpc("get_facility_building_overrides");
+    if (buildingError) {
+      setError(`건물 정보를 불러오지 못했습니다: ${buildingError.message}`);
+      return;
+    }
+    setBuildingOverrides(toBuildingOverrideMap(buildingData as FacilityBuildingOverride[] | null));
+  }, []);
 
   const loadMyBookings = useCallback(async () => {
     const { data, error: rpcError } = await supabase.rpc("get_my_facility_bookings");
@@ -135,10 +194,13 @@ function FacilityRequestView() {
       const { data: profileData } = await supabase.rpc("get_my_status");
       const profile = profileData?.[0];
       setIsApprover(Boolean(profile && APPROVER_ROLES.includes(profile.role)));
+      const allowed = canUseFacility(profile?.sub_role, profile?.role);
+      setCanUse(allowed);
       setAuthChecked(true);
-      await loadMyBookings();
+      if (!allowed) return;
+      await Promise.all([loadOverrides(), loadMyBookings()]);
     })();
-  }, [router, loadMyBookings]);
+  }, [router, loadOverrides, loadMyBookings]);
 
   // 선택한 공간·날짜의 기존 신청 현황 (시간 겹침 안내)
   useEffect(() => {
@@ -161,12 +223,20 @@ function FacilityRequestView() {
   const applySelection = useCallback((next: Selection) => {
     setSelection(next);
     const params = new URLSearchParams();
+    if (entryMode) params.set("view", entryMode);
     if (next.building) params.set("building", next.building);
     if (next.floor !== null) params.set("floor", String(next.floor));
     if (next.facilityId) params.set("facility", next.facilityId);
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [pathname, router]);
+  }, [pathname, router, entryMode]);
+
+  /** 검색 방식 선택 — 뒤로가기 한 단계로 이 선택 화면에 돌아오도록 히스토리를 쌓는다 */
+  const pickEntryMode = useCallback((mode: SearchMode) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("view", mode);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [pathname, router, searchParams]);
 
   function handleBuilding(code: string) {
     setNotice("");
@@ -206,7 +276,7 @@ function FacilityRequestView() {
       p_facility_id: room.id,
       p_building_code: room.building,
       p_floor: room.floor,
-      p_facility_name: formatRoomPath(room),
+      p_facility_name: formatRoomPathIn(buildings, room),
       p_date: date,
       p_time_start: timeStart,
       p_time_end: timeEnd,
@@ -236,6 +306,42 @@ function FacilityRequestView() {
 
   if (!authChecked) return <LoadingView full />;
 
+  // 자격이 없으면 신청 화면 자체를 보여주지 않는다 (DB 쪽에도 같은 문이 걸려 있다)
+  if (!canUse) {
+    return (
+      <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--app-sans)" }}>
+        <header style={{
+          display: "flex", alignItems: "center", gap: 10, padding: "14px 16px",
+          background: "var(--card)", borderBottom: "1px solid var(--hairline)",
+        }}>
+          <HeaderLogo />
+          <strong style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)" }}>시설 사용신청</strong>
+        </header>
+        <div style={{ maxWidth: 520, margin: "0 auto", padding: "40px 20px" }}>
+          <EmptyState
+            icon={<Landmark size={28} strokeWidth={1.6} />}
+            message="이용 대상이 아닙니다"
+            hint={FACILITY_ACCESS_NOTICE}
+          />
+          <button
+            type="button"
+            onClick={() => router.push("/home")}
+            style={{
+              marginTop: 18, width: "100%", minHeight: 46, borderRadius: 12,
+              border: "1px solid var(--hairline-strong)", background: "var(--card)",
+              color: "var(--ink-mid)", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
+            }}
+          >홈으로</button>
+        </div>
+      </div>
+    );
+  }
+
+  // 어떤 방식으로 찾아볼지 먼저 고르게 한다 — 고르기 전엔 이 화면 하나만 뜬다
+  if (!entryMode) {
+    return <FacilityEntryGate onPick={pickEntryMode} onBack={() => router.push("/home")} />;
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--app-sans)" }}>
       {/* 헤더 */}
@@ -257,14 +363,15 @@ function FacilityRequestView() {
       </div>
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "18px 16px 60px" }}>
-        {/* 구현 중 안내 — 건물·층·공간 목록이 아직 임시 데이터라 사용자가
-            실제 시설 정보로 오해하지 않도록 화면 맨 위에 고정으로 보여준다.
-            실제 시설 목록으로 교체하면 이 블록을 지운다. */}
+        {/* 구현 중 안내 — 어디까지 확인된 정보인지 화면 맨 위에 고정으로 밝힌다.
+            층별 세부 공간이 모두 채워지면 이 블록을 지운다. */}
         <div style={wipBanner}>
           <Construction size={16} strokeWidth={1.8} style={{ flexShrink: 0, marginTop: 1 }} />
           <div>
-            <div style={{ fontWeight: 800 }}>현재 시설신청에 대해 구현중에 있습니다.</div>
-            <div style={{ marginTop: 2, fontWeight: 600 }}>본 화면은 샘플 화면입니다.</div>
+            <div style={{ fontWeight: 800 }}>현재 시설신청은 구현 중입니다.</div>
+            <div style={{ marginTop: 2, fontWeight: 600 }}>
+              비전센터 공간은 건축도면을 기준으로 넣었습니다. 수용인원·비품과 바울관·본당·도서관의 세부 공간은 확인 중입니다.
+            </div>
           </div>
         </div>
 
@@ -279,29 +386,75 @@ function FacilityRequestView() {
           </div>
         )}
 
-        {/* 1단계 — 건물 */}
+        {/* 예약현황 검색 — 신청 전에 언제 비어 있는지 먼저 본다 */}
         <section style={card}>
-          <StepTitle step={1} title="건물 선택" hint={building ? building.name : "지도를 눌러 건물을 고르세요"} />
-          <FacilityBuildingMap buildings={buildings} selectedCode={selection.building} onSelect={handleBuilding} />
-          <p style={caption}>
-            실제 건축도면이 아닌 안내용 그림입니다. 위치를 알아보기 쉽도록 단순화했습니다.
-          </p>
+          <StepTitle
+            step={0}
+            title="예약현황 검색"
+            hint="신청 전에 원하는 날짜·시설이 비어 있는지 먼저 확인하세요"
+          />
+          <FacilityScheduleSearch
+            buildings={buildings}
+            parents={parentMap}
+            initialMode={entryMode}
+            onModeChange={setSearchMode}
+            onPickFacility={(facilityId) => {
+              const found = findRoomIn(buildings, facilityId);
+              if (!found) return;
+              applySelection({ building: found.building, floor: found.floor, facilityId });
+              setFormOpen(true);
+            }}
+          />
         </section>
 
+        {/* 1~3단계 — 건물·층·공간. 시설물중심 검색은 같은 흐름을 이미 담고 있어 감춘다. */}
+        {!wizardActive && (
+        <section style={card}>
+          <StepTitle
+            step={1}
+            title="건물 선택"
+            hint={building ? `${building.name} — ${building.description}` : "지도에서 건물을 눌러 고르세요"}
+          />
+          <FacilityCampusMap buildings={buildings} selectedCode={selection.building} onSelect={handleBuilding} />
+          <p style={caption}>
+            위가 북쪽인 안내도입니다. 실제 대지 측량도가 아니라 건물끼리의 위치 관계를 보여줍니다.
+          </p>
+        </section>
+        )}
+
         {/* 2단계 — 층 */}
-        {building && (
+        {!wizardActive && building && (
           <section style={card}>
             <StepTitle
               step={2}
               title="층 선택"
-              hint={floor ? `${building.name} ${floor.label}` : `${building.name} — 층을 고르세요`}
+              hint={
+                floor
+                  ? `${building.name} ${floor.label}`
+                  : isBuildingSelectable(building)
+                    ? `${building.name} — 층을 고르세요`
+                    : `${building.name} — 층별 세부 공간을 확인하는 중입니다`
+              }
+              action={
+                isApprover ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditorOpen(true)}
+                    style={editBtn}
+                    aria-label={`${building.name} 공간 편집`}
+                  >
+                    <Settings size={13} strokeWidth={2} />
+                    공간 편집
+                  </button>
+                ) : undefined
+              }
             />
             <FacilityFloorMap building={building} selectedFloor={selection.floor} onSelect={handleFloor} />
           </section>
         )}
 
         {/* 3단계 — 공간 */}
-        {building && floor && (
+        {!wizardActive && building && floor && (
           <section style={card}>
             <StepTitle
               step={3}
@@ -314,10 +467,6 @@ function FacilityRequestView() {
               selectedRoomId={selection.facilityId}
               onSelect={handleRoom}
             />
-            <div style={{ display: "flex", gap: 14, justifyContent: "center", marginTop: 10 }}>
-              <LegendDot color="color-mix(in srgb, var(--accent) 24%, var(--card))" label="신청 가능" />
-              <LegendDot color="color-mix(in srgb, var(--ink) 12%, var(--card))" label="신청 불가" />
-            </div>
             {room && (
               <FacilitySelectionCard room={room} actionLabel="이 공간 신청하기" onAction={openForm} />
             )}
@@ -327,7 +476,7 @@ function FacilityRequestView() {
         {/* 4단계 — 날짜/시간 + 신청내용 */}
         {room && formOpen && (
           <section style={card} ref={formRef}>
-            <StepTitle step={4} title="날짜·시간과 신청내용" hint={formatRoomPath(room)} />
+            <StepTitle step={4} title="날짜·시간과 신청내용" hint={formatRoomPathIn(buildings, room)} />
 
             <form onSubmit={handleSubmit}>
               <div style={{ marginBottom: 12 }}>
@@ -474,6 +623,21 @@ function FacilityRequestView() {
           )}
         </section>
       </div>
+
+      {editorOpen && building && (
+        <FacilityRoomEditor
+          building={building}
+          defaults={findBuildingIn(defaults, building.code) ?? building}
+          overrides={overrides}
+          onClose={() => setEditorOpen(false)}
+          onSaved={async (message) => {
+            setEditorOpen(false);
+            setError("");
+            setNotice(message);
+            await loadOverrides();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -486,7 +650,99 @@ export default function FacilityPage() {
   );
 }
 
-function StepTitle({ step, title, hint }: { step: number; title: string; hint: string }) {
+function FacilityEntryGate({ onPick, onBack }: { onPick: (mode: SearchMode) => void; onBack: () => void }) {
+  return (
+    <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--app-sans)", display: "flex", flexDirection: "column" }}>
+      <div style={{
+        background: "var(--card)", borderBottom: "1px solid var(--hairline)",
+        padding: "14px 20px", display: "flex", alignItems: "center", gap: 12,
+      }}>
+        <button onClick={onBack} style={iconBtn} aria-label="홈으로">←</button>
+        <HeaderLogo />
+        <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <Landmark size={16} strokeWidth={1.8} /> 시설 사용신청
+        </div>
+      </div>
+
+      {/* 남는 세로 공간을 채우기보다 가운데로 시선을 모은다 */}
+      <div style={{
+        flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        padding: "32px 24px 64px", textAlign: "center",
+      }}>
+        <span style={{
+          display: "inline-flex", width: 64, height: 64, borderRadius: 20, marginBottom: 16,
+          alignItems: "center", justifyContent: "center",
+          background: "color-mix(in srgb, var(--accent) 14%, transparent)",
+          color: "var(--accent-strong)",
+        }}>
+          <Landmark size={30} strokeWidth={1.6} />
+        </span>
+        <div style={{ fontSize: 19, fontWeight: 800, color: "var(--ink)" }}>예약 현황, 어떻게 확인할까요?</div>
+        <div style={{ marginTop: 6, marginBottom: 28, fontSize: 12.5, color: "var(--ink-soft)", fontWeight: 600 }}>
+          편한 방식으로 먼저 시작하세요
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, width: "100%", maxWidth: 340 }}>
+          <EntryGateCard
+            image="/facility/search-by-date.png"
+            title="날짜중심검색"
+            desc="날짜로 조회"
+            tone="accent"
+            onClick={() => onPick("date")}
+          />
+          <EntryGateCard
+            image="/facility/search-by-facility.png"
+            title="시설물중심검색"
+            desc="시설로 조회"
+            tone="info"
+            onClick={() => onPick("facility")}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EntryGateCard({ image, title, desc, tone, onClick }: {
+  image: string;
+  title: string;
+  desc: string;
+  tone: "accent" | "info";
+  onClick: () => void;
+}) {
+  const color = tone === "accent" ? "var(--accent)" : "var(--info)";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+        aspectRatio: "1 / 1", padding: 14, borderRadius: 24,
+        border: `1.5px solid color-mix(in srgb, ${color} 30%, var(--hairline))`,
+        background: `color-mix(in srgb, ${color} 6%, var(--card))`,
+        boxShadow: "0 10px 28px color-mix(in srgb, var(--ink) 10%, transparent)",
+        cursor: "pointer", fontFamily: "inherit", textAlign: "center", width: "100%", boxSizing: "border-box",
+      }}
+    >
+      <Image src={image} alt="" width={72} height={72} style={{ width: 72, height: 72, objectFit: "contain" }} />
+      <span style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)", lineHeight: 1.3 }}>{title}</span>
+      <span style={{ fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 600 }}>{desc}</span>
+    </button>
+  );
+}
+
+function StepTitle({
+  step,
+  title,
+  hint,
+  action,
+}: {
+  step: number;
+  title: string;
+  hint: string;
+  /** 제목 오른쪽에 붙는 버튼 (예: 관리자 공간 편집) */
+  action?: React.ReactNode;
+}) {
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -496,18 +752,10 @@ function StepTitle({ step, title, hint }: { step: number; title: string; hint: s
           color: "var(--accent-strong)", background: "var(--accent-soft)",
         }}>{step}</span>
         <span style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>{title}</span>
+        {action && <span style={{ marginLeft: "auto" }}>{action}</span>}
       </div>
       <div style={{ marginTop: 4, fontSize: 12, color: "var(--ink-soft)", fontWeight: 500 }}>{hint}</div>
     </div>
-  );
-}
-
-function LegendDot({ color, label }: { color: string; label: string }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 600 }}>
-      <span style={{ width: 12, height: 12, borderRadius: 4, background: color, border: "1px solid var(--hairline-strong)" }} />
-      {label}
-    </span>
   );
 }
 
@@ -521,6 +769,13 @@ const card: React.CSSProperties = {
 const iconBtn: React.CSSProperties = {
   width: 36, height: 36, borderRadius: 10, background: "var(--bg-soft)",
   border: "none", fontSize: 16, cursor: "pointer", color: "var(--ink-mid)", flexShrink: 0,
+};
+const editBtn: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 5,
+  padding: "7px 11px", minHeight: 34, borderRadius: 999,
+  border: "1px solid var(--hairline)", background: "var(--card)",
+  color: "var(--ink-mid)", fontSize: 12, fontWeight: 700,
+  cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
 };
 const manageBtn: React.CSSProperties = {
   padding: "8px 12px", minHeight: 36, borderRadius: 10, border: "1px solid var(--accent-line)",

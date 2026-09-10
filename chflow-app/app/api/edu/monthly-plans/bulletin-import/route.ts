@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { r2 } from "@/lib/r2";
-import { loadWorkbook } from "@/lib/xlsx-load";
+import { loadWorkbookWithReason } from "@/lib/xlsx-load";
 import { resolveMonthlyPlanDate } from "@/lib/monthlyPlanDate";
 
 export const runtime = "nodejs";
@@ -239,8 +239,10 @@ function xlCellToStr(v: unknown): string {
 
 async function readEntriesFromWorkbook(buffer: Buffer, sourceFile: string, fileOrder: number, year: number) {
   const entries: PlanEntry[] = [];
-  const wb = await loadWorkbook(buffer);
-  if (!wb) return entries; // 깨진 파일 하나가 전체 가져오기를 막지 않도록 건너뜀
+  // 못 읽은 파일은 건너뛰되(하나가 전체를 막지 않게) 이유는 남긴다 —
+  // 그냥 넘기면 화면에서 "계획서가 없다" 처럼 보여 원인을 못 찾는다.
+  const { workbook: wb, reason } = await loadWorkbookWithReason(buffer);
+  if (!wb) return { entries, reason };
 
   for (const ws of wb.worksheets) {
     const sheetName = ws.name;
@@ -279,7 +281,7 @@ async function readEntriesFromWorkbook(buffer: Buffer, sourceFile: string, fileO
     }
   }
 
-  return entries;
+  return { entries, reason: null as string | null };
 }
 
 export async function GET(req: NextRequest) {
@@ -305,6 +307,7 @@ export async function GET(req: NextRequest) {
 
   const planFiles = (files || []).filter((file) => /\.(xls|xlsx|xlsm)$/i.test(file.name));
   const allEntries: PlanEntry[] = [];
+  const skipped: { file: string; reason: string }[] = [];
 
   for (let index = 0; index < planFiles.length; index += 1) {
     const file = planFiles[index];
@@ -312,12 +315,20 @@ export async function GET(req: NextRequest) {
     const { data, error } = await r2.from(BUCKET).download(path);
     if (error || !data) continue;
     const buffer = Buffer.from(await data.arrayBuffer());
-    allEntries.push(...await readEntriesFromWorkbook(buffer, file.name, index, year));
+    const read = await readEntriesFromWorkbook(buffer, file.name, index, year);
+    allEntries.push(...read.entries);
+    if (read.reason) skipped.push({ file: file.name, reason: read.reason });
   }
 
   const match = sortEntriesForDate(allEntries, date)[0];
   if (!match) {
-    return NextResponse.json({ ok: false, error: "선택한 날짜에 해당하는 월간 교육계획 행을 찾지 못했습니다" }, { status: 404 });
+    // 읽지 못한 파일이 있으면 그 이유를 먼저 알린다
+    // (파일 형식 문제를 "그 날짜 계획이 없다" 로 오인하지 않게)
+    const blocked = skipped[0];
+    const error = blocked
+      ? `월간 교육계획 파일을 읽지 못했습니다 — ${blocked.file}: ${blocked.reason}`
+      : "선택한 날짜에 해당하는 월간 교육계획 행을 찾지 못했습니다";
+    return NextResponse.json({ ok: false, error, skipped }, { status: 404 });
   }
 
   const nextMatch = sortEntriesForDate(allEntries, nextSunday(date))[0];

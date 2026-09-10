@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractText, getDocumentProxy } from "unpdf";
+import { createClient } from "@supabase/supabase-js";
+import { r2 } from "@/lib/r2";
+import { correctNamesIn } from "@/lib/bulletin/name-correction";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -32,6 +35,8 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const PROXY_BASE = `${SUPABASE_URL}/functions/v1/ums-fetch`;
 const LIST_URL = `${PROXY_BASE}?action=list`;
 const FILE_URL = (no: number) => `${PROXY_BASE}?action=pdf&no=${no}`;
+// dept-bulletin 동기화가 주보 PDF 를 받아 두는 곳
+const BULLETIN_BUCKET = "bulletins";
 
 // ─────────────────────────────────────────
 // 부서별 게시글 검색 패턴
@@ -308,6 +313,50 @@ export async function GET(req: NextRequest) {
 const RESULT_CACHE = new Map<string, { result: Prefill; expiresAt: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+/**
+ * 이미 받아 둔 주보(bulletins + R2)에서 값을 뽑는다.
+ * 찾지 못하거나 글자를 못 뽑으면 null — 그러면 기존 게시판 경로로 넘어간다.
+ */
+async function prefillFromStoredBulletin(
+  deptKey: string,
+  issueDate: string | undefined,
+): Promise<{ result: Prefill | null; reason: string }> {
+  if (!issueDate) return { result: null, reason: "날짜 없음" };
+  try {
+    const supabase = createClient(SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { persistSession: false },
+    });
+    const { data, error } = await supabase
+      .from("bulletins")
+      .select("title, sunday_date, pdf_url")
+      .eq("sunday_date", issueDate)
+      .order("created_at", { ascending: false });
+    if (error) return { result: null, reason: `주보 조회 실패: ${error.message}` };
+    if (!data?.length) return { result: null, reason: "그 주일 주보가 저장돼 있지 않음" };
+
+    // 같은 주일에 여러 부서 주보가 들어오므로 제목으로 부서를 가린다 ("초등1초원" 등)
+    const deptToken = deptKey.replace(/부$/, "");
+    const row = data.find((item) => (item.title || "").includes(deptToken) && item.pdf_url);
+    if (!row?.pdf_url) return { result: null, reason: `${deptToken} 주보를 찾지 못함 (그 주일 저장본 ${data.length}건)` };
+
+    const { data: file, error: downloadError } = await r2.from(BULLETIN_BUCKET).download(row.pdf_url);
+    if (downloadError || !file) return { result: null, reason: `주보 파일을 읽지 못함: ${downloadError?.message ?? "빈 응답"}` };
+    const text = await pdfToText(new Uint8Array(await file.arrayBuffer()));
+    // 주보에 섞인 확인된 오타만 고친다 (name-correction.ts 의 목록)
+    const parsed = correctNamesIn(parseFields(text), ["leader", "preacher", "prayer_lead", "praise"]);
+    if (!parsed.scripture && !parsed.sermon_title) {
+      return { result: null, reason: `주보에서 예배순서를 찾지 못함 (추출 ${text.length}자)` };
+    }
+
+    return {
+      result: { source_title: row.title, source_date: row.sunday_date, ...parsed },
+      reason: "",
+    };
+  } catch (e) {
+    return { result: null, reason: `저장본 처리 중 오류: ${(e as Error).message}` };
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as { dept_key?: string; issue_date?: string };
@@ -329,6 +378,17 @@ export async function POST(req: NextRequest) {
     if (cached && cached.expiresAt > Date.now()) {
       return NextResponse.json({ ok: true, data: cached.result, cached: true });
     }
+
+    // 이미 우리 저장소에 받아 둔 주보를 먼저 쓴다.
+    // ums.or.kr 게시판은 우리 함수 IP 를 막을 때가 있어 직접 긁으면 "Access denied" 가
+    // 돌아오고, 재시도하다 함수가 타임아웃난다. 주보는 dept-bulletin 동기화가
+    // 매주 R2 에 받아 두므로 그것을 읽으면 차단과 무관하게 끝난다.
+    const stored = await prefillFromStoredBulletin(deptKey, issueDate);
+    if (stored.result) {
+      RESULT_CACHE.set(cacheKey, { result: stored.result, expiresAt: Date.now() + CACHE_TTL_MS });
+      return NextResponse.json({ ok: true, data: stored.result, source: "stored" });
+    }
+    const storedReason = stored.reason;
 
     const html = await fetchEucKr(LIST_URL);
     const rows = parseBoardList(html);
@@ -354,7 +414,7 @@ export async function POST(req: NextRequest) {
         hint = `'${pattern.author}' 글은 ${sameAuthor.length}개 있으나 제목에 ${pattern.titleIncludes.join(",")} 포함된 게 없음. 최근: '${sameAuthor[0]?.title}'`;
       }
       return NextResponse.json(
-        { ok: false, error: hint },
+        { ok: false, error: hint, storedReason },
         { status: 404 },
       );
     }
@@ -373,6 +433,9 @@ export async function POST(req: NextRequest) {
     RESULT_CACHE.set(cacheKey, { result, expiresAt: Date.now() + CACHE_TTL_MS });
     return NextResponse.json({ ok: true, data: result });
   } catch (e: unknown) {
-    return NextResponse.json({ ok: false, error: "주보 불러오기 실패" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: `주보 불러오기 실패: ${(e as Error)?.message ?? "알 수 없는 오류"}` },
+      { status: 500 },
+    );
   }
 }

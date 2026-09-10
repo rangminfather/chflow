@@ -5,18 +5,20 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type React from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Users, Church, Bell, ChevronRight } from "lucide-react";
+import { CalendarDays, Users, Church, Bell, ChevronRight, Heart, Home } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { photoThumb } from "@/lib/photo";
 import { LoadingView } from "@/components/StatusViews";
 import {
   PastureShell, PastureEmpty, cardStyle, sectionTitleStyle,
   primaryButtonStyle, ghostButtonStyle,
 } from "@/components/PastureShell";
 import {
-  fetchPastureHome, fetchCalendar, setRsvp, notifyPending,
-  formatMeetingDate, formatTime, monthRange, RSVP_LABEL,
-  type PastureHome, type CalendarRow, type RsvpResponse,
+  fetchPastureHome, fetchPastureMembers, fetchCalendar, setRsvp, notifyPending,
+  formatMeetingDate, formatTime, monthRange, ymd, RSVP_LABEL,
+  type PastureHome, type PastureMemberRow, type CalendarRow, type RsvpResponse,
 } from "@/lib/pasture";
 
 export default function PastureHomePage() {
@@ -24,6 +26,7 @@ export default function PastureHomePage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [home, setHome] = useState<PastureHome | null>(null);
   const [items, setItems] = useState<CalendarRow[]>([]);
+  const [members, setMembers] = useState<PastureMemberRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -36,7 +39,15 @@ export default function PastureHomePage() {
       setHome(h);
       if (h?.pasture_id) {
         const { from, to } = monthRange(new Date());
-        setItems(await fetchCalendar(from, to));
+        const [calendar, roster] = await Promise.all([
+          fetchCalendar(from, to),
+          fetchPastureMembers(),
+        ]);
+        setItems(calendar);
+        setMembers(roster);
+      } else {
+        setItems([]);
+        setMembers([]);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "목장 정보를 불러오지 못했습니다");
@@ -100,6 +111,8 @@ export default function PastureHomePage() {
 
   const pastureItems = items.filter((i) => i.source === "pasture");
   const churchItems = items.filter((i) => i.source === "church");
+  const householdCount = new Set(members.map((member) => member.household_id)).size;
+  const childCount = members.filter((member) => member.is_child).length;
 
   return (
     <PastureShell
@@ -123,6 +136,20 @@ export default function PastureHomePage() {
       ) : (
         <>
           {toast && <div style={toastStyle}>{toast}</div>}
+
+          <PastureWelcome
+            pastureName={home.pasture_name || "우리"}
+            members={members}
+            householdCount={householdCount}
+            childCount={childCount}
+            onClick={() => router.push("/pasture/members")}
+          />
+
+          <PastureCalendarPreview
+            rows={items}
+            onOpenCalendar={() => router.push("/pasture/calendar?mode=schedule")}
+            onOpenSchedule={(scheduleId) => router.push(`/pasture/s/${scheduleId}`)}
+          />
 
           {/* 다음 목장모임 */}
           <div style={cardStyle}>
@@ -268,12 +295,153 @@ export default function PastureHomePage() {
   );
 }
 
+function PastureCalendarPreview({ rows, onOpenCalendar, onOpenSchedule }: {
+  rows: CalendarRow[];
+  onOpenCalendar: () => void;
+  onOpenSchedule: (scheduleId: string) => void;
+}) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = ymd(now);
+  const cells: (string | null)[] = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => ymd(new Date(year, month, index + 1))),
+  ];
+  const eventsByDate = new Map<string, CalendarRow[]>();
+  for (const row of rows) {
+    if (row.source === "availability") continue;
+    const dateRows = eventsByDate.get(row.on_date) ?? [];
+    dateRows.push(row);
+    eventsByDate.set(row.on_date, dateRows);
+  }
+
+  const openDate = (date: string) => {
+    const pastureSchedule = (eventsByDate.get(date) ?? []).find((row) => row.source === "pasture");
+    if (pastureSchedule) onOpenSchedule(pastureSchedule.ref_id);
+    else onOpenCalendar();
+  };
+
+  return (
+    <div style={cardStyle}>
+      <button type="button" onClick={onOpenCalendar} style={calendarHeadingStyle}>
+        <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <CalendarDays size={18} strokeWidth={1.9} style={{ color: "var(--accent)" }} />
+          <strong>{year}년 {month + 1}월</strong>
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--accent)", fontSize: 12, fontWeight: 800 }}>
+          전체 보기 <ChevronRight size={15} strokeWidth={2} />
+        </span>
+      </button>
+
+      <div style={calendarGridStyle}>
+        {["일", "월", "화", "수", "목", "금", "토"].map((weekday, index) => (
+          <div
+            key={weekday}
+            style={{ ...calendarWeekdayStyle, color: index === 0 ? "var(--danger)" : index === 6 ? "var(--accent)" : "var(--ink-faint)" }}
+          >
+            {weekday}
+          </div>
+        ))}
+        {cells.map((date, index) => {
+          if (!date) return <div key={`empty-${index}`} />;
+          const dateRows = eventsByDate.get(date) ?? [];
+          return (
+            <button
+              key={date}
+              type="button"
+              onClick={() => openDate(date)}
+              aria-label={`${Number(date.slice(-2))}일${dateRows.length ? ` 일정 ${dateRows.length}개` : ""}`}
+              style={{ ...calendarDayStyle, borderColor: date === today ? "var(--accent)" : "transparent" }}
+            >
+              <span style={{ fontSize: 13, fontWeight: date === today ? 800 : 600 }}>{Number(date.slice(-2))}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 2, height: 5 }}>
+                {dateRows.some((row) => row.source === "pasture") && <i style={dotStyle("var(--accent)")} />}
+                {dateRows.some((row) => row.source === "church") && <i style={dotStyle("var(--brass)")} />}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={calendarLegendStyle}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><i style={dotStyle("var(--accent)")} /> 목장 일정</span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><i style={dotStyle("var(--brass)")} /> 교회 일정</span>
+        <span>날짜를 누르면 달력으로 이동합니다</span>
+      </div>
+    </div>
+  );
+}
+
 function Tally({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div style={{ flex: 1, textAlign: "center" }}>
       <div style={{ fontSize: 19, fontWeight: 800, color }}>{value}</div>
       <div style={{ fontSize: 11, color: "var(--ink-faint)", marginTop: 1 }}>{label}</div>
     </div>
+  );
+}
+
+function PastureWelcome({
+  pastureName,
+  members,
+  householdCount,
+  childCount,
+  onClick,
+}: {
+  pastureName: string;
+  members: PastureMemberRow[];
+  householdCount: number;
+  childCount: number;
+  onClick: () => void;
+}) {
+  const visibleMembers = members.slice(0, 10);
+  const extraCount = Math.max(0, members.length - visibleMembers.length);
+
+  return (
+    <button type="button" onClick={onClick} style={welcomeStyle}>
+      <span style={welcomeGlowStyle} />
+      <span style={welcomeHeadingStyle}>
+        <span style={welcomeIconStyle}><Heart size={18} fill="currentColor" /></span>
+        <span style={{ minWidth: 0, flex: 1 }}>
+          <span style={welcomeEyebrowStyle}>함께 웃고, 먹고, 기도하는 우리</span>
+          <strong style={welcomeTitleStyle}>{pastureName} 목장</strong>
+          <span style={welcomeMetaStyle}>
+            <Home size={13} strokeWidth={2.1} /> {householdCount}가정 · 성인 {members.length - childCount}명 · 자녀 {childCount}명
+          </span>
+        </span>
+        <ChevronRight size={20} strokeWidth={2} style={{ flexShrink: 0, opacity: 0.72 }} />
+      </span>
+
+      <span style={memberStripStyle}>
+        {visibleMembers.map((member, index) => (
+          <span key={member.member_id} style={memberFaceWrapStyle}>
+            <span style={memberFaceStyle(index)}>
+              {member.photo_url ? (
+                <Image
+                  src={photoThumb(member.photo_url, 128) ?? member.photo_url}
+                  alt=""
+                  width={48}
+                  height={48}
+                  unoptimized
+                  loading="lazy"
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              ) : (
+                <span>{member.name.slice(0, 1)}</span>
+              )}
+            </span>
+            <span style={memberNameStyle}>{member.is_me ? `${member.name} · 나` : member.name}</span>
+          </span>
+        ))}
+        {extraCount > 0 && (
+          <span style={extraMemberStyle}>+{extraCount}<small>명</small></span>
+        )}
+      </span>
+      <span style={welcomeFooterStyle}><Users size={14} /> 우리 목장 구성원 모두 보기</span>
+    </button>
   );
 }
 
@@ -303,6 +471,33 @@ const tallyRowStyle: React.CSSProperties = {
   borderBottom: "1px solid var(--hairline)",
 };
 
+const calendarHeadingStyle: React.CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "space-between",
+  width: "100%", marginBottom: 10, padding: 0, border: "none",
+  background: "transparent", color: "var(--ink)", cursor: "pointer", fontFamily: "inherit",
+};
+
+const calendarGridStyle: React.CSSProperties = {
+  display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 3,
+};
+
+const calendarWeekdayStyle: React.CSSProperties = {
+  paddingBottom: 4, textAlign: "center", fontSize: 11, fontWeight: 700,
+};
+
+const calendarDayStyle: React.CSSProperties = {
+  aspectRatio: "1 / 1", minHeight: 38, padding: 0,
+  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
+  border: "1.5px solid transparent", borderRadius: 9,
+  background: "transparent", color: "var(--ink)", cursor: "pointer", fontFamily: "inherit",
+};
+
+const calendarLegendStyle: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+  marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--hairline)",
+  color: "var(--ink-faint)", fontSize: 11, lineHeight: 1.5,
+};
+
 const listRowStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -325,4 +520,150 @@ const toastStyle: React.CSSProperties = {
   color: "var(--accent)",
   fontSize: 13,
   fontWeight: 700,
+};
+
+const welcomeStyle: React.CSSProperties = {
+  position: "relative",
+  isolation: "isolate",
+  display: "block",
+  width: "100%",
+  overflow: "hidden",
+  marginBottom: 12,
+  padding: "20px 18px 16px",
+  border: "1px solid color-mix(in srgb, var(--accent) 24%, var(--hairline))",
+  borderRadius: 18,
+  background: "linear-gradient(145deg, color-mix(in srgb, var(--accent) 14%, var(--card)) 0%, color-mix(in srgb, #e8a98f 13%, var(--card)) 52%, var(--card) 100%)",
+  color: "var(--ink)",
+  textAlign: "left",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  boxShadow: "0 12px 30px color-mix(in srgb, var(--accent) 10%, transparent)",
+};
+
+const welcomeGlowStyle: React.CSSProperties = {
+  position: "absolute",
+  zIndex: -1,
+  width: 180,
+  height: 180,
+  right: -72,
+  top: -98,
+  borderRadius: 999,
+  background: "color-mix(in srgb, #f4c7b5 32%, transparent)",
+};
+
+const welcomeHeadingStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 11,
+};
+
+const welcomeIconStyle: React.CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: 14,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+  color: "#fff",
+  background: "linear-gradient(145deg, var(--accent), #d48778)",
+  boxShadow: "0 7px 18px color-mix(in srgb, var(--accent) 25%, transparent)",
+};
+
+const welcomeEyebrowStyle: React.CSSProperties = {
+  display: "block",
+  marginBottom: 2,
+  fontSize: 11.5,
+  fontWeight: 700,
+  color: "var(--ink-soft)",
+};
+
+const welcomeTitleStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: 22,
+  lineHeight: 1.25,
+  letterSpacing: "-0.035em",
+};
+
+const welcomeMetaStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 4,
+  marginTop: 5,
+  fontSize: 12,
+  fontWeight: 700,
+  color: "var(--ink-soft)",
+};
+
+const memberStripStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 10,
+  overflowX: "auto",
+  marginTop: 18,
+  padding: "1px 1px 7px",
+  scrollbarWidth: "none",
+};
+
+const memberFaceWrapStyle: React.CSSProperties = {
+  display: "flex",
+  width: 52,
+  flex: "0 0 52px",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: 5,
+};
+
+const FACE_COLORS = ["#d7a090", "#9aae8f", "#d6af72", "#869faf", "#b093ad", "#b08c76"];
+const memberFaceStyle = (index: number): React.CSSProperties => ({
+  width: 48,
+  height: 48,
+  overflow: "hidden",
+  borderRadius: 18,
+  border: "2px solid color-mix(in srgb, var(--card) 88%, transparent)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: FACE_COLORS[index % FACE_COLORS.length],
+  color: "#fff",
+  fontSize: 17,
+  fontWeight: 800,
+  boxShadow: "0 5px 13px rgba(65, 49, 42, 0.12)",
+});
+
+const memberNameStyle: React.CSSProperties = {
+  width: "100%",
+  overflow: "hidden",
+  color: "var(--ink-soft)",
+  fontSize: 10.5,
+  fontWeight: 700,
+  textAlign: "center",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const extraMemberStyle: React.CSSProperties = {
+  width: 48,
+  height: 48,
+  borderRadius: 18,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flex: "0 0 48px",
+  background: "color-mix(in srgb, var(--accent) 12%, var(--surface))",
+  color: "var(--accent)",
+  fontSize: 14,
+  fontWeight: 800,
+  gap: 1,
+};
+
+const welcomeFooterStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 5,
+  paddingTop: 9,
+  borderTop: "1px solid color-mix(in srgb, var(--accent) 14%, var(--hairline))",
+  color: "var(--accent)",
+  fontSize: 11.5,
+  fontWeight: 800,
 };

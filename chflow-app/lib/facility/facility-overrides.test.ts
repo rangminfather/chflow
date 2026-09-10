@@ -1,0 +1,373 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+import {
+  FACILITY_BUILDINGS,
+  findBuildingIn,
+  findFloorIn,
+  findRoomIn,
+  formatRoomPathIn,
+  isBuildingSelectable,
+  listBuildings,
+} from "./facility-map-config";
+import type { FacilityRoom } from "./facility-map-config";
+import {
+  BUILDING_DESC_MAX,
+  BUILDING_NAME_MAX,
+  CAPACITY_MAX,
+  CAPACITY_UNIT_MAX,
+  FACILITY_ITEM_MAX,
+  FACILITY_ITEM_NAME_MAX,
+  ROOM_NAME_MAX,
+  ROOM_NOTE_MAX,
+  applyOverrides,
+  buildSavePayload,
+  countOverridden,
+  draftFromRoom,
+  isSameDraft,
+  toOverrideMap,
+  validateDrafts,
+} from "./facility-overrides";
+import type { RoomDraft } from "./facility-overrides";
+
+const here = dirname(fileURLToPath(import.meta.url));
+
+function allRooms(buildings = FACILITY_BUILDINGS): FacilityRoom[] {
+  return buildings.flatMap((b) => b.floors.flatMap((f) => f.rooms));
+}
+
+const EMPTY_DRAFT: RoomDraft = { name: "", reservable: true, capacity: "", capacityUnit: "", facilities: "", note: "", parentId: "" };
+
+/** 비교 테스트용 draft — 필요한 필드만 지정한다 */
+function draft(patchFields: Partial<RoomDraft>): RoomDraft {
+  return { ...EMPTY_DRAFT, ...patchFields };
+}
+
+/** 그 공간의 현재 draft 에서 일부 필드만 바꾼다 */
+function patch(drafts: Map<string, RoomDraft>, id: string, patchFields: Partial<RoomDraft>): void {
+  const current = drafts.get(id);
+  if (!current) throw new Error(`draft 없음: ${id}`);
+  drafts.set(id, { ...current, ...patchFields });
+}
+
+describe("applyOverrides", () => {
+  it("덮어쓸 것이 없으면 원래 배열을 그대로 돌려준다", () => {
+    const base = listBuildings();
+    expect(applyOverrides(base, toOverrideMap([]))).toBe(base);
+  });
+
+  it("이름과 대여 여부를 덮어쓴다", () => {
+    const next = applyOverrides(
+      listBuildings(),
+      toOverrideMap([{ facility_id: "vision-3f-seminar", name: "3층 대세미나실", reservable: false }]),
+    );
+    const room = findRoomIn(next, "vision-3f-seminar")!;
+    expect(room.name).toBe("3층 대세미나실");
+    expect(room.reservable).toBe(false);
+
+    // 원본은 건드리지 않는다
+    expect(findRoomIn(FACILITY_BUILDINGS, "vision-3f-seminar")!.name).toBe("세미나실");
+    expect(findRoomIn(FACILITY_BUILDINGS, "vision-3f-seminar")!.reservable).toBe(true);
+  });
+
+  it("null 은 '기본값 유지' 로 읽는다", () => {
+    const next = applyOverrides(
+      listBuildings(),
+      toOverrideMap([{ facility_id: "vision-3f-seminar", name: null, reservable: null }]),
+    );
+    const room = findRoomIn(next, "vision-3f-seminar")!;
+    expect(room.name).toBe("세미나실");
+    expect(room.reservable).toBe(true);
+  });
+
+  it("빈 이름은 기본값으로 되돌아간다", () => {
+    const next = applyOverrides(
+      listBuildings(),
+      toOverrideMap([{ facility_id: "vision-3f-seminar", name: "   ", reservable: null }]),
+    );
+    expect(findRoomIn(next, "vision-3f-seminar")!.name).toBe("세미나실");
+  });
+
+  it("설정 파일에 없는 공간의 덮어쓰기는 무시한다", () => {
+    const next = applyOverrides(
+      listBuildings(),
+      toOverrideMap([{ facility_id: "사라진-공간", name: "없음", reservable: true }]),
+    );
+    expect(findRoomIn(next, "사라진-공간")).toBeNull();
+    expect(allRooms(next)).toHaveLength(allRooms().length);
+  });
+
+  it("평면도 배치·건물 외곽선은 덮어쓰기로 바뀌지 않는다", () => {
+    const next = applyOverrides(
+      listBuildings(),
+      toOverrideMap([{ facility_id: "vision-3f-seminar", name: "딴이름", reservable: false }]),
+    );
+    const before = findRoomIn(FACILITY_BUILDINGS, "vision-3f-seminar")!;
+    const after = findRoomIn(next, "vision-3f-seminar")!;
+    expect(after.plan).toEqual(before.plan);
+    expect(findBuildingIn(next, "vision")!.footprint).toBe(findBuildingIn(FACILITY_BUILDINGS, "vision")!.footprint);
+  });
+
+  it("손대지 않은 건물·층은 같은 객체로 남는다 (불필요한 리렌더 방지)", () => {
+    const next = applyOverrides(
+      listBuildings(),
+      toOverrideMap([{ facility_id: "vision-3f-seminar", name: "딴이름", reservable: true }]),
+    );
+    expect(findBuildingIn(next, "myungsung")).toBe(findBuildingIn(FACILITY_BUILDINGS, "myungsung"));
+    expect(findFloorIn(next, "vision", 6)).toBe(findFloorIn(FACILITY_BUILDINGS, "vision", 6));
+    expect(findFloorIn(next, "vision", 3)).not.toBe(findFloorIn(FACILITY_BUILDINGS, "vision", 3));
+  });
+
+  it("관리자가 막으면 신청 목록에서 빠지고, 다시 열면 돌아온다", () => {
+    expect(isBuildingSelectable(findBuildingIn(FACILITY_BUILDINGS, "baul")!)).toBe(true);
+
+    const closed = applyOverrides(
+      listBuildings(),
+      toOverrideMap([1, 2, 3, 4].map((f) => ({
+        facility_id: "baul-" + f + "f-pending",
+        name: f + "층",
+        reservable: false,
+      }))),
+    );
+    expect(isBuildingSelectable(findBuildingIn(closed, "baul")!)).toBe(false);
+
+    const next = applyOverrides(
+      listBuildings(),
+      toOverrideMap([{ facility_id: "baul-3f-pending", name: "소예배실", reservable: true }]),
+    );
+    const baul = findBuildingIn(next, "baul")!;
+    expect(isBuildingSelectable(baul)).toBe(true);
+    expect(formatRoomPathIn(next, findRoomIn(next, "baul-3f-pending")!)).toBe("바울관 · 3층 · 소예배실");
+  });
+
+  it("덮어쓰기가 걸린 공간 수를 센다", () => {
+    const overrides = toOverrideMap([
+      { facility_id: "vision-3f-seminar", name: "가", reservable: true },
+      { facility_id: "vision-6f-gym", name: "나", reservable: true },
+      { facility_id: "baul-1f-pending", name: "다", reservable: true },
+    ]);
+    expect(countOverridden(findBuildingIn(FACILITY_BUILDINGS, "vision")!, overrides)).toBe(2);
+    expect(countOverridden(findBuildingIn(FACILITY_BUILDINGS, "baul")!, overrides)).toBe(1);
+    expect(countOverridden(findBuildingIn(FACILITY_BUILDINGS, "library")!, overrides)).toBe(0);
+  });
+});
+
+describe("저장 payload", () => {
+  const vision = findBuildingIn(FACILITY_BUILDINGS, "vision")!;
+  const visionRooms = vision.floors.flatMap((f) => f.rooms);
+
+  function draftsFrom(rooms: FacilityRoom[]): Map<string, RoomDraft> {
+    return new Map(rooms.map((r) => [r.id, draftFromRoom(r)]));
+  }
+
+  it("아무것도 안 고치면 보낼 것이 없다", () => {
+    const payload = buildSavePayload(visionRooms, draftsFrom(visionRooms), toOverrideMap([]));
+    expect(payload.rows).toEqual([]);
+    expect(payload.resets).toEqual([]);
+  });
+
+  it("고친 공간만 rows 에 담는다", () => {
+    const drafts = draftsFrom(visionRooms);
+    patch(drafts, "vision-3f-seminar", { name: "대세미나실" });
+    patch(drafts, "vision-3f-restroom", { reservable: false });
+
+    const payload = buildSavePayload(visionRooms, drafts, toOverrideMap([]));
+    expect(payload.rows.map((r) => r.facility_id)).toEqual(["vision-3f-seminar", "vision-3f-restroom"]);
+    expect(payload.rows[0]).toMatchObject({ name: "대세미나실", reservable: true, capacity: 60 });
+    expect(payload.rows[0].facilities).toEqual(["빔프로젝터", "스크린", "화이트보드", "냉난방기"]);
+    expect(payload.rows[1]).toMatchObject({ name: "화장실", reservable: false, capacity: null });
+    expect(payload.resets).toEqual([]);
+  });
+
+  it("기본값으로 되돌린 공간은 덮어쓰기 행을 지운다", () => {
+    const overrides = toOverrideMap([{ facility_id: "vision-3f-seminar", name: "대세미나실", reservable: true }]);
+    const shown = applyOverrides(listBuildings(), overrides);
+    const drafts = draftsFrom(shown.flatMap((b) => b.floors.flatMap((f) => f.rooms)));
+
+    // 화면에서 원래 이름으로 되돌린 상태
+    patch(drafts, "vision-3f-seminar", { name: "세미나실" });
+
+    const payload = buildSavePayload(visionRooms, drafts, overrides);
+    expect(payload.rows).toEqual([]);
+    expect(payload.resets).toEqual(["vision-3f-seminar"]);
+  });
+
+  it("덮어쓰기가 없던 공간을 기본값 그대로 두면 지울 것도 없다", () => {
+    const drafts = draftsFrom(visionRooms);
+    patch(drafts, "vision-3f-seminar", { name: "  세미나실  " });
+    const payload = buildSavePayload(visionRooms, drafts, toOverrideMap([]));
+    expect(payload.rows).toEqual([]);
+    expect(payload.resets).toEqual([]);
+  });
+
+  it("앞뒤 공백은 떼고 보낸다", () => {
+    const drafts = draftsFrom(visionRooms);
+    patch(drafts, "vision-3f-seminar", { name: "  대세미나실 ", reservable: false });
+    const payload = buildSavePayload(visionRooms, drafts, toOverrideMap([]));
+    expect(payload.rows[0]).toMatchObject({ facility_id: "vision-3f-seminar", name: "대세미나실", reservable: false });
+  });
+
+  it("isSameDraft 는 공백 차이를 같다고 본다", () => {
+    expect(isSameDraft(draft({ name: " 홀 " }), draft({ name: "홀" }))).toBe(true);
+    expect(isSameDraft(draft({ name: "홀" }), draft({ name: "홀", reservable: false }))).toBe(false);
+    // 새로 편집 가능해진 값들도 비교에 들어간다
+    expect(isSameDraft(draft({ capacity: "30" }), draft({ capacity: " 30 " }))).toBe(true);
+    expect(isSameDraft(draft({ capacity: "30" }), draft({ capacity: "40" }))).toBe(false);
+    expect(isSameDraft(draft({ facilities: "빔프로젝터, 화이트보드" }), draft({ facilities: "빔프로젝터,화이트보드" }))).toBe(true);
+    expect(isSameDraft(draft({ facilities: "빔프로젝터" }), draft({ facilities: "화이트보드" }))).toBe(false);
+    expect(isSameDraft(draft({ note: "안내" }), draft({ note: "다른 안내" }))).toBe(false);
+  });
+});
+
+describe("저장 전 검사", () => {
+  const vision = findBuildingIn(FACILITY_BUILDINGS, "vision")!;
+  const visionRooms = vision.floors.flatMap((f) => f.rooms);
+
+  function draftsFrom(rooms: FacilityRoom[]): Map<string, RoomDraft> {
+    return new Map(rooms.map((r) => [r.id, draftFromRoom(r)]));
+  }
+
+  it("기본 데이터는 그대로 통과한다", () => {
+    expect(validateDrafts(visionRooms, draftsFrom(visionRooms))).toBeNull();
+  });
+
+  it("빈 이름을 막는다", () => {
+    const drafts = draftsFrom(visionRooms);
+    patch(drafts, "vision-3f-seminar", { name: "   " });
+    expect(validateDrafts(visionRooms, drafts)).toBe("공간 이름은 비워 둘 수 없습니다");
+  });
+
+  it("너무 긴 이름을 막는다", () => {
+    const drafts = draftsFrom(visionRooms);
+    patch(drafts, "vision-3f-seminar", { name: "가".repeat(ROOM_NAME_MAX + 1) });
+    expect(validateDrafts(visionRooms, drafts)).toContain(`${ROOM_NAME_MAX}자`);
+  });
+
+  it("같은 층에 같은 이름이 둘이면 막는다", () => {
+    const drafts = draftsFrom(visionRooms);
+    patch(drafts, "vision-3f-seminar", { name: "유아부실" });
+    expect(validateDrafts(visionRooms, drafts)).toBe('같은 층에 "유아부실" 이름이 두 개 있습니다');
+  });
+
+  it("다른 층에 같은 이름은 허용한다 (층마다 교육실1 이 있을 수 있다)", () => {
+    const drafts = draftsFrom(visionRooms);
+    patch(drafts, "vision-3f-seminar", { name: "교육실1" });
+    expect(validateDrafts(visionRooms, drafts)).toBeNull();
+  });
+});
+
+describe("마이그레이션 계약", () => {
+  const sql = readFileSync(
+    resolve(here, "../../../MS_AX/chflow-project/supabase/migrations/20260903120000_facility_room_overrides.sql"),
+    "utf8",
+  );
+
+  it("앱이 호출하는 RPC 이름·인자와 맞는다", () => {
+    expect(sql).toContain("create or replace function public.get_facility_room_overrides()");
+    expect(sql).toContain("create or replace function public.save_facility_room_overrides(");
+    expect(sql).toContain("p_rows   jsonb");
+    expect(sql).toContain("p_resets text[]");
+  });
+
+  it("쓰기는 결재 권한자만 — 권한 검사를 빼먹지 않는다", () => {
+    const save = sql.slice(sql.indexOf("function public.save_facility_room_overrides"));
+    expect(save).toContain("if not public.facility_approver_ok() then");
+    expect(save).toContain("raise exception '시설 공간을 수정할 권한이 없습니다'");
+  });
+
+  it("테이블 직접 접근을 막고 RPC 만 통과시킨다", () => {
+    expect(sql).toContain("alter table public.facility_room_overrides enable row level security");
+    expect(sql).toContain("revoke all on table public.facility_room_overrides from anon, authenticated");
+    expect(sql).toContain("grant execute on function public.get_facility_room_overrides() to authenticated");
+    expect(sql).toContain("grant execute on function public.save_facility_room_overrides(jsonb, text[]) to authenticated");
+  });
+
+  it("이름 길이 제한이 앱과 같다", () => {
+    expect(sql).toContain(`char_length(v_name) > ${ROOM_NAME_MAX}`);
+  });
+
+  it("security definer + search_path 를 고정한다", () => {
+    const definers = sql.match(/security definer set search_path = public/g) ?? [];
+    expect(definers.length).toBe(2);
+  });
+});
+
+describe("마이그레이션 계약 — 수용인원·비품 확장", () => {
+  const sql = readFileSync(
+    resolve(here, "../../../MS_AX/chflow-project/supabase/migrations/20260903193000_facility_room_details.sql"),
+    "utf8",
+  );
+
+  it("확장 컬럼을 추가한다 (capacity 만 nullable)", () => {
+    expect(sql).toContain("add column if not exists capacity      int");
+    expect(sql).toContain("capacity_unit text        not null default ''");
+    expect(sql).toContain("facilities    text[]      not null default '{}'::text[]");
+    expect(sql).toContain("note          text        not null default ''");
+  });
+
+  it("읽기 RPC 가 확장 컬럼까지 돌려준다", () => {
+    const get = sql.slice(sql.indexOf("create function public.get_facility_room_overrides"));
+    for (const column of ["facility_id", "name", "reservable", "capacity", "capacity_unit", "facilities", "note"]) {
+      expect(get).toContain(column);
+    }
+  });
+
+  it("쓰기 권한 검사는 그대로 유지된다", () => {
+    const save = sql.slice(sql.indexOf("function public.save_facility_room_overrides"));
+    expect(save).toContain("if not public.facility_approver_ok() then");
+    expect(save).toContain("raise exception '시설 공간을 수정할 권한이 없습니다'");
+  });
+
+  it("입력 제한이 앱과 같다", () => {
+    expect(sql).toContain(`char_length(v_name) > ${ROOM_NAME_MAX}`);
+    expect(sql).toContain(`v_capacity > ${CAPACITY_MAX}`);
+    expect(sql).toContain(`char_length(v_unit) > ${CAPACITY_UNIT_MAX}`);
+    expect(sql).toContain(`array_length(v_facilities, 1) > ${FACILITY_ITEM_MAX}`);
+    expect(sql).toContain(`char_length(f) > ${FACILITY_ITEM_NAME_MAX}`);
+    expect(sql).toContain(`char_length(v_note) > ${ROOM_NOTE_MAX}`);
+  });
+
+  it("security definer + search_path 를 고정한다", () => {
+    const definers = sql.match(/security definer set search_path = public/g) ?? [];
+    expect(definers.length).toBe(2);
+  });
+});
+
+describe("마이그레이션 계약 — 건물 이름·설명", () => {
+  const sql = readFileSync(
+    resolve(here, "../../../MS_AX/chflow-project/supabase/migrations/20260904090000_facility_building_overrides.sql"),
+    "utf8",
+  );
+
+  it("앱이 호출하는 RPC 이름·인자와 맞는다", () => {
+    expect(sql).toContain("create or replace function public.get_facility_building_overrides()");
+    expect(sql).toContain("create or replace function public.save_facility_building_override(");
+    expect(sql).toContain("p_building_code text");
+    expect(sql).toContain("p_name          text");
+    expect(sql).toContain("p_description   text");
+  });
+
+  it("쓰기는 결재 권한자만", () => {
+    const save = sql.slice(sql.indexOf("function public.save_facility_building_override"));
+    expect(save).toContain("if not public.facility_approver_ok() then");
+    expect(save).toContain("raise exception '시설 건물을 수정할 권한이 없습니다'");
+  });
+
+  it("테이블 직접 접근을 막고 RPC 만 통과시킨다", () => {
+    expect(sql).toContain("alter table public.facility_building_overrides enable row level security");
+    expect(sql).toContain("revoke all on table public.facility_building_overrides from anon, authenticated");
+    expect(sql).toContain("grant execute on function public.get_facility_building_overrides() to authenticated");
+    expect(sql).toContain("grant execute on function public.save_facility_building_override(text, text, text) to authenticated");
+  });
+
+  it("길이 제한이 앱과 같다", () => {
+    expect(sql).toContain(`char_length(v_name) > ${BUILDING_NAME_MAX}`);
+    expect(sql).toContain(`char_length(v_desc) > ${BUILDING_DESC_MAX}`);
+  });
+
+  it("이름·설명이 모두 비면 덮어쓰기 행을 지운다 (기본값 복귀)", () => {
+    expect(sql).toContain("if v_name = '' and v_desc = '' then");
+    expect(sql).toContain("delete from public.facility_building_overrides o where o.building_code = v_code");
+  });
+});

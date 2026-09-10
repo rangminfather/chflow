@@ -1,23 +1,20 @@
 "use client";
 
 /* ============================================================
-   2단계 — 층 선택
+   2단계 — 층 선택 (건물 단면)
 
-   선택한 건물을 얇은 판(슬래브)으로 층층이 쌓아 2.5D 로 보여준다.
-   층 간격(STEP)은 "손가락으로 누를 수 있는 최소 높이"를 기준으로 잡았다.
-   슬래브 하나의 터치 판정은 그 층 앞쪽 STEP 만큼의 띠 전체다(≈45px 이상).
+   건물을 옆에서 자른 것처럼 위층부터 아래로 쌓아 보여준다.
+   층이 8개까지 있고(비전센터) 지하층도 있어서, 예전의 아이소메트릭
+   슬래브 더미로는 지면 위/아래가 구분되지 않고 세로로만 길어졌다.
+   여기서는 층마다 한 줄을 주고, 지면선으로 지상·지하를 갈라 놓는다.
+
+   한 줄이 곧 터치 영역(최소 52px)이고, 줄 안에 그 층의 대표 공간과
+   신청 가능한 곳 수를 같이 보여줘서 층을 눌러보지 않고도 고를 수 있다.
    ============================================================ */
 
+import { ChevronRight } from "lucide-react";
 import type { FacilityBuilding } from "@/lib/facility/facility-map-config";
-import {
-  ISO_UNIT,
-  boxFaces,
-  emptyBounds,
-  growBounds,
-  growBoundsWithBox,
-  project,
-  toViewBox,
-} from "@/lib/facility/isometric";
+import { countReservableRooms, summarizeFloor } from "@/lib/facility/facility-map-config";
 
 type Props = {
   building: FacilityBuilding;
@@ -25,131 +22,158 @@ type Props = {
   onSelect: (floor: number) => void;
 };
 
-const UNIT = ISO_UNIT;
-const PLATE_W = 3.2;
-const PLATE_D = 2.2;
-const PLATE_H = 0.26;   // 판 두께 (얇게)
-const STEP = 1.9;       // 층 간격 — 320px 화면까지 유효 터치 띠 44px 이상 유지
-const LABEL_GAP = 14;
-const LABEL_WIDTH = 96;
-
 export default function FacilityFloorMap({ building, selectedFloor, onSelect }: Props) {
-  const floors = building.floors;
-  const plate = { x: 0, y: 0, w: PLATE_W, d: PLATE_D, h: PLATE_H };
-
-  let bounds = emptyBounds();
-  // 바닥판 + 각 층
-  bounds = growBoundsWithBox(bounds, { ...plate, h: 0.2 }, UNIT, -0.5);
-  floors.forEach((_, i) => {
-    bounds = growBoundsWithBox(bounds, plate, UNIT, i * STEP);
-  });
-  // 오른쪽 층 이름표가 잘리지 않도록 여유 확보
-  const topRight = project(PLATE_W, 0, (floors.length - 1) * STEP, UNIT);
-  bounds = growBounds(bounds, { x: topRight.x + LABEL_GAP + LABEL_WIDTH, y: topRight.y });
-  const { viewBox, width } = toViewBox(bounds, 16);
-
-  const groundFaces = boxFaces({ ...plate, h: 0.14 }, UNIT, -0.55);
+  // 위층이 위로 오도록 내림차순. config 의 floors 배열은 오름차순이다.
+  const descending = [...building.floors].sort((a, b) => b.floor - a.floor);
+  const hasBasement = descending.some((f) => f.floor < 0);
+  // 지상 마지막 층의 index — 그 아래에 지면선을 넣는다
+  const lastAboveGround = descending.reduce((last, f, i) => (f.floor > 0 ? i : last), -1);
 
   return (
-    <svg
-      viewBox={viewBox}
+    <div
       role="group"
-      aria-label={`${building.name} 층 안내도`}
-      style={{ width: "100%", maxWidth: width, height: "auto", display: "block", margin: "0 auto", overflow: "visible" }}
+      aria-label={`${building.name} 층 선택`}
+      style={{
+        borderRadius: 14,
+        overflow: "hidden",
+        border: "1px solid var(--hairline)",
+        background: "var(--surface)",
+      }}
     >
-      {/* 지면 */}
-      <polygon
-        points={groundFaces.top}
-        fill="color-mix(in srgb, var(--bg-soft) 70%, transparent)"
-        stroke="var(--hairline)"
-        strokeWidth={1}
-        strokeDasharray="5 4"
+      {/* 지붕 — 건물 단면임을 한눈에 알리는 장식 */}
+      <div
+        aria-hidden="true"
+        style={{
+          height: 14,
+          background: "color-mix(in srgb, var(--accent) 32%, var(--card))",
+          clipPath: "polygon(3% 100%, 11% 0%, 89% 0%, 97% 100%)",
+        }}
       />
 
-      {floors.map((floor, i) => {
-        const baseZ = i * STEP;
+      {descending.map((floor, index) => {
         const selected = floor.floor === selectedFloor;
-        const dimmed = selectedFloor !== null && !selected;
+        const reservable = countReservableRooms(floor);
+        const selectable = reservable > 0;
+        const summary = summarizeFloor(floor);
 
-        const faces = boxFaces(plate, UNIT, baseZ);
-        const anchor = project(PLATE_W, 0, baseZ + PLATE_H, UNIT);
-        const labelX = anchor.x + LABEL_GAP;
-        const labelY = anchor.y + 4;
-
-        const topFill = selected
-          ? "color-mix(in srgb, var(--accent) 30%, var(--card))"
-          : "color-mix(in srgb, var(--accent) 13%, var(--card))";
-        const rightFill = selected
-          ? "color-mix(in srgb, var(--accent) 50%, var(--card))"
-          : "color-mix(in srgb, var(--accent) 30%, var(--card))";
-        const leftFill = selected
-          ? "color-mix(in srgb, var(--accent) 62%, var(--card))"
-          : "color-mix(in srgb, var(--accent) 42%, var(--card))";
-        const stroke = selected ? "var(--accent-strong)" : "var(--hairline-strong)";
-
-        const reservableCount = floor.rooms.filter((r) => r.reservable).length;
-
-        return (
-          <g
-            key={floor.floor}
-            className="facility-map-target"
-            role="button"
-            tabIndex={0}
-            aria-pressed={selected}
-            aria-label={`${building.name} ${floor.label} 선택`}
-            onClick={() => onSelect(floor.floor)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onSelect(floor.floor);
-              }
-            }}
-            style={{
-              opacity: dimmed ? 0.78 : 1,
-              transform: selected ? "translateX(7px)" : undefined,
-            }}
-          >
-            <title>{`${building.name} ${floor.label} — 신청 가능한 공간 ${reservableCount}곳`}</title>
-
-            {/* 판 자체가 터치 판정 영역이다. 위층 판이 나중에 그려지며 뒤쪽을 덮으므로
-                각 층에는 앞쪽 STEP(≈50px) 만큼의 띠가 남는다 — 최소 터치 높이 확보. */}
-            <polygon className="facility-map-face" points={faces.left} fill={leftFill} stroke={stroke} strokeWidth={selected ? 1.4 : 1} strokeLinejoin="round" />
-            <polygon className="facility-map-face" points={faces.right} fill={rightFill} stroke={stroke} strokeWidth={selected ? 1.4 : 1} strokeLinejoin="round" />
-            <polygon className="facility-map-face" points={faces.top} fill={topFill} stroke={stroke} strokeWidth={selected ? 1.4 : 1} strokeLinejoin="round" />
-            <polygon className="facility-map-outline" points={faces.hit} fill="none" stroke="none" />
-
-            {/* 층 이름표 — 이름표도 같은 그룹이라 눌러서 선택된다 */}
-            <rect x={labelX - 6} y={labelY - 24} width={LABEL_WIDTH} height={46} fill="transparent" />
-            <line
-              x1={anchor.x + 2}
-              y1={anchor.y}
-              x2={labelX - 4}
-              y2={labelY - 4}
-              stroke="var(--hairline-strong)"
-              strokeWidth={1}
-            />
-            <text
-              x={labelX}
-              y={labelY}
+        const row = (
+          <>
+            <span
+              aria-hidden="true"
               style={{
-                fontSize: selected ? 14 : 13,
-                fontWeight: selected ? 700 : 500,
-                fill: selected ? "var(--accent-strong)" : "var(--ink-mid)",
-                pointerEvents: "none",
+                width: 54,
+                flexShrink: 0,
+                padding: "6px 0",
+                borderRadius: 8,
+                textAlign: "center",
+                fontSize: 12.5,
+                fontWeight: 800,
+                letterSpacing: -0.2,
+                color: selected ? "var(--card)" : selectable ? "var(--accent-strong)" : "var(--ink-faint)",
+                background: selected
+                  ? "var(--accent)"
+                  : selectable
+                    ? "color-mix(in srgb, var(--accent) 14%, var(--card))"
+                    : "var(--bg-soft)",
               }}
             >
               {floor.label}
-            </text>
-            <text
-              x={labelX}
-              y={labelY + 14}
-              style={{ fontSize: 10.5, fontWeight: 500, fill: "var(--ink-faint)", pointerEvents: "none" }}
-            >
-              {reservableCount > 0 ? `신청 ${reservableCount}곳` : "신청 불가"}
-            </text>
-          </g>
+            </span>
+
+            <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+              <span
+                style={{
+                  display: "block",
+                  fontSize: 13,
+                  fontWeight: selected ? 800 : 600,
+                  color: selectable ? "var(--ink)" : "var(--ink-faint)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {summary}
+              </span>
+              <span
+                style={{
+                  display: "block",
+                  marginTop: 2,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: selectable ? "var(--ink-soft)" : "var(--ink-faint)",
+                }}
+              >
+                {selectable ? `신청 가능 ${reservable}곳` : "신청 가능한 공간 없음"}
+              </span>
+            </span>
+
+            {selectable && (
+              <ChevronRight
+                size={16}
+                strokeWidth={2}
+                aria-hidden="true"
+                style={{ flexShrink: 0, color: selected ? "var(--accent-strong)" : "var(--ink-faint)" }}
+              />
+            )}
+          </>
+        );
+
+        const shared: React.CSSProperties = {
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          width: "100%",
+          minHeight: 52,
+          padding: "8px 12px",
+          border: "none",
+          borderTop: index === 0 ? "none" : "1px solid var(--hairline)",
+          borderLeft: selected ? "3px solid var(--accent)" : "3px solid transparent",
+          background: selected ? "color-mix(in srgb, var(--accent) 10%, var(--card))" : "var(--card)",
+          fontFamily: "inherit",
+          textAlign: "left",
+          boxSizing: "border-box",
+        };
+
+        return (
+          <div key={floor.floor}>
+            {selectable ? (
+              <button
+                type="button"
+                className="facility-floor-row"
+                aria-pressed={selected}
+                aria-label={`${building.name} ${floor.label} 선택 — 신청 가능한 공간 ${reservable}곳`}
+                onClick={() => onSelect(floor.floor)}
+                style={{ ...shared, cursor: "pointer" }}
+              >
+                {row}
+              </button>
+            ) : (
+              <div style={shared} aria-label={`${floor.label} — 신청 가능한 공간이 없습니다`}>
+                {row}
+              </div>
+            )}
+
+            {/* 지면선 — 지상 마지막 층과 지하 첫 층 사이 */}
+            {hasBasement && index === lastAboveGround && (
+              <div
+                aria-hidden="true"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "5px 12px",
+                  background: "color-mix(in srgb, var(--ink) 5%, var(--card))",
+                  borderTop: "1px solid var(--hairline-strong)",
+                  borderBottom: "1px solid var(--hairline-strong)",
+                }}
+              >
+                <span style={{ fontSize: 10, fontWeight: 800, color: "var(--ink-faint)", letterSpacing: 0.6 }}>지면</span>
+                <span style={{ flex: 1, borderTop: "1px dashed var(--hairline-strong)" }} />
+              </div>
+            )}
+          </div>
         );
       })}
-    </svg>
+    </div>
   );
 }

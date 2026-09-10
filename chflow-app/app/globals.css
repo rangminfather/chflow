@@ -165,6 +165,10 @@
     background: #3A2522;
     border-color: #54322E;
   }
+  /* 다크모드 기본 --accent(#8FB39C)는 흰 글자와 대비 2.31:1로 WCAG AA 미달 — 진한 톤으로 보정 */
+  .login-submit {
+    background: #334F40;
+  }
   .auth-muted-panel {
     background: rgba(40, 50, 42, 0.5);
     border-color: rgba(143, 179, 156, 0.2);
@@ -241,6 +245,9 @@
   color: #E8A9A0;
   background: #3A2522;
   border-color: #54322E;
+}
+:root[data-theme="dark"] .login-submit {
+  background: #334F40;
 }
 :root[data-theme="dark"] .auth-muted-panel {
   background: rgba(40, 50, 42, 0.5);
@@ -437,6 +444,13 @@ html {
   background: #ffffff;
   border-color: var(--accent);
   box-shadow: 0 0 0 4px rgba(62, 90, 74, 0.12);
+}
+
+/* 전역 placeholder(--ink-faint)는 로그인 입력창 배경에서 대비가 낮음(라이트 3.11:1) —
+   로그인 화면에 한정해 --ink-soft로 보정 (라이트 4.93:1 / 다크 6.89:1) */
+.login-field input::placeholder {
+  color: var(--ink-soft) !important;
+  -webkit-text-fill-color: var(--ink-soft) !important;
 }
 
 .login-password-wrap {
@@ -1083,8 +1097,8 @@ input::placeholder {
 }
 
 /* ============================================================
-   시설 사용신청 — 반입체(2.5D) 건물도
-   SVG 안의 선택 대상(건물/층/공간)에 붙는 최소한의 상호작용 스타일.
+   시설 사용신청 — 캠퍼스 안내도 · 건물 단면 · 평면도
+   선택 대상(건물 이름표/층 줄/공간 칸)에 붙는 최소한의 상호작용 스타일.
    hover 는 마우스가 있는 기기에서만 보조로 동작하고, 모바일은 tap 만으로 쓴다.
    ============================================================ */
 .facility-map-target {
@@ -1109,9 +1123,87 @@ input::placeholder {
   stroke-dasharray: 4 3;
 }
 
+/* 안내도의 건물 외곽선 — 이름표 버튼과 함께 같은 건물을 가리킨다 */
+.facility-map-shape {
+  transition: fill 180ms ease, stroke 180ms ease;
+}
+
+/* 안내도 위에 겹쳐 놓은 건물 이름표(HTML 버튼) */
+.facility-map-pin {
+  transition: transform 160ms ease;
+}
+
+.facility-map-pin:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+
+/* 층 목록 한 줄 · 공간 번호 칩 */
+.facility-floor-row,
+.facility-room-chip {
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.facility-floor-row:focus-visible,
+.facility-room-chip:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .facility-map-pin:hover {
+    transform: translate(-50%, calc(-50% - 3px));
+  }
+
+  .facility-floor-row:not([aria-pressed="true"]):hover {
+    background: color-mix(in srgb, var(--accent) 7%, var(--card));
+  }
+
+  .facility-room-chip:not([aria-pressed="true"]):hover {
+    border-color: var(--accent-line);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .facility-map-target,
-  .facility-map-target .facility-map-face {
+  .facility-map-target .facility-map-face,
+  .facility-map-shape,
+  .facility-map-pin,
+  .facility-floor-row,
+  .facility-room-chip {
     transition: none;
   }
+
+  .facility-map-pin:hover {
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* 시설물중심 검색 — 단계가 넘어갈 때 스르륵 나타난다 */
+@keyframes chflowStepIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.chflow-step-in {
+  animation: chflowStepIn 220ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chflow-step-in {
+    animation: none;
+  }
+}
+
+/* 예약현황 표 — PC 는 24칸, 모바일은 오전/오후 2시간 6칸 */
+.facility-grid-narrow { display: none; }
+@media (max-width: 720px) {
+  .facility-grid-wide { display: none !important; }
+  .facility-grid-narrow { display: table !important; }
+  .facility-grid-half { display: flex !important; }
 }

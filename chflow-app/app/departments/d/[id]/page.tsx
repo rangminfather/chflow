@@ -12,7 +12,7 @@ import {
   Medal, Users, Inbox, BookText, CalendarPlus, BookOpen, FileText, BarChart3,
   TrendingUp, ScrollText, Sparkles, UserCheck, UserCog, ListChecks,
   Settings, Award, Lock, CircleHelp, Construction, Cog, X, Pencil, MessageSquareText, ShieldCheck,
-  ChevronUp, ChevronDown, User, GripVertical, PartyPopper, LibraryBig,
+  ChevronUp, ChevronDown, User, GripVertical, PartyPopper, LibraryBig, CircleCheck,
 } from "lucide-react";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { photoThumb } from "@/lib/photo";
@@ -123,7 +123,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
     desc: "부서 공통 자료 / 공지 / 주보",
     items: [
       { id: "notices/board", label: "공지 게시판", icon: Megaphone, desc: "부서 공지·알림", color: "#4A7B96", implemented: true, maxGrade: 4 },
-      { id: "department-members", label: "부서 구성원", icon: Users, desc: "임원진 · 반별 담임 안내", color: "var(--accent)", implemented: true, maxGrade: 4 },
+      { id: "department-members", label: "부서 구성원", icon: Users, desc: "임원진 · 학년·반별 담임 안내", color: "var(--accent)", implemented: true, maxGrade: 4 },
       { id: "bulletin", label: "{dept} 주보보기", icon: Newspaper, desc: "주보 열람", color: "#3E7D74", implemented: true, onlyForCategory: "교육사역국", maxGrade: 4 },
       { id: "verse-memory", label: "요절암송", icon: BookOpen, desc: "월별 요절암송 자료", color: "#8A6D3B", implemented: true, onlyForCategory: "교육사역국", maxGrade: 4 },
       { id: "monthly-plan", label: "월간 교육계획서", icon: CalendarDays, desc: "월간 교육계획 파일 조회", color: "var(--accent)", implemented: true, maxGrade: 4 },
@@ -183,6 +183,8 @@ const MENU_CATEGORIES: MenuCategory[] = [
     desc: "부서원 등급 · 설정",
     items: [
       { id: "worship-guide", label: "예배안내", icon: MessageSquareText, desc: "주일 예배 안내 메시지 생성·공유 (카톡용)", color: "#3E7D74", implemented: true, onlyForDept: "초등1부" },
+      { id: "worship-leader", label: "예배인도", icon: BookOpen, desc: "주일 예배인도 스크립트 자동 생성", color: "#3E7D74", implemented: true, onlyForDept: "초등1부" },
+      { id: "participation-check", label: "참여율 조사", icon: CircleCheck, desc: "반별 참석 체크 · 통계 · 카톡 공유", color: "#2E8B57", implemented: true, onlyForDept: "초등1부" },
       { id: "members-grade", label: "부서원관리", icon: Award, desc: "부서원 등급(0~4) 변경 · 임명 — 전도사·부장만 가능", color: "var(--accent)", implemented: true },
       { id: "promote", label: "진급 마법사", icon: GraduationCap, desc: "매년 학년 진급 · 반편성 · 담임배정", color: "var(--danger)", implemented: true },
     ],

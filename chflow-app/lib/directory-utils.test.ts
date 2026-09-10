@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, getDirectoryFilterOptions, hasDirectorySearchCriteria, moveDirectoryChild } from "./directory-utils";
+import { buildQuickEditChanges, directoryAccountDetail, directoryAccountLabel, directoryDisplayText, directoryGenderText, emptyQuickEditDraft, getDirectoryFilterOptions, hasDirectorySearchCriteria, moveDirectoryChild, quickEditNoChangeMessage } from "./directory-utils";
 
 describe("directory display helpers", () => {
   it("moves a child without mutating the original order", () => {
@@ -49,6 +49,26 @@ describe("directory display helpers", () => {
   it("does not create a change for blank or unchanged optional fields", () => {
     const member = { name: "김성헌", phone: null, home_phone: null, family_church: null, sub_role: null, spouse_name: null, gender: null, is_child: null };
     expect(buildQuickEditChanges(member, emptyQuickEditDraft)).toEqual([]);
+  });
+
+  it.each([
+    ["name", { name: "김성훈" }],
+    ["phone", { phone: "010-9999-8888" }],
+    ["home_phone", { home_phone: "052-111-2222" }],
+    ["family_church", { family_church: "기쁨" }],
+    ["sub_role", { sub_role: "집사" }],
+    ["spouse_name", { spouse_name: "새 배우자" }],
+    ["gender", { gender: "F" as const }],
+    ["is_child", { is_child: "true" as const }],
+  ])("detects a standalone %s change", (key, patch) => {
+    const member = { name: "김성헌", phone: "010-1234-5678", home_phone: null, family_church: "새빛", sub_role: null, spouse_name: "배우자", gender: "M", is_child: false };
+    expect(buildQuickEditChanges(member, { ...emptyQuickEditDraft, ...patch }).map((change) => change.key)).toEqual([key]);
+  });
+
+  it("explains when gender or child status already matches the saved value", () => {
+    const member = { name: "송영훈", phone: null, home_phone: null, family_church: null, sub_role: null, spouse_name: null, gender: "M", is_child: true };
+    expect(quickEditNoChangeMessage(member, { ...emptyQuickEditDraft, gender: "M" })).toBe("성별의 현재 저장값이 이미 '남'입니다.");
+    expect(quickEditNoChangeMessage(member, { ...emptyQuickEditDraft, is_child: "true" })).toBe("자녀 여부의 현재 저장값이 이미 '자녀'입니다.");
   });
 
   it("derives dependent directory filter options", () => {

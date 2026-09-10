@@ -6,6 +6,9 @@
 //  - 테스트·중복 의심 데이터는 삭제하지 않고 "정리 대상" 으로 표시만 한다
 
 import { supabase } from "@/lib/supabase";
+import { isPastureExplorePlaceholder, sortPastureExploreRows } from "@/lib/pasture-explore-utils";
+
+export { isPastureExplorePlaceholder, sortPastureExploreRows } from "@/lib/pasture-explore-utils";
 
 export type AvailabilityStatus = "ok" | "hard" | "maybe";
 export type RsvpResponse = "attend" | "undecided" | "absent";
@@ -52,6 +55,28 @@ export type PastureHome = {
   my_availability_count: number;
 };
 
+export type PastureExploreRow = {
+  pasture_id: string;
+  pasture_name: string;
+  mission_area: string | null;
+  grassland_name: string | null;
+  plain_name: string | null;
+  pasture_order: number;
+  grassland_order: number;
+  plain_order: number;
+  leaders: PastureLeader[];
+};
+
+export type PastureLeaderRole = "목자" | "목녀" | "목부";
+
+export type PastureLeader = {
+  member_id: string;
+  name: string;
+  role: PastureLeaderRole;
+  photo_url: string | null;
+  gender: string | null;
+};
+
 export type PastureMemberRow = {
   member_id: string;
   name: string;
@@ -66,6 +91,7 @@ export type PastureMemberRow = {
   has_app: boolean;
   is_me: boolean;
   dup_in_household: boolean;
+  photo_url: string | null;
 };
 
 export type CalendarRow = {
@@ -134,6 +160,130 @@ export async function fetchPastureMembers(): Promise<PastureMemberRow[]> {
   const { data, error } = await supabase.rpc("pasture_list_members");
   if (error) throw error;
   return (data ?? []) as PastureMemberRow[];
+}
+
+type PastureDirectoryRecord = {
+  id: string;
+  name: string;
+  order_no: number | null;
+  mission_area: string | null;
+  grassland: {
+    name: string;
+    order_no: number | null;
+    plain: { name: string; display_name: string | null; order_no: number | null } | null;
+  } | null;
+};
+
+type PastureLeaderRecord = {
+  id: string;
+  name: string;
+  family_church: string | null;
+  photo_url: string | null;
+  gender: string | null;
+  household: { pasture_id: string } | Array<{ pasture_id: string }> | null;
+};
+
+const PASTURE_EXPLORE_SELECT = `
+  id,
+  name,
+  order_no,
+  mission_area,
+  grassland:grasslands(name,order_no,plain:plains(name,display_name,order_no))
+`;
+
+const LEADER_ROLES = ["목자", "목녀", "목부"] as const;
+const LEADER_ROLE_ORDER: Record<PastureLeaderRole, number> = { 목자: 0, 목녀: 1, 목부: 2 };
+
+function toPastureExploreRow(row: PastureDirectoryRecord): PastureExploreRow {
+  const plain = row.grassland?.plain;
+  return {
+    pasture_id: row.id,
+    pasture_name: row.name,
+    mission_area: row.mission_area || null,
+    grassland_name: row.grassland?.name || null,
+    plain_name: plain?.display_name || (plain?.name ? `${plain.name}평원` : null),
+    pasture_order: row.order_no ?? Number.MAX_SAFE_INTEGER,
+    grassland_order: row.grassland?.order_no ?? Number.MAX_SAFE_INTEGER,
+    plain_order: plain?.order_no ?? Number.MAX_SAFE_INTEGER,
+    leaders: [],
+  };
+}
+
+function isPastureLeaderRole(role: string | null): role is PastureLeaderRole {
+  return LEADER_ROLES.includes(role as PastureLeaderRole);
+}
+
+function leaderPastureId(row: PastureLeaderRecord): string | null {
+  if (Array.isArray(row.household)) return row.household[0]?.pasture_id || null;
+  return row.household?.pasture_id || null;
+}
+
+async function fetchPastureLeaders(pastureIds: string[]): Promise<Map<string, PastureLeader[]>> {
+  const byPasture = new Map<string, PastureLeader[]>();
+  if (pastureIds.length === 0) return byPasture;
+
+  const { data, error } = await supabase
+    .from("members")
+    .select("id,name,family_church,photo_url,gender,household:households!inner(pasture_id)")
+    .eq("is_child", false)
+    .in("family_church", [...LEADER_ROLES])
+    .in("household.pasture_id", pastureIds);
+  if (error) throw error;
+
+  for (const row of (data ?? []) as unknown as PastureLeaderRecord[]) {
+    const pastureId = leaderPastureId(row);
+    if (!pastureId || !isPastureLeaderRole(row.family_church)) continue;
+    const leaders = byPasture.get(pastureId) || [];
+    leaders.push({
+      member_id: row.id,
+      name: row.name,
+      role: row.family_church,
+      photo_url: row.photo_url || null,
+      gender: row.gender || null,
+    });
+    byPasture.set(pastureId, leaders);
+  }
+
+  for (const leaders of byPasture.values()) {
+    leaders.sort((a, b) => LEADER_ROLE_ORDER[a.role] - LEADER_ROLE_ORDER[b.role] || a.name.localeCompare(b.name, "ko-KR"));
+  }
+  return byPasture;
+}
+
+/** 목장탐방 목록. 소개 화면에서 필요한 공개 목장 정보만 가져온다. */
+export async function fetchPastureDirectory(): Promise<PastureExploreRow[]> {
+  const { data, error } = await supabase
+    .from("directory_pastures")
+    .select(PASTURE_EXPLORE_SELECT)
+    .order("name");
+  if (error) throw error;
+  const rows = ((data ?? []) as unknown as PastureDirectoryRecord[])
+    .map(toPastureExploreRow)
+    .filter((row) => !isPastureExplorePlaceholder(row));
+  const leaders = await fetchPastureLeaders(rows.map((row) => row.pasture_id));
+  return sortPastureExploreRows(rows.map((row) => ({ ...row, leaders: leaders.get(row.pasture_id) || [] })));
+}
+
+/** 목장탐방 상세. 이후 목장모임 요약도 이 결과 모델에 합쳐서 재사용한다. */
+export async function fetchPastureIntroduction(pastureId: string): Promise<PastureExploreRow | null> {
+  const { data, error } = await supabase
+    .from("directory_pastures")
+    .select(PASTURE_EXPLORE_SELECT)
+    .eq("id", pastureId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const row = toPastureExploreRow(data as unknown as PastureDirectoryRecord);
+  if (isPastureExplorePlaceholder(row)) return null;
+  const leaders = await fetchPastureLeaders([row.pasture_id]);
+  return { ...row, leaders: leaders.get(row.pasture_id) || [] };
+}
+
+export function pastureSearchText(row: PastureExploreRow): string {
+  return [row.pasture_name, row.grassland_name, row.plain_name, row.mission_area, ...row.leaders.flatMap((leader) => [leader.name, leader.role])]
+    .filter(Boolean)
+    .join(" ")
+    .toLocaleLowerCase("ko-KR");
 }
 
 export async function fetchCalendar(from: string, to: string): Promise<CalendarRow[]> {
