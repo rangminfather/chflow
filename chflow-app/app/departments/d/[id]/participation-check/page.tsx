@@ -10,8 +10,9 @@ import type { CSSProperties } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
+import ModalBackdrop from "@/components/ModalBackdrop";
 import { LoadingView } from "@/components/StatusViews";
-import { ChevronLeft, ChevronRight, Copy, Lock, Save } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, History, Lock, Save, Trash2, X } from "lucide-react";
 
 interface StudentRow {
   student_id: string;
@@ -32,6 +33,15 @@ interface TeacherRow {
   teacher_role: string | null;
   status: "" | "참석" | "불참";
   note: string | null;
+}
+
+interface SavedDateRow {
+  check_date: string;
+  student_present: number;
+  new_friend_total: number;
+  teacher_present: number;
+  teacher_total: number;
+  updated_at: string;
 }
 
 type Tally = { male: number; female: number; total: number };
@@ -166,6 +176,9 @@ export default function ParticipationCheckPage() {
   const [noteDraft, setNoteDraft] = useState<Record<string, string>>({});
   const [teacherNoteDraft, setTeacherNoteDraft] = useState<Record<string, string>>({});
   const [newFriendDraft, setNewFriendDraft] = useState<Record<string, { male: string; female: string }>>({});
+  const [listOpen, setListOpen] = useState(false);
+  const [listLoading, setListLoading] = useState(false);
+  const [savedDates, setSavedDates] = useState<SavedDateRow[]>([]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -228,6 +241,40 @@ export default function ParticipationCheckPage() {
     const dt = new Date(y, m - 1, d);
     dt.setDate(dt.getDate() + deltaDays);
     changeDate(toISO(dt));
+  };
+
+  // ── 저장 목록 (리스트 관리) ──
+
+  const openSavedList = async () => {
+    setListOpen(true);
+    setListLoading(true);
+    const { data, error } = await supabase.rpc("edu_participation_list_dates", { p_dept_id: deptId });
+    if (error) {
+      showToast(`저장 목록 조회 실패: ${error.message}`);
+      setSavedDates([]);
+    } else {
+      setSavedDates(((data || []) as SavedDateRow[]).slice().sort((a, b) => b.check_date.localeCompare(a.check_date)));
+    }
+    setListLoading(false);
+  };
+
+  const loadFromList = (row: SavedDateRow) => {
+    setListOpen(false);
+    changeDate(row.check_date);
+  };
+
+  const deleteFromList = async (row: SavedDateRow) => {
+    if (!window.confirm(`${dateLabel(row.check_date)} 조사 기록을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    const { error } = await supabase.rpc("edu_participation_delete_date", {
+      p_dept_id: deptId, p_check_date: row.check_date,
+    });
+    if (error) {
+      showToast(`삭제 실패: ${error.message}`);
+      return;
+    }
+    setSavedDates((prev) => prev.filter((d) => d.check_date !== row.check_date));
+    showToast(`${dateLabel(row.check_date)} 기록을 삭제했습니다`);
+    if (row.check_date === date) await load(date); // 지금 보고 있던 날짜였으면 화면도 비운다
   };
 
   // ── 저장 (개별) ──
@@ -550,6 +597,9 @@ export default function ParticipationCheckPage() {
           <button type="button" onClick={() => shiftDate(1)} aria-label="다음 날짜" style={iconButtonStyle}>
             <ChevronRight size={18} strokeWidth={1.8} />
           </button>
+          <button type="button" onClick={openSavedList} style={savedListButtonStyle}>
+            <History size={14} strokeWidth={1.8} /> 저장 목록
+          </button>
         </div>
 
         {loading ? (
@@ -791,6 +841,46 @@ export default function ParticipationCheckPage() {
       </div>
 
       {toast && <div style={toastStyle}>{toast}</div>}
+
+      {listOpen && (
+        <ModalBackdrop onClose={() => setListOpen(false)} style={{ zIndex: 200 }}>
+          <div onClick={(e) => e.stopPropagation()} style={listSheetStyle}>
+            <div style={listHeaderStyle}>
+              <h2 style={listTitleStyle}>저장 목록</h2>
+              <button type="button" onClick={() => setListOpen(false)} style={listCloseStyle} aria-label="닫기"><X size={18} /></button>
+            </div>
+            <div style={listScrollStyle}>
+              {listLoading ? (
+                <LoadingView padding={24} />
+              ) : savedDates.length === 0 ? (
+                <div style={emptyLineStyle}>저장된 조사가 없습니다</div>
+              ) : (
+                savedDates.map((row) => (
+                  <div key={row.check_date} style={listRowStyle}>
+                    <button type="button" onClick={() => loadFromList(row)} style={listRowMainStyle}>
+                      <span style={listRowDateStyle}>
+                        {dateLabel(row.check_date)}
+                        {row.check_date === date && <span style={listRowCurrentBadgeStyle}>현재</span>}
+                      </span>
+                      <span style={listRowSummaryStyle}>
+                        참석 {row.student_present}명 · 새친구 {row.new_friend_total}명 · 교사 {row.teacher_present}/{row.teacher_total}명
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteFromList(row)}
+                      aria-label={`${dateLabel(row.check_date)} 삭제`}
+                      style={listDeleteButtonStyle}
+                    >
+                      <Trash2 size={15} strokeWidth={1.8} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </ModalBackdrop>
+      )}
     </main>
   );
 }
@@ -801,7 +891,7 @@ const backBtnStyle: CSSProperties = { padding: "8px 14px", background: "var(--bg
 const containerStyle: CSSProperties = { maxWidth: 640, margin: "0 auto", padding: "20px 16px 24px" };
 const eyebrowStyle: CSSProperties = { fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600 };
 const titleStyle: CSSProperties = { fontSize: 20, fontWeight: 800, color: "var(--ink)", margin: "2px 0 0" };
-const dateBarStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 14 };
+const dateBarStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" };
 const iconButtonStyle: CSSProperties = { width: 34, height: 34, display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "1px solid var(--hairline)", background: "var(--card)", color: "var(--ink-mid)", cursor: "pointer" };
 const dateInputStyle: CSSProperties = { padding: "8px 10px", border: "1.5px solid var(--hairline)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "var(--card)", color: "var(--ink)" };
 
@@ -847,3 +937,17 @@ const actionBarStyle: CSSProperties = { position: "sticky", bottom: 0, display: 
 const saveButtonStyle: CSSProperties = { flex: "0 0 auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 18px", background: "var(--card)", color: "var(--ink)", border: "1.5px solid var(--accent)", borderRadius: 10, fontSize: 13.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" };
 const copyButtonStyle: CSSProperties = { flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px", background: "linear-gradient(135deg, var(--accent), var(--accent-muted))", color: "#fff", border: "none", borderRadius: 10, fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const toastStyle: CSSProperties = { position: "fixed", bottom: 88, left: "50%", transform: "translateX(-50%)", background: "rgba(43, 39, 34,0.88)", color: "#fff", padding: "12px 24px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 999, fontFamily: "inherit", whiteSpace: "nowrap" };
+
+const savedListButtonStyle: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "8px 12px", border: "1px solid var(--hairline)", borderRadius: 8, background: "var(--card)", color: "var(--ink-mid)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" };
+
+const listSheetStyle: CSSProperties = { width: "100%", maxWidth: 480, maxHeight: "80vh", background: "var(--card)", borderRadius: 16, display: "flex", flexDirection: "column", overflow: "hidden" };
+const listHeaderStyle: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "14px 16px", borderBottom: "1px solid var(--hairline)" };
+const listTitleStyle: CSSProperties = { margin: 0, fontSize: 15, fontWeight: 800, color: "var(--ink)" };
+const listCloseStyle: CSSProperties = { display: "grid", placeItems: "center", width: 28, height: 28, background: "var(--bg-soft)", color: "var(--ink-mid)", border: "1px solid var(--hairline)", borderRadius: 999, cursor: "pointer" };
+const listScrollStyle: CSSProperties = { padding: 10, overflowY: "auto" };
+const listRowStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 6, padding: "4px", borderRadius: 10 };
+const listRowMainStyle: CSSProperties = { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 3, padding: "8px 10px", background: "transparent", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "left" };
+const listRowDateStyle: CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--ink)" };
+const listRowCurrentBadgeStyle: CSSProperties = { marginLeft: 8, fontSize: 10.5, fontWeight: 800, color: "var(--accent-strong)", background: "var(--accent-soft)", padding: "2px 7px", borderRadius: 999 };
+const listRowSummaryStyle: CSSProperties = { fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 500 };
+const listDeleteButtonStyle: CSSProperties = { flexShrink: 0, display: "grid", placeItems: "center", width: 32, height: 32, background: "color-mix(in srgb, var(--danger) 10%, transparent)", color: "var(--danger)", border: "none", borderRadius: 8, cursor: "pointer" };
