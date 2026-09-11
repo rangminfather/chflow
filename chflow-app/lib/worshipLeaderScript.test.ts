@@ -6,6 +6,7 @@ import {
   normalizeBibleReference,
   prayerLeaderLabel,
   preacherLabel,
+  withoutWorshipLeaderSectionEdit,
 } from "./worshipLeaderScript";
 
 describe("worship leader script", () => {
@@ -70,6 +71,23 @@ describe("본문이 없을 때 대본 문구", () => {
     const text = sections.map((s) => s.content).join("\n");
     expect(text).toContain("하나님이 세상을 이처럼 사랑하사");
     expect(text).not.toContain("찾지 못했습니다");
+  });
+
+  it("합쳐진 절은 절 범위와 개역개정 본문을 함께 표시한다", () => {
+    const section = buildWorshipLeaderSections({
+      ...base,
+      scripture: "사무엘상 31:3-5",
+      normalizedScripture: "사무엘상 31:3-5",
+      testament: "구약",
+      versionName: "개역개정",
+      verses: [{ chapter: 31, verse: 3, endVerse: 4, text: "활 쏘는 자가 사울에게 따라 미치매" }],
+    }).find((item) => item.number === 7);
+    expect(section?.content).toContain("개역개정 · 구약");
+    expect(section?.content).toContain("3-4   활 쏘는 자가 사울에게 따라 미치매");
+  });
+
+  it("새 본문을 불러오면 과거의 빈 7번 편집값만 제거한다", () => {
+    expect(withoutWorshipLeaderSectionEdit({ 1: "수정한 기도", 7: "" }, 7)).toEqual({ 1: "수정한 기도" });
   });
 });
 

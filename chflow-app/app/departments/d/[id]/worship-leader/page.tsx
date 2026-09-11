@@ -13,6 +13,7 @@ import {
   normalizeBibleReference,
   normalizeClassToken,
   parseGuideMessage,
+  withoutWorshipLeaderSectionEdit,
   worshipLeaderScriptText,
 } from "@/lib/worshipLeaderScript";
 import {
@@ -21,7 +22,6 @@ import {
   parseDeptBulletinFields,
 } from "@/lib/bulletin/dept-bulletin-fields";
 import { correctNamesIn } from "@/lib/bulletin/name-correction";
-import { type BibleRefTarget } from "@/lib/bible/bskorea";
 
 type ClassRow = { class_no: string };
 type GuideFields = { prayerClass?: string; prayerNext?: string; prayerFixed?: boolean };
@@ -34,10 +34,7 @@ type CachedScript = {
   prayerClass?: string;
   verses?: BibleVerse[];
   normalizedScripture?: string;
-  refTarget?: BibleRefTarget | null;
   testament?: "구약" | "신약";
-  scriptureSource?: string;
-  scriptureInput?: string;
   plan?: PlanInfo;
   savedAt?: string;
 };
@@ -160,16 +157,9 @@ export default function WorshipLeaderPage() {
   const [prayerClass, setPrayerClass] = useState("");
   const [verses, setVerses] = useState<BibleVerse[]>([]);
   const [normalizedScripture, setNormalizedScripture] = useState("");
-  // 성서공회 딥링크에 쓸 구절 위치. 본문을 못 찾으면 null 이고 버튼도 감춘다.
-  const [refTarget, setRefTarget] = useState<BibleRefTarget | null>(null);
   const [testament, setTestament] = useState<"구약" | "신약" | undefined>();
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
-  // 본문 출처 — 월간교육계획에 그 주일 행이 없을 수 있다(계획서는 보통 두 달치씩 올라온다).
-  // 계획서 → 주보 초안 → 인도자 직접 입력 순으로 찾는다.
-  const [scriptureSource, setScriptureSource] = useState("");
-  const [scriptureInput, setScriptureInput] = useState("");
-  const [lookingUp, setLookingUp] = useState(false);
   // 한 번 만든 대본은 이 기기에 주일별로 남긴다 — 다시 들어올 때 즉시 뜨고,
   // 최신 값은 뒤에서 조용히 맞춘다 (주보 PDF 를 매번 새로 받으면 느리다)
   const cacheKey = `worship-leader-cache:${deptId}:${sunday}`;
@@ -202,52 +192,61 @@ export default function WorshipLeaderPage() {
     try { window.localStorage.removeItem(editStorageKey); } catch { /* 무시 */ }
   }, [editStorageKey]);
 
+  /** 새로 조회한 본문을 과거의 빈 7번 편집값이 가리지 않게 한다. */
+  const resetScriptureSectionEdit = useCallback(() => {
+    setEditedContents((current) => {
+      const next = withoutWorshipLeaderSectionEdit(current, 7);
+      if (next === current) return current;
+      try {
+        if (Object.keys(next).length) window.localStorage.setItem(editStorageKey, JSON.stringify(next));
+        else window.localStorage.removeItem(editStorageKey);
+      } catch { /* 저장 실패는 무시 */ }
+      return next;
+    });
+  }, [editStorageKey]);
+
   /** 본문 표기 하나를 성경에서 찾아 화면에 채운다. 찾으면 true. */
   const lookupScripture = useCallback(async (rawReference: string) => {
     const reference = normalizeBibleReference(rawReference);
     if (!reference) return false;
+    setNormalizedScripture(reference);
+    resetScriptureSectionEdit();
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       router.replace("/login");
       return false;
     }
-    const response = await fetch(`/api/bible/reference?ref=${encodeURIComponent(reference)}`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-      cache: "no-store",
-    });
-    const payload = await response.json() as {
-      ok?: boolean;
-      normalizedLabel?: string;
-      bookId?: number;
-      rows?: BibleVerse[];
-      error?: string;
-    };
-    if (response.ok && payload.ok && Array.isArray(payload.rows) && payload.rows.length) {
-      const rows = payload.rows;
-      setVerses(rows.map((row) => ({ chapter: row.chapter, verse: row.verse, text: row.text })));
-      setNormalizedScripture(payload.normalizedLabel || reference);
-      setRefTarget({ bookId: Number(payload.bookId), chapter: rows[0].chapter, verse: rows[0].verse });
-      setTestament(Number(payload.bookId) <= 39 ? "구약" : "신약");
-      return true;
+    try {
+      const response = await fetch(`/api/bible/reference?ref=${encodeURIComponent(reference)}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: "no-store",
+      });
+      const payload = await response.json() as {
+        ok?: boolean;
+        normalizedLabel?: string;
+        bookId?: number;
+        rows?: BibleVerse[];
+        error?: string;
+      };
+      if (response.ok && payload.ok && Array.isArray(payload.rows) && payload.rows.length) {
+        const rows = payload.rows;
+        setVerses(rows.map((row) => ({ chapter: row.chapter, verse: row.verse, endVerse: row.endVerse, text: row.text })));
+        setNormalizedScripture(payload.normalizedLabel || reference);
+        setTestament(Number(payload.bookId) <= 39 ? "구약" : "신약");
+        return true;
+      }
+      setVerses([]);
+      setTestament(undefined);
+      const detail = payload.error ? ` (${payload.error})` : "";
+      setNotice(`"${rawReference}" 을(를) 성경에서 찾지 못했습니다. 표기를 확인해주세요.${detail}`);
+      return false;
+    } catch {
+      setVerses([]);
+      setTestament(undefined);
+      setNotice("개역개정 본문을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return false;
     }
-    setVerses([]);
-    setNormalizedScripture(reference);
-    setRefTarget(null);
-    const detail = payload.error ? ` (${payload.error})` : "";
-    setNotice(`"${rawReference}" 을(를) 성경에서 찾지 못했습니다. 표기를 확인해주세요.${detail}`);
-    return false;
-  }, [router]);
-
-  /** 인도자가 직접 친 본문으로 다시 찾기 */
-  const handleManualLookup = useCallback(async () => {
-    const value = scriptureInput.trim();
-    if (!value) return;
-    setLookingUp(true);
-    setNotice("");
-    const found = await lookupScripture(value);
-    setScriptureSource(found ? "직접 입력" : "");
-    setLookingUp(false);
-  }, [scriptureInput, lookupScripture]);
+  }, [resetScriptureSectionEdit, router]);
 
   const load = useCallback(async (date: string, silent = false) => {
     // 조용히 갱신할 때는 화면에 이미 저장본이 떠 있으므로 지우지 않는다
@@ -256,8 +255,6 @@ export default function WorshipLeaderPage() {
       setVerses([]);
       setNormalizedScripture("");
       setTestament(undefined);
-      setScriptureSource("");
-      setScriptureInput("");
     }
     setNotice("");
 
@@ -353,23 +350,18 @@ export default function WorshipLeaderPage() {
         : { fields: { sermonTitle: titleFallback }, sourceFile: source || "예배안내", sheetName: "" });
     }
 
-    setScriptureSource(source);
-    setScriptureInput(scripture);
-
     if (scripture) {
-      const found = await lookupScripture(scripture);
-      if (!found) setScriptureSource("");
+      await lookupScripture(scripture);
     } else {
-      // 계획서는 보통 두 달치씩 올라온다. 그 주일 행이 아직 없는 것이 흔한 원인이고,
-      // 성경 DB 문제가 아니다. 인도자가 아래 칸에 직접 넣으면 바로 채워진다.
+      resetScriptureSectionEdit();
       setNotice(
         planResponse?.ok === false && planResponse?.error
-          ? `${planResponse.error} — 아래 "말씀 본문" 칸에 직접 입력하면 대본이 채워집니다.`
-          : "이 주일의 말씀 본문이 아직 정해지지 않았습니다. 아래 \"말씀 본문\" 칸에 직접 입력해주세요.",
+          ? planResponse.error
+          : "이 주일의 말씀 본문이 아직 정해지지 않았습니다.",
       );
     }
     setLoading(false);
-  }, [deptId, router, lookupScripture]);
+  }, [deptId, router, lookupScripture, resetScriptureSectionEdit]);
 
   // 만들어진 대본 재료를 기기에 남긴다 — 다음에 들어올 때 즉시 뜬다
   useEffect(() => {
@@ -379,10 +371,7 @@ export default function WorshipLeaderPage() {
         prayerClass,
         verses,
         normalizedScripture,
-        refTarget,
         testament,
-        scriptureSource,
-        scriptureInput,
         plan,
         savedAt: new Date().toISOString(),
       };
@@ -390,7 +379,7 @@ export default function WorshipLeaderPage() {
     } catch {
       /* 저장 실패는 무시 — 다음에 다시 만들면 된다 */
     }
-  }, [cacheKey, loading, prayerClass, verses, normalizedScripture, refTarget, testament, scriptureSource, scriptureInput, plan]);
+  }, [cacheKey, loading, prayerClass, verses, normalizedScripture, testament, plan]);
 
   useEffect(() => {
     // 저장해 둔 대본이 있으면 먼저 띄우고, 최신 값은 뒤에서 맞춘다.
@@ -404,10 +393,7 @@ export default function WorshipLeaderPage() {
           setPrayerClass(cached.prayerClass || "");
           setVerses(cached.verses || []);
           setNormalizedScripture(cached.normalizedScripture || "");
-          setRefTarget(cached.refTarget ?? null);
           setTestament(cached.testament);
-          setScriptureSource(cached.scriptureSource || "");
-          setScriptureInput(cached.scriptureInput || "");
           setPlan(cached.plan ?? null);
           setLoading(false);
           hadCache = true;
@@ -499,46 +485,6 @@ export default function WorshipLeaderPage() {
         </div>
 
         {notice && <div role="alert" style={{ padding: "12px 14px", marginBottom: 12, borderRadius: 12, background: "color-mix(in srgb, var(--warning) 12%, var(--surface))", color: "var(--ink-soft)", fontSize: 13 }}>{notice}</div>}
-
-        {/* 말씀 본문 — 계획서에 그 주일 행이 없어도 여기서 직접 넣으면 대본이 채워진다 */}
-        <div style={{ padding: "12px 14px", marginBottom: 12, borderRadius: 12, background: "var(--surface)", border: "1px solid var(--line)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12.5, fontWeight: 800, color: "var(--ink)" }}>말씀 본문</span>
-            {scriptureSource && (
-              <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent-strong)" }}>
-                {scriptureSource}
-              </span>
-            )}
-            <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "color-mix(in srgb, var(--ink) 8%, transparent)", color: "var(--ink-mid)" }}>
-              개역개정
-            </span>
-            {verses.length > 0 && (
-              <span style={{ fontSize: 11.5, color: "var(--ink-faint)", fontWeight: 600 }}>{verses.length}절 불러옴</span>
-            )}
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <input
-              value={scriptureInput}
-              onChange={(event) => setScriptureInput(event.target.value)}
-              onKeyDown={(event) => { if (event.key === "Enter") void handleManualLookup(); }}
-              placeholder="예: 시편 139:13-16 / 요 3:16"
-              aria-label="말씀 본문"
-              style={{ flex: 1, minWidth: 180, padding: "10px 12px", fontSize: 14, fontWeight: 600, color: "var(--ink)", background: "var(--card)", border: "1.5px solid var(--line)", borderRadius: 10, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
-            />
-            <button
-              type="button"
-              onClick={() => void handleManualLookup()}
-              disabled={lookingUp || !scriptureInput.trim()}
-              style={{ ...buttonStyle, opacity: lookingUp || !scriptureInput.trim() ? 0.5 : 1 }}
-            >{lookingUp ? "찾는 중..." : "본문 불러오기"}</button>
-            <button
-              type="button"
-              onClick={() => void load(sunday)}
-              title="주보·계획서를 다시 읽어 대본을 새로 만듭니다"
-              style={{ ...secondaryButtonStyle, whiteSpace: "nowrap" }}
-            ><RefreshCw size={15} /> 다시 만들기</button>
-          </div>
-        </div>
 
         <div style={{ display: "grid", gap: 12 }}>
           {sections.map((section) => (

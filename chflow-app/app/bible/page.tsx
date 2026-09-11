@@ -40,7 +40,7 @@ export default function BiblePage() {
     setLoading(true); setError("");
     const { data: sessionData } = await supabase.auth.getSession();
     if (!sessionData.session) { router.replace("/login"); return; }
-    const response = await fetch(`/api/bible/reference?ref=${encodeURIComponent(`${book.name_ko} ${chapter}:1`)}`, {
+    const response = await fetch(`/api/bible/reference?ref=${encodeURIComponent(`${book.name_ko} ${chapter}`)}`, {
       headers: { Authorization: `Bearer ${sessionData.session.access_token}` }, cache: "no-store",
     });
     const payload = await response.json() as { ok?: boolean; rows?: Verse[]; error?: string };

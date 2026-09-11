@@ -7,8 +7,16 @@ export type WorshipLeaderSection = {
 export type BibleVerse = {
   chapter: number;
   verse: number;
+  endVerse?: number;
   text: string;
 };
+
+export function withoutWorshipLeaderSectionEdit(edits: Record<number, string>, sectionNumber: number) {
+  if (!(sectionNumber in edits)) return edits;
+  const next = { ...edits };
+  delete next[sectionNumber];
+  return next;
+}
 
 export const TEN_COMMANDMENTS = `제일은, 너는 나외에는 다른 신들을 네게 두지 말라
 제이는, 너를 위하여 새긴 우상을 만들지 말고, 또 위로 하늘에 있는 것이나, 아래로 땅에 있는 것이나,
@@ -154,10 +162,10 @@ export function buildWorshipLeaderSections(input: {
   //   표기는 있는데 못 찾았다 → 성경 표기가 이상하다
   // 둘을 "성경 DB 오류" 하나로 뭉뚱그리면 엉뚱한 곳을 찾게 된다.
   const verseText = verses.length
-    ? verses.map((row) => `${row.verse}   ${row.text}`).join("\n")
+    ? verses.map((row) => `${row.endVerse ? `${row.verse}-${row.endVerse}` : row.verse}   ${row.text}`).join("\n")
     : reference
       ? `"${reference}" 을(를) 성경에서 찾지 못했습니다. 본문 표기를 확인해주세요.`
-      : "이 주일의 말씀 본문이 아직 정해지지 않았습니다. 화면 위에서 본문을 직접 입력하면 여기에 채워집니다.";
+      : "이 주일의 말씀 본문이 아직 정해지지 않았습니다. 예배안내 또는 월간교육계획을 확인해주세요.";
   const sermonTitle = input.sermonTitle || "말씀 주제 확인 필요";
 
   return [

@@ -56,7 +56,7 @@ function apiError(error: string, status: number) {
 
 function statusFromRpcError(message: string): number {
   if (message.includes("로그인")) return 401;
-  if (message.includes("권한")) return 403;
+  if (message.includes("권한") || message.includes("비밀번호")) return 403;
   if (message.includes("찾을 수 없습니다")) return 404;
   return 400;
 }
@@ -169,6 +169,9 @@ export async function PATCH(req: NextRequest) {
   const id = String(form.get("id") || "");
   if (!id) return apiError("수정할 항목 ID가 없습니다", 400);
 
+  const pin = String(form.get("pin") || "");
+  if (!pin) return apiError("관리자 비밀번호를 입력해 주세요", 403);
+
   const fields = parseFields(form);
   if (!fields.ok) return apiError(fields.error, 400);
 
@@ -213,6 +216,7 @@ export async function PATCH(req: NextRequest) {
     p_evidence_image_path: evidenceImagePath,
     p_evidence_caption: evidenceCaption,
     p_sort_order: fields.sortOrder,
+    p_admin_pin: pin,
   });
   if (error) {
     if (uploadedPath) await r2.from(COPYRIGHT_EVIDENCE_BUCKET).remove([uploadedPath]);
@@ -233,7 +237,12 @@ export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id") || "";
   if (!id) return apiError("삭제할 항목 ID가 없습니다", 400);
 
-  const { data, error } = await client.rpc("delete_copyright_item", { p_id: id });
+  // 비밀번호는 URL(쿼리스트링)에 남기지 않고 본문으로만 받는다
+  const body = await req.json().catch(() => null) as { pin?: string } | null;
+  const pin = body?.pin || "";
+  if (!pin) return apiError("관리자 비밀번호를 입력해 주세요", 403);
+
+  const { data, error } = await client.rpc("delete_copyright_item", { p_id: id, p_admin_pin: pin });
   if (error) return apiError(error.message, statusFromRpcError(error.message));
 
   const deleted = fromRow(data);
