@@ -70,8 +70,11 @@ export default function BiblePage() {
       else setVerses(payload.rows || []);
       setLoading(false);
     })();
+    // book 목록이 늦게 도착해 book 이 undefined → 값 있음 으로 바뀔 때도 다시 불러와야 하므로
+    // bookId 가 아니라 book 자체를 의존성으로 둔다 (bookId가 안 바뀌어도 book 참조가 새로 생기는
+    // 시점을 놓치면 첫 진입 시 본문을 영영 못 불러온다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookId, chapter]);
+  }, [book, chapter]);
 
   const goTo = useCallback((nextBookId: number, nextChapter: number, direction: "next" | "prev") => {
     setSlide(direction === "next" ? "in-from-right" : "in-from-left");
