@@ -78,28 +78,30 @@ type CommonMenu = {
   color: string;
   bg: string;
   href?: string;
+  /** 있으면 아이콘 대신 이 이미지를 그린다 (public/menu-icons — 배경 포함 커스텀 아이콘) */
+  image?: string;
 };
 
 // 시설 사용신청은 서리집사 이상 직분과 청년·청소년만 쓴다 (lib/facility/facility-access.ts)
 const FACILITY_MENU_ID = "facility";
 
 const COMMON_MENUS: CommonMenu[] = [
-  { id: "my-ministry", label: "내 사역",   icon: Folder, color: "var(--accent)", bg: "var(--accent-soft)", desc: "내 사역 · 부서 현황", href: "/my-ministry" },
-  { id: "my-pasture",  label: "목장 메뉴", icon: Home,   color: "var(--accent)", bg: "var(--accent-soft)", desc: "목장 모임 · 일지 · 탐방", href: "/my-pasture" },
-  { id: "bible",     label: "성경책",       icon: BookText,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "개역개정 성경 읽기", href: "/bible" },
-  { id: "live",      label: "예배",  icon: Radio,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/live" },
-  { id: "bulletin",  label: "주보 보기",     icon: BookOpen,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/bulletin" },
-  { id: "directory", label: "성도 요람",     icon: Users,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/directory" },
-  { id: "education-history", label: "삶공부·교육이력(구현중)", icon: GraduationCap, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/education-history" },
-  { id: "facility",  label: "시설 신청(구현중)", icon: Landmark,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/facility" },
-  { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/feedback" },
-  { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/manual" },
-  { id: "copyright-notice", label: "저작권 안내", icon: Copyright, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/copyright" },
+  { id: "my-ministry", label: "내 사역",   icon: Folder, color: "var(--accent)", bg: "var(--accent-soft)", desc: "내 사역 · 부서 현황", href: "/my-ministry", image: "/menu-icons/my-ministry.png" },
+  { id: "my-pasture",  label: "목장 메뉴", icon: Home,   color: "var(--accent)", bg: "var(--accent-soft)", desc: "목장 모임 · 일지 · 탐방", href: "/my-pasture", image: "/menu-icons/my-pasture.png" },
+  { id: "bible",     label: "성경책",       icon: BookText,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "개역개정 성경 읽기", href: "/bible", image: "/menu-icons/bible.png" },
+  { id: "live",      label: "예배",  icon: Radio,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/live", image: "/menu-icons/live.png" },
+  { id: "bulletin",  label: "주보 보기",     icon: BookOpen,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/bulletin", image: "/menu-icons/bulletin.png" },
+  { id: "directory", label: "성도 요람",     icon: Users,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/directory", image: "/menu-icons/directory.png" },
+  { id: "education-history", label: "삶공부·교육이력(구현중)", icon: GraduationCap, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/education-history", image: "/menu-icons/education-history.png" },
+  { id: "facility",  label: "시설 신청(구현중)", icon: Landmark,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/facility", image: "/menu-icons/facility.png" },
+  { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/feedback", image: "/menu-icons/feedback.png" },
+  { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/manual", image: "/menu-icons/manual.png" },
+  { id: "copyright-notice", label: "저작권 안내", icon: Copyright, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/copyright", image: "/menu-icons/copyright-notice.png" },
 ];
 
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [
-  { id: "attendance", label: "교회 출석 현황", icon: MapPin, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/attendance" },
-  { id: "attendance-settings", label: "자동출석 설정", icon: MapPin, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/attendance/settings" },
+  { id: "attendance", label: "교회 출석 현황", icon: MapPin, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/attendance", image: "/menu-icons/attendance.png" },
+  { id: "attendance-settings", label: "자동출석 설정", icon: MapPin, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/attendance/settings", image: "/menu-icons/attendance-settings.png" },
   { id: "vote",     label: "투표",        icon: Vote,          color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/vote" },
   { id: "messenger-reports", label: "메신저 신고", icon: MessagesSquare, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/messenger-reports" },
   // 이메일 미등록 성도는 본인 재설정이 불가능해 관리자 초기화가 유일한 경로다 (화면 자체는 admin role 만 통과)
@@ -358,6 +360,7 @@ export default function HomePage() {
         /* 공통메뉴 카드의 두 레이아웃(가로 행 / 세로 타일) — 기본은 항상 "행" */
         .menu-row { display: contents; }
         .menu-tile { display: none; flex-direction: column; align-items: center; text-align: center; gap: 6px; width: 100%; }
+        .menu-tile-badge { display: none; }
         /* 내 사역·목장의 두 레이아웃(풀와이드 목록 / 가로 스크롤 칩) — 기본은 항상 "목록" */
         .ministry-list, .pasture-list { display: contents; }
         .ministry-chip-mobile, .pasture-chip-mobile { display: none; }
@@ -373,6 +376,7 @@ export default function HomePage() {
           /* 편집모드(관리자)에서는 모바일에서도 기존 행/목록 그대로 — 드래그·수정 UI 보존 */
           .home-menu-grid:not(.editing) .menu-row { display: none !important; }
           .home-menu-grid:not(.editing) .menu-tile { display: flex !important; }
+          .home-menu-grid:not(.editing) .menu-tile-badge { display: inline-flex !important; }
           .ministry-list:not(.editing) { display: none !important; }
           .pasture-list:not(.editing) { display: none !important; }
           .ministry-chip-mobile, .pasture-chip-mobile { display: flex !important; }
@@ -1378,6 +1382,7 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
       onContextMenu={onDragHandle ? (e) => e.preventDefault() : undefined}
       title={onDragHandle ? "PC: 카드를 드래그 · 모바일: 길게 누른 뒤 드래그 · 탭하면 이름·숨김 수정" : undefined}
       style={{
+        position: "relative",
         minHeight: compact ? 58 : 68,
         borderRadius: 14,
         background: "var(--card)",
@@ -1408,9 +1413,13 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
           {editing && (
             <GripVertical size={15} strokeWidth={2} color="var(--ink-faint)" className="safe-shrink-0" />
           )}
-          <IconBox bg={menu.bg} size={compact ? 36 : 38}>
-            <menu.icon size={compact ? 18 : 19} strokeWidth={1.8} color={menu.color} />
-          </IconBox>
+          {menu.image ? (
+            <img src={menu.image} alt="" width={compact ? 36 : 38} height={compact ? 36 : 38} style={{ flexShrink: 0, display: "block" }} />
+          ) : (
+            <IconBox bg={menu.bg} size={compact ? 36 : 38}>
+              <menu.icon size={compact ? 18 : 19} strokeWidth={1.8} color={menu.color} />
+            </IconBox>
+          )}
           <SafeGrow>
             {/* 긴 메뉴명("불편신고/건의") 보호: kr-break 로 어디서든 줄바꿈 + leading-snug */}
             <div className="kr-break" style={{
@@ -1454,35 +1463,38 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
         </SafeRow>
       </div>
 
-      {/* 모바일 전용(비편집): 3열 아이콘 그리드용 세로 타일 — 아이콘 위 + 라벨 아래
-          "LIVE" 배지는 항상 보이되, 평소엔 빨간 점, 방송중엔 초록 점으로 구분한다 */}
+      {/* 모바일 전용(비편집): 3열 아이콘 그리드용 세로 타일 — 아이콘 위 + 라벨 아래 */}
       <div className="menu-tile">
-        <div style={{ position: "relative" }}>
+        {menu.image ? (
+          <img src={menu.image} alt="" width={34} height={34} style={{ display: "block" }} />
+        ) : (
           <IconBox bg={menu.bg} size={34}>
             <menu.icon size={17} strokeWidth={1.8} color={menu.color} />
           </IconBox>
-          {typeof live === "boolean" && (
-            <span style={{
-              position: "absolute", top: -7, right: -12,
-              display: "inline-flex", alignItems: "center", gap: 3,
-              padding: "1.5px 5px", borderRadius: 999,
-              background: "var(--card)",
-              border: `1.5px solid ${live ? "var(--success)" : "var(--danger)"}`,
-              boxShadow: live ? "0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent)" : "none",
-              whiteSpace: "nowrap",
-            }}>
-              <span style={{
-                width: 5, height: 5, borderRadius: "50%",
-                background: live ? "var(--success)" : "var(--danger)",
-              }} />
-              <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: 0.3, color: live ? "var(--success)" : "var(--danger)" }}>LIVE</span>
-            </span>
-          )}
-        </div>
+        )}
         <div className="kr-break" style={{ fontSize: 11, fontWeight: 700, color: T.text, lineHeight: 1.3 }}>
           {menu.label}
         </div>
       </div>
+
+      {/* LIVE 배지 (모바일 그리드 타일 전용) — 카드 자체의 우상단에 딱 붙여 표시한다 */}
+      {typeof live === "boolean" && (
+        <span className="menu-tile-badge" style={{
+          position: "absolute", top: 6, right: 6,
+          alignItems: "center", gap: 3,
+          padding: "1.5px 5px", borderRadius: 999,
+          background: "var(--card)",
+          border: `1.5px solid ${live ? "var(--success)" : "var(--danger)"}`,
+          boxShadow: live ? "0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent)" : "none",
+          whiteSpace: "nowrap",
+        }}>
+          <span style={{
+            width: 5, height: 5, borderRadius: "50%",
+            background: live ? "var(--success)" : "var(--danger)",
+          }} />
+          <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: 0.3, color: live ? "var(--success)" : "var(--danger)" }}>LIVE</span>
+        </span>
+      )}
     </SafeCard>
   );
 
