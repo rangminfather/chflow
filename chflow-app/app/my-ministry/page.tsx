@@ -6,13 +6,13 @@ import { ChevronLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { T, PageShell, PageContent } from "@/components/Layout";
 import { LoadingView } from "@/components/StatusViews";
-import { MinistrySection, CellShepherdSection } from "@/components/MyGroupsSections";
+import { MinistrySection } from "@/components/MyGroupsSections";
 import {
   parseHomeMenuConfig, EMPTY_HOME_MENU_CONFIG, type HomeMenuConfig,
 } from "@/lib/homeMenuConfig";
 import type { UserInfo, MyDepartment } from "@/app/home/page";
 
-export default function MyGroupsPage() {
+export default function MyMinistryPage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -69,19 +69,11 @@ export default function MyGroupsPage() {
           <ChevronLeft size={19} strokeWidth={1.8} color={T.text} />
         </button>
         <div style={{ fontFamily: "var(--app-serif)", fontSize: 17, fontWeight: 700, color: T.text }}>
-          내 사역 · 목장
+          내 사역
         </div>
       </div>
 
       <PageContent maxWidth={720}>
-        <CellShepherdSection
-          user={user}
-          router={router}
-          canEditMenu={user.role === "admin"}
-          menuConfig={menuConfig}
-          onMenuConfigChange={setMenuConfig}
-        />
-        <div style={{ height: 18 }} />
         <MinistrySection
           myDepartments={myDepartments}
           router={router}
