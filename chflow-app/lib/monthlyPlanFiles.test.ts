@@ -7,12 +7,14 @@ describe("월간교육계획 파일명", () => {
       year: 2026,
       month: 9,
       months: [9],
+      multiMonth: false,
     });
   });
 
   it("새 복수 월 파일명을 모든 선택 월로 읽는다", () => {
     const parsed = parseMonthlyPlanName("2026-09+10_123_monthly-plan.xlsx");
     expect(parsed.months).toEqual([9, 10]);
+    expect(parsed.multiMonth).toBe(true);
     expect(parsed.originalName).toContain("9월·10월");
   });
 

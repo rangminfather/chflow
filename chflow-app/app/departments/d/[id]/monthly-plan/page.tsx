@@ -16,6 +16,7 @@ interface PlanFile {
   year: number | null;
   month: number | null;
   months?: number[];
+  multiMonth?: boolean;
   originalName: string;
   created_at: string | null;
   size: number | null;
@@ -173,8 +174,9 @@ export default function MonthlyPlanPage() {
       if (common.length === 0 && json.common?.length) common = json.common;
       const yr = json.year || (file.year ?? now.getFullYear());
       for (const m of json.months) {
-        const registeredMonths = file.months?.length ? file.months : (file.month ? [file.month] : []);
-        if (registeredMonths.length > 0 && !registeredMonths.includes(m.month)) continue;
+        // 기존 파일명(2026-09_...)은 저장 당시 월만 알고 있어도 원본 xlsx 안의
+        // 여러 달을 숨기지 않는다. 새 복수월 파일명(2026-09+10_...)만 선택 월로 제한한다.
+        if (file.multiMonth && file.months?.length && !file.months.includes(m.month)) continue;
         const key = `${yr}-${pad2(m.month)}`;
         if (!monthMap.has(key)) {
           monthMap.set(key, { key, year: yr, month: m.month, weeks: m.weeks, notes: m.notes, sourceCreatedAt: file.created_at });
