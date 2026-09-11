@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from "react";
-import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { BookOpen, ChevronLeft, ChevronRight, X, LayoutGrid } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -51,29 +50,12 @@ export default function BiblePage() {
   const [pickerTestament, setPickerTestament] = useState<Testament>("OT");
   const [slide, setSlide] = useState<"in-from-left" | "in-from-right" | null>(null);
   const [verseFontLevel, setVerseFontLevelState] = useState(1);
-  const [mounted, setMounted] = useState(false);
-  const pickerTriggerRef = useRef<HTMLButtonElement>(null);
-  const [navBarTop, setNavBarTop] = useState(112);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setVerseFontLevelState(loadVerseFontLevel()); }, []);
-  useEffect(() => { setMounted(true); }, []);
 
-  // 고정 바("< 창세기 1장 >")는 "책 선택" 버튼 바로 아래 자리를 그대로 지켜야 한다 —
-  // 헤더 높이만 보고 top을 고정값으로 박아두면 그 버튼과 겹친다. 화면 폭에 따라
-  // 버튼 높이가 살짝 달라질 수 있어 실제 렌더된 위치를 측정해서 쓴다.
-  useEffect(() => {
-    function measure() {
-      const el = pickerTriggerRef.current;
-      if (!el || window.scrollY > 0) return; // 스크롤된 상태에서 잰 값은 못 믿는다
-      setNavBarTop(Math.round(el.getBoundingClientRect().bottom) + 8);
-    }
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, []);
-
-  // 장을 옮기면 맨 위부터 읽도록 스크롤을 되돌린다 — 위 측정도 이 시점에 맞춰진다
-  useEffect(() => { window.scrollTo(0, 0); }, [bookId, chapter]);
+  // 장을 옮기면 맨 위부터 읽도록 스크롤을 되돌린다
+  useEffect(() => { scrollAreaRef.current?.scrollTo(0, 0); }, [bookId, chapter]);
 
   function setVerseFontLevel(level: number) {
     setVerseFontLevelState(level);
@@ -185,88 +167,83 @@ export default function BiblePage() {
         </div>
       </header>
 
-      <div style={wrapStyle}>
-        <button ref={pickerTriggerRef} onClick={openPicker} style={pickerTriggerStyle}>
-          <span style={testamentBadgeStyle}>{book?.testament === "NT" ? "신약" : "구약"}</span>
-          <span style={pickerTriggerLabelStyle}>{book?.name_ko ?? "…"} {chapter}장</span>
-          <LayoutGrid size={16} style={{ color: "var(--ink-faint)", marginLeft: "auto", flexShrink: 0 }} />
-        </button>
+      <div ref={scrollAreaRef} style={scrollAreaStyle}>
+        <div style={wrapStyle}>
+          <button onClick={openPicker} style={pickerTriggerStyle}>
+            <span style={testamentBadgeStyle}>{book?.testament === "NT" ? "신약" : "구약"}</span>
+            <span style={pickerTriggerLabelStyle}>{book?.name_ko ?? "…"} {chapter}장</span>
+            <LayoutGrid size={16} style={{ color: "var(--ink-faint)", marginLeft: "auto", flexShrink: 0 }} />
+          </button>
 
-        {/* 자리 차지용 — 아래 고정 바가 문서 흐름에서 빠지는 만큼 내용이 안 밀려 올라오게 */}
-        <div style={chapterNavSpacerStyle} />
-        {mounted && createPortal(
-          <div style={{ ...chapterNavFixedWrapStyle, top: navBarTop }}>
-            <div style={chapterNavBarStyle}>
-              <button onClick={prevChapter} disabled={!hasPrev} style={{ ...navButtonStyle, opacity: hasPrev ? 1 : 0.3 }} aria-label="이전 장">
-                <ChevronLeft size={20} />
-              </button>
-              <div style={chapterTitleWrapStyle}>
-                <BookOpen size={16} style={{ color: "var(--accent)" }} />
-                <h1 style={chapterTitleStyle}>{book?.name_ko} {chapter}장</h1>
-                {loading && <Spinner size={14} />}
-              </div>
-              <button onClick={nextChapter} disabled={!hasNext} style={{ ...navButtonStyle, opacity: hasNext ? 1 : 0.3 }} aria-label="다음 장">
-                <ChevronRight size={20} />
-              </button>
+          <div style={chapterNavBarStyle}>
+            <button onClick={prevChapter} disabled={!hasPrev} style={{ ...navButtonStyle, opacity: hasPrev ? 1 : 0.3 }} aria-label="이전 장">
+              <ChevronLeft size={20} />
+            </button>
+            <div style={chapterTitleWrapStyle}>
+              <BookOpen size={16} style={{ color: "var(--accent)" }} />
+              <h1 style={chapterTitleStyle}>{book?.name_ko} {chapter}장</h1>
+              {loading && <Spinner size={14} />}
             </div>
-          </div>,
-          document.body
-        )}
-
-        <div style={fontSizeRowStyle}>
-          <span style={fontSizeLabelStyle}>글자 크기</span>
-          <div style={fontSizeButtonGroupStyle}>
-            {[1, 2, 3, 4, 5].map((level) => (
-              <button
-                key={level}
-                onClick={() => setVerseFontLevel(level)}
-                aria-label={`글자 크기 ${level}단계`}
-                aria-pressed={verseFontLevel === level}
-                style={{
-                  ...fontSizeButtonStyle,
-                  ...(verseFontLevel === level ? fontSizeButtonActiveStyle : {}),
-                  fontSize: 12 + level * 2,
-                }}
-              >
-                {level}
-              </button>
-            ))}
+            <button onClick={nextChapter} disabled={!hasNext} style={{ ...navButtonStyle, opacity: hasNext ? 1 : 0.3 }} aria-label="다음 장">
+              <ChevronRight size={20} />
+            </button>
           </div>
-        </div>
 
-        <div
-          style={readerCardStyle}
-          onTouchStart={onTouchStart}
-          onTouchEnd={onTouchEnd}
-        >
-          {error && <p style={{ color: "var(--danger)", fontSize: 13, padding: "0 4px" }}>{error}</p>}
+          <div style={fontSizeRowStyle}>
+            <span style={fontSizeLabelStyle}>글자 크기</span>
+            <div style={fontSizeButtonGroupStyle}>
+              {[1, 2, 3, 4, 5].map((level) => (
+                <button
+                  key={level}
+                  onClick={() => setVerseFontLevel(level)}
+                  aria-label={`글자 크기 ${level}단계`}
+                  aria-pressed={verseFontLevel === level}
+                  style={{
+                    ...fontSizeButtonStyle,
+                    ...(verseFontLevel === level ? fontSizeButtonActiveStyle : {}),
+                    fontSize: 12 + level * 2,
+                  }}
+                >
+                  {level}
+                </button>
+              ))}
+            </div>
+          </div>
 
-          <article
-            key={`${bookId}-${chapter}`}
-            style={{
-              ...verseListStyle,
-              fontSize: VERSE_FONT_SIZES[verseFontLevel - 1],
-              animation: slide === "in-from-right" ? "bibleSlideFromRight 220ms ease-out"
-                : slide === "in-from-left" ? "bibleSlideFromLeft 220ms ease-out" : undefined,
-            }}
+          <div
+            style={readerCardStyle}
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
           >
-            {!error && verses.map((row) => {
-              const { heading, body } = splitVerseHeading(row.text);
-              return (
-                <div key={`${row.chapter}-${row.verse}`}>
-                  {heading && <div style={verseHeadingStyle}>{heading}</div>}
-                  <p style={verseRowStyle}>
-                    <b style={verseNumStyle}>{row.endVerse ? `${row.verse}-${row.endVerse}` : row.verse}</b>
-                    {body}
-                  </p>
-                </div>
-              );
-            })}
-          </article>
+            {error && <p style={{ color: "var(--danger)", fontSize: 13, padding: "0 4px" }}>{error}</p>}
 
-          <div style={swipeHintStyle}>← 좌우로 넘기면 다음·이전 장 →</div>
+            <article
+              key={`${bookId}-${chapter}`}
+              style={{
+                ...verseListStyle,
+                fontSize: VERSE_FONT_SIZES[verseFontLevel - 1],
+                animation: slide === "in-from-right" ? "bibleSlideFromRight 220ms ease-out"
+                  : slide === "in-from-left" ? "bibleSlideFromLeft 220ms ease-out" : undefined,
+              }}
+            >
+              {!error && verses.map((row) => {
+                const { heading, body } = splitVerseHeading(row.text);
+                return (
+                  <div key={`${row.chapter}-${row.verse}`}>
+                    {heading && <div style={verseHeadingStyle}>{heading}</div>}
+                    <p style={verseRowStyle}>
+                      <b style={verseNumStyle}>{row.endVerse ? `${row.verse}-${row.endVerse}` : row.verse}</b>
+                      {body}
+                    </p>
+                  </div>
+                );
+              })}
+            </article>
 
-          <BibleAttribution slug={version?.copyright_slug} />
+            <div style={swipeHintStyle}>← 좌우로 넘기면 다음·이전 장 →</div>
+
+            <BibleAttribution slug={version?.copyright_slug} />
+          </div>
         </div>
       </div>
 
@@ -375,19 +352,35 @@ function BookPicker({
   );
 }
 
-const pageStyle: CSSProperties = { minHeight: "100vh", background: "var(--bg)" };
+// main 자체는 화면 높이에 딱 맞추고 스크롤하지 않는다 — 헤더는 위에 고정된 채로 남고,
+// 그 아래 scrollAreaStyle 영역 하나만 스크롤된다. 이렇게 하면 그 안의 chapterNavBarStyle이
+// position:sticky로 진짜 자연스럽게 붙는다 — html,body의 overflow-x:hidden 이 sticky를
+// 깨는(별도로 확인·globals.css는 안 건드림) 문제를 이 화면에서는 아예 비껴간다.
+const pageStyle: CSSProperties = {
+  height: "100vh",
+  background: "var(--bg)",
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+};
 
 const headerStyle: CSSProperties = {
   minHeight: 60,
+  flexShrink: 0,
   display: "flex",
   alignItems: "center",
   gap: 10,
   padding: "0 14px",
   borderBottom: "1px solid var(--hairline)",
   background: "var(--surface)",
-  position: "sticky",
-  top: 0,
-  zIndex: 10,
+};
+
+const scrollAreaStyle: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflowY: "auto",
+  overflowX: "hidden",
+  WebkitOverflowScrolling: "touch",
 };
 
 const iconButtonStyle: CSSProperties = { border: 0, background: "transparent", color: "var(--ink)", padding: 8, cursor: "pointer" };
@@ -428,40 +421,21 @@ const readerCardStyle: CSSProperties = {
   touchAction: "pan-y",
 };
 
-// 스크롤해서 내려가도 "‹ 창세기 1장 ›" 줄은 화면 상단(사이트 헤더 바로 아래)에 고정된다.
-// html,body 의 overflow-x:hidden 이 CSS 스펙상 overflow-y 를 auto로 만들어 버려서
-// (다른 것에 영향 없이 잠깐 확인한 것 — 전역 CSS는 안 건드림) position:sticky 가 이 앱
-// 전체에서 실제로는 붙지 않는다(사이트 헤더도 마찬가지). 그래서 이 바만은 sticky 대신
-// document.body 에 portal + position:fixed 로 확실하게 고정한다(ModalBackdrop과 동일한
-// 이유로 #app-zoom-root 밖으로 뺀다 — zoom 배율이 걸려도 실제 뷰포트 기준으로 고정됨).
-const CHAPTER_NAV_BAR_HEIGHT = 60;
-
-const chapterNavSpacerStyle: CSSProperties = { height: CHAPTER_NAV_BAR_HEIGHT + 10 };
-
-const chapterNavFixedWrapStyle: CSSProperties = {
-  position: "fixed",
-  top: 60,
-  left: 0,
-  right: 0,
-  maxWidth: 760,
-  margin: "0 auto",
-  padding: "0 14px",
-  zIndex: 50,
-  pointerEvents: "none",
-};
-
+// scrollAreaStyle(자체 overflow-y:auto) 안에서는 sticky가 정상 동작한다 — 스크롤해서
+// 내려가도 "‹ 창세기 1장 ›" 줄만 이 영역 맨 위에 자연스럽게 붙는다.
 const chapterNavBarStyle: CSSProperties = {
-  height: CHAPTER_NAV_BAR_HEIGHT,
-  boxSizing: "border-box",
+  position: "sticky",
+  top: 0,
+  zIndex: 5,
   display: "flex",
   alignItems: "center",
   gap: 8,
-  padding: "0 12px",
+  marginBottom: 10,
+  padding: "10px 12px",
   background: "var(--surface)",
   border: "1px solid var(--hairline)",
   borderRadius: 12,
-  boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
-  pointerEvents: "auto",
+  boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
 };
 
 const fontSizeRowStyle: CSSProperties = {
