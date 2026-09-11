@@ -155,6 +155,7 @@ export const HOME_SECTION_DEFAULT_LABELS: Record<string, string> = {
   ministry: "내 사역 · 부서",
   pasture: "목장 메뉴",
   common: "공통 메뉴",
+  admin: "관리자 메뉴",
 };
 
 // 섹션 제목 저장 — 기본값과 같으면 덮어쓰기 값을 지운다
@@ -882,7 +883,9 @@ function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMe
   const [liveOn, setLiveOn] = useState<boolean | null>(null);
   const [activeAdminMenuGroup, setActiveAdminMenuGroup] = useState<AdminMenuGroupId>(ADMIN_MENU_GROUPS[0].id);
   // 편집모드 (관리자만) — 카드 드래그로 순서, 카드 클릭으로 이름/숨김 변경
+  // 공통 메뉴와 관리자 메뉴는 별도 박스로 분리돼 있어 편집모드도 서로 독립적이다
   const [editing, setEditing] = useState(false);
+  const [adminEditing, setAdminEditing] = useState(false);
   const [editTarget, setEditTarget] = useState<{ groupId: string; menuId: string } | null>(null);
   const [toast, setToast] = useState("");
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
@@ -1052,6 +1055,7 @@ function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMe
   }, []);
 
   const sectionLabel = resolveHomeSectionLabel(menuConfig, "common", HOME_SECTION_DEFAULT_LABELS.common);
+  const adminSectionLabel = resolveHomeSectionLabel(menuConfig, "admin", HOME_SECTION_DEFAULT_LABELS.admin);
   // 저장된 이름·순서·숨김 적용 (편집모드에서는 숨긴 메뉴도 보여야 다시 켤 수 있다)
   const commonSource = facilityAllowed
     ? COMMON_MENUS
@@ -1061,7 +1065,7 @@ function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMe
     .map((group) => ({
       id: group.id,
       label: group.label,
-      items: applyHomeMenuConfig(group.id, [...group.menus], menuConfig, { includeHidden: editing }),
+      items: applyHomeMenuConfig(group.id, [...group.menus], menuConfig, { includeHidden: adminEditing }),
     }))
     .filter((group) => group.items.length > 0);
   const selectedAdminGroup = adminGroups.some((group) => group.id === activeAdminMenuGroup)
@@ -1072,10 +1076,11 @@ function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMe
     groupId: string,
     items: (CommonMenu & { hidden: boolean })[],
     options: { gap: number; className: string; compact?: boolean },
+    editingFlag: boolean,
   ) => {
     const orderedIds = items.map((item) => item.id);
     return (
-      <SafeGrid cols={2} gap={options.gap} className={`${options.className}${editing ? " editing" : ""}`}>
+      <SafeGrid cols={2} gap={options.gap} className={`${options.className}${editingFlag ? " editing" : ""}`}>
         {items.map((m) => (
           <MenuCard
             key={m.id}
@@ -1083,7 +1088,7 @@ function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMe
             router={router}
             compact={options.compact}
             live={groupId === "common" && m.id === "live" ? liveOn : undefined}
-            editing={editing}
+            editing={editingFlag}
             menuHidden={m.hidden}
             dragging={draggingKey === `${groupId}:${m.id}`}
             cardRef={(el) => {
@@ -1091,8 +1096,8 @@ function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMe
               if (el) itemRefs.current.set(key, el);
               else itemRefs.current.delete(key);
             }}
-            onEdit={editing ? () => setEditTarget({ groupId, menuId: m.id }) : undefined}
-            onDragHandle={editing ? (e) => startItemDrag(e, groupId, m.id, orderedIds, m) : undefined}
+            onEdit={editingFlag ? () => setEditTarget({ groupId, menuId: m.id }) : undefined}
+            onDragHandle={editingFlag ? (e) => startItemDrag(e, groupId, m.id, orderedIds, m) : undefined}
           />
         ))}
       </SafeGrid>
@@ -1100,54 +1105,85 @@ function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMe
   };
 
   return (
-    <Section bg="var(--surface)" style={{ border: "1px solid var(--hairline)" }}>
-      <SectionHeader
-        icon={<LayoutGrid size={18} strokeWidth={1.75} />}
-        iconColor="var(--accent)"
-        title={editing ? (
-          <SectionTitleInput
-            sectionId="common"
-            value={sectionLabel}
-            onSaved={onMenuConfigChange}
-            onError={showToast}
-          />
-        ) : sectionLabel}
-        action={canEditMenu ? (
-          <MenuEditGearButton
-            active={editing}
-            onClick={() => setEditing((v) => !v)}
-            label="메인메뉴"
-          />
-        ) : undefined}
-      />
+    <>
+      <Section bg="var(--surface)" style={{ border: "1px solid var(--hairline)" }}>
+        <SectionHeader
+          icon={<LayoutGrid size={18} strokeWidth={1.75} />}
+          iconColor="var(--accent)"
+          title={editing ? (
+            <SectionTitleInput
+              sectionId="common"
+              value={sectionLabel}
+              onSaved={onMenuConfigChange}
+              onError={showToast}
+            />
+          ) : sectionLabel}
+          action={canEditMenu ? (
+            <MenuEditGearButton
+              active={editing}
+              onClick={() => setEditing((v) => !v)}
+              label={HOME_SECTION_DEFAULT_LABELS.common}
+            />
+          ) : undefined}
+        />
 
-      {editing && (
-        <div style={{
-          marginBottom: 12, padding: "10px 12px", borderRadius: 10,
-          background: "var(--accent-soft)", border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)",
-          fontSize: 11.5, fontWeight: 600, lineHeight: 1.5, color: "var(--accent-strong)",
-        }}>
-          카드를 끌어 순서를 바꾸고(모바일은 길게 누른 뒤 이동), 카드를 눌러 이름·숨김을 바꿉니다.
-          <br />변경한 이름·순서·숨김은 <strong>모든 성도 화면</strong>에 그대로 적용됩니다.
-        </div>
-      )}
+        {editing && (
+          <div style={{
+            marginBottom: 12, padding: "10px 12px", borderRadius: 10,
+            background: "var(--accent-soft)", border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)",
+            fontSize: 11.5, fontWeight: 600, lineHeight: 1.5, color: "var(--accent-strong)",
+          }}>
+            카드를 끌어 순서를 바꾸고(모바일은 길게 누른 뒤 이동), 카드를 눌러 이름·숨김을 바꿉니다.
+            <br />변경한 이름·순서·숨김은 <strong>모든 성도 화면</strong>에 그대로 적용됩니다.
+          </div>
+        )}
 
-      {renderMenuGrid("common", commonMenus, { gap: 10, className: "home-menu-grid" })}
+        {renderMenuGrid("common", commonMenus, { gap: 10, className: "home-menu-grid" }, editing)}
+      </Section>
 
       {isAdmin && adminGroups.length > 0 && (
-        <>
-          <div style={{
-            marginTop: 20, marginBottom: 10,
-            display: "flex", alignItems: "center", gap: 8,
-          }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: T.text }}>관리자 메뉴</span>
-            <span style={{
-              padding: "2px 7px", background: "color-mix(in srgb, var(--brass) 15%, transparent)", borderRadius: 5,
-              fontSize: 9, fontWeight: 800, color: "var(--brass)", letterSpacing: 0.8,
-              textTransform: "uppercase",
-            }}>ADMIN</span>
-          </div>
-          {!editing && (
+        <Section bg="var(--surface)" style={{ border: "1px solid var(--hairline)" }}>
+          <SectionHeader
+            icon={<KeyRound size={18} strokeWidth={1.75} />}
+            iconColor="var(--brass)"
+            title={adminEditing ? (
+              <SectionTitleInput
+                sectionId="admin"
+                value={adminSectionLabel}
+                onSaved={onMenuConfigChange}
+                onError={showToast}
+              />
+            ) : (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                {adminSectionLabel}
+                <span style={{
+                  padding: "2px 7px", background: "color-mix(in srgb, var(--brass) 15%, transparent)", borderRadius: 5,
+                  fontSize: 9, fontWeight: 800, color: "var(--brass)", letterSpacing: 0.8,
+                  textTransform: "uppercase",
+                }}>ADMIN</span>
+              </span>
+            )}
+            action={canEditMenu ? (
+              <MenuEditGearButton
+                active={adminEditing}
+                onClick={() => setAdminEditing((v) => !v)}
+                label={HOME_SECTION_DEFAULT_LABELS.admin}
+              />
+            ) : undefined}
+          />
+
+          {adminEditing && (
+            <div style={{
+              marginBottom: 12, padding: "10px 12px", borderRadius: 10,
+              background: "var(--accent-soft)", border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)",
+              fontSize: 11.5, fontWeight: 600, lineHeight: 1.5, color: "var(--accent-strong)",
+            }}>
+              카드를 끌어 순서를 바꾸고(모바일은 길게 누른 뒤 이동), 카드를 눌러 이름·숨김을 바꿉니다.
+              <br />변경한 이름·순서·숨김은 <strong>모든 관리자 화면</strong>에 그대로 적용됩니다.
+            </div>
+          )}
+
+          {!adminEditing && (
             <div className="admin-menu-tabs" role="tablist" aria-label="관리자 메뉴 분류" style={{ display: "none" }}>
               {adminGroups.map((group) => (
                 <button
@@ -1171,9 +1207,9 @@ function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMe
               id={`admin-menu-panel-${group.id}`}
               role="tabpanel"
               aria-labelledby={`admin-menu-tab-${group.id}`}
-              className={`admin-menu-group${editing ? " admin-menu-group-editing" : ""}`}
+              className={`admin-menu-group${adminEditing ? " admin-menu-group-editing" : ""}`}
               // 편집모드에서는 모바일 탭 전환을 끄고 모든 그룹을 펼쳐 둔다 (숨긴 메뉴를 찾아 되살릴 수 있게)
-              data-mobile-active={editing ? true : selectedAdminGroup === group.id}
+              data-mobile-active={adminEditing ? true : selectedAdminGroup === group.id}
               style={{ marginTop: index === 0 ? 0 : 16 }}
             >
               <div
@@ -1182,10 +1218,10 @@ function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMe
               >
                 {group.label}
               </div>
-              {renderMenuGrid(group.id, group.items, { gap: 9, className: "admin-menu-grid", compact: true })}
+              {renderMenuGrid(group.id, group.items, { gap: 9, className: "admin-menu-grid", compact: true }, adminEditing)}
             </div>
           ))}
-        </>
+        </Section>
       )}
 
       {dragPreview && (() => {
@@ -1232,7 +1268,7 @@ function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMe
           fontSize: 12.5, fontWeight: 700, boxShadow: "0 10px 26px rgba(26, 22, 18, 0.22)", whiteSpace: "nowrap",
         }}>{toast}</div>
       )}
-    </Section>
+    </>
   );
 }
 
@@ -1418,16 +1454,19 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
         </SafeRow>
       </div>
 
-      {/* 모바일 전용(비편집): 3열 아이콘 그리드용 세로 타일 — 아이콘 위 + 라벨 아래, 방송중일 때만 점 표시 */}
+      {/* 모바일 전용(비편집): 3열 아이콘 그리드용 세로 타일 — 아이콘 위 + 라벨 아래
+          방송 상태 표시등은 항상 보이되(라이브 여부와 무관), 방송중일 때만 초록으로 강조한다 */}
       <div className="menu-tile">
         <div style={{ position: "relative" }}>
           <IconBox bg={menu.bg} size={34}>
             <menu.icon size={17} strokeWidth={1.8} color={menu.color} />
           </IconBox>
-          {live === true && (
+          {typeof live === "boolean" && (
             <span style={{
-              position: "absolute", top: -2, right: -2, width: 9, height: 9, borderRadius: "50%",
-              background: "var(--danger)", border: "2px solid var(--card)",
+              position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%",
+              background: live ? "var(--success)" : "var(--ink-faint)",
+              border: "2px solid var(--card)",
+              boxShadow: live ? "0 0 0 3px color-mix(in srgb, var(--success) 25%, transparent)" : "none",
             }} />
           )}
         </div>
