@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, ChevronLeft, ChevronRight, X, LayoutGrid } from "lucide-react";
+import { BookText, ChevronLeft, ChevronRight, X, LayoutGrid } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import BibleAttribution from "@/components/BibleAttribution";
 import ModalBackdrop from "@/components/ModalBackdrop";
@@ -169,44 +169,47 @@ export default function BiblePage() {
 
       <div ref={scrollAreaRef} style={scrollAreaStyle}>
         <div style={wrapStyle}>
-          <button onClick={openPicker} style={pickerTriggerStyle}>
-            <span style={testamentBadgeStyle}>{book?.testament === "NT" ? "신약" : "구약"}</span>
-            <span style={pickerTriggerLabelStyle}>{book?.name_ko ?? "…"} {chapter}장</span>
-            <LayoutGrid size={16} style={{ color: "var(--ink-faint)", marginLeft: "auto", flexShrink: 0 }} />
-          </button>
-
-          <div style={chapterNavBarStyle}>
-            <button onClick={prevChapter} disabled={!hasPrev} style={{ ...navButtonStyle, opacity: hasPrev ? 1 : 0.3 }} aria-label="이전 장">
-              <ChevronLeft size={20} />
+          <div style={stickyGroupStyle}>
+            <button onClick={openPicker} style={pickerTriggerStyle}>
+              <span style={testamentBadgeStyle}>{book?.testament === "NT" ? "신약" : "구약"}</span>
+              <span style={pickerTriggerLabelStyle}>{book?.name_ko ?? "…"} {chapter}장</span>
+              <LayoutGrid size={16} style={{ color: "var(--ink-faint)", marginLeft: "auto", flexShrink: 0 }} />
             </button>
-            <div style={chapterTitleWrapStyle}>
-              <BookOpen size={16} style={{ color: "var(--accent)" }} />
-              <h1 style={chapterTitleStyle}>{book?.name_ko} {chapter}장</h1>
-              {loading && <Spinner size={14} />}
+
+            <div style={chapterNavBarStyle}>
+              <button onClick={prevChapter} disabled={!hasPrev} style={{ ...navButtonStyle, opacity: hasPrev ? 1 : 0.3 }} aria-label="이전 장">
+                <ChevronLeft size={20} />
+              </button>
+              <div style={chapterTitleWrapStyle}>
+                <BookText size={16} style={{ color: "var(--accent)", flexShrink: 0 }} />
+                <button onClick={openPicker} style={titleBookNameStyle}>{book?.name_ko ?? "…"}</button>
+                <span style={titleChapterStyle}>{chapter}장</span>
+                {loading && <Spinner size={14} />}
+              </div>
+              <button onClick={nextChapter} disabled={!hasNext} style={{ ...navButtonStyle, opacity: hasNext ? 1 : 0.3 }} aria-label="다음 장">
+                <ChevronRight size={20} />
+              </button>
             </div>
-            <button onClick={nextChapter} disabled={!hasNext} style={{ ...navButtonStyle, opacity: hasNext ? 1 : 0.3 }} aria-label="다음 장">
-              <ChevronRight size={20} />
-            </button>
-          </div>
 
-          <div style={fontSizeRowStyle}>
-            <span style={fontSizeLabelStyle}>글자 크기</span>
-            <div style={fontSizeButtonGroupStyle}>
-              {[1, 2, 3, 4, 5].map((level) => (
-                <button
-                  key={level}
-                  onClick={() => setVerseFontLevel(level)}
-                  aria-label={`글자 크기 ${level}단계`}
-                  aria-pressed={verseFontLevel === level}
-                  style={{
-                    ...fontSizeButtonStyle,
-                    ...(verseFontLevel === level ? fontSizeButtonActiveStyle : {}),
-                    fontSize: 12 + level * 2,
-                  }}
-                >
-                  {level}
-                </button>
-              ))}
+            <div style={fontSizeRowStyle}>
+              <span style={fontSizeLabelStyle}>글자 크기</span>
+              <div style={fontSizeButtonGroupStyle}>
+                {[1, 2, 3, 4, 5].map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => setVerseFontLevel(level)}
+                    aria-label={`글자 크기 ${level}단계`}
+                    aria-pressed={verseFontLevel === level}
+                    style={{
+                      ...fontSizeButtonStyle,
+                      ...(verseFontLevel === level ? fontSizeButtonActiveStyle : {}),
+                      fontSize: 12 + level * 2,
+                    }}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -387,6 +390,16 @@ const iconButtonStyle: CSSProperties = { border: 0, background: "transparent", c
 
 const wrapStyle: CSSProperties = { maxWidth: 760, margin: "0 auto", padding: 14 };
 
+// 책 선택 버튼·장 제목 바·글자 크기 바 셋을 한 덩어리로 묶어서 스크롤해도 같이 붙어 있게 한다.
+// 자체 배경을 깔아 둬야 스크롤되는 본문이 세 카드 사이 틈으로 비쳐 보이지 않는다.
+const stickyGroupStyle: CSSProperties = {
+  position: "sticky",
+  top: 0,
+  zIndex: 5,
+  background: "var(--bg)",
+  paddingTop: 2,
+};
+
 const pickerTriggerStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -421,12 +434,7 @@ const readerCardStyle: CSSProperties = {
   touchAction: "pan-y",
 };
 
-// scrollAreaStyle(자체 overflow-y:auto) 안에서는 sticky가 정상 동작한다 — 스크롤해서
-// 내려가도 "‹ 창세기 1장 ›" 줄만 이 영역 맨 위에 자연스럽게 붙는다.
 const chapterNavBarStyle: CSSProperties = {
-  position: "sticky",
-  top: 0,
-  zIndex: 5,
   display: "flex",
   alignItems: "center",
   gap: 8,
@@ -509,7 +517,31 @@ const chapterTitleWrapStyle: CSSProperties = {
   minWidth: 0,
 };
 
-const chapterTitleStyle: CSSProperties = { margin: 0, fontSize: 17, fontWeight: 800, color: "var(--ink)", whiteSpace: "nowrap" };
+// 책 이름은 눌러서 책 선택으로 바로 이어지는 버튼이다 — "창세기"와 "1장" 사이를
+// 눈에 띄게 띄워 둘이 별개(책 이름=탭 가능 / 장=현재 위치 표시)임을 드러낸다.
+const titleBookNameStyle: CSSProperties = {
+  margin: 0,
+  padding: 0,
+  fontSize: 17,
+  fontWeight: 800,
+  color: "var(--accent-strong)",
+  textDecoration: "underline",
+  textUnderlineOffset: 3,
+  textDecorationColor: "var(--accent-line)",
+  background: "transparent",
+  border: 0,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  whiteSpace: "nowrap",
+};
+
+const titleChapterStyle: CSSProperties = {
+  marginLeft: 10,
+  fontSize: 17,
+  fontWeight: 800,
+  color: "var(--ink)",
+  whiteSpace: "nowrap",
+};
 
 const verseListStyle: CSSProperties = { minHeight: 120 };
 
