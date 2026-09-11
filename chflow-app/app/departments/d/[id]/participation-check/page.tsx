@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { LoadingView } from "@/components/StatusViews";
-import { ChevronLeft, ChevronRight, Copy, History, Lock, Save, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardCopy, Copy, History, Lock, Save, Trash2, X } from "lucide-react";
 
 interface StudentRow {
   student_id: string;
@@ -38,6 +38,7 @@ interface TeacherRow {
 interface SavedDateRow {
   check_date: string;
   session_no: number;
+  memo: string | null;
   student_present: number;
   new_friend_total: number;
   teacher_present: number;
@@ -195,6 +196,9 @@ export default function ParticipationCheckPage() {
   const [savedDates, setSavedDates] = useState<SavedDateRow[]>([]);
   // 이미 저장된 기록이 있는 날짜로 이동할 때 "이어서 볼지 / 새로 저장할지" 물어보는 팝업
   const [sessionPrompt, setSessionPrompt] = useState<{ targetDate: string; existing: SavedDateRow[] } | null>(null);
+  // 메모는 세션(날짜+세션번호) 하나에 한 줄 — 로컬 편집 중에는 draft를, 아니면 저장 목록 캐시값을 보여준다.
+  const [memoDraft, setMemoDraft] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -270,6 +274,7 @@ export default function ParticipationCheckPage() {
     setDate(nextDate);
     setSessionNo(nextSession);
     setSessionPrompt(null);
+    setMemoDraft(null);
     load(nextDate, nextSession);
   };
 
@@ -299,11 +304,37 @@ export default function ParticipationCheckPage() {
     setListLoading(false);
   };
 
-  // 목록에서 고른 항목은 (날짜, 세션) 이 이미 명확하므로 되묻지 않고 그대로 적용한다 —
-  // 지금 보고 있는 날짜라도(현재 세션과 다르면) 그 세션 내용으로 바뀐다.
+  // 저장 목록의 날짜로 실제 이동해서 그 기록을 본다(보기 전용 이동 — 지금 보던 세션은 바뀌지 않는다).
   const loadFromList = (row: SavedDateRow) => {
     setListOpen(false);
     goToDateSession(row.check_date, row.session_no);
+  };
+
+  // 예전에 저장해 둔 세션을 "지금 보고 있는 날짜/세션"에 그대로 적용한다 — 참여자가 비슷해서
+  // 거의 안 고쳐도 될 때 쓰는 기능. 대상 세션의 기존 체크는 전부 대체된다.
+  const applyToCurrent = async (row: SavedDateRow) => {
+    if (row.check_date === date && row.session_no === sessionNo) return;
+    if (!window.confirm(
+      `${sessionLabel(row.check_date, row.session_no)} 기록을 ${sessionLabel(date, sessionNo)}에 적용할까요?\n` +
+      `현재 보고 있는 날짜에 입력된 내용은 모두 대체됩니다.`,
+    )) return;
+    setListOpen(false);
+    setApplying(true);
+    const { error } = await supabase.rpc("edu_participation_copy_session", {
+      p_dept_id: deptId,
+      p_source_date: row.check_date,
+      p_source_session: row.session_no,
+      p_target_date: date,
+      p_target_session: sessionNo,
+    });
+    setApplying(false);
+    if (error) {
+      showToast(`적용 실패: ${error.message}`);
+      return;
+    }
+    showToast(`${sessionLabel(row.check_date, row.session_no)} 기록을 적용했습니다`);
+    await load(date, sessionNo);
+    await fetchSavedList();
   };
 
   const deleteFromList = async (row: SavedDateRow) => {
@@ -387,6 +418,27 @@ export default function ParticipationCheckPage() {
       return false;
     }
     return true;
+  };
+
+  // ── 메모 (세션 단위 한 줄) ──
+
+  const currentMemo = useMemo(() => {
+    const row = savedDates.find((r) => r.check_date === date && r.session_no === sessionNo);
+    return row?.memo ?? "";
+  }, [savedDates, date, sessionNo]);
+
+  const persistMemo = async (value: string) => {
+    const { error } = await supabase.rpc("edu_participation_set_session_memo", {
+      p_dept_id: deptId, p_check_date: date, p_session_no: sessionNo, p_memo: value,
+    });
+    if (error) {
+      showToast(`메모 저장 실패: ${error.message}`);
+      return;
+    }
+    setSavedDates((prev) => prev.map((r) => (
+      r.check_date === date && r.session_no === sessionNo ? { ...r, memo: value.trim() || null } : r
+    )));
+    setMemoDraft(null);
   };
 
   // ── 저장 (남은 입력 일괄) ──
@@ -651,6 +703,17 @@ export default function ParticipationCheckPage() {
           </div>
         )}
 
+        <div style={memoRowStyle}>
+          <input
+            type="text"
+            placeholder="메모 (선택) — 예: 여름성경학교 준비주"
+            value={memoDraft ?? currentMemo}
+            onChange={(e) => setMemoDraft(e.target.value)}
+            onBlur={(e) => { if (e.target.value !== currentMemo) persistMemo(e.target.value); }}
+            style={memoInputStyle}
+          />
+        </div>
+
         {loading ? (
           <LoadingView />
         ) : (
@@ -904,32 +967,55 @@ export default function ParticipationCheckPage() {
               ) : savedDates.length === 0 ? (
                 <div style={emptyLineStyle}>저장된 조사가 없습니다</div>
               ) : (
-                savedDates.map((row) => (
-                  <div key={`${row.check_date}-${row.session_no}`} style={listRowStyle}>
-                    <button type="button" onClick={() => loadFromList(row)} style={listRowMainStyle}>
-                      <span style={listRowDateStyle}>
-                        {sessionLabel(row.check_date, row.session_no)}
-                        {row.check_date === date && row.session_no === sessionNo && (
-                          <span style={listRowCurrentBadgeStyle}>현재</span>
+                savedDates.map((row) => {
+                  const isCurrent = row.check_date === date && row.session_no === sessionNo;
+                  return (
+                    <div key={`${row.check_date}-${row.session_no}`} style={listRowStyle}>
+                      <div style={listRowMainStyle}>
+                        <span style={listRowDateStyle}>
+                          {sessionLabel(row.check_date, row.session_no)}
+                          {isCurrent && <span style={listRowCurrentBadgeStyle}>현재</span>}
+                        </span>
+                        <span style={listRowSummaryStyle}>
+                          참석 {row.student_present}명 · 새친구 {row.new_friend_total}명 · 교사 {row.teacher_present}/{row.teacher_total}명
+                        </span>
+                        {row.memo && <span style={listRowMemoStyle}>{row.memo}</span>}
+                        {formatSavedAt(row.updated_at) && (
+                          <span style={listRowTimeStyle}>{formatSavedAt(row.updated_at)}</span>
                         )}
-                      </span>
-                      <span style={listRowSummaryStyle}>
-                        참석 {row.student_present}명 · 새친구 {row.new_friend_total}명 · 교사 {row.teacher_present}/{row.teacher_total}명
-                      </span>
-                      {formatSavedAt(row.updated_at) && (
-                        <span style={listRowTimeStyle}>{formatSavedAt(row.updated_at)}</span>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteFromList(row)}
-                      aria-label={`${sessionLabel(row.check_date, row.session_no)} 삭제`}
-                      style={listDeleteButtonStyle}
-                    >
-                      <Trash2 size={15} strokeWidth={1.8} />
-                    </button>
-                  </div>
-                ))
+                      </div>
+                      <div style={listRowActionsStyle}>
+                        {!isCurrent && (
+                          <button
+                            type="button"
+                            onClick={() => applyToCurrent(row)}
+                            disabled={applying}
+                            aria-label={`${sessionLabel(row.check_date, row.session_no)} 기록을 ${sessionLabel(date, sessionNo)}에 적용`}
+                            style={listApplyButtonStyle}
+                          >
+                            <ClipboardCopy size={13} strokeWidth={1.8} /> 적용
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => loadFromList(row)}
+                          aria-label={`${sessionLabel(row.check_date, row.session_no)}로 이동`}
+                          style={listGotoButtonStyle}
+                        >
+                          이동
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteFromList(row)}
+                          aria-label={`${sessionLabel(row.check_date, row.session_no)} 삭제`}
+                          style={listDeleteButtonStyle}
+                        >
+                          <Trash2 size={15} strokeWidth={1.8} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
@@ -1022,16 +1108,23 @@ const listHeaderStyle: CSSProperties = { display: "flex", alignItems: "center", 
 const listTitleStyle: CSSProperties = { margin: 0, fontSize: 15, fontWeight: 800, color: "var(--ink)" };
 const listCloseStyle: CSSProperties = { display: "grid", placeItems: "center", width: 28, height: 28, background: "var(--bg-soft)", color: "var(--ink-mid)", border: "1px solid var(--hairline)", borderRadius: 999, cursor: "pointer" };
 const listScrollStyle: CSSProperties = { padding: 10, overflowY: "auto" };
-const listRowStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 6, padding: "4px", borderRadius: 10 };
-const listRowMainStyle: CSSProperties = { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 3, padding: "8px 10px", background: "transparent", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "left" };
+const listRowStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: 6, padding: "10px", borderRadius: 10, borderBottom: "1px solid var(--hairline)" };
+const listRowMainStyle: CSSProperties = { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 3, textAlign: "left" };
 const listRowDateStyle: CSSProperties = { fontSize: 13.5, fontWeight: 800, color: "var(--ink)" };
 const listRowCurrentBadgeStyle: CSSProperties = { marginLeft: 8, fontSize: 10.5, fontWeight: 800, color: "var(--accent-strong)", background: "var(--accent-soft)", padding: "2px 7px", borderRadius: 999 };
 const listRowSummaryStyle: CSSProperties = { fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 500 };
+const listRowMemoStyle: CSSProperties = { fontSize: 11.5, color: "var(--accent-strong)", fontWeight: 600 };
+const listRowActionsStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 6 };
+const listApplyButtonStyle: CSSProperties = { flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px 10px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const listGotoButtonStyle: CSSProperties = { flexShrink: 0, padding: "8px 10px", background: "var(--bg-soft)", color: "var(--ink-mid)", border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const listDeleteButtonStyle: CSSProperties = { flexShrink: 0, display: "grid", placeItems: "center", width: 32, height: 32, background: "color-mix(in srgb, var(--danger) 10%, transparent)", color: "var(--danger)", border: "none", borderRadius: 8, cursor: "pointer" };
 const listRowTimeStyle: CSSProperties = { fontSize: 10.5, color: "var(--ink-faint)", fontWeight: 500 };
 
 const sessionBadgeRowStyle: CSSProperties = { display: "flex", justifyContent: "center", marginTop: -6, marginBottom: 14 };
 const sessionBadgeStyle: CSSProperties = { fontSize: 11.5, fontWeight: 700, color: "var(--accent-strong)", background: "var(--accent-soft)", padding: "4px 10px", borderRadius: 999 };
+
+const memoRowStyle: CSSProperties = { display: "flex", justifyContent: "center", marginBottom: 14 };
+const memoInputStyle: CSSProperties = { width: "100%", maxWidth: 420, padding: "8px 12px", border: "1px solid var(--hairline)", borderRadius: 8, fontSize: 12.5, fontFamily: "inherit", background: "var(--card)", color: "var(--ink)", textAlign: "center" };
 
 const promptSheetStyle: CSSProperties = { width: "100%", maxWidth: 400, background: "var(--card)", borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 10 };
 const promptTitleStyle: CSSProperties = { fontSize: 15, fontWeight: 800, color: "var(--ink)" };
