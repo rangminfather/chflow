@@ -1,40 +1,89 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState, type CSSProperties } from "react";
 import { ShieldCheck } from "lucide-react";
-import type { CSSProperties } from "react";
-import type { BibleVersion } from "@/lib/bible/versions";
+import { supabase } from "@/lib/supabase";
 
 /**
- * 성경 본문이 나오는 모든 화면(성경책 메뉴·예배인도 대본 등)에서 공통으로 쓰는 저작권 안내.
- * bible_versions.copyright_slug 가 채워진 역본만 안내·링크를 보여준다 — 저작권 걱정이 없는
- * 역본(개역한글 등 is_public_domain=true)은 slug가 없어 자동으로 아무것도 뜨지 않는다.
- * 새 역본을 저작권 허락을 받아 추가할 때 이 컴포넌트를 다시 손댈 필요는 없다 —
- * bible_versions.copyright_slug 와 copyright_items.slug 만 맞춰 두면 된다.
+ * ============================================================================
+ * 저작권 있는 성경 역본 본문이 나오는 모든 화면의 표준 안내 배너.
+ *
+ * 이 컴포넌트 하나가 "표시 의무"를 전담한다 — 새 화면에 NKRV(또는 앞으로 허락받는
+ * 다른 역본) 본문을 보여줄 때는:
+ *   1) list_bible_versions() 로 그 역본의 copyright_slug 를 받아오고
+ *   2) <BibleAttribution slug={그 값} /> 하나만 본문 아래에 붙인다.
+ * 문구·색·링크를 화면마다 따로 만들지 않는다 — 저작권자·자료명이 바뀌어도
+ * (/admin/copyright 에서 수정) 이 컴포넌트를 쓰는 모든 화면에 자동 반영된다.
+ * slug가 없는 역본(저작권 걱정 없는 공개 역본)은 아무것도 렌더링하지 않는다.
+ * ============================================================================
  */
-export default function BibleAttribution({
-  version,
-}: {
-  version: Pick<BibleVersion, "name_ko" | "copyright_slug"> | null | undefined;
-}) {
-  if (!version?.copyright_slug) return null;
+export default function BibleAttribution({ slug }: { slug: string | null | undefined }) {
+  const [notice, setNotice] = useState<{ assetName: string; rightsHolder: string; slug: string } | null>(null);
+
+  useEffect(() => {
+    if (!slug) { setNotice(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers = new Headers();
+      if (session?.access_token) headers.set("Authorization", `Bearer ${session.access_token}`);
+      const res = await fetch(`/api/copyright-notice?slug=${encodeURIComponent(slug)}`, { headers });
+      const json = await res.json().catch(() => null) as { ok?: boolean; items?: Array<{ assetName: string; rightsHolder: string; slug: string | null }> } | null;
+      if (cancelled) return;
+      const item = json?.ok ? json.items?.[0] : undefined;
+      setNotice(item ? { assetName: item.assetName, rightsHolder: item.rightsHolder, slug: item.slug ?? slug } : null);
+    })();
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  if (!slug || !notice) return null;
+
   return (
-    <Link href={`/copyright?slug=${encodeURIComponent(version.copyright_slug)}`} style={linkStyle}>
-      <ShieldCheck size={12} strokeWidth={2} />
-      {version.name_ko} 저작권 안내 및 사용 허가 보기
-    </Link>
+    <div style={bannerStyle}>
+      <ShieldCheck size={17} strokeWidth={2.2} style={{ flexShrink: 0, color: "var(--warning)", marginTop: 1 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <strong style={ownerStyle}>저작권 소유: {notice.rightsHolder}</strong>
+        <div style={subStyle}>{notice.assetName} — 허락받은 범위 안에서 사용 중입니다</div>
+      </div>
+      <Link href={`/copyright?slug=${encodeURIComponent(notice.slug)}`} style={linkStyle}>
+        사용 허가 내용 보기 →
+      </Link>
+    </div>
   );
 }
 
-const linkStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 5,
-  marginTop: 10,
+const bannerStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 10,
+  marginTop: 14,
+  padding: "11px 13px",
+  borderRadius: 8,
+  background: "color-mix(in srgb, var(--warning) 14%, var(--surface))",
+  border: "1px solid color-mix(in srgb, var(--warning) 45%, transparent)",
+  flexWrap: "wrap",
+};
+
+const ownerStyle: CSSProperties = {
+  display: "block",
+  fontSize: 13,
+  fontWeight: 800,
+  color: "var(--ink)",
+};
+
+const subStyle: CSSProperties = {
   fontSize: 11.5,
-  color: "var(--ink-faint)",
+  color: "var(--ink-soft)",
+  marginTop: 2,
+};
+
+const linkStyle: CSSProperties = {
+  flexShrink: 0,
+  fontSize: 12,
+  fontWeight: 800,
+  color: "var(--warning)",
   textDecoration: "none",
-  borderBottom: "1px dotted var(--hairline-strong)",
-  paddingBottom: 1,
-  width: "fit-content",
+  whiteSpace: "nowrap",
+  marginLeft: "auto",
 };

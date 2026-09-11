@@ -73,7 +73,7 @@ export default function BiblePage() {
       <article style={{ ...card, marginTop: 12 }}>
         <h1 style={{ marginTop: 0 }}><BookOpen size={20} style={{ verticalAlign: "middle", marginRight: 6 }} />{book?.name_ko} {chapter}장</h1>
         {loading ? <p>본문을 불러오는 중입니다.</p> : verses.map((row) => <p key={`${row.chapter}-${row.verse}`} style={{ lineHeight: 1.9, margin: "0 0 10px" }}><b style={{ color: "var(--accent)", marginRight: 8 }}>{row.endVerse ? `${row.verse}-${row.endVerse}` : row.verse}</b>{row.text}</p>)}
-        <BibleAttribution version={version} />
+        <BibleAttribution slug={version?.copyright_slug} />
       </article>
     </div>
   </main>;

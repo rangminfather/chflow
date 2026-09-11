@@ -8,7 +8,6 @@ import BibleAttribution from "@/components/BibleAttribution";
 import { LoadingView } from "@/components/StatusViews";
 import { supabase } from "@/lib/supabase";
 import { DEFAULT_BIBLE_VERSION, parseBibleVersions, type BibleVersion } from "@/lib/bible/versions";
-import { fromPublicRow } from "@/lib/copyright";
 import {
   type BibleVerse,
   buildWorshipLeaderSections,
@@ -164,7 +163,6 @@ export default function WorshipLeaderPage() {
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
   const [bibleVersion, setBibleVersion] = useState<BibleVersion | null>(null);
-  const [copyrightNotice, setCopyrightNotice] = useState("");
   // 한 번 만든 대본은 이 기기에 주일별로 남긴다 — 다시 들어올 때 즉시 뜨고,
   // 최신 값은 뒤에서 조용히 맞춘다 (주보 PDF 를 매번 새로 받으면 느리다)
   const cacheKey = `worship-leader-cache:${deptId}:${sunday}`;
@@ -184,18 +182,14 @@ export default function WorshipLeaderPage() {
     }
   }, [editStorageKey]);
 
-  // 본문 역본의 저작권 표시 의무를 대본에 자동으로 붙인다 — 역본이 바뀌거나
-  // 승인 문구가 바뀌어도 여기 손댈 필요 없이 bible_versions.copyright_slug 를 따라간다.
+  // 본문 역본이 무엇인지만 알아 둔다 — 저작권 표시 자체는 <BibleAttribution slug=.../> 가
+  // 전담한다. 역본이 바뀌거나 승인 내용이 바뀌어도 여기 손댈 필요 없이 bible_versions.copyright_slug
+  // 를 따라간다.
   useEffect(() => {
     void (async () => {
       const { data: versionRows } = await supabase.rpc("list_bible_versions");
       const versions = parseBibleVersions(versionRows);
-      const version = versions.find((v) => v.code === DEFAULT_BIBLE_VERSION) ?? null;
-      setBibleVersion(version);
-      if (!version?.copyright_slug) return;
-      const { data: noticeRows } = await supabase.rpc("get_public_copyright_notices", { p_slug: version.copyright_slug });
-      const notice = (Array.isArray(noticeRows) ? noticeRows : []).map(fromPublicRow)[0];
-      if (notice?.requiredNotice) setCopyrightNotice(notice.requiredNotice);
+      setBibleVersion(versions.find((v) => v.code === DEFAULT_BIBLE_VERSION) ?? null);
     })();
   }, []);
 
@@ -433,8 +427,7 @@ export default function WorshipLeaderPage() {
     sermonTitle: plan?.fields.sermonTitle || "",
     preacher: plan?.fields.preacher || "",
     versionName: bibleVersion?.name_ko || "개역개정",
-    copyrightNotice,
-  }), [bibleVersion, copyrightNotice, normalizedScripture, plan, prayerClass, sunday, testament, verses]);
+  }), [bibleVersion, normalizedScripture, plan, prayerClass, sunday, testament, verses]);
 
   const sections = useMemo(() => generatedSections.map((section) => ({
     ...section,
@@ -519,7 +512,7 @@ export default function WorshipLeaderPage() {
                 value={section.content}
                 onChange={(value) => updateSection(section.number, value)}
               />
-              {section.number === 7 && verses.length > 0 && <BibleAttribution version={bibleVersion} />}
+              {section.number === 7 && verses.length > 0 && <BibleAttribution slug={bibleVersion?.copyright_slug} />}
             </section>
           ))}
         </div>
