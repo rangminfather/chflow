@@ -13,6 +13,18 @@ export const COPYRIGHT_STATUS_LABEL: Record<CopyrightStatus, string> = {
   unconfirmed: "미확인",
 };
 
+// 등록 화면 선택지 — DB의 category 컬럼은 여전히 자유 텍스트라, 목록에 없는 값(과거에 직접
+// 입력된 값 포함)은 폼에서 "기타(직접 입력)"으로 취급한다. 새 분류가 자주 필요해지면 이 배열만
+// 늘리면 된다.
+export const COPYRIGHT_CATEGORIES = [
+  "성경 본문",
+  "찬양·음원",
+  "폰트",
+  "이미지·아이콘",
+  "영상",
+  "오픈소스 라이브러리",
+] as const;
+
 export interface CopyrightItem {
   id: string;
   category: string;

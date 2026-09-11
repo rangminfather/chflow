@@ -24,6 +24,7 @@ import { supabase } from "@/lib/supabase";
 import {
   COPYRIGHT_STATUSES,
   COPYRIGHT_STATUS_LABEL,
+  COPYRIGHT_CATEGORIES,
   COPYRIGHT_AUDIT_ACTION_LABEL,
   AUDIT_FIELD_LABEL,
   isLegacyPublicEvidencePath,
@@ -32,6 +33,11 @@ import {
   type CopyrightAuditEntry,
   type CopyrightAuditAction,
 } from "@/lib/copyright";
+
+const CUSTOM_CATEGORY = "__custom__";
+function isKnownCategory(value: string): boolean {
+  return (COPYRIGHT_CATEGORIES as readonly string[]).includes(value);
+}
 
 const STATUS_META: Record<CopyrightStatus, { label: string; color: string; soft: string; icon: LucideIcon }> = {
   approved: { label: COPYRIGHT_STATUS_LABEL.approved, color: "var(--success)", soft: "var(--success-soft)", icon: ShieldCheck },
@@ -380,7 +386,14 @@ function CopyrightFormModal({
   onSaved: () => void | Promise<void>;
 }) {
   const isEdit = !!target;
-  const [category, setCategory] = useState(target?.category ?? "");
+  const [categoryChoice, setCategoryChoice] = useState<string>(() => {
+    if (!target) return "";
+    return isKnownCategory(target.category) ? target.category : CUSTOM_CATEGORY;
+  });
+  const [customCategory, setCustomCategory] = useState(
+    target && !isKnownCategory(target.category) ? target.category : ""
+  );
+  const category = categoryChoice === CUSTOM_CATEGORY ? customCategory : categoryChoice;
   const [assetName, setAssetName] = useState(target?.assetName ?? "");
   const [rightsHolder, setRightsHolder] = useState(target?.rightsHolder ?? "");
   const [status, setStatus] = useState<CopyrightStatus>(target?.status ?? "pending");
@@ -408,8 +421,16 @@ function CopyrightFormModal({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!category.trim() || !assetName.trim() || !rightsHolder.trim()) {
-      setError("분류·대상 자료명·저작권자는 필수입니다");
+    if (!categoryChoice) {
+      setError("분류를 선택해 주세요");
+      return;
+    }
+    if (categoryChoice === CUSTOM_CATEGORY && !customCategory.trim()) {
+      setError("분류를 입력해 주세요");
+      return;
+    }
+    if (!assetName.trim() || !rightsHolder.trim()) {
+      setError("대상 자료명·저작권자는 필수입니다");
       return;
     }
     if (isEdit && !pin.trim()) {
@@ -457,7 +478,21 @@ function CopyrightFormModal({
         <div style={formScrollStyle}>
           <FormSectionLabel>기본 정보</FormSectionLabel>
           <FormRow label="분류" required>
-            <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="예: 성경 본문, 폰트, 이미지" style={inputStyle} />
+            <select value={categoryChoice} onChange={(e) => setCategoryChoice(e.target.value)} style={inputStyle}>
+              <option value="" disabled>선택하세요</option>
+              {COPYRIGHT_CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+              <option value={CUSTOM_CATEGORY}>기타 (직접 입력)</option>
+            </select>
+            {categoryChoice === CUSTOM_CATEGORY && (
+              <input
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                placeholder="분류를 직접 입력하세요"
+                style={{ ...inputStyle, marginTop: 8 }}
+              />
+            )}
           </FormRow>
           <FormRow label="대상 자료명" required>
             <input value={assetName} onChange={(e) => setAssetName(e.target.value)} placeholder="정확한 명칭" style={inputStyle} />
