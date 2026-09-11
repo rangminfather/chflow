@@ -14,6 +14,8 @@ import {
   ScrollText,
   Clock3,
   ShieldAlert,
+  History,
+  KeyRound,
 } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
@@ -22,9 +24,13 @@ import { supabase } from "@/lib/supabase";
 import {
   COPYRIGHT_STATUSES,
   COPYRIGHT_STATUS_LABEL,
+  COPYRIGHT_AUDIT_ACTION_LABEL,
+  AUDIT_FIELD_LABEL,
   isLegacyPublicEvidencePath,
   type CopyrightItem,
   type CopyrightStatus,
+  type CopyrightAuditEntry,
+  type CopyrightAuditAction,
 } from "@/lib/copyright";
 
 const STATUS_META: Record<CopyrightStatus, { label: string; color: string; soft: string; icon: LucideIcon }> = {
@@ -65,6 +71,7 @@ export default function AdminCopyrightPage() {
   const [selected, setSelected] = useState<CopyrightItem | null>(null);
   const [formTarget, setFormTarget] = useState<FormTarget>(null);
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -119,7 +126,17 @@ export default function AdminCopyrightPage() {
 
   async function handleDelete(item: CopyrightItem) {
     if (!window.confirm(`"${item.assetName}" 항목을 삭제할까요? 되돌릴 수 없습니다.`)) return;
-    const res = await authedFetch(`/api/admin/copyright?id=${encodeURIComponent(item.id)}`, { method: "DELETE" });
+    const pin = window.prompt("이 항목을 삭제하려면 관리자 비밀번호를 입력하세요.");
+    if (pin === null) return;
+    if (!pin.trim()) {
+      window.alert("관리자 비밀번호를 입력해 주세요");
+      return;
+    }
+    const res = await authedFetch(`/api/admin/copyright?id=${encodeURIComponent(item.id)}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin }),
+    });
     const json = await res.json().catch(() => null);
     if (!res.ok || !json?.ok) {
       window.alert(json?.error || "삭제에 실패했습니다");
@@ -147,6 +164,9 @@ export default function AdminCopyrightPage() {
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button onClick={() => router.push("/home")} style={ghostButtonStyle}>홈</button>
+            <button onClick={() => setHistoryOpen(true)} style={ghostButtonStyle}>
+              <History size={14} /> 변경 이력
+            </button>
             <button onClick={() => setFormTarget("new")} style={primaryButtonStyle}>
               <Plus size={15} strokeWidth={2.4} /> 새 항목 등록
             </button>
@@ -157,6 +177,8 @@ export default function AdminCopyrightPage() {
           이 대장은 이 시스템에 연동하는 저작권 보호 콘텐츠(성경 번역본, 폰트, 외부 자료 등)에 대해 정식
           허가·라이선스 구매·기타 대응 근거를 남기기 위한 기록입니다. 새 건은 이 화면에서 한 건씩 등록하고,
           근거가 확인될 때까지는 &ldquo;검토중&rdquo; 상태로 남겨 둡니다 — 여러 건을 한꺼번에 반영하지 않습니다.
+          함부로 바뀌면 안 되는 근거 기록이라, <strong>수정·삭제 시에는 관리자 비밀번호를 추가로 확인</strong>하고
+          모든 등록·수정·삭제는 행위자와 함께 이력에 남습니다.
         </section>
 
         <div style={filterRowStyle}>
@@ -209,6 +231,8 @@ export default function AdminCopyrightPage() {
           onSaved={async () => { setFormTarget(null); await loadItems(); }}
         />
       )}
+
+      {historyOpen && <AuditLogModal onClose={() => setHistoryOpen(false)} />}
 
       {previewSrc && (
         <ModalBackdrop onClose={() => setPreviewSrc(null)} style={{ zIndex: 300 }}>
@@ -369,6 +393,7 @@ function CopyrightFormModal({
   const [file, setFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [removeEvidence, setRemoveEvidence] = useState(false);
+  const [pin, setPin] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -385,6 +410,10 @@ function CopyrightFormModal({
     e.preventDefault();
     if (!category.trim() || !assetName.trim() || !rightsHolder.trim()) {
       setError("분류·대상 자료명·저작권자는 필수입니다");
+      return;
+    }
+    if (isEdit && !pin.trim()) {
+      setError("수정하려면 관리자 비밀번호를 입력해 주세요");
       return;
     }
     setSaving(true);
@@ -405,6 +434,7 @@ function CopyrightFormModal({
     form.set("sort_order", String(target?.sortOrder ?? 0));
     if (file) form.set("file", file);
     if (isEdit && removeEvidence && !file) form.set("remove_evidence", "1");
+    if (isEdit) form.set("pin", pin.trim());
 
     const res = await authedFetch("/api/admin/copyright", { method: isEdit ? "PATCH" : "POST", body: form });
     const json = await res.json().catch(() => null);
@@ -494,6 +524,25 @@ function CopyrightFormModal({
           <FormRow label="비고">
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={textareaStyle} rows={2} />
           </FormRow>
+
+          {isEdit && (
+            <>
+              <FormSectionLabel>실행 확인</FormSectionLabel>
+              <FormRow label="관리자 비밀번호" required>
+                <div style={pinRowStyle}>
+                  <KeyRound size={14} style={{ color: "var(--ink-faint)", flexShrink: 0 }} />
+                  <input
+                    type="password"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value)}
+                    style={{ ...inputStyle, flex: 1 }}
+                    placeholder="수정을 실행하려면 입력하세요"
+                    autoComplete="off"
+                  />
+                </div>
+              </FormRow>
+            </>
+          )}
         </div>
 
         {error && <div style={formErrorStyle}>{error}</div>}
@@ -507,6 +556,128 @@ function CopyrightFormModal({
       </form>
     </ModalBackdrop>
   );
+}
+
+const AUDIT_ACTION_COLOR: Record<CopyrightAuditAction, string> = {
+  create: "var(--success)",
+  update: "var(--warning)",
+  delete: "var(--danger)",
+};
+
+function AuditLogModal({ onClose }: { onClose: () => void }) {
+  const [entries, setEntries] = useState<CopyrightAuditEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const res = await authedFetch("/api/admin/copyright/audit");
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        setError(json?.error || "이력을 불러오지 못했습니다");
+      } else {
+        setEntries(json.entries as CopyrightAuditEntry[]);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  return (
+    <ModalBackdrop onClose={onClose} style={{ zIndex: 260 }}>
+      <div onClick={(e) => e.stopPropagation()} style={formCardStyle}>
+        <div style={formHeaderStyle}>
+          <h2 style={formTitleStyle}>등록·수정·삭제 이력</h2>
+          <button type="button" onClick={onClose} style={iconGhostButtonStyle} aria-label="닫기"><X size={18} /></button>
+        </div>
+
+        <div style={formScrollStyle}>
+          {loading && <LoadingView label="이력을 불러오는 중..." padding={24} />}
+          {!loading && error && <EmptyState icon={<ShieldAlert size={20} strokeWidth={1.6} />} message={error} />}
+          {!loading && !error && entries.length === 0 && (
+            <EmptyState icon={<History size={20} strokeWidth={1.6} />} message="아직 등록·수정·삭제 이력이 없습니다" />
+          )}
+          {!loading && !error && entries.map((entry) => (
+            <AuditLogRow
+              key={entry.id}
+              entry={entry}
+              expanded={expandedId === entry.id}
+              onToggle={() => setExpandedId((cur) => (cur === entry.id ? null : entry.id))}
+            />
+          ))}
+        </div>
+      </div>
+    </ModalBackdrop>
+  );
+}
+
+function AuditLogRow({ entry, expanded, onToggle }: { entry: CopyrightAuditEntry; expanded: boolean; onToggle: () => void }) {
+  const changedFields = diffFields(entry.before, entry.after);
+  return (
+    <div style={auditRowStyle}>
+      <button type="button" onClick={onToggle} style={auditRowHeaderStyle}>
+        <span style={{ ...badgeStyle, color: AUDIT_ACTION_COLOR[entry.action], background: `color-mix(in srgb, ${AUDIT_ACTION_COLOR[entry.action]} 14%, transparent)` }}>
+          {COPYRIGHT_AUDIT_ACTION_LABEL[entry.action]}
+        </span>
+        <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+          <div style={auditAssetNameStyle}>{entry.assetName}</div>
+          <div style={auditMetaStyle}>{formatDateTime(entry.createdAt)} · {entry.actorEmail ?? "알 수 없음"}</div>
+        </div>
+        <ChevronRight size={16} style={{ color: "var(--ink-faint)", flexShrink: 0, transform: expanded ? "rotate(90deg)" : undefined }} />
+      </button>
+      {expanded && (
+        <div style={auditDetailStyle}>
+          {changedFields.length === 0 && <div style={auditEmptyDiffStyle}>세부 변경 내용이 없습니다</div>}
+          {changedFields.map((f) => (
+            <div key={f.key} style={auditFieldRowStyle}>
+              <div style={auditFieldLabelStyle}>{AUDIT_FIELD_LABEL[f.key] ?? f.key}</div>
+              <div style={auditFieldValueStyle}>
+                {f.before !== undefined && <span style={auditBeforeStyle}>{f.before}</span>}
+                {f.before !== undefined && f.after !== undefined && <span style={{ color: "var(--ink-faint)" }}> → </span>}
+                {f.after !== undefined && <span>{f.after}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function diffFields(
+  before: Record<string, unknown> | null,
+  after: Record<string, unknown> | null
+): { key: string; before?: string; after?: string }[] {
+  const keys = Object.keys(AUDIT_FIELD_LABEL);
+  const result: { key: string; before?: string; after?: string }[] = [];
+  for (const key of keys) {
+    const b = before ? before[key] : undefined;
+    const a = after ? after[key] : undefined;
+    const bStr = formatFieldValue(b);
+    const aStr = formatFieldValue(a);
+    if (!before) {
+      // 등록: 값이 있는 필드만
+      if (aStr) result.push({ key, after: aStr });
+    } else if (!after) {
+      // 삭제: 값이 있는 필드만
+      if (bStr) result.push({ key, before: bStr });
+    } else if (bStr !== aStr) {
+      result.push({ key, before: bStr || "(없음)", after: aStr || "(없음)" });
+    }
+  }
+  return result;
+}
+
+function formatFieldValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
+function formatDateTime(iso: string): string {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 function FormSectionLabel({ children }: { children: ReactNode }) {
@@ -1007,4 +1178,80 @@ const formFooterStyle: React.CSSProperties = {
   gap: 8,
   padding: "14px 18px",
   borderTop: "1px solid var(--hairline)",
+};
+
+const pinRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "8px 10px",
+  background: "color-mix(in srgb, var(--warning) 8%, var(--surface))",
+  border: "1px solid color-mix(in srgb, var(--warning) 35%, transparent)",
+  borderRadius: 6,
+};
+
+const auditRowStyle: React.CSSProperties = {
+  border: "1px solid var(--hairline)",
+  borderRadius: 8,
+  marginBottom: 8,
+  overflow: "hidden",
+};
+
+const auditRowHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  width: "100%",
+  padding: "10px 12px",
+  background: "var(--card)",
+  border: 0,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+const auditAssetNameStyle: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 700,
+  color: "var(--ink)",
+};
+
+const auditMetaStyle: React.CSSProperties = {
+  fontSize: 11.5,
+  color: "var(--ink-faint)",
+  marginTop: 2,
+};
+
+const auditDetailStyle: React.CSSProperties = {
+  padding: "10px 12px 12px",
+  background: "var(--bg-soft)",
+  borderTop: "1px solid var(--hairline)",
+};
+
+const auditEmptyDiffStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: "var(--ink-faint)",
+};
+
+const auditFieldRowStyle: React.CSSProperties = {
+  marginBottom: 6,
+};
+
+const auditFieldLabelStyle: React.CSSProperties = {
+  fontSize: 10.5,
+  fontWeight: 800,
+  color: "var(--ink-faint)",
+  textTransform: "uppercase",
+  letterSpacing: "0.03em",
+};
+
+const auditFieldValueStyle: React.CSSProperties = {
+  fontSize: 12.5,
+  color: "var(--ink-mid)",
+  lineHeight: 1.5,
+  whiteSpace: "pre-wrap",
+};
+
+const auditBeforeStyle: React.CSSProperties = {
+  color: "var(--danger)",
+  textDecoration: "line-through",
 };

@@ -61,3 +61,54 @@ export const COPYRIGHT_EVIDENCE_ALLOWED_TYPES = ["image/png", "image/jpeg", "ima
 export function isLegacyPublicEvidencePath(path: string): boolean {
   return path.startsWith("/");
 }
+
+export type CopyrightAuditAction = "create" | "update" | "delete";
+
+export const COPYRIGHT_AUDIT_ACTION_LABEL: Record<CopyrightAuditAction, string> = {
+  create: "등록",
+  update: "수정",
+  delete: "삭제",
+};
+
+export interface CopyrightAuditEntry {
+  id: string;
+  itemId: string | null;
+  assetName: string;
+  action: CopyrightAuditAction;
+  actorEmail: string | null;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+function isCopyrightAuditAction(value: unknown): value is CopyrightAuditAction {
+  return value === "create" || value === "update" || value === "delete";
+}
+
+export function fromAuditRow(row: Record<string, unknown>): CopyrightAuditEntry {
+  return {
+    id: String(row.id),
+    itemId: (row.item_id as string | null) ?? null,
+    assetName: String(row.asset_name ?? ""),
+    action: isCopyrightAuditAction(row.action) ? row.action : "update",
+    actorEmail: (row.actor_email as string | null) ?? null,
+    before: (row.before as Record<string, unknown> | null) ?? null,
+    after: (row.after as Record<string, unknown> | null) ?? null,
+    createdAt: String(row.created_at ?? ""),
+  };
+}
+
+// 이력 화면에 보여줄 필드만 선별 — DB 컬럼명 → 한글 라벨
+export const AUDIT_FIELD_LABEL: Record<string, string> = {
+  category: "분류",
+  asset_name: "대상 자료명",
+  rights_holder: "저작권자·공급자",
+  status: "상태",
+  scope: "허용 범위",
+  approval_method: "승인 방식",
+  approval_date: "승인 일자",
+  required_notice: "표시 의무 사항",
+  notes: "비고",
+  evidence_image_path: "증빙 이미지",
+  evidence_caption: "증빙 설명",
+};
