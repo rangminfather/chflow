@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { BookOpen, ChevronLeft, ChevronRight, X, LayoutGrid } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
@@ -17,6 +18,24 @@ type PickerStep = "book" | "chapter";
 
 const SWIPE_MIN_DISTANCE = 60;
 
+// 1(기본) ~ 5(가장 크게) — 50대 이상 사용자를 위한 본문 글자 크기 (px)
+const VERSE_FONT_SIZES = [15, 17, 19, 22, 25];
+const VERSE_FONT_LEVEL_KEY = "bible-verse-font-level";
+
+function loadVerseFontLevel(): number {
+  if (typeof window === "undefined") return 1;
+  const saved = Number(window.localStorage.getItem(VERSE_FONT_LEVEL_KEY));
+  return saved >= 1 && saved <= 5 ? saved : 1;
+}
+
+// 원문에 "<천지 창조>" 처럼 절 맨 앞에 소제목이 붙어 있으면 본문과 붙어 나오지 않도록
+// 따로 떼어낸다 — 소제목은 그 줄 위에, 본문은 다음 줄에 표시한다.
+function splitVerseHeading(text: string): { heading: string | null; body: string } {
+  const m = text.match(/^\s*(<[^>]+>)\s*/);
+  if (!m) return { heading: null, body: text };
+  return { heading: m[1], body: text.slice(m[0].length) };
+}
+
 export default function BiblePage() {
   const router = useRouter();
   const [books, setBooks] = useState<Book[]>([]);
@@ -31,6 +50,35 @@ export default function BiblePage() {
   const [pickerStep, setPickerStep] = useState<PickerStep>("book");
   const [pickerTestament, setPickerTestament] = useState<Testament>("OT");
   const [slide, setSlide] = useState<"in-from-left" | "in-from-right" | null>(null);
+  const [verseFontLevel, setVerseFontLevelState] = useState(1);
+  const [mounted, setMounted] = useState(false);
+  const pickerTriggerRef = useRef<HTMLButtonElement>(null);
+  const [navBarTop, setNavBarTop] = useState(112);
+
+  useEffect(() => { setVerseFontLevelState(loadVerseFontLevel()); }, []);
+  useEffect(() => { setMounted(true); }, []);
+
+  // 고정 바("< 창세기 1장 >")는 "책 선택" 버튼 바로 아래 자리를 그대로 지켜야 한다 —
+  // 헤더 높이만 보고 top을 고정값으로 박아두면 그 버튼과 겹친다. 화면 폭에 따라
+  // 버튼 높이가 살짝 달라질 수 있어 실제 렌더된 위치를 측정해서 쓴다.
+  useEffect(() => {
+    function measure() {
+      const el = pickerTriggerRef.current;
+      if (!el || window.scrollY > 0) return; // 스크롤된 상태에서 잰 값은 못 믿는다
+      setNavBarTop(Math.round(el.getBoundingClientRect().bottom) + 8);
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+
+  // 장을 옮기면 맨 위부터 읽도록 스크롤을 되돌린다 — 위 측정도 이 시점에 맞춰진다
+  useEffect(() => { window.scrollTo(0, 0); }, [bookId, chapter]);
+
+  function setVerseFontLevel(level: number) {
+    setVerseFontLevelState(level);
+    try { window.localStorage.setItem(VERSE_FONT_LEVEL_KEY, String(level)); } catch { /* 저장 실패는 무시 */ }
+  }
 
   const book = books.find((item) => item.book_id === bookId);
   const bookIndex = books.findIndex((item) => item.book_id === bookId);
@@ -138,47 +186,82 @@ export default function BiblePage() {
       </header>
 
       <div style={wrapStyle}>
-        <button onClick={openPicker} style={pickerTriggerStyle}>
+        <button ref={pickerTriggerRef} onClick={openPicker} style={pickerTriggerStyle}>
           <span style={testamentBadgeStyle}>{book?.testament === "NT" ? "신약" : "구약"}</span>
           <span style={pickerTriggerLabelStyle}>{book?.name_ko ?? "…"} {chapter}장</span>
           <LayoutGrid size={16} style={{ color: "var(--ink-faint)", marginLeft: "auto", flexShrink: 0 }} />
         </button>
+
+        {/* 자리 차지용 — 아래 고정 바가 문서 흐름에서 빠지는 만큼 내용이 안 밀려 올라오게 */}
+        <div style={chapterNavSpacerStyle} />
+        {mounted && createPortal(
+          <div style={{ ...chapterNavFixedWrapStyle, top: navBarTop }}>
+            <div style={chapterNavBarStyle}>
+              <button onClick={prevChapter} disabled={!hasPrev} style={{ ...navButtonStyle, opacity: hasPrev ? 1 : 0.3 }} aria-label="이전 장">
+                <ChevronLeft size={20} />
+              </button>
+              <div style={chapterTitleWrapStyle}>
+                <BookOpen size={16} style={{ color: "var(--accent)" }} />
+                <h1 style={chapterTitleStyle}>{book?.name_ko} {chapter}장</h1>
+                {loading && <Spinner size={14} />}
+              </div>
+              <button onClick={nextChapter} disabled={!hasNext} style={{ ...navButtonStyle, opacity: hasNext ? 1 : 0.3 }} aria-label="다음 장">
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        <div style={fontSizeRowStyle}>
+          <span style={fontSizeLabelStyle}>글자 크기</span>
+          <div style={fontSizeButtonGroupStyle}>
+            {[1, 2, 3, 4, 5].map((level) => (
+              <button
+                key={level}
+                onClick={() => setVerseFontLevel(level)}
+                aria-label={`글자 크기 ${level}단계`}
+                aria-pressed={verseFontLevel === level}
+                style={{
+                  ...fontSizeButtonStyle,
+                  ...(verseFontLevel === level ? fontSizeButtonActiveStyle : {}),
+                  fontSize: 12 + level * 2,
+                }}
+              >
+                {level}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div
           style={readerCardStyle}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
         >
-          <div style={chapterNavStyle}>
-            <button onClick={prevChapter} disabled={!hasPrev} style={{ ...navButtonStyle, opacity: hasPrev ? 1 : 0.3 }} aria-label="이전 장">
-              <ChevronLeft size={20} />
-            </button>
-            <div style={chapterTitleWrapStyle}>
-              <BookOpen size={16} style={{ color: "var(--accent)" }} />
-              <h1 style={chapterTitleStyle}>{book?.name_ko} {chapter}장</h1>
-              {loading && <Spinner size={14} />}
-            </div>
-            <button onClick={nextChapter} disabled={!hasNext} style={{ ...navButtonStyle, opacity: hasNext ? 1 : 0.3 }} aria-label="다음 장">
-              <ChevronRight size={20} />
-            </button>
-          </div>
-
           {error && <p style={{ color: "var(--danger)", fontSize: 13, padding: "0 4px" }}>{error}</p>}
 
           <article
             key={`${bookId}-${chapter}`}
             style={{
               ...verseListStyle,
+              fontSize: VERSE_FONT_SIZES[verseFontLevel - 1],
               animation: slide === "in-from-right" ? "bibleSlideFromRight 220ms ease-out"
                 : slide === "in-from-left" ? "bibleSlideFromLeft 220ms ease-out" : undefined,
             }}
           >
-            {!error && verses.map((row) => (
-              <p key={`${row.chapter}-${row.verse}`} style={verseRowStyle}>
-                <b style={verseNumStyle}>{row.endVerse ? `${row.verse}-${row.endVerse}` : row.verse}</b>
-                {row.text}
-              </p>
-            ))}
+            {!error && verses.map((row) => {
+              const { heading, body } = splitVerseHeading(row.text);
+              return (
+                <div key={`${row.chapter}-${row.verse}`}>
+                  {heading && <div style={verseHeadingStyle}>{heading}</div>}
+                  <p style={verseRowStyle}>
+                    <b style={verseNumStyle}>{row.endVerse ? `${row.verse}-${row.endVerse}` : row.verse}</b>
+                    {body}
+                  </p>
+                </div>
+              );
+            })}
           </article>
 
           <div style={swipeHintStyle}>← 좌우로 넘기면 다음·이전 장 →</div>
@@ -345,11 +428,89 @@ const readerCardStyle: CSSProperties = {
   touchAction: "pan-y",
 };
 
-const chapterNavStyle: CSSProperties = {
+// 스크롤해서 내려가도 "‹ 창세기 1장 ›" 줄은 화면 상단(사이트 헤더 바로 아래)에 고정된다.
+// html,body 의 overflow-x:hidden 이 CSS 스펙상 overflow-y 를 auto로 만들어 버려서
+// (다른 것에 영향 없이 잠깐 확인한 것 — 전역 CSS는 안 건드림) position:sticky 가 이 앱
+// 전체에서 실제로는 붙지 않는다(사이트 헤더도 마찬가지). 그래서 이 바만은 sticky 대신
+// document.body 에 portal + position:fixed 로 확실하게 고정한다(ModalBackdrop과 동일한
+// 이유로 #app-zoom-root 밖으로 뺀다 — zoom 배율이 걸려도 실제 뷰포트 기준으로 고정됨).
+const CHAPTER_NAV_BAR_HEIGHT = 60;
+
+const chapterNavSpacerStyle: CSSProperties = { height: CHAPTER_NAV_BAR_HEIGHT + 10 };
+
+const chapterNavFixedWrapStyle: CSSProperties = {
+  position: "fixed",
+  top: 60,
+  left: 0,
+  right: 0,
+  maxWidth: 760,
+  margin: "0 auto",
+  padding: "0 14px",
+  zIndex: 50,
+  pointerEvents: "none",
+};
+
+const chapterNavBarStyle: CSSProperties = {
+  height: CHAPTER_NAV_BAR_HEIGHT,
+  boxSizing: "border-box",
   display: "flex",
   alignItems: "center",
   gap: 8,
-  marginBottom: 12,
+  padding: "0 12px",
+  background: "var(--surface)",
+  border: "1px solid var(--hairline)",
+  borderRadius: 12,
+  boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
+  pointerEvents: "auto",
+};
+
+const fontSizeRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  marginBottom: 10,
+  padding: "10px 12px",
+  background: "var(--surface)",
+  border: "1px solid var(--hairline)",
+  borderRadius: 12,
+  flexWrap: "wrap",
+};
+
+const fontSizeLabelStyle: CSSProperties = {
+  fontSize: 12,
+  fontWeight: 800,
+  color: "var(--ink-soft)",
+  flexShrink: 0,
+};
+
+const fontSizeButtonGroupStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+};
+
+const fontSizeButtonStyle: CSSProperties = {
+  display: "grid",
+  placeItems: "center",
+  minWidth: 34,
+  height: 34,
+  padding: "0 4px",
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: "var(--hairline-strong)",
+  background: "var(--card)",
+  color: "var(--ink-mid)",
+  fontWeight: 800,
+  borderRadius: 8,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  lineHeight: 1,
+};
+
+const fontSizeButtonActiveStyle: CSSProperties = {
+  background: "var(--accent)",
+  borderColor: "var(--accent)",
+  color: "#fff",
 };
 
 const navButtonStyle: CSSProperties = {
@@ -378,7 +539,9 @@ const chapterTitleStyle: CSSProperties = { margin: 0, fontSize: 17, fontWeight: 
 
 const verseListStyle: CSSProperties = { minHeight: 120 };
 
-const verseRowStyle: CSSProperties = { lineHeight: 1.9, margin: "0 0 12px", fontSize: 15, color: "var(--ink)" };
+// fontSize 는 article 에 동적으로 얹은 값(VERSE_FONT_SIZES)을 그대로 물려받는다 —
+// 여기서 다시 px로 고정하면 글자 크기 버튼이 안 먹는다.
+const verseRowStyle: CSSProperties = { lineHeight: 1.9, margin: "0 0 12px", color: "var(--ink)" };
 
 const verseNumStyle: CSSProperties = {
   display: "inline-flex",
@@ -386,6 +549,15 @@ const verseNumStyle: CSSProperties = {
   color: "var(--accent)",
   fontWeight: 800,
   marginRight: 8,
+};
+
+// "<천지 창조>" 같은 절 안의 소제목 — 본문과 붙어 보이지 않게 별도 줄로 뗀다
+const verseHeadingStyle: CSSProperties = {
+  textAlign: "center",
+  fontWeight: 800,
+  color: "var(--accent-strong)",
+  fontSize: "1.05em",
+  margin: "18px 0 8px",
 };
 
 const swipeHintStyle: CSSProperties = {
