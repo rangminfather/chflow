@@ -26,6 +26,8 @@ export type BibleVersion = {
   language_code: string;
   copyright_note: string | null;
   is_public_domain: boolean;
+  /** copyright_items.slug 와 연결 — 있으면 화면에 저작권 안내 링크를 붙인다(공용 컴포넌트가 사용). */
+  copyright_slug: string | null;
 };
 
 const STORAGE_KEY = "bible-version";
@@ -42,6 +44,7 @@ export function parseBibleVersions(raw: unknown): BibleVersion[] {
       language_code: String(row.language_code ?? "ko"),
       copyright_note: typeof row.copyright_note === "string" ? row.copyright_note : null,
       is_public_domain: row.is_public_domain === true,
+      copyright_slug: typeof row.copyright_slug === "string" ? row.copyright_slug : null,
     }))
     .filter((version) => version.code && version.name_ko);
 }

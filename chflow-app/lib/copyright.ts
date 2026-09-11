@@ -27,6 +27,7 @@ export const COPYRIGHT_CATEGORIES = [
 
 export interface CopyrightItem {
   id: string;
+  slug: string | null;
   category: string;
   assetName: string;
   rightsHolder: string;
@@ -47,6 +48,7 @@ export interface CopyrightItem {
 export function fromRow(row: Record<string, unknown>): CopyrightItem {
   return {
     id: String(row.id),
+    slug: (row.slug as string | null) ?? null,
     category: String(row.category ?? ""),
     assetName: String(row.asset_name ?? ""),
     rightsHolder: String(row.rights_holder ?? ""),
@@ -63,6 +65,46 @@ export function fromRow(row: Record<string, unknown>): CopyrightItem {
     updatedAt: String(row.updated_at ?? ""),
   };
 }
+
+// 성도 공개용(관리자 제한 없음) 안내 항목 — get_public_copyright_notices() 의 반환 필드만 담는다.
+// notes(내부 비고) 등 관리용 필드는 여기 없다.
+export interface PublicCopyrightNotice {
+  id: string;
+  slug: string | null;
+  category: string;
+  assetName: string;
+  rightsHolder: string;
+  status: CopyrightStatus;
+  scope: string | null;
+  approvalMethod: string | null;
+  approvalDate: string | null;
+  requiredNotice: string | null;
+  evidenceImagePath: string | null;
+  evidenceCaption: string | null;
+  sortOrder: number;
+}
+
+export function fromPublicRow(row: Record<string, unknown>): PublicCopyrightNotice {
+  return {
+    id: String(row.id),
+    slug: (row.slug as string | null) ?? null,
+    category: String(row.category ?? ""),
+    assetName: String(row.asset_name ?? ""),
+    rightsHolder: String(row.rights_holder ?? ""),
+    status: isCopyrightStatus(row.status) ? row.status : "unconfirmed",
+    scope: (row.scope as string | null) ?? null,
+    approvalMethod: (row.approval_method as string | null) ?? null,
+    approvalDate: (row.approval_date as string | null) ?? null,
+    requiredNotice: (row.required_notice as string | null) ?? null,
+    evidenceImagePath: (row.evidence_image_path as string | null) ?? null,
+    evidenceCaption: (row.evidence_caption as string | null) ?? null,
+    sortOrder: Number(row.sort_order ?? 0),
+  };
+}
+
+// 개역개정(NKRV) 승인 건의 안정적 식별자 — copyright_items.slug 와 bible_versions.copyright_slug
+// 양쪽에 같은 값이 채워져 있다. uuid는 재발급될 수 있어 코드에 직접 박아두지 않는다.
+export const NKRV_COPYRIGHT_SLUG = "nkrv-bskorea";
 
 export const COPYRIGHT_EVIDENCE_BUCKET = "copyright-evidence";
 export const COPYRIGHT_EVIDENCE_MAX_BYTES = 8 * 1024 * 1024; // 8MB

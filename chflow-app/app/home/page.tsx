@@ -92,6 +92,7 @@ const COMMON_MENUS: CommonMenu[] = [
   { id: "facility",  label: "시설 신청(구현중)", icon: Landmark,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/facility" },
   { id: "feedback",  label: "불편신고/건의", icon: Lightbulb, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/feedback" },
   { id: "manual",    label: "사용 매뉴얼",   icon: BookText,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/manual" },
+  { id: "copyright-notice", label: "저작권 안내", icon: Copyright, color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/copyright" },
 ];
 
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [

@@ -4,7 +4,9 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { BookOpen, ChevronLeft, Search } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
+import BibleAttribution from "@/components/BibleAttribution";
 import { supabase } from "@/lib/supabase";
+import { DEFAULT_BIBLE_VERSION, parseBibleVersions, type BibleVersion } from "@/lib/bible/versions";
 
 type Book = { book_id: number; name_ko: string; chapters: number };
 type Verse = { chapter: number; verse: number; endVerse?: number; text: string };
@@ -17,6 +19,7 @@ export default function BiblePage() {
   const [verses, setVerses] = useState<Verse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [version, setVersion] = useState<BibleVersion | null>(null);
   const book = books.find((item) => item.book_id === bookId);
 
   useEffect(() => {
@@ -27,6 +30,10 @@ export default function BiblePage() {
       const list = (Array.isArray(data) ? data : []) as Book[];
       setBooks(list);
       if (list[0]) setBookId(list[0].book_id);
+
+      const { data: versionRows } = await supabase.rpc("list_bible_versions");
+      const versions = parseBibleVersions(versionRows);
+      setVersion(versions.find((v) => v.code === DEFAULT_BIBLE_VERSION) ?? null);
     })();
   }, [router]);
 
@@ -66,6 +73,7 @@ export default function BiblePage() {
       <article style={{ ...card, marginTop: 12 }}>
         <h1 style={{ marginTop: 0 }}><BookOpen size={20} style={{ verticalAlign: "middle", marginRight: 6 }} />{book?.name_ko} {chapter}장</h1>
         {loading ? <p>본문을 불러오는 중입니다.</p> : verses.map((row) => <p key={`${row.chapter}-${row.verse}`} style={{ lineHeight: 1.9, margin: "0 0 10px" }}><b style={{ color: "var(--accent)", marginRight: 8 }}>{row.endVerse ? `${row.verse}-${row.endVerse}` : row.verse}</b>{row.text}</p>)}
+        <BibleAttribution version={version} />
       </article>
     </div>
   </main>;

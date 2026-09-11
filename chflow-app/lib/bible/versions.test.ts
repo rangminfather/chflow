@@ -6,8 +6,8 @@ import {
   PREFERRED_VERSION_ORDER,
 } from "./versions";
 
-const KRV = { code: "KRV", name_ko: "개역한글", name_en: null, language_code: "ko", copyright_note: null, is_public_domain: true };
-const NKRV = { code: "NKRV", name_ko: "개역개정", name_en: null, language_code: "ko", copyright_note: "허락 필요", is_public_domain: false };
+const KRV = { code: "KRV", name_ko: "개역한글", name_en: null, language_code: "ko", copyright_note: null, is_public_domain: true, copyright_slug: null };
+const NKRV = { code: "NKRV", name_ko: "개역개정", name_en: null, language_code: "ko", copyright_note: "허락 필요", is_public_domain: false, copyright_slug: "nkrv-bskorea" };
 
 describe("역본 선택", () => {
   it("개역개정이 1순위 — 쓸 수 있게 되면 자동으로 기본이 된다", () => {

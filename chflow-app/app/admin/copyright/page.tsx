@@ -403,6 +403,7 @@ function CopyrightFormModal({
   const [requiredNotice, setRequiredNotice] = useState(target?.requiredNotice ?? "");
   const [notes, setNotes] = useState(target?.notes ?? "");
   const [evidenceCaption, setEvidenceCaption] = useState(target?.evidenceCaption ?? "");
+  const [slug, setSlug] = useState(target?.slug ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [removeEvidence, setRemoveEvidence] = useState(false);
@@ -453,6 +454,7 @@ function CopyrightFormModal({
     form.set("notes", notes.trim());
     form.set("evidence_caption", evidenceCaption.trim());
     form.set("sort_order", String(target?.sortOrder ?? 0));
+    form.set("slug", slug.trim());
     if (file) form.set("file", file);
     if (isEdit && removeEvidence && !file) form.set("remove_evidence", "1");
     if (isEdit) form.set("pin", pin.trim());
@@ -499,6 +501,14 @@ function CopyrightFormModal({
           </FormRow>
           <FormRow label="저작권자·공급자" required>
             <input value={rightsHolder} onChange={(e) => setRightsHolder(e.target.value)} style={inputStyle} />
+          </FormRow>
+          <FormRow label="코드명 (선택)">
+            <input
+              value={slug}
+              onChange={(e) => setSlug(e.target.value.toLowerCase())}
+              placeholder="예: nkrv-bskorea — 앱 화면에서 이 항목으로 바로 연결할 때만 필요"
+              style={inputStyle}
+            />
           </FormRow>
 
           <FormSectionLabel>승인 정보 — 확인 전에는 &ldquo;검토중&rdquo;으로 등록하세요</FormSectionLabel>

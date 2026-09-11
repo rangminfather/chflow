@@ -80,6 +80,7 @@ function parseFields(form: FormData) {
   const notes = String(form.get("notes") || "").trim();
   const evidenceCaption = String(form.get("evidence_caption") || "").trim();
   const sortOrderRaw = String(form.get("sort_order") || "0").trim();
+  const slugRaw = String(form.get("slug") || "").trim();
 
   if (!category) return { ok: false as const, error: "분류를 입력해 주세요" };
   if (category.length > 60) return { ok: false as const, error: "분류는 60자 이내로 입력해 주세요" };
@@ -98,10 +99,15 @@ function parseFields(form: FormData) {
     return { ok: false as const, error: "정렬 순서는 0~9999 사이의 숫자로 입력해 주세요" };
   }
 
+  const slug = slugRaw ? slugRaw.toLowerCase() : "";
+  if (slug && !/^[a-z0-9](?:[a-z0-9-]{0,58}[a-z0-9])?$/.test(slug)) {
+    return { ok: false as const, error: "코드명은 영문 소문자·숫자·하이픈만 사용할 수 있어요" };
+  }
+
   return {
     ok: true as const,
     category, assetName, rightsHolder, status, scope, approvalMethod, approvalDate,
-    requiredNotice, notes, evidenceCaption, sortOrder,
+    requiredNotice, notes, evidenceCaption, sortOrder, slug,
   };
 }
 
@@ -154,6 +160,7 @@ export async function POST(req: NextRequest) {
     p_evidence_image_path: evidenceImagePath,
     p_evidence_caption: fields.evidenceCaption || null,
     p_sort_order: fields.sortOrder,
+    p_slug: fields.slug || null,
   });
   if (error) {
     if (evidenceImagePath) await r2.from(COPYRIGHT_EVIDENCE_BUCKET).remove([evidenceImagePath]);
@@ -217,6 +224,7 @@ export async function PATCH(req: NextRequest) {
     p_evidence_caption: evidenceCaption,
     p_sort_order: fields.sortOrder,
     p_admin_pin: pin,
+    p_slug: fields.slug || null,
   });
   if (error) {
     if (uploadedPath) await r2.from(COPYRIGHT_EVIDENCE_BUCKET).remove([uploadedPath]);

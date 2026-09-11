@@ -153,6 +153,8 @@ export function buildWorshipLeaderSections(input: {
   preacher: string;
   /** 역본 이름 — 역본이 하나뿐이면 비워 둔다 */
   versionName?: string;
+  /** 저작권 표시 문구 — 있으면 본문 아래에 그대로 인쇄된다 (허락 조건인 "저작권 표시" 이행) */
+  copyrightNotice?: string;
 }): WorshipLeaderSection[] {
   const reference = (input.normalizedScripture || input.scripture || "").trim();
   const scripture = reference || "말씀 본문 확인 필요";
@@ -182,7 +184,8 @@ export function buildWorshipLeaderSections(input: {
     {
       number: 7,
       title: "말씀봉독",
-      content: `성경봉독 하도록 하겠습니다. 오늘 말씀은 ${scripture} 말씀입니다. (${[input.versionName, input.testament || "구약/신약"].filter(Boolean).join(" · ")} p.000)\n\n${scripture}\n\n${verseText}`,
+      content: `성경봉독 하도록 하겠습니다. 오늘 말씀은 ${scripture} 말씀입니다. (${[input.versionName, input.testament || "구약/신약"].filter(Boolean).join(" · ")} p.000)\n\n${scripture}\n\n${verseText}` +
+        (verses.length && input.copyrightNotice ? `\n\n※ ${input.copyrightNotice}` : ""),
     },
     {
       number: 8,
