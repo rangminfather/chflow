@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { r2 } from "@/lib/r2";
 import { normalizeXlsxForStorage } from "@/lib/xlsx-load";
+import { monthlyPlanMonthToken, parseMonthlyPlanName } from "@/lib/monthlyPlanFiles";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -45,16 +46,6 @@ function safeExtension(name: string) {
   return clean ? `.${clean.toLowerCase()}` : "";
 }
 
-function parsePlanName(name: string) {
-  const match = name.match(/^(\d{4})-(\d{2})_(\d+)_monthly-plan(?:\.[a-z0-9]+)?$/);
-  if (!match) return { year: null, month: null, originalName: name };
-  return {
-    year: Number(match[1]),
-    month: Number(match[2]),
-    originalName: `${Number(match[1])}년 ${Number(match[2])}월 월간 교육계획서`,
-  };
-}
-
 export async function GET(req: NextRequest) {
   const deptId = req.nextUrl.searchParams.get("dept_id");
   if (!deptId) return NextResponse.json({ ok: false, error: "dept_id 필수" }, { status: 400 });
@@ -70,7 +61,7 @@ export async function GET(req: NextRequest) {
 
   const files = (data || []).filter((item) => item.name).map((item) => {
     const path = `${deptId}/${item.name}`;
-    const parsed = parsePlanName(item.name);
+    const parsed = parseMonthlyPlanName(item.name);
     return {
       name: item.name,
       path,
@@ -111,10 +102,14 @@ export async function POST(req: NextRequest) {
   const form = await req.formData();
   const deptId = String(form.get("dept_id") || "");
   const year = Number(form.get("year"));
-  const month = Number(form.get("month"));
+  const requestedMonths = String(form.get("months") || form.get("month") || "")
+    .split(",")
+    .map(Number)
+    .filter((month, index, values) => month >= 1 && month <= 12 && values.indexOf(month) === index)
+    .sort((a, b) => a - b);
   const file = form.get("file");
 
-  if (!deptId || !year || !month || !(file instanceof File)) {
+  if (!deptId || !year || requestedMonths.length === 0 || !(file instanceof File)) {
     return NextResponse.json({ ok: false, error: "필수값이 누락되었습니다" }, { status: 400 });
   }
 
@@ -137,8 +132,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "월간교육등록 권한이 없습니다" }, { status: 403 });
   }
 
-  const mm = String(month).padStart(2, "0");
-  const objectName = `${year}-${mm}_${Date.now()}_monthly-plan${safeExtension(file.name)}`;
+  const monthToken = monthlyPlanMonthToken(requestedMonths);
+  const objectName = `${year}-${monthToken}_${Date.now()}_monthly-plan${safeExtension(file.name)}`;
   const path = `${deptId}/${objectName}`;
   let bytes: ArrayBuffer | Buffer = await file.arrayBuffer();
   let contentType = file.type || "application/octet-stream";
@@ -163,5 +158,5 @@ export async function POST(req: NextRequest) {
   });
   if (error) return NextResponse.json({ ok: false, error: "업로드 중 오류가 발생했습니다." }, { status: 500 });
 
-  return NextResponse.json({ ok: true, path });
+  return NextResponse.json({ ok: true, path, months: requestedMonths });
 }

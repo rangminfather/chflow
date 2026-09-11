@@ -15,6 +15,7 @@ interface PlanFile {
   url: string;
   year: number | null;
   month: number | null;
+  months?: number[];
   originalName: string;
   created_at: string | null;
   size: number | null;
@@ -172,6 +173,8 @@ export default function MonthlyPlanPage() {
       if (common.length === 0 && json.common?.length) common = json.common;
       const yr = json.year || (file.year ?? now.getFullYear());
       for (const m of json.months) {
+        const registeredMonths = file.months?.length ? file.months : (file.month ? [file.month] : []);
+        if (registeredMonths.length > 0 && !registeredMonths.includes(m.month)) continue;
         const key = `${yr}-${pad2(m.month)}`;
         if (!monthMap.has(key)) {
           monthMap.set(key, { key, year: yr, month: m.month, weeks: m.weeks, notes: m.notes, sourceCreatedAt: file.created_at });
@@ -209,13 +212,16 @@ export default function MonthlyPlanPage() {
   const groups: NavGroup[] = useMemo(() => {
     const fileBuckets = new Map<string, PlanFile[]>();
     for (const f of files) {
-      if (!f.year || !f.month) continue;
+      if (!f.year || (!f.month && !f.months?.length)) continue;
       if (cardPaths.has(f.path)) continue; // 카드로 소비된 xlsx 제외
       if (!isImage(f.url) && !isPdf(f.url) && !isXlsx(f.url)) continue;
-      const key = `${f.year}-${pad2(f.month)}`;
-      const bucket = fileBuckets.get(key);
-      if (bucket) bucket.push(f);
-      else fileBuckets.set(key, [f]);
+      const registeredMonths = f.months?.length ? f.months : [f.month!];
+      for (const month of registeredMonths) {
+        const key = `${f.year}-${pad2(month)}`;
+        const bucket = fileBuckets.get(key);
+        if (bucket) bucket.push(f);
+        else fileBuckets.set(key, [f]);
+      }
     }
 
     const map = new Map<string, NavGroup>();

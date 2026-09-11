@@ -31,7 +31,7 @@ export default function MonthlyPlanUploadPage() {
   const [fileName, setFileName] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [months, setMonths] = useState<number[]>([now.getMonth() + 1]);
   const [title, setTitle] = useState("");
   const [titleTouched, setTitleTouched] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -76,7 +76,8 @@ export default function MonthlyPlanUploadPage() {
     );
   }
 
-  const autoTitle = `${year}년 ${month}월 교육계획서`;
+  const monthLabel = months.map((value) => `${value}월`).join("·");
+  const autoTitle = `${year}년 ${monthLabel} 교육계획서`;
   const effectiveTitle = titleTouched && title.trim() ? title.trim() : autoTitle;
 
   function pickFile(next: File | null) {
@@ -92,6 +93,8 @@ export default function MonthlyPlanUploadPage() {
     setMessage("");
     setFile(next);
     setFileName(next.name);
+    setCardData(null);
+    setXlsxHtml(null);
   }
 
   function handleDrop(e: React.DragEvent<HTMLLabelElement>) {
@@ -100,12 +103,55 @@ export default function MonthlyPlanUploadPage() {
     pickFile(e.dataTransfer.files?.[0] || null);
   }
 
+  async function loadXlsxPreview(detectMonths: boolean) {
+    if (!file || !isXlsxName(fileName)) return true;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { router.replace("/login"); return false; }
+    const form = new FormData();
+    form.append("dept_id", deptId);
+    form.append("file", file);
+    form.append("format", "cards");
+    form.append("year", String(year));
+    const res = await fetch("/api/edu/monthly-plans/render", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: form,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.ok) {
+      const error = json.error || "엑셀 변환에 실패했습니다.";
+      setPreviewErr(error);
+      setMessage(error);
+      return false;
+    }
+    if (json.template) {
+      const detected = (json.months || [])
+        .map((item: { month: number }) => item.month)
+        .filter((value: number) => value >= 1 && value <= 12);
+      setCardData({ year: json.year, common: json.common || [], months: json.months || [] });
+      if (detectMonths && detected.length > 0) {
+        setMonths(Array.from(new Set<number>(detected)).sort((a, b) => a - b));
+      }
+      if (detectMonths && Number.isFinite(Number(json.year))) setYear(Number(json.year));
+    } else {
+      setXlsxHtml(json.html || "");
+    }
+    return true;
+  }
+
+  async function goMonthSelection() {
+    setMessage("");
+    setPreviewErr("");
+    if (isXlsxName(fileName)) await loadXlsxPreview(true);
+    setStep(2);
+  }
+
   // Step 2 → 3: 미리보기 준비
   async function goPreview() {
     if (!file) return;
+    if (months.length === 0) { setMessage("등록할 월을 한 개 이상 선택하세요."); return; }
+    setMessage("");
     setPreviewErr("");
-    setXlsxHtml(null);
-    setCardData(null);
 
     // 이전 object URL 정리
     if (objectUrlRef.current) { URL.revokeObjectURL(objectUrlRef.current); objectUrlRef.current = null; }
@@ -121,25 +167,7 @@ export default function MonthlyPlanUploadPage() {
 
     if (isXlsxName(fileName)) {
       setStep(3);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.replace("/login"); return; }
-      const form = new FormData();
-      form.append("dept_id", deptId);
-      form.append("file", file);
-      form.append("format", "cards");
-      form.append("year", String(year));
-      const res = await fetch("/api/edu/monthly-plans/render", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: form,
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.ok) { setPreviewErr(json.error || "표 변환 실패"); return; }
-      if (json.template) {
-        setCardData({ year: json.year, common: json.common || [], months: json.months || [] });
-      } else {
-        setXlsxHtml(json.html || "");
-      }
+      await loadXlsxPreview(false);
       return;
     }
 
@@ -154,7 +182,7 @@ export default function MonthlyPlanUploadPage() {
     const form = new FormData();
     form.append("dept_id", deptId);
     form.append("year", String(year));
-    form.append("month", String(month));
+    form.append("months", months.join(","));
     form.append("title", effectiveTitle);
     form.append("file", file);
 
@@ -220,7 +248,7 @@ export default function MonthlyPlanUploadPage() {
 
             <button
               type="button"
-              onClick={() => { setMessage(""); setStep(2); }}
+              onClick={goMonthSelection}
               disabled={!file}
               className="mt-5 min-h-12 w-full rounded-md bg-accent-strong text-[16px] font-extrabold text-white disabled:bg-hairline-strong"
             >
@@ -237,14 +265,30 @@ export default function MonthlyPlanUploadPage() {
               어느 달 교육계획서로 등록할지 확인하세요.
             </div>
 
-            <label className="mt-4 block">
-              <div className="mb-1 text-[14px] font-bold text-ink-soft">월</div>
-              <select value={month} onChange={(e) => setMonth(Number(e.target.value))} className={inputClass}>
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <option key={m} value={m}>{m}월</option>
-                ))}
-              </select>
-            </label>
+            <fieldset className="mt-4">
+              <legend className="mb-2 text-[14px] font-bold text-ink-soft">등록할 월 (복수 선택 가능)</legend>
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((value) => {
+                  const checked = months.includes(value);
+                  return (
+                    <label
+                      key={value}
+                      className={`flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-md border text-[15px] font-bold transition ${checked ? "border-accent-strong bg-accent-soft text-accent-strong" : "border-hairline-strong bg-card text-ink-mid"}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => setMonths((current) => checked
+                          ? current.filter((month) => month !== value)
+                          : [...current, value].sort((a, b) => a - b))}
+                        className="h-4 w-4 accent-[var(--accent-strong)]"
+                      />
+                      {value}월
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
 
             <div className="mt-3 rounded-md border border-accent-line bg-accent-soft px-4 py-3 text-[15px] font-bold text-accent-strong">
               {effectiveTitle} 로 등록합니다
@@ -279,6 +323,8 @@ export default function MonthlyPlanUploadPage() {
               파일: {fileName}
             </div>
 
+            {message && <div className="mt-3 text-center text-[14px] font-bold text-danger">{message}</div>}
+
             <div className="mt-5 flex gap-2">
               <button
                 type="button"
@@ -290,7 +336,8 @@ export default function MonthlyPlanUploadPage() {
               <button
                 type="button"
                 onClick={goPreview}
-                className="min-h-12 flex-[2] rounded-md bg-accent-strong text-[16px] font-extrabold text-white"
+                disabled={months.length === 0}
+                className="min-h-12 flex-[2] rounded-md bg-accent-strong text-[16px] font-extrabold text-white disabled:bg-hairline-strong"
               >
                 다음
               </button>
