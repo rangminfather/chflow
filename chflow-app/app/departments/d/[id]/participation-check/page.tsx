@@ -37,6 +37,7 @@ interface TeacherRow {
 
 interface SavedDateRow {
   check_date: string;
+  session_no: number;
   student_present: number;
   new_friend_total: number;
   teacher_present: number;
@@ -64,6 +65,18 @@ function dateLabel(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
   const weekday = "일월화수목금토"[new Date(y, m - 1, d).getDay()];
   return `${m}월 ${d}일(${weekday})`;
+}
+
+/** 같은 날짜에 여러 번 저장한 경우 두 번째부터 "(2)" 식으로 구분한다 */
+function sessionLabel(iso: string, sessionNo: number) {
+  return sessionNo > 1 ? `${dateLabel(iso)} (${sessionNo})` : dateLabel(iso);
+}
+
+/** 저장 목록에 보여줄 저장일시 ("9월 9일 15:32 저장") */
+function formatSavedAt(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime()) || d.getTime() === 0) return "";
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")} 저장`;
 }
 
 function genderLabel(value: string | null | undefined) {
@@ -171,6 +184,7 @@ export default function ParticipationCheckPage() {
   const [toast, setToast] = useState("");
   const [deptName, setDeptName] = useState("");
   const [date, setDate] = useState(() => toISO(new Date()));
+  const [sessionNo, setSessionNo] = useState(1);
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
   const [noteDraft, setNoteDraft] = useState<Record<string, string>>({});
@@ -179,18 +193,20 @@ export default function ParticipationCheckPage() {
   const [listOpen, setListOpen] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [savedDates, setSavedDates] = useState<SavedDateRow[]>([]);
+  // 이미 저장된 기록이 있는 날짜로 이동할 때 "이어서 볼지 / 새로 저장할지" 물어보는 팝업
+  const [sessionPrompt, setSessionPrompt] = useState<{ targetDate: string; existing: SavedDateRow[] } | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2800);
   }, []);
 
-  const load = useCallback(async (targetDate: string) => {
+  const load = useCallback(async (targetDate: string, targetSession: number) => {
     setLoading(true);
     const [deptResp, listResp, teacherResp] = await Promise.all([
       supabase.rpc("get_department_info", { p_dept_id: deptId }),
-      supabase.rpc("edu_participation_list", { p_dept_id: deptId, p_check_date: targetDate }),
-      supabase.rpc("edu_participation_teacher_list", { p_dept_id: deptId, p_check_date: targetDate }),
+      supabase.rpc("edu_participation_list", { p_dept_id: deptId, p_check_date: targetDate, p_session_no: targetSession }),
+      supabase.rpc("edu_participation_teacher_list", { p_dept_id: deptId, p_check_date: targetDate, p_session_no: targetSession }),
     ]);
     if (!deptResp.error && deptResp.data && deptResp.data.length > 0) {
       setDeptName(deptResp.data[0].name || "");
@@ -221,19 +237,50 @@ export default function ParticipationCheckPage() {
     setLoading(false);
   }, [deptId, showToast]);
 
+  const fetchSavedList = useCallback(async () => {
+    const { data, error } = await supabase.rpc("edu_participation_list_dates", { p_dept_id: deptId });
+    if (error) {
+      showToast(`저장 목록 조회 실패: ${error.message}`);
+      setSavedDates([]);
+      return [] as SavedDateRow[];
+    }
+    const rows = ((data || []) as SavedDateRow[]).slice()
+      .sort((a, b) => b.check_date.localeCompare(a.check_date) || a.session_no - b.session_no);
+    setSavedDates(rows);
+    return rows;
+  }, [deptId, showToast]);
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/login"); return; }
       setAuthChecked(true);
-      await load(date);
+      const saved = await fetchSavedList();
+      // 오늘 날짜에 이미 기록이 있으면(예: 새로고침) 묻지 않고 가장 최근 세션을 그대로 이어서 보여준다.
+      const todays = saved.filter((r) => r.check_date === date);
+      const latestSession = todays.length > 0 ? Math.max(...todays.map((r) => r.session_no)) : 1;
+      setSessionNo(latestSession);
+      await load(date, latestSession);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const changeDate = (nextDate: string) => {
+  /** 실제 이동 — 세션 선택까지 끝난 뒤 호출한다 */
+  const goToDateSession = (nextDate: string, nextSession: number) => {
     setDate(nextDate);
-    load(nextDate);
+    setSessionNo(nextSession);
+    setSessionPrompt(null);
+    load(nextDate, nextSession);
+  };
+
+  /** 날짜 이동(이전/다음 화살표·날짜 입력) — 이미 저장된 기록이 있으면 물어보고 진행한다 */
+  const changeDate = (nextDate: string) => {
+    const existing = savedDates.filter((r) => r.check_date === nextDate);
+    if (existing.length === 0) {
+      goToDateSession(nextDate, 1);
+      return;
+    }
+    setSessionPrompt({ targetDate: nextDate, existing });
   };
 
   const shiftDate = (deltaDays: number) => {
@@ -248,33 +295,29 @@ export default function ParticipationCheckPage() {
   const openSavedList = async () => {
     setListOpen(true);
     setListLoading(true);
-    const { data, error } = await supabase.rpc("edu_participation_list_dates", { p_dept_id: deptId });
-    if (error) {
-      showToast(`저장 목록 조회 실패: ${error.message}`);
-      setSavedDates([]);
-    } else {
-      setSavedDates(((data || []) as SavedDateRow[]).slice().sort((a, b) => b.check_date.localeCompare(a.check_date)));
-    }
+    await fetchSavedList();
     setListLoading(false);
   };
 
+  // 목록에서 고른 항목은 (날짜, 세션) 이 이미 명확하므로 되묻지 않고 그대로 적용한다 —
+  // 지금 보고 있는 날짜라도(현재 세션과 다르면) 그 세션 내용으로 바뀐다.
   const loadFromList = (row: SavedDateRow) => {
     setListOpen(false);
-    changeDate(row.check_date);
+    goToDateSession(row.check_date, row.session_no);
   };
 
   const deleteFromList = async (row: SavedDateRow) => {
-    if (!window.confirm(`${dateLabel(row.check_date)} 조사 기록을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    if (!window.confirm(`${sessionLabel(row.check_date, row.session_no)} 조사 기록을 삭제할까요? 되돌릴 수 없습니다.`)) return;
     const { error } = await supabase.rpc("edu_participation_delete_date", {
-      p_dept_id: deptId, p_check_date: row.check_date,
+      p_dept_id: deptId, p_check_date: row.check_date, p_session_no: row.session_no,
     });
     if (error) {
       showToast(`삭제 실패: ${error.message}`);
       return;
     }
-    setSavedDates((prev) => prev.filter((d) => d.check_date !== row.check_date));
-    showToast(`${dateLabel(row.check_date)} 기록을 삭제했습니다`);
-    if (row.check_date === date) await load(date); // 지금 보고 있던 날짜였으면 화면도 비운다
+    setSavedDates((prev) => prev.filter((d) => !(d.check_date === row.check_date && d.session_no === row.session_no)));
+    showToast(`${sessionLabel(row.check_date, row.session_no)} 기록을 삭제했습니다`);
+    if (row.check_date === date && row.session_no === sessionNo) await load(date, sessionNo); // 지금 보던 세션이었으면 화면도 비운다
   };
 
   // ── 저장 (개별) ──
@@ -283,7 +326,7 @@ export default function ParticipationCheckPage() {
     const next = NEXT_STATUS[row.status];
     setStudents((prev) => prev.map((s) => (s.student_id === row.student_id ? { ...s, status: next } : s)));
     const { error } = await supabase.rpc("edu_participation_set_status", {
-      p_dept_id: deptId, p_student_id: row.student_id, p_check_date: date, p_status: next,
+      p_dept_id: deptId, p_student_id: row.student_id, p_check_date: date, p_status: next, p_session_no: sessionNo,
     });
     if (error) {
       setStudents((prev) => prev.map((s) => (s.student_id === row.student_id ? { ...s, status: row.status } : s)));
@@ -294,7 +337,7 @@ export default function ParticipationCheckPage() {
   const persistNote = async (row: StudentRow, value: string) => {
     setStudents((prev) => prev.map((s) => (s.student_id === row.student_id ? { ...s, note: value } : s)));
     const { error } = await supabase.rpc("edu_participation_set_note", {
-      p_dept_id: deptId, p_student_id: row.student_id, p_check_date: date, p_note: value,
+      p_dept_id: deptId, p_student_id: row.student_id, p_check_date: date, p_note: value, p_session_no: sessionNo,
     });
     if (error) {
       showToast(`비고 저장 실패: ${error.message}`);
@@ -308,7 +351,7 @@ export default function ParticipationCheckPage() {
       s.student_id === row.student_id ? { ...s, new_friend_male_count: male, new_friend_female_count: female } : s
     )));
     const { error } = await supabase.rpc("edu_participation_set_new_friends", {
-      p_dept_id: deptId, p_student_id: row.student_id, p_check_date: date, p_male: male, p_female: female,
+      p_dept_id: deptId, p_student_id: row.student_id, p_check_date: date, p_male: male, p_female: female, p_session_no: sessionNo,
     });
     if (error) {
       setStudents((prev) => prev.map((s) => (
@@ -326,7 +369,7 @@ export default function ParticipationCheckPage() {
     const next = NEXT_STATUS[row.status];
     setTeachers((prev) => prev.map((t) => (t.teacher_id === row.teacher_id ? { ...t, status: next } : t)));
     const { error } = await supabase.rpc("edu_participation_teacher_set_status", {
-      p_dept_id: deptId, p_teacher_id: row.teacher_id, p_check_date: date, p_status: next,
+      p_dept_id: deptId, p_teacher_id: row.teacher_id, p_check_date: date, p_status: next, p_session_no: sessionNo,
     });
     if (error) {
       setTeachers((prev) => prev.map((t) => (t.teacher_id === row.teacher_id ? { ...t, status: row.status } : t)));
@@ -337,7 +380,7 @@ export default function ParticipationCheckPage() {
   const persistTeacherNote = async (row: TeacherRow, value: string) => {
     setTeachers((prev) => prev.map((t) => (t.teacher_id === row.teacher_id ? { ...t, note: value } : t)));
     const { error } = await supabase.rpc("edu_participation_teacher_set_note", {
-      p_dept_id: deptId, p_teacher_id: row.teacher_id, p_check_date: date, p_note: value,
+      p_dept_id: deptId, p_teacher_id: row.teacher_id, p_check_date: date, p_note: value, p_session_no: sessionNo,
     });
     if (error) {
       showToast(`비고 저장 실패: ${error.message}`);
@@ -488,7 +531,7 @@ export default function ParticipationCheckPage() {
 
   const buildOutputText = () => {
     const lines: string[] = [];
-    lines.push(`[${deptName || "부서"} 참여현황] ${dateLabel(date)}`);
+    lines.push(`[${deptName || "부서"} 참여현황] ${sessionLabel(date, sessionNo)}`);
     lines.push("");
     lines.push(`■ 학생 출석 — 총 ${attend.total.total}명 (남${attend.total.male}·여${attend.total.female})`);
     if (attend.rows.length === 0) {
@@ -601,6 +644,12 @@ export default function ParticipationCheckPage() {
             <History size={14} strokeWidth={1.8} /> 저장 목록
           </button>
         </div>
+
+        {sessionNo > 1 && (
+          <div style={sessionBadgeRowStyle}>
+            <span style={sessionBadgeStyle}>{sessionLabel(date, sessionNo)} — 이 날짜의 {sessionNo}번째 저장</span>
+          </div>
+        )}
 
         {loading ? (
           <LoadingView />
@@ -856,20 +905,25 @@ export default function ParticipationCheckPage() {
                 <div style={emptyLineStyle}>저장된 조사가 없습니다</div>
               ) : (
                 savedDates.map((row) => (
-                  <div key={row.check_date} style={listRowStyle}>
+                  <div key={`${row.check_date}-${row.session_no}`} style={listRowStyle}>
                     <button type="button" onClick={() => loadFromList(row)} style={listRowMainStyle}>
                       <span style={listRowDateStyle}>
-                        {dateLabel(row.check_date)}
-                        {row.check_date === date && <span style={listRowCurrentBadgeStyle}>현재</span>}
+                        {sessionLabel(row.check_date, row.session_no)}
+                        {row.check_date === date && row.session_no === sessionNo && (
+                          <span style={listRowCurrentBadgeStyle}>현재</span>
+                        )}
                       </span>
                       <span style={listRowSummaryStyle}>
                         참석 {row.student_present}명 · 새친구 {row.new_friend_total}명 · 교사 {row.teacher_present}/{row.teacher_total}명
                       </span>
+                      {formatSavedAt(row.updated_at) && (
+                        <span style={listRowTimeStyle}>{formatSavedAt(row.updated_at)}</span>
+                      )}
                     </button>
                     <button
                       type="button"
                       onClick={() => deleteFromList(row)}
-                      aria-label={`${dateLabel(row.check_date)} 삭제`}
+                      aria-label={`${sessionLabel(row.check_date, row.session_no)} 삭제`}
                       style={listDeleteButtonStyle}
                     >
                       <Trash2 size={15} strokeWidth={1.8} />
@@ -881,6 +935,29 @@ export default function ParticipationCheckPage() {
           </div>
         </ModalBackdrop>
       )}
+
+      {sessionPrompt && (() => {
+        const latest = Math.max(...sessionPrompt.existing.map((r) => r.session_no));
+        const nextNo = latest + 1;
+        return (
+          <ModalBackdrop onClose={() => setSessionPrompt(null)} style={{ zIndex: 210 }}>
+            <div onClick={(e) => e.stopPropagation()} style={promptSheetStyle}>
+              <div style={promptTitleStyle}>{dateLabel(sessionPrompt.targetDate)}에 이미 저장된 기록이 있습니다</div>
+              <div style={promptBodyStyle}>
+                {sessionPrompt.existing.length}개 세션이 저장되어 있습니다. 기존 기록을 이어서 볼까요,
+                아니면 (예: 1부·2부처럼) 새로 저장할까요?
+              </div>
+              <button type="button" onClick={() => goToDateSession(sessionPrompt.targetDate, latest)} style={promptPrimaryButtonStyle}>
+                이어서 보기 — {sessionLabel(sessionPrompt.targetDate, latest)}
+              </button>
+              <button type="button" onClick={() => goToDateSession(sessionPrompt.targetDate, nextNo)} style={promptSecondaryButtonStyle}>
+                새로 저장 — {sessionLabel(sessionPrompt.targetDate, nextNo)}
+              </button>
+              <button type="button" onClick={() => setSessionPrompt(null)} style={promptCancelButtonStyle}>취소</button>
+            </div>
+          </ModalBackdrop>
+        );
+      })()}
     </main>
   );
 }
@@ -951,3 +1028,14 @@ const listRowDateStyle: CSSProperties = { fontSize: 13.5, fontWeight: 800, color
 const listRowCurrentBadgeStyle: CSSProperties = { marginLeft: 8, fontSize: 10.5, fontWeight: 800, color: "var(--accent-strong)", background: "var(--accent-soft)", padding: "2px 7px", borderRadius: 999 };
 const listRowSummaryStyle: CSSProperties = { fontSize: 11.5, color: "var(--ink-soft)", fontWeight: 500 };
 const listDeleteButtonStyle: CSSProperties = { flexShrink: 0, display: "grid", placeItems: "center", width: 32, height: 32, background: "color-mix(in srgb, var(--danger) 10%, transparent)", color: "var(--danger)", border: "none", borderRadius: 8, cursor: "pointer" };
+const listRowTimeStyle: CSSProperties = { fontSize: 10.5, color: "var(--ink-faint)", fontWeight: 500 };
+
+const sessionBadgeRowStyle: CSSProperties = { display: "flex", justifyContent: "center", marginTop: -6, marginBottom: 14 };
+const sessionBadgeStyle: CSSProperties = { fontSize: 11.5, fontWeight: 700, color: "var(--accent-strong)", background: "var(--accent-soft)", padding: "4px 10px", borderRadius: 999 };
+
+const promptSheetStyle: CSSProperties = { width: "100%", maxWidth: 400, background: "var(--card)", borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", gap: 10 };
+const promptTitleStyle: CSSProperties = { fontSize: 15, fontWeight: 800, color: "var(--ink)" };
+const promptBodyStyle: CSSProperties = { fontSize: 12.5, lineHeight: 1.6, color: "var(--ink-soft)", marginBottom: 6 };
+const promptPrimaryButtonStyle: CSSProperties = { padding: "12px", background: "var(--accent)", color: "#fff", border: "none", borderRadius: 10, fontSize: 13.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" };
+const promptSecondaryButtonStyle: CSSProperties = { padding: "12px", background: "var(--card)", color: "var(--ink)", border: "1.5px solid var(--accent)", borderRadius: 10, fontSize: 13.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" };
+const promptCancelButtonStyle: CSSProperties = { padding: "10px", background: "transparent", color: "var(--ink-faint)", border: "none", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" };
