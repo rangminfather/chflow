@@ -400,13 +400,28 @@ export default function HomePage() {
       <WeatherOverlay />
 
       <style>{`
+        /* 공통메뉴 카드의 두 레이아웃(가로 행 / 세로 타일) — 기본은 항상 "행" */
+        .menu-row { display: contents; }
+        .menu-tile { display: none; flex-direction: column; align-items: center; text-align: center; gap: 6px; width: 100%; }
+        /* 내 사역·목장의 두 레이아웃(풀와이드 목록 / 가로 스크롤 칩) — 기본은 항상 "목록" */
+        .ministry-list, .pasture-list { display: contents; }
+        .ministry-chip-mobile, .pasture-chip-mobile { display: none; }
+
         @media (max-width: 768px) {
           .sidebar-desktop { display: none !important; }
           .sidebar-mobile-trigger { display: flex !important; }
           .admin-btn-label { display: none !important; }
           .home-summary-grid { grid-template-columns: 1fr !important; }
-          .home-menu-grid { grid-template-columns: 1fr !important; }
+          /* 공통메뉴만 3열 아이콘 그리드로 압축 (편집모드에서는 기존 1열 목록 그대로 — 그립·연필 여백 확보) */
+          .home-menu-grid:not(.editing) { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important; }
+          .home-menu-grid.editing { grid-template-columns: 1fr !important; }
           .admin-menu-grid { grid-template-columns: 1fr !important; }
+          /* 편집모드(관리자)에서는 모바일에서도 기존 행/목록 그대로 — 드래그·수정 UI 보존 */
+          .home-menu-grid:not(.editing) .menu-row { display: none !important; }
+          .home-menu-grid:not(.editing) .menu-tile { display: flex !important; }
+          .ministry-list:not(.editing) { display: none !important; }
+          .pasture-list:not(.editing) { display: none !important; }
+          .ministry-chip-mobile, .pasture-chip-mobile { display: flex !important; }
           .admin-menu-tabs {
             display: flex !important;
             gap: 4px;
@@ -896,30 +911,46 @@ function MinistrySection({ myDepartments, router, canEditMenu, menuConfig, onMen
           </div>
         </SafeCard>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", maxWidth: "100%", minWidth: 0 }}>
-          {departments.map((item, index) => (
-            <MinistryCard
-              key={item.dept.id}
-              dept={item.dept}
-              label={item.label}
-              status={item.dept.status === "approved" ? "approved" : "pending"}
-              hidden={item.hidden}
-              editing={editing}
-              onClick={() => editing
-                ? setEditTarget({ menuId: item.id, defaultLabel: item.dept.name })
-                : router.push(`/departments/d/${item.dept.department_id}`)}
-              editControls={editing ? (
-                <SubmenuEditControls
-                  hidden={item.hidden}
-                  first={index === 0}
-                  last={index === departments.length - 1}
-                  onMove={(direction) => void moveHomeSubmenu("ministry", orderedIds, item.id, direction, onMenuConfigChange, alert)}
-                  onEdit={() => setEditTarget({ menuId: item.id, defaultLabel: item.dept.name })}
+        <>
+          <div className={`ministry-list${editing ? " editing" : ""}`} style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", maxWidth: "100%", minWidth: 0 }}>
+            {departments.map((item, index) => (
+              <MinistryCard
+                key={item.dept.id}
+                dept={item.dept}
+                label={item.label}
+                status={item.dept.status === "approved" ? "approved" : "pending"}
+                hidden={item.hidden}
+                editing={editing}
+                onClick={() => editing
+                  ? setEditTarget({ menuId: item.id, defaultLabel: item.dept.name })
+                  : router.push(`/departments/d/${item.dept.department_id}`)}
+                editControls={editing ? (
+                  <SubmenuEditControls
+                    hidden={item.hidden}
+                    first={index === 0}
+                    last={index === departments.length - 1}
+                    onMove={(direction) => void moveHomeSubmenu("ministry", orderedIds, item.id, direction, onMenuConfigChange, alert)}
+                    onEdit={() => setEditTarget({ menuId: item.id, defaultLabel: item.dept.name })}
+                  />
+                ) : undefined}
+              />
+            ))}
+          </div>
+          {/* 모바일 전용 — 사역·부서를 가로 스크롤 칩으로 압축 (편집모드에서는 위 목록만 사용) */}
+          {!editing && (
+            <div className="ministry-chip-mobile" style={{ gap: 8, overflowX: "auto", margin: "0 -2px", padding: "2px 2px 4px" }}>
+              {departments.map((item) => (
+                <MenuChip
+                  key={item.dept.id}
+                  iconNode={<DeptIcon name={item.dept.name} category={item.dept.category} size={13} />}
+                  label={item.label}
+                  dot={item.dept.status === "approved" ? "ok" : "wait"}
+                  onClick={() => router.push(`/departments/d/${item.dept.department_id}`)}
                 />
-              ) : undefined}
-            />
-          ))}
-        </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
       {editTarget && (
         <EditHomeMenuPopup
@@ -962,6 +993,38 @@ function MinistryCard({ dept, label, status, hidden, editing, onClick, editContr
         {editControls}
       </SafeRow>
     </SafeCard>
+  );
+}
+
+// 모바일 전용 가로 스크롤 칩 — 내 사역·목장을 한 줄로 압축할 때 쓴다 (ministry/pasture 공용)
+function MenuChip({ iconNode, label, dot, onClick }: {
+  iconNode: React.ReactNode;
+  label: string;
+  dot?: "ok" | "wait";
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="kr-break"
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 7, flexShrink: 0,
+        padding: "7px 13px 7px 7px", borderRadius: 999,
+        background: "var(--card)", border: "1px solid var(--hairline)",
+        fontSize: 12.5, fontWeight: 700, color: T.text, fontFamily: "inherit",
+        cursor: "pointer", whiteSpace: "nowrap",
+      }}
+    >
+      <IconBox bg="var(--accent-soft)" size={24}>{iconNode}</IconBox>
+      {label}
+      {dot && (
+        <span style={{
+          width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+          background: dot === "ok" ? "var(--accent)" : T.warn,
+        }} />
+      )}
+    </button>
   );
 }
 
@@ -1018,37 +1081,55 @@ function CellShepherdSection({ user, router, canEditMenu, menuConfig, onMenuConf
           연필로 이름·숨김을 바꾸고 화살표로 순서를 변경합니다.
         </div>
       )}
-      {menus.map((menu, index) => {
-        const MenuIcon = menu.icon;
-        const defaultLabel = baseMenus.find((item) => item.id === menu.id)?.label ?? menu.label;
-        return (
-          <SafeCard
-            key={menu.id}
-            onClick={() => editing ? setEditTarget({ menuId: menu.id, defaultLabel }) : router.push(menu.href)}
-            padding={12}
-            style={{ borderRadius: 10, marginBottom: index === menus.length - 1 ? 0 : 8, opacity: editing && menu.hidden ? 0.55 : 1 }}
-          >
-            <SafeRow gap={12}>
-              <IconBox bg="var(--accent-soft)" size={40}>
-                <MenuIcon size={21} strokeWidth={1.75} color="var(--accent)" />
-              </IconBox>
-              <SafeGrow>
-                <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{menu.label}</div>
-                <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>{menu.desc}</div>
-              </SafeGrow>
-              {editing ? (
-                <SubmenuEditControls
-                  hidden={menu.hidden}
-                  first={index === 0}
-                  last={index === menus.length - 1}
-                  onMove={(direction) => void moveHomeSubmenu("pasture", orderedIds, menu.id, direction, onMenuConfigChange, alert)}
-                  onEdit={() => setEditTarget({ menuId: menu.id, defaultLabel })}
-                />
-              ) : <ChevronRight size={16} strokeWidth={1.8} color={T.textMuted} />}
-            </SafeRow>
-          </SafeCard>
-        );
-      })}
+      <div className={`pasture-list${editing ? " editing" : ""}`}>
+        {menus.map((menu, index) => {
+          const MenuIcon = menu.icon;
+          const defaultLabel = baseMenus.find((item) => item.id === menu.id)?.label ?? menu.label;
+          return (
+            <SafeCard
+              key={menu.id}
+              onClick={() => editing ? setEditTarget({ menuId: menu.id, defaultLabel }) : router.push(menu.href)}
+              padding={12}
+              style={{ borderRadius: 10, marginBottom: index === menus.length - 1 ? 0 : 8, opacity: editing && menu.hidden ? 0.55 : 1 }}
+            >
+              <SafeRow gap={12}>
+                <IconBox bg="var(--accent-soft)" size={40}>
+                  <MenuIcon size={21} strokeWidth={1.75} color="var(--accent)" />
+                </IconBox>
+                <SafeGrow>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{menu.label}</div>
+                  <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>{menu.desc}</div>
+                </SafeGrow>
+                {editing ? (
+                  <SubmenuEditControls
+                    hidden={menu.hidden}
+                    first={index === 0}
+                    last={index === menus.length - 1}
+                    onMove={(direction) => void moveHomeSubmenu("pasture", orderedIds, menu.id, direction, onMenuConfigChange, alert)}
+                    onEdit={() => setEditTarget({ menuId: menu.id, defaultLabel })}
+                  />
+                ) : <ChevronRight size={16} strokeWidth={1.8} color={T.textMuted} />}
+              </SafeRow>
+            </SafeCard>
+          );
+        })}
+      </div>
+      {/* 모바일 전용 — 목장 메뉴를 가로 스크롤 칩으로 압축 (편집모드에서는 위 목록만 사용) */}
+      {!editing && (
+        <div className="pasture-chip-mobile" style={{ gap: 8, overflowX: "auto", margin: "0 -2px", padding: "2px 2px 4px" }}>
+          {menus.map((menu) => {
+            const MenuIcon = menu.icon;
+            return (
+              <MenuChip
+                key={menu.id}
+                iconNode={<MenuIcon size={13} strokeWidth={1.9} color="var(--accent)" />}
+                label={menu.label}
+                onClick={() => router.push(menu.href)}
+              />
+            );
+          })}
+        </div>
+      )}
       {editTarget && (
         <EditHomeMenuPopup
           groupId="pasture"
@@ -1360,7 +1441,7 @@ function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMe
   ) => {
     const orderedIds = items.map((item) => item.id);
     return (
-      <SafeGrid cols={2} gap={options.gap} className={options.className}>
+      <SafeGrid cols={2} gap={options.gap} className={`${options.className}${editing ? " editing" : ""}`}>
         {items.map((m) => (
           <MenuCard
             key={m.id}
@@ -1651,54 +1732,75 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
         e.currentTarget.style.boxShadow = "0 1px 4px rgba(26,22,18,0.04)";
       }}
     >
-      <SafeRow gap={10}>
-        {editing && (
-          <GripVertical size={15} strokeWidth={2} color="var(--ink-faint)" className="safe-shrink-0" />
-        )}
-        <IconBox bg={menu.bg} size={compact ? 36 : 38}>
-          <menu.icon size={compact ? 18 : 19} strokeWidth={1.8} color={menu.color} />
-        </IconBox>
-        <SafeGrow>
-          {/* 긴 메뉴명("불편신고/건의") 보호: kr-break 로 어디서든 줄바꿈 + leading-snug */}
-          <div className="kr-break" style={{
-            fontSize: compact ? 13 : 14,
-            fontWeight: 800,
-            color: T.text,
-            lineHeight: 1.25,
-          }}>{menu.label}</div>
-        </SafeGrow>
-        {/* 방송 상태 표시등 — 글씨 아래가 아니라 카드 오른쪽 끝, 세로 중앙에 둔다 */}
-        {typeof live === "boolean" && (
-          <span style={{
-            flexShrink: 0, alignSelf: "center",
-            display: "inline-flex", alignItems: "center", gap: 4,
-            padding: "3px 8px", borderRadius: 999,
-            background: live
-              ? "color-mix(in srgb, var(--success) 16%, transparent)"
-              : "color-mix(in srgb, var(--danger) 14%, transparent)",
-            color: live ? "var(--success)" : "var(--danger)",
-            fontSize: 9, fontWeight: 800, letterSpacing: 0.6, whiteSpace: "nowrap",
-          }}>
+      {/* 데스크톱·태블릿·편집모드: 기존 가로 행 레이아웃 (그대로 유지) */}
+      <div className="menu-row">
+        <SafeRow gap={10}>
+          {editing && (
+            <GripVertical size={15} strokeWidth={2} color="var(--ink-faint)" className="safe-shrink-0" />
+          )}
+          <IconBox bg={menu.bg} size={compact ? 36 : 38}>
+            <menu.icon size={compact ? 18 : 19} strokeWidth={1.8} color={menu.color} />
+          </IconBox>
+          <SafeGrow>
+            {/* 긴 메뉴명("불편신고/건의") 보호: kr-break 로 어디서든 줄바꿈 + leading-snug */}
+            <div className="kr-break" style={{
+              fontSize: compact ? 13 : 14,
+              fontWeight: 800,
+              color: T.text,
+              lineHeight: 1.25,
+            }}>{menu.label}</div>
+          </SafeGrow>
+          {/* 방송 상태 표시등 — 글씨 아래가 아니라 카드 오른쪽 끝, 세로 중앙에 둔다 */}
+          {typeof live === "boolean" && (
             <span style={{
-              width: 6, height: 6, borderRadius: "50%",
-              background: live ? "var(--success)" : "var(--danger)",
-              boxShadow: live ? "0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent)" : "none",
+              flexShrink: 0, alignSelf: "center",
+              display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "3px 8px", borderRadius: 999,
+              background: live
+                ? "color-mix(in srgb, var(--success) 16%, transparent)"
+                : "color-mix(in srgb, var(--danger) 14%, transparent)",
+              color: live ? "var(--success)" : "var(--danger)",
+              fontSize: 9, fontWeight: 800, letterSpacing: 0.6, whiteSpace: "nowrap",
+            }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: "50%",
+                background: live ? "var(--success)" : "var(--danger)",
+                boxShadow: live ? "0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent)" : "none",
+              }} />
+              {live ? "ON AIR" : "OFF AIR"}
+            </span>
+          )}
+          {editing && menuHidden && (
+            <span className="safe-shrink-0" style={{
+              alignSelf: "center", display: "inline-flex", alignItems: "center", gap: 3,
+              padding: "3px 7px", borderRadius: 999,
+              background: "color-mix(in srgb, var(--ink-faint) 18%, transparent)",
+              color: "var(--ink-mid)", fontSize: 9, fontWeight: 800, whiteSpace: "nowrap",
+            }}>
+              <EyeOff size={10} strokeWidth={2.2} /> 숨김
+            </span>
+          )}
+          {editing && <Pencil size={13} strokeWidth={2} color="var(--ink-faint)" className="safe-shrink-0" />}
+        </SafeRow>
+      </div>
+
+      {/* 모바일 전용(비편집): 3열 아이콘 그리드용 세로 타일 — 아이콘 위 + 라벨 아래, 방송중일 때만 점 표시 */}
+      <div className="menu-tile">
+        <div style={{ position: "relative" }}>
+          <IconBox bg={menu.bg} size={34}>
+            <menu.icon size={17} strokeWidth={1.8} color={menu.color} />
+          </IconBox>
+          {live === true && (
+            <span style={{
+              position: "absolute", top: -2, right: -2, width: 9, height: 9, borderRadius: "50%",
+              background: "var(--danger)", border: "2px solid var(--card)",
             }} />
-            {live ? "ON AIR" : "OFF AIR"}
-          </span>
-        )}
-        {editing && menuHidden && (
-          <span className="safe-shrink-0" style={{
-            alignSelf: "center", display: "inline-flex", alignItems: "center", gap: 3,
-            padding: "3px 7px", borderRadius: 999,
-            background: "color-mix(in srgb, var(--ink-faint) 18%, transparent)",
-            color: "var(--ink-mid)", fontSize: 9, fontWeight: 800, whiteSpace: "nowrap",
-          }}>
-            <EyeOff size={10} strokeWidth={2.2} /> 숨김
-          </span>
-        )}
-        {editing && <Pencil size={13} strokeWidth={2} color="var(--ink-faint)" className="safe-shrink-0" />}
-      </SafeRow>
+          )}
+        </div>
+        <div className="kr-break" style={{ fontSize: 11, fontWeight: 700, color: T.text, lineHeight: 1.3 }}>
+          {menu.label}
+        </div>
+      </div>
     </SafeCard>
   );
 
