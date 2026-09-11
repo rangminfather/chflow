@@ -13,7 +13,7 @@ import {
   Landmark, Bus, CalendarClock, Menu, LogOut, X, Folder, Home,
   Clock, Building2, KeyRound, Shuffle, UserPlus, LayoutGrid, MessagesSquare, SearchCheck,
   Sparkles, HeartHandshake, Sun, Moon, BarChart3, Radio, MapPin,
-  GraduationCap, ChevronRight, ChevronUp, ChevronDown, CloudRain, CloudOff,
+  GraduationCap, CloudRain, CloudOff,
   Cog, GripVertical, Eye, EyeOff, Pencil, Copyright,
 } from "lucide-react";
 import { useTheme } from "@/lib/useTheme";
@@ -31,13 +31,13 @@ import {
   T, PageShell, PageContent,
   Section, SectionHeader,
   SafeCard, SafeRow, SafeGrow, SafeGrid,
-  IconBox, Badge, SolidButton, OutlineButton,
+  IconBox, SolidButton, OutlineButton,
 } from "@/components/Layout";
 
 // =============================================================
 // 타입
 // =============================================================
-interface UserInfo {
+export interface UserInfo {
   id: string;
   username: string;
   name: string;
@@ -55,7 +55,7 @@ interface UserInfo {
   plain_name: string | null;
 }
 
-interface MyDepartment {
+export interface MyDepartment {
   id: string;
   department_id: string;
   category: string;
@@ -84,6 +84,7 @@ type CommonMenu = {
 const FACILITY_MENU_ID = "facility";
 
 const COMMON_MENUS: CommonMenu[] = [
+  { id: "my-groups", label: "내 사역·목장", icon: Folder,    color: "var(--accent)", bg: "var(--accent-soft)", desc: "내 사역·부서 · 목장 메뉴", href: "/my-groups" },
   { id: "bible",     label: "성경책",       icon: BookText,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "개역개정 성경 읽기", href: "/bible" },
   { id: "live",      label: "예배",  icon: Radio,     color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/live" },
   { id: "bulletin",  label: "주보 보기",     icon: BookOpen,  color: "var(--accent)", bg: "var(--accent-soft)", desc: "", href: "/bulletin" },
@@ -149,14 +150,14 @@ type HomeMenuDragPreview = {
 const ALL_HOME_MENUS: CommonMenu[] = [...COMMON_MENUS, ...ADMIN_EXTRA_MENUS];
 
 // 관리자가 바꿀 수 있는 홈 섹션 제목의 기본값
-const HOME_SECTION_DEFAULT_LABELS: Record<string, string> = {
+export const HOME_SECTION_DEFAULT_LABELS: Record<string, string> = {
   ministry: "내 사역 · 부서",
   pasture: "목장 메뉴",
   common: "공통 메뉴",
 };
 
 // 섹션 제목 저장 — 기본값과 같으면 덮어쓰기 값을 지운다
-async function saveHomeSectionLabel(
+export async function saveHomeSectionLabel(
   sectionId: string,
   nextLabel: string,
   onSaved: (next: HomeMenuConfig) => void,
@@ -175,7 +176,7 @@ async function saveHomeSectionLabel(
 }
 
 // 편집모드 토글 톱니바퀴 (관리자 전용) — 교육부서 메뉴 편집과 같은 모양
-function MenuEditGearButton({ active, onClick, label }: {
+export function MenuEditGearButton({ active, onClick, label }: {
   active: boolean;
   onClick: () => void;
   label: string;
@@ -205,7 +206,7 @@ function MenuEditGearButton({ active, onClick, label }: {
 }
 
 // 편집모드에서 섹션 제목 자리에 들어가는 입력창 (포커스가 빠지면 저장)
-function SectionTitleInput({ sectionId, value, onSaved, onError }: {
+export function SectionTitleInput({ sectionId, value, onSaved, onError }: {
   sectionId: string;
   value: string;
   onSaved: (next: HomeMenuConfig) => void;
@@ -229,54 +230,6 @@ function SectionTitleInput({ sectionId, value, onSaved, onError }: {
         outline: "none",
       }}
     />
-  );
-}
-
-async function moveHomeSubmenu(
-  groupId: string,
-  orderedIds: string[],
-  menuId: string,
-  direction: -1 | 1,
-  onMenuConfigChange: Dispatch<SetStateAction<HomeMenuConfig>>,
-  onError: (message: string) => void,
-) {
-  const from = orderedIds.indexOf(menuId);
-  const to = from + direction;
-  if (from < 0 || to < 0 || to >= orderedIds.length) return;
-  const next = [...orderedIds];
-  [next[from], next[to]] = [next[to], next[from]];
-  onMenuConfigChange((prev) => ({ ...prev, order: { ...prev.order, [groupId]: next } }));
-  const { error } = await supabase.rpc("set_home_menu_item_order", { p_group: groupId, p_order: next });
-  if (!error) return;
-  onMenuConfigChange((prev) => ({ ...prev, order: { ...prev.order, [groupId]: orderedIds } }));
-  onError(`순서 저장 실패: ${error.message}`);
-}
-
-function SubmenuEditControls({ hidden, first, last, onMove, onEdit }: {
-  hidden: boolean;
-  first: boolean;
-  last: boolean;
-  onMove: (direction: -1 | 1) => void;
-  onEdit: () => void;
-}) {
-  const buttonStyle = {
-    width: 28, height: 28, borderRadius: 7, border: "1px solid var(--hairline)",
-    background: "var(--card)", color: "var(--ink-mid)", cursor: "pointer",
-    display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0,
-  } as const;
-  return (
-    <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-      {hidden && <EyeOff size={13} strokeWidth={2} color="var(--ink-faint)" aria-label="숨김" />}
-      <button type="button" aria-label="위로 이동" disabled={first} onClick={() => onMove(-1)} style={{ ...buttonStyle, opacity: first ? 0.3 : 1 }}>
-        <ChevronUp size={15} strokeWidth={2} />
-      </button>
-      <button type="button" aria-label="아래로 이동" disabled={last} onClick={() => onMove(1)} style={{ ...buttonStyle, opacity: last ? 0.3 : 1 }}>
-        <ChevronDown size={15} strokeWidth={2} />
-      </button>
-      <button type="button" aria-label="메뉴 이름과 표시 여부 수정" onClick={onEdit} style={buttonStyle}>
-        <Pencil size={14} strokeWidth={2} />
-      </button>
-    </div>
   );
 }
 
@@ -411,7 +364,6 @@ export default function HomePage() {
           .sidebar-desktop { display: none !important; }
           .sidebar-mobile-trigger { display: flex !important; }
           .admin-btn-label { display: none !important; }
-          .home-summary-grid { grid-template-columns: 1fr !important; }
           /* 공통메뉴만 3열 아이콘 그리드로 압축 (편집모드에서는 기존 1열 목록 그대로 — 그립·연필 여백 확보) */
           .home-menu-grid:not(.editing) { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important; }
           .home-menu-grid.editing { grid-template-columns: 1fr !important; }
@@ -497,31 +449,10 @@ export default function HomePage() {
               router={router}
             />
 
-            {/* TODO: 나의 목장(가입신청/목장보기) — 구현 완료 후 아래 주석 해제, home-summary-grid 안으로 이동 */}
+            {/* TODO: 나의 목장(가입신청/목장보기) — 구현 완료 후 아래 주석 해제 */}
             {/* <MyMokjangSection user={user} /> */}
 
-            <CellShepherdSection
-              user={user}
-              router={router}
-              canEditMenu={user.role === "admin"}
-              menuConfig={menuConfig}
-              onMenuConfigChange={setMenuConfig}
-            />
-
-            <div className="home-summary-grid" style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr)",
-              gap: 14,
-              marginBottom: 18,
-            }}>
-              <MinistrySection
-                myDepartments={myDepartments}
-                router={router}
-                canEditMenu={user.role === "admin"}
-                menuConfig={menuConfig}
-                onMenuConfigChange={setMenuConfig}
-              />
-            </div>
+            {/* 내 사역·부서 / 목장 메뉴는 아래 공통 메뉴 그리드의 "내 사역·목장" 타일 → /my-groups 페이지로 이동했다 */}
 
             <CommonMenuSection
               isAdmin={isAdmin}
@@ -842,307 +773,9 @@ function UserSummary({ user, photoUrl, userImage, router }: {
 }
 
 // =============================================================
-// 1) 내 사역 · 부서
+// "내 사역 · 부서"·"목장 메뉴"는 components/MyGroupsSections.tsx로 이동했다.
+// 홈 화면에는 COMMON_MENUS의 "my-groups" 타일 하나만 두고, 실제 목록은 /my-groups 페이지에서 보여준다.
 // =============================================================
-function MinistrySection({ myDepartments, router, canEditMenu, menuConfig, onMenuConfigChange }: {
-  myDepartments: MyDepartment[];
-  router: RouterType;
-  canEditMenu: boolean;
-  menuConfig: HomeMenuConfig;
-  onMenuConfigChange: Dispatch<SetStateAction<HomeMenuConfig>>;
-}) {
-  const approved = myDepartments.filter((d) => d.status === "approved");
-  const pending = myDepartments.filter((d) => d.status === "pending");
-  const baseDepartments = [...approved, ...pending].map((dept) => ({
-    id: dept.department_id,
-    label: dept.name,
-    dept,
-  }));
-  const [editing, setEditing] = useState(false);
-  const [editTarget, setEditTarget] = useState<{ menuId: string; defaultLabel: string } | null>(null);
-  const sectionLabel = resolveHomeSectionLabel(menuConfig, "ministry", HOME_SECTION_DEFAULT_LABELS.ministry);
-  const departments = applyHomeMenuConfig("ministry", baseDepartments, menuConfig, { includeHidden: editing });
-  const orderedIds = departments.map((item) => item.id);
-
-  return (
-    <Section bg="var(--surface)" style={{ height: "100%", marginBottom: 0, border: "1px solid var(--hairline)" }}>
-      <SectionHeader
-        icon={<Folder size={18} strokeWidth={1.75} />}
-        iconColor="var(--accent)"
-        title={editing ? (
-          <SectionTitleInput
-            sectionId="ministry"
-            value={sectionLabel}
-            onSaved={onMenuConfigChange}
-            onError={(msg) => alert(msg)}
-          />
-        ) : sectionLabel}
-        action={
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {canEditMenu && (
-              <MenuEditGearButton
-                active={editing}
-                onClick={() => setEditing((v) => !v)}
-                label={HOME_SECTION_DEFAULT_LABELS.ministry}
-              />
-            )}
-            <button
-              onClick={() => router.push("/departments")}
-              style={{
-                padding: "4px 10px", fontSize: 11, fontWeight: 700,
-                color: T.ministryPoint, background: "transparent",
-                border: `1.5px dashed ${T.ministryPoint}`, borderRadius: 8,
-                cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-              }}
-            >+ 가입</button>
-          </div>
-        }
-      />
-
-      {editing && (
-        <div style={{ marginBottom: 10, fontSize: 11.5, fontWeight: 600, color: "var(--accent-strong)" }}>
-          연필로 이름·숨김을 바꾸고 화살표로 순서를 변경합니다.
-        </div>
-      )}
-      {departments.length === 0 ? (
-        <SafeCard padding={13} style={{ marginBottom: 10, borderRadius: 10 }}>
-          <div className="kr-keep" style={{ fontSize: 14, color: T.textMuted }}>
-            아직 가입된 사역 · 부서가 없습니다
-          </div>
-        </SafeCard>
-      ) : (
-        <>
-          <div className={`ministry-list${editing ? " editing" : ""}`} style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", maxWidth: "100%", minWidth: 0 }}>
-            {departments.map((item, index) => (
-              <MinistryCard
-                key={item.dept.id}
-                dept={item.dept}
-                label={item.label}
-                status={item.dept.status === "approved" ? "approved" : "pending"}
-                hidden={item.hidden}
-                editing={editing}
-                onClick={() => editing
-                  ? setEditTarget({ menuId: item.id, defaultLabel: item.dept.name })
-                  : router.push(`/departments/d/${item.dept.department_id}`)}
-                editControls={editing ? (
-                  <SubmenuEditControls
-                    hidden={item.hidden}
-                    first={index === 0}
-                    last={index === departments.length - 1}
-                    onMove={(direction) => void moveHomeSubmenu("ministry", orderedIds, item.id, direction, onMenuConfigChange, alert)}
-                    onEdit={() => setEditTarget({ menuId: item.id, defaultLabel: item.dept.name })}
-                  />
-                ) : undefined}
-              />
-            ))}
-          </div>
-          {/* 모바일 전용 — 사역·부서를 가로 스크롤 칩으로 압축 (편집모드에서는 위 목록만 사용) */}
-          {!editing && (
-            <div className="ministry-chip-mobile" style={{ gap: 8, overflowX: "auto", margin: "0 -2px", padding: "2px 2px 4px" }}>
-              {departments.map((item) => (
-                <MenuChip
-                  key={item.dept.id}
-                  iconNode={<DeptIcon name={item.dept.name} category={item.dept.category} size={13} />}
-                  label={item.label}
-                  dot={item.dept.status === "approved" ? "ok" : "wait"}
-                  onClick={() => router.push(`/departments/d/${item.dept.department_id}`)}
-                />
-              ))}
-            </div>
-          )}
-        </>
-      )}
-      {editTarget && (
-        <EditHomeMenuPopup
-          groupId="ministry"
-          menuId={editTarget.menuId}
-          defaultLabel={editTarget.defaultLabel}
-          setting={menuConfig.settings[homeMenuKeyOf("ministry", editTarget.menuId)]}
-          onClose={() => setEditTarget(null)}
-          onSaved={(next) => { onMenuConfigChange(next); setEditTarget(null); }}
-        />
-      )}
-    </Section>
-  );
-}
-
-function MinistryCard({ dept, label, status, hidden, editing, onClick, editControls }: {
-  dept: MyDepartment;
-  label: string;
-  status: "approved" | "pending";
-  hidden: boolean;
-  editing: boolean;
-  onClick: () => void;
-  editControls?: React.ReactNode;
-}) {
-  return (
-    <SafeCard onClick={onClick} padding={12} style={{ borderRadius: 14, background: "var(--card)", border: "1px solid var(--hairline)", boxShadow: "0 1px 4px rgba(26,22,18,0.04)", opacity: editing && hidden ? 0.55 : 1 }}>
-      <SafeRow gap={12}>
-        <IconBox bg="var(--accent-soft)" size={40}>
-          <DeptIcon name={dept.name} category={dept.category} size={20} />
-        </IconBox>
-        <SafeGrow>
-          <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, fontWeight: 600 }}>
-            {dept.category}
-          </div>
-          <div className="line-clamp-1 kr-keep" style={{ fontSize: 15, fontWeight: 800, color: T.text, marginTop: 1 }}>
-            {label}
-          </div>
-        </SafeGrow>
-        <Badge tone={status === "approved" ? "success" : "warn"} label={status === "approved" ? "승인됨" : "가입중"} />
-        {editControls}
-      </SafeRow>
-    </SafeCard>
-  );
-}
-
-// 모바일 전용 가로 스크롤 칩 — 내 사역·목장을 한 줄로 압축할 때 쓴다 (ministry/pasture 공용)
-function MenuChip({ iconNode, label, dot, onClick }: {
-  iconNode: React.ReactNode;
-  label: string;
-  dot?: "ok" | "wait";
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="kr-break"
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 7, flexShrink: 0,
-        padding: "7px 13px 7px 7px", borderRadius: 999,
-        background: "var(--card)", border: "1px solid var(--hairline)",
-        fontSize: 12.5, fontWeight: 700, color: T.text, fontFamily: "inherit",
-        cursor: "pointer", whiteSpace: "nowrap",
-      }}
-    >
-      <IconBox bg="var(--accent-soft)" size={24}>{iconNode}</IconBox>
-      {label}
-      {dot && (
-        <span style={{
-          width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
-          background: dot === "ok" ? "var(--accent)" : T.warn,
-        }} />
-      )}
-    </button>
-  );
-}
-
-// =============================================================
-// 1-1) 목장 메뉴 — 목장탐방(전체) + 목장 모임(전 목원) + 목장일지(목자/목녀 전용)
-//
-// 아래 MyMokjangSection(가입신청/목장보기)은 아직 미구현이라 계속 숨겨둔다.
-// 목장탐방은 누구나, 목장 모임은 소속 목장 구성원, 목장일지는 목자·목녀만 본다.
-// =============================================================
-function CellShepherdSection({ user, router, canEditMenu, menuConfig, onMenuConfigChange }: {
-  user: UserInfo;
-  router: RouterType;
-  canEditMenu: boolean;
-  menuConfig: HomeMenuConfig;
-  onMenuConfigChange: Dispatch<SetStateAction<HomeMenuConfig>>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [editTarget, setEditTarget] = useState<{ menuId: string; defaultLabel: string } | null>(null);
-  const isCellShepherd = user.family_church === "목자" || user.family_church === "목녀";
-  const hasPasture = !!user.pasture_name;
-  const sectionLabel = resolveHomeSectionLabel(menuConfig, "pasture", HOME_SECTION_DEFAULT_LABELS.pasture);
-  const baseMenus = [
-    { id: "meeting", label: "목장 모임", href: "/pasture", desc: `${user.pasture_name ?? "소속"}목장 · 가능일 표시 · 참석 확인`, icon: CalendarDays, available: hasPasture },
-    { id: "journal", label: "목장일지", href: "/pasture/journal", desc: "해외선교 후원목장 · 본인 UMS 계정으로 열람", icon: BookText, available: isCellShepherd },
-    { id: "explore", label: "목장탐방", href: "/pasture/explore", desc: "목장을 검색하고 소개를 둘러보세요", icon: SearchCheck, available: true },
-  ];
-  const configuredMenus = applyHomeMenuConfig("pasture", baseMenus, menuConfig, { includeHidden: editing });
-  const menus = editing ? configuredMenus : configuredMenus.filter((menu) => menu.available);
-  const orderedIds = configuredMenus.map((menu) => menu.id);
-
-  return (
-    <Section bg="var(--surface)" style={{ marginBottom: 18, border: "1px solid var(--hairline)" }}>
-      <SectionHeader
-        icon={<Home size={18} strokeWidth={1.75} />}
-        iconColor="var(--accent)"
-        title={editing ? (
-          <SectionTitleInput
-            sectionId="pasture"
-            value={sectionLabel}
-            onSaved={onMenuConfigChange}
-            onError={(msg) => alert(msg)}
-          />
-        ) : sectionLabel}
-        action={canEditMenu ? (
-          <MenuEditGearButton
-            active={editing}
-            onClick={() => setEditing((v) => !v)}
-            label={HOME_SECTION_DEFAULT_LABELS.pasture}
-          />
-        ) : undefined}
-      />
-      {editing && (
-        <div style={{ marginBottom: 10, fontSize: 11.5, fontWeight: 600, color: "var(--accent-strong)" }}>
-          연필로 이름·숨김을 바꾸고 화살표로 순서를 변경합니다.
-        </div>
-      )}
-      <div className={`pasture-list${editing ? " editing" : ""}`}>
-        {menus.map((menu, index) => {
-          const MenuIcon = menu.icon;
-          const defaultLabel = baseMenus.find((item) => item.id === menu.id)?.label ?? menu.label;
-          return (
-            <SafeCard
-              key={menu.id}
-              onClick={() => editing ? setEditTarget({ menuId: menu.id, defaultLabel }) : router.push(menu.href)}
-              padding={12}
-              style={{ borderRadius: 10, marginBottom: index === menus.length - 1 ? 0 : 8, opacity: editing && menu.hidden ? 0.55 : 1 }}
-            >
-              <SafeRow gap={12}>
-                <IconBox bg="var(--accent-soft)" size={40}>
-                  <MenuIcon size={21} strokeWidth={1.75} color="var(--accent)" />
-                </IconBox>
-                <SafeGrow>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{menu.label}</div>
-                  <div className="line-clamp-1 kr-keep" style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>{menu.desc}</div>
-                </SafeGrow>
-                {editing ? (
-                  <SubmenuEditControls
-                    hidden={menu.hidden}
-                    first={index === 0}
-                    last={index === menus.length - 1}
-                    onMove={(direction) => void moveHomeSubmenu("pasture", orderedIds, menu.id, direction, onMenuConfigChange, alert)}
-                    onEdit={() => setEditTarget({ menuId: menu.id, defaultLabel })}
-                  />
-                ) : <ChevronRight size={16} strokeWidth={1.8} color={T.textMuted} />}
-              </SafeRow>
-            </SafeCard>
-          );
-        })}
-      </div>
-      {/* 모바일 전용 — 목장 메뉴를 가로 스크롤 칩으로 압축 (편집모드에서는 위 목록만 사용) */}
-      {!editing && (
-        <div className="pasture-chip-mobile" style={{ gap: 8, overflowX: "auto", margin: "0 -2px", padding: "2px 2px 4px" }}>
-          {menus.map((menu) => {
-            const MenuIcon = menu.icon;
-            return (
-              <MenuChip
-                key={menu.id}
-                iconNode={<MenuIcon size={13} strokeWidth={1.9} color="var(--accent)" />}
-                label={menu.label}
-                onClick={() => router.push(menu.href)}
-              />
-            );
-          })}
-        </div>
-      )}
-      {editTarget && (
-        <EditHomeMenuPopup
-          groupId="pasture"
-          menuId={editTarget.menuId}
-          defaultLabel={editTarget.defaultLabel}
-          setting={menuConfig.settings[homeMenuKeyOf("pasture", editTarget.menuId)]}
-          onClose={() => setEditTarget(null)}
-          onSaved={(next) => { onMenuConfigChange(next); setEditTarget(null); }}
-        />
-      )}
-    </Section>
-  );
-}
 
 // =============================================================
 // 2) 나의 목장 — 가입신청 / 목장보기 (미구현, 아직 숨김)
@@ -1813,7 +1446,7 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
 // 메인메뉴 수정 팝업 (관리자 전용) — 이름 변경 / 숨김
 //   저장 후 최신 설정을 다시 읽어 화면 전체에 반영한다
 // =============================================================
-function EditHomeMenuPopup({ groupId, menuId, defaultLabel: providedDefaultLabel, setting, onClose, onSaved }: {
+export function EditHomeMenuPopup({ groupId, menuId, defaultLabel: providedDefaultLabel, setting, onClose, onSaved }: {
   groupId: string;
   menuId: string;
   defaultLabel?: string;
