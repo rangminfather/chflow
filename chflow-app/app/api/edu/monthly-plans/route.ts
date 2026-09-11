@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { r2 } from "@/lib/r2";
-import { convertLegacyXlsToXlsx } from "@/lib/xlsx-load";
+import { normalizeXlsxForStorage } from "@/lib/xlsx-load";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -118,12 +118,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "필수값이 누락되었습니다" }, { status: 400 });
   }
 
-  // 구형 .xls는 서버에서 .xlsx로 변환해 저장한다. 이후 조회·주보 연동은 한 형식만 다룬다.
+  // 허용 형식: 이미지 · PDF · 엑셀(.xlsx)만. (.xls·.hwp 등은 차단)
   const ext = safeExtension(file.name);
-  const ALLOWED_EXT = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".pdf", ".xls", ".xlsx"];
+  const ALLOWED_EXT = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".pdf", ".xlsx"];
   if (!ALLOWED_EXT.includes(ext)) {
     return NextResponse.json(
-      { ok: false, error: "이미지·PDF·엑셀(.xls·.xlsx)만 올릴 수 있습니다. 한글(.hwp)은 PDF로 저장해 올려주세요." },
+      { ok: false, error: "이미지·PDF·엑셀(.xlsx)만 올릴 수 있습니다. 한글(.hwp)·구형 엑셀(.xls)은 PDF로 저장해 올려주세요." },
       { status: 415 }
     );
   }
@@ -137,24 +137,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "월간교육등록 권한이 없습니다" }, { status: 403 });
   }
 
-  let uploadBytes: ArrayBuffer | Buffer = await file.arrayBuffer();
-  let uploadExt = ext;
+  const mm = String(month).padStart(2, "0");
+  const objectName = `${year}-${mm}_${Date.now()}_monthly-plan${safeExtension(file.name)}`;
+  const path = `${deptId}/${objectName}`;
+  let bytes: ArrayBuffer | Buffer = await file.arrayBuffer();
   let contentType = file.type || "application/octet-stream";
-  if (ext === ".xls") {
-    const converted = await convertLegacyXlsToXlsx(uploadBytes);
-    if (!converted) {
-      return NextResponse.json({ ok: false, error: "구형 엑셀(.xls) 파일을 변환하지 못했습니다. 파일이 손상되었는지 확인해주세요." }, { status: 422 });
+
+  // 한셀 등에서 만든 xlsx는 XML 네임스페이스가 비표준이라 일부 ExcelJS 경로에서
+  // 바로 열리지 않는다. 업로드 전에 읽기·재작성이 가능한지 검증하고 표준화한다.
+  if (ext === ".xlsx") {
+    const normalized = await normalizeXlsxForStorage(bytes);
+    if (!normalized) {
+      return NextResponse.json(
+        { ok: false, error: "엑셀(.xlsx) 파일을 읽을 수 없습니다. 파일이 손상되었는지 확인해주세요." },
+        { status: 422 },
+      );
     }
-    uploadBytes = converted;
-    uploadExt = ".xlsx";
+    bytes = normalized;
     contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   }
 
-  const mm = String(month).padStart(2, "0");
-  const objectName = `${year}-${mm}_${Date.now()}_monthly-plan${uploadExt}`;
-  const path = `${deptId}/${objectName}`;
-
-  const { error } = await r2.from(BUCKET).upload(path, uploadBytes, {
+  const { error } = await r2.from(BUCKET).upload(path, bytes, {
     contentType,
     upsert: false,
   });

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import * as XLSX from "@e965/xlsx";
-import { convertLegacyXlsToXlsx, detectWorkbookFormat, loadWorkbookWithReason } from "./xlsx-load";
+import { Workbook } from "exceljs";
+import JSZip from "jszip";
+import { detectWorkbookFormat, loadWorkbookWithReason, LEGACY_XLS_NOTICE, normalizeXlsxForStorage } from "./xlsx-load";
 
 /** 파일 앞머리 서명만 흉내 낸 가짜 버퍼 */
 function withSignature(bytes: number[]): Buffer {
@@ -29,35 +30,45 @@ describe("엑셀 형식 판별", () => {
   });
 });
 
-describe("통합 문서 읽기", () => {
-  it("구형 .xls 를 읽고 표준 .xlsx 로 변환한다", async () => {
-    const source = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(source, XLSX.utils.aoa_to_sheet([
-      ["주일", "설교제목"],
-      ["9/13", "잃은 양을 찾으시는 예수님 (눅15:1~7)"],
-    ]), "9.10월");
-    const bytes = XLSX.write(source, { type: "buffer", bookType: "xls" }) as Buffer;
-
-    const result = await loadWorkbookWithReason(bytes);
-    expect(result.workbook).not.toBeNull();
-    expect(result.format).toBe("legacy-xls");
-    expect(result.reason).toBeNull();
-    expect(result.workbook?.getWorksheet("9.10월")?.getCell("B2").text).toContain("눅15:1~7");
-
-    const converted = await convertLegacyXlsToXlsx(bytes);
-    expect(converted).not.toBeNull();
-    expect(detectWorkbookFormat(converted!)).toBe("xlsx");
-  });
-
-  it("서명만 있고 내용이 없는 가짜 .xls 는 손상 안내를 돌려준다", async () => {
+describe("못 읽은 이유 알리기", () => {
+  it("구형 .xls 는 열지 않고 바로 안내 문구를 돌려준다", async () => {
     const result = await loadWorkbookWithReason(withSignature(OLE2));
     expect(result.workbook).toBeNull();
-    expect(result.reason).toContain("변환하지 못했습니다");
+    expect(result.format).toBe("legacy-xls");
+    expect(result.reason).toBe(LEGACY_XLS_NOTICE);
+    // 사람이 바로 조치할 수 있게 xlsx 로 저장하라는 말이 들어 있어야 한다
+    expect(result.reason).toContain(".xlsx");
   });
 
   it("깨진 파일은 손상 안내를 돌려준다", async () => {
     const result = await loadWorkbookWithReason(withSignature(ZIP));
     expect(result.workbook).toBeNull();
     expect(result.reason).toContain("손상");
+  });
+});
+
+describe("업로드 xlsx 표준화", () => {
+  it("접두사 네임스페이스가 있는 한셀 형식도 표준 xlsx로 다시 쓴다", async () => {
+    const source = new Workbook();
+    source.addWorksheet("9.10월").getCell("A1").value = "주일";
+    const ordinary = Buffer.from(await source.xlsx.writeBuffer());
+    const zip = await JSZip.loadAsync(ordinary);
+    const app = await zip.file("docProps/app.xml")!.async("string");
+    zip.file(
+      "docProps/app.xml",
+      app
+        .replace("<Properties xmlns=", "<ep:Properties xmlns:ep=")
+        .replace("</Properties>", "</ep:Properties>")
+        .replace(/<(\/?)(Application|AppVersion|Company)>/g, "<$1ep:$2>"),
+    );
+    const prefixed = await zip.generateAsync({ type: "nodebuffer" });
+
+    const normalized = await normalizeXlsxForStorage(prefixed);
+    expect(normalized).not.toBeNull();
+
+    const verify = new Workbook();
+    const loadFn = verify.xlsx.load.bind(verify.xlsx) as (data: unknown) => Promise<unknown>;
+    await loadFn(normalized!);
+    expect(verify.getWorksheet("9.10월")?.getCell("A1").text).toBe("주일");
   });
 });

@@ -35,7 +35,7 @@ type NavGroup =
 
 function isImage(url: string) { return /\.(jpe?g|png|gif|webp|bmp|svg)(\?|$)/i.test(url); }
 function isPdf(url: string) { return /\.pdf(\?|$)/i.test(url); }
-function isXlsx(url: string) { return /\.xlsx?(\?|$)/i.test(url); }
+function isXlsx(url: string) { return /\.xlsx(\?|$)/i.test(url); }
 function pad2(n: number) { return String(n).padStart(2, "0"); }
 
 async function fetchWithMonthlyPlanAuth(url: string, init: RequestInit = {}, token?: string) {
