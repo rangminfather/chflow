@@ -4,6 +4,7 @@
 // → 1차 로드 실패 시 zip 내 XML의 접두사를 기본 네임스페이스로 정규화한 뒤 재시도.
 import { Workbook } from "exceljs";
 import JSZip from "jszip";
+import * as XLSX from "@e965/xlsx";
 
 const NS_LIST = [
   "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
@@ -58,28 +59,74 @@ export function detectWorkbookFormat(bytes: Buffer | ArrayBuffer | Uint8Array): 
   return "unknown";
 }
 
-/** 구형 .xls 를 올렸을 때 사람에게 보여줄 안내 */
-export const LEGACY_XLS_NOTICE =
-  "구형 엑셀(.xls) 파일이라 읽을 수 없습니다. 엑셀에서 [다른 이름으로 저장] → [Excel 통합 문서(*.xlsx)] 로 바꿔 다시 올려주세요.";
+function bufferFrom(bytes: Buffer | ArrayBuffer | Uint8Array) {
+  if (Buffer.isBuffer(bytes)) return bytes;
+  return Buffer.from(bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes);
+}
+
+function legacyCellValue(cell: XLSX.CellObject) {
+  const value = cell.v;
+  if (value instanceof Date || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  return value == null ? null : String(value);
+}
+
+/** BIFF/OLE2 .xls를 ExcelJS Workbook으로 옮긴다. 빈 65,536×256 가상 범위는 복사하지 않는다. */
+async function loadLegacyXls(bytes: Buffer | ArrayBuffer | Uint8Array): Promise<Workbook | null> {
+  try {
+    const source = XLSX.read(bufferFrom(bytes), { type: "buffer", cellDates: true, cellFormula: false });
+    const workbook = new Workbook();
+    for (const [sheetIndex, sheetName] of source.SheetNames.entries()) {
+      const sheet = source.Sheets[sheetName];
+      const cells = Object.entries(sheet).filter(([address, cell]) => (
+        !address.startsWith("!") && /^[A-Z]+\d+$/.test(address) && (cell as XLSX.CellObject).v != null
+      ));
+      if (!cells.length) continue;
+
+      const safeName = sheetName.replace(/[\\/?*:[\]]/g, " ").trim().slice(0, 31) || `Sheet${sheetIndex + 1}`;
+      const worksheet = workbook.addWorksheet(safeName);
+      for (const [address, cell] of cells) {
+        worksheet.getCell(address).value = legacyCellValue(cell as XLSX.CellObject);
+      }
+      for (const range of (sheet["!merges"] || [])) {
+        try { worksheet.mergeCells(XLSX.utils.encode_range(range)); } catch { /* 잘못된 병합 범위만 무시 */ }
+      }
+    }
+    return workbook.worksheets.length ? workbook : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 업로드된 .xls를 이후 모든 경로가 읽는 표준 .xlsx 바이트로 변환한다. */
+export async function convertLegacyXlsToXlsx(
+  bytes: Buffer | ArrayBuffer | Uint8Array,
+): Promise<Buffer | null> {
+  const workbook = await loadLegacyXls(bytes);
+  if (!workbook) return null;
+  const output = await workbook.xlsx.writeBuffer();
+  return Buffer.from(output);
+}
 
 /** 왜 못 읽었는지까지 돌려주는 판 — 화면에 원인을 띄워야 할 때 쓴다 */
 export async function loadWorkbookWithReason(
   bytes: Buffer | ArrayBuffer | Uint8Array,
 ): Promise<{ workbook: Workbook | null; format: WorkbookFormat; reason: string | null }> {
   const format = detectWorkbookFormat(bytes);
-  if (format === "legacy-xls") {
-    return { workbook: null, format, reason: LEGACY_XLS_NOTICE };
-  }
   const workbook = await loadWorkbook(bytes);
   return {
     workbook,
     format,
-    reason: workbook ? null : "엑셀 파일을 열 수 없습니다. 파일이 손상되었는지 확인해주세요.",
+    reason: workbook ? null : format === "legacy-xls"
+      ? "구형 엑셀(.xls) 파일을 변환하지 못했습니다. 파일이 손상되었는지 확인해주세요."
+      : "엑셀 파일을 열 수 없습니다. 파일이 손상되었는지 확인해주세요.",
   };
 }
 
 // 로드 성공 시 Workbook, 파일이 깨졌거나 지원 불가 형식이면 null.
 export async function loadWorkbook(bytes: Buffer | ArrayBuffer | Uint8Array): Promise<Workbook | null> {
+  if (detectWorkbookFormat(bytes) === "legacy-xls") return loadLegacyXls(bytes);
   const load = async (data: Buffer | ArrayBuffer | Uint8Array) => {
     const wb = new Workbook();
     const loadFn = wb.xlsx.load.bind(wb.xlsx) as (d: unknown) => Promise<unknown>;

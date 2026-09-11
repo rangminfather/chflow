@@ -9,12 +9,12 @@ import { Lock, CalendarPlus, UploadCloud, Check, ChevronRight, Pencil } from "lu
 import PdfCanvasViewer from "@/components/PdfCanvasViewer";
 import { PlanMonthView, type CardsData } from "@/components/MonthlyPlanCards";
 
-const ALLOWED_EXT = /\.(jpe?g|png|webp|gif|pdf|xlsx)$/i;
+const ALLOWED_EXT = /\.(jpe?g|png|webp|gif|pdf|xlsx?)$/i;
 const MAX_MB = 20;
 
 function isImageName(name: string) { return /\.(jpe?g|png|webp|gif)$/i.test(name); }
 function isPdfName(name: string) { return /\.pdf$/i.test(name); }
-function isXlsxName(name: string) { return /\.xlsx$/i.test(name); }
+function isExcelName(name: string) { return /\.xlsx?$/i.test(name); }
 
 export default function MonthlyPlanUploadPage() {
   const router = useRouter();
@@ -82,7 +82,7 @@ export default function MonthlyPlanUploadPage() {
   function pickFile(next: File | null) {
     if (!next) return;
     if (!ALLOWED_EXT.test(next.name)) {
-      setMessage("이미지·PDF·엑셀(.xlsx)만 올릴 수 있습니다. 한글(.hwp)·구형 엑셀(.xls)은 PDF로 저장해 올려주세요.");
+      setMessage("이미지·PDF·엑셀(.xls·.xlsx)만 올릴 수 있습니다. 한글(.hwp)은 PDF로 저장해 올려주세요.");
       return;
     }
     if (next.size > MAX_MB * 1024 * 1024) {
@@ -119,7 +119,7 @@ export default function MonthlyPlanUploadPage() {
       return;
     }
 
-    if (isXlsxName(fileName)) {
+    if (isExcelName(fileName)) {
       setStep(3);
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/login"); return; }
@@ -202,7 +202,7 @@ export default function MonthlyPlanUploadPage() {
               <div className="text-[13px] font-semibold text-ink-faint sm:block">또는 파일을 끌어다 놓기 (PC)</div>
               <input
                 type="file"
-                accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.xlsx,image/*,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.xls,.xlsx,image/*,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="hidden"
                 onChange={(e) => pickFile(e.target.files?.[0] || null)}
               />
@@ -212,8 +212,8 @@ export default function MonthlyPlanUploadPage() {
               <div className="font-bold text-ink-mid">올릴 수 있는 형식</div>
               <div>· 이미지(JPG·PNG) — 캡처해서 올리면 가장 깔끔합니다</div>
               <div>· PDF — 원본 그대로 보입니다</div>
-              <div>· 엑셀(.xlsx) — 표로 변환되어 보입니다</div>
-              <div className="mt-1 text-ink-faint">최대 {MAX_MB}MB · 한글(.hwp)·구형 엑셀(.xls)은 PDF로 저장해 올려주세요.</div>
+              <div>· 엑셀(.xls·.xlsx) — 표로 변환되어 보입니다</div>
+              <div className="mt-1 text-ink-faint">최대 {MAX_MB}MB · 한글(.hwp)은 PDF로 저장해 올려주세요.</div>
             </div>
 
             {message && <div className="mt-3 text-center text-[14px] font-bold text-danger">{message}</div>}
@@ -320,7 +320,7 @@ export default function MonthlyPlanUploadPage() {
                   <PdfCanvasViewer key={previewUrl} url={previewUrl} fallbackUrl={previewUrl} />
                 </div>
               )}
-              {isXlsxName(fileName) && (
+              {isExcelName(fileName) && (
                 <XlsxPreview cardData={cardData} html={xlsxHtml} err={previewErr} />
               )}
             </div>

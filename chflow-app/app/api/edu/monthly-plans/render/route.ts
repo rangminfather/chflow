@@ -1,5 +1,5 @@
 // GET /api/edu/monthly-plans/render?path={deptId}/{name}
-// .xlsx 파일을 exceljs로 파싱.
+// .xlsx 및 구형 .xls 파일을 공용 로더로 파싱.
 //  - format=cards: 초등1초원 양식(주일 = 행, 12열)을 월별 카드 데이터(JSON)로 반환.
 //                  양식이 안 맞으면 template:false + 표 HTML로 폴백.
 //  - 기본: 표 HTML(인라인 표출용) 반환 (legacy)
@@ -288,11 +288,15 @@ function yearFromPath(path: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
+function isExcelName(name: string) {
+  return /\.xlsx?$/i.test(name);
+}
+
 // GET: R2에 저장된 파일 렌더 (조회 화면용)
 export async function GET(req: NextRequest) {
   const path = req.nextUrl.searchParams.get("path") || "";
   const format = req.nextUrl.searchParams.get("format");
-  if (!path.endsWith(".xlsx")) {
+  if (!isExcelName(path)) {
     return NextResponse.json({ error: "지원하지 않는 형식" }, { status: 400 });
   }
   const deptId = path.split("/")[0];
@@ -325,7 +329,7 @@ export async function POST(req: NextRequest) {
   if (!deptId || !(file instanceof File)) {
     return NextResponse.json({ error: "필수값이 누락되었습니다" }, { status: 400 });
   }
-  if (!file.name.toLowerCase().endsWith(".xlsx")) {
+  if (!isExcelName(file.name)) {
     return NextResponse.json({ error: "지원하지 않는 형식" }, { status: 400 });
   }
 
