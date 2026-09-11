@@ -1455,7 +1455,7 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
       </div>
 
       {/* 모바일 전용(비편집): 3열 아이콘 그리드용 세로 타일 — 아이콘 위 + 라벨 아래
-          방송 상태 표시등은 항상 보이되(라이브 여부와 무관), 방송중일 때만 초록으로 강조한다 */}
+          "LIVE" 배지는 항상 보이되, 평소엔 빨간 점, 방송중엔 초록 점으로 구분한다 */}
       <div className="menu-tile">
         <div style={{ position: "relative" }}>
           <IconBox bg={menu.bg} size={34}>
@@ -1463,11 +1463,20 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
           </IconBox>
           {typeof live === "boolean" && (
             <span style={{
-              position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: "50%",
-              background: live ? "var(--success)" : "var(--ink-faint)",
-              border: "2px solid var(--card)",
-              boxShadow: live ? "0 0 0 3px color-mix(in srgb, var(--success) 25%, transparent)" : "none",
-            }} />
+              position: "absolute", top: -7, right: -12,
+              display: "inline-flex", alignItems: "center", gap: 3,
+              padding: "1.5px 5px", borderRadius: 999,
+              background: "var(--card)",
+              border: `1.5px solid ${live ? "var(--success)" : "var(--danger)"}`,
+              boxShadow: live ? "0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent)" : "none",
+              whiteSpace: "nowrap",
+            }}>
+              <span style={{
+                width: 5, height: 5, borderRadius: "50%",
+                background: live ? "var(--success)" : "var(--danger)",
+              }} />
+              <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: 0.3, color: live ? "var(--success)" : "var(--danger)" }}>LIVE</span>
+            </span>
           )}
         </div>
         <div className="kr-break" style={{ fontSize: 11, fontWeight: 700, color: T.text, lineHeight: 1.3 }}>
