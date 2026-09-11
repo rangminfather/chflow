@@ -1,15 +1,21 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, ChevronLeft, Search } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, X, LayoutGrid } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import BibleAttribution from "@/components/BibleAttribution";
+import ModalBackdrop from "@/components/ModalBackdrop";
+import { Spinner } from "@/components/StatusViews";
 import { supabase } from "@/lib/supabase";
 import { DEFAULT_BIBLE_VERSION, parseBibleVersions, type BibleVersion } from "@/lib/bible/versions";
 
-type Book = { book_id: number; name_ko: string; chapters: number };
+type Testament = "OT" | "NT";
+type Book = { book_id: number; name_ko: string; chapters: number; testament: Testament; book_order: number };
 type Verse = { chapter: number; verse: number; endVerse?: number; text: string };
+type PickerStep = "book" | "chapter";
+
+const SWIPE_MIN_DISTANCE = 60;
 
 export default function BiblePage() {
   const router = useRouter();
@@ -20,16 +26,24 @@ export default function BiblePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [version, setVersion] = useState<BibleVersion | null>(null);
+
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerStep, setPickerStep] = useState<PickerStep>("book");
+  const [pickerTestament, setPickerTestament] = useState<Testament>("OT");
+  const [slide, setSlide] = useState<"in-from-left" | "in-from-right" | null>(null);
+
   const book = books.find((item) => item.book_id === bookId);
+  const bookIndex = books.findIndex((item) => item.book_id === bookId);
+  const touchRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     void (async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) { router.replace("/login"); return; }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace("/login"); return; }
       const { data } = await supabase.rpc("list_bible_books");
       const list = (Array.isArray(data) ? data : []) as Book[];
       setBooks(list);
-      if (list[0]) setBookId(list[0].book_id);
+      if (list[0]) { setBookId(list[0].book_id); setPickerTestament(list[0].testament); }
 
       const { data: versionRows } = await supabase.rpc("list_bible_versions");
       const versions = parseBibleVersions(versionRows);
@@ -42,44 +56,447 @@ export default function BiblePage() {
     setChapter((current) => Math.min(current, book.chapters));
   }, [book]);
 
-  async function load() {
+  useEffect(() => {
     if (!book) return;
-    setLoading(true); setError("");
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) { router.replace("/login"); return; }
-    const response = await fetch(`/api/bible/reference?ref=${encodeURIComponent(`${book.name_ko} ${chapter}`)}`, {
-      headers: { Authorization: `Bearer ${sessionData.session.access_token}` }, cache: "no-store",
-    });
-    const payload = await response.json() as { ok?: boolean; rows?: Verse[]; error?: string };
-    if (!response.ok || !payload.ok) setError(payload.error || "성경 본문을 불러오지 못했습니다.");
-    else setVerses(payload.rows || []);
-    setLoading(false);
+    void (async () => {
+      setLoading(true); setError("");
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { router.replace("/login"); return; }
+      const response = await fetch(`/api/bible/reference?ref=${encodeURIComponent(`${book.name_ko} ${chapter}`)}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store",
+      });
+      const payload = await response.json() as { ok?: boolean; rows?: Verse[]; error?: string };
+      if (!response.ok || !payload.ok) setError(payload.error || "성경 본문을 불러오지 못했습니다.");
+      else setVerses(payload.rows || []);
+      setLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookId, chapter]);
+
+  const goTo = useCallback((nextBookId: number, nextChapter: number, direction: "next" | "prev") => {
+    setSlide(direction === "next" ? "in-from-right" : "in-from-left");
+    setBookId(nextBookId);
+    setChapter(nextChapter);
+  }, []);
+
+  const nextChapter = useCallback(() => {
+    if (!book) return;
+    if (chapter < book.chapters) { goTo(book.book_id, chapter + 1, "next"); return; }
+    const next = books[bookIndex + 1];
+    if (next) goTo(next.book_id, 1, "next");
+  }, [book, bookIndex, books, chapter, goTo]);
+
+  const prevChapter = useCallback(() => {
+    if (!book) return;
+    if (chapter > 1) { goTo(book.book_id, chapter - 1, "prev"); return; }
+    const prev = books[bookIndex - 1];
+    if (prev) goTo(prev.book_id, prev.chapters, "prev");
+  }, [book, bookIndex, books, chapter, goTo]);
+
+  const hasPrev = bookIndex > 0 || chapter > 1;
+  const hasNext = bookIndex < books.length - 1 || (book ? chapter < book.chapters : false);
+
+  function onTouchStart(e: TouchEvent<HTMLDivElement>) {
+    touchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }
+  function onTouchEnd(e: TouchEvent<HTMLDivElement>) {
+    const start = touchRef.current;
+    touchRef.current = null;
+    if (!start) return;
+    const dx = e.changedTouches[0].clientX - start.x;
+    const dy = e.changedTouches[0].clientY - start.y;
+    if (Math.abs(dx) < SWIPE_MIN_DISTANCE || Math.abs(dx) < Math.abs(dy) * 1.3) return;
+    if (dx < 0) nextChapter(); else prevChapter();
   }
 
-  useEffect(() => { void load(); }, [book, chapter]); // eslint-disable-line react-hooks/exhaustive-deps
+  const otBooks = useMemo(() => books.filter((b) => b.testament === "OT"), [books]);
+  const ntBooks = useMemo(() => books.filter((b) => b.testament === "NT"), [books]);
 
-  return <main style={{ minHeight: "100vh", background: "var(--bg)" }}>
-    <header style={{ minHeight: 64, display: "flex", alignItems: "center", gap: 12, padding: "0 16px", borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
-      <button aria-label="홈으로" onClick={() => router.push("/home")} style={iconButton}><ChevronLeft size={22} /></button>
-      <HeaderLogo /><div style={{ flex: 1 }}><strong>성경책</strong><div style={{ fontSize: 12, color: "var(--ink-soft)" }}>개역개정</div></div>
-    </header>
-    <div style={{ maxWidth: 760, margin: "0 auto", padding: 16 }}>
-      <div style={card}><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <select value={bookId} onChange={(e) => setBookId(Number(e.target.value))} style={select}>{books.map((item) => <option key={item.book_id} value={item.book_id}>{item.name_ko}</option>)}</select>
-        <select value={chapter} onChange={(e) => setChapter(Number(e.target.value))} style={select}>{Array.from({ length: book?.chapters || 1 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}장</option>)}</select>
-        <button onClick={() => void load()} style={button}><Search size={16} /> 읽기</button>
-      </div></div>
-      {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
-      <article style={{ ...card, marginTop: 12 }}>
-        <h1 style={{ marginTop: 0 }}><BookOpen size={20} style={{ verticalAlign: "middle", marginRight: 6 }} />{book?.name_ko} {chapter}장</h1>
-        {loading ? <p>본문을 불러오는 중입니다.</p> : verses.map((row) => <p key={`${row.chapter}-${row.verse}`} style={{ lineHeight: 1.9, margin: "0 0 10px" }}><b style={{ color: "var(--accent)", marginRight: 8 }}>{row.endVerse ? `${row.verse}-${row.endVerse}` : row.verse}</b>{row.text}</p>)}
-        <BibleAttribution slug={version?.copyright_slug} />
-      </article>
-    </div>
-  </main>;
+  function openPicker() {
+    if (book) setPickerTestament(book.testament);
+    setPickerStep("book");
+    setPickerOpen(true);
+  }
+
+  return (
+    <main style={pageStyle}>
+      <style>{`
+        @keyframes bibleSlideFromRight { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes bibleSlideFromLeft { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: translateX(0); } }
+      `}</style>
+
+      <header style={headerStyle}>
+        <button aria-label="홈으로" onClick={() => router.push("/home")} style={iconButtonStyle}><ChevronLeft size={22} /></button>
+        <HeaderLogo />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <strong style={{ fontSize: 15 }}>성경책</strong>
+          <div style={{ fontSize: 11.5, color: "var(--ink-soft)" }}>{version?.name_ko ?? "개역개정"}</div>
+        </div>
+      </header>
+
+      <div style={wrapStyle}>
+        <button onClick={openPicker} style={pickerTriggerStyle}>
+          <span style={testamentBadgeStyle}>{book?.testament === "NT" ? "신약" : "구약"}</span>
+          <span style={pickerTriggerLabelStyle}>{book?.name_ko ?? "…"} {chapter}장</span>
+          <LayoutGrid size={16} style={{ color: "var(--ink-faint)", marginLeft: "auto", flexShrink: 0 }} />
+        </button>
+
+        <div
+          style={readerCardStyle}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+        >
+          <div style={chapterNavStyle}>
+            <button onClick={prevChapter} disabled={!hasPrev} style={{ ...navButtonStyle, opacity: hasPrev ? 1 : 0.3 }} aria-label="이전 장">
+              <ChevronLeft size={20} />
+            </button>
+            <div style={chapterTitleWrapStyle}>
+              <BookOpen size={16} style={{ color: "var(--accent)" }} />
+              <h1 style={chapterTitleStyle}>{book?.name_ko} {chapter}장</h1>
+              {loading && <Spinner size={14} />}
+            </div>
+            <button onClick={nextChapter} disabled={!hasNext} style={{ ...navButtonStyle, opacity: hasNext ? 1 : 0.3 }} aria-label="다음 장">
+              <ChevronRight size={20} />
+            </button>
+          </div>
+
+          {error && <p style={{ color: "var(--danger)", fontSize: 13, padding: "0 4px" }}>{error}</p>}
+
+          <article
+            key={`${bookId}-${chapter}`}
+            style={{
+              ...verseListStyle,
+              animation: slide === "in-from-right" ? "bibleSlideFromRight 220ms ease-out"
+                : slide === "in-from-left" ? "bibleSlideFromLeft 220ms ease-out" : undefined,
+            }}
+          >
+            {!error && verses.map((row) => (
+              <p key={`${row.chapter}-${row.verse}`} style={verseRowStyle}>
+                <b style={verseNumStyle}>{row.endVerse ? `${row.verse}-${row.endVerse}` : row.verse}</b>
+                {row.text}
+              </p>
+            ))}
+          </article>
+
+          <div style={swipeHintStyle}>← 좌우로 넘기면 다음·이전 장 →</div>
+
+          <BibleAttribution slug={version?.copyright_slug} />
+        </div>
+      </div>
+
+      {pickerOpen && (
+        <BookPicker
+          step={pickerStep}
+          testament={pickerTestament}
+          otBooks={otBooks}
+          ntBooks={ntBooks}
+          currentBookId={bookId}
+          currentChapter={chapter}
+          onChangeTestament={setPickerTestament}
+          onPickBook={(id) => { setPickerStep("chapter"); setBookId(id); setSlide(null); }}
+          onBackToBooks={() => setPickerStep("book")}
+          onPickChapter={(c) => { setChapter(c); setSlide(null); setPickerOpen(false); }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+    </main>
+  );
 }
 
-const card: CSSProperties = { background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 14, padding: 16 };
-const select: CSSProperties = { minHeight: 42, flex: "1 1 150px", borderRadius: 9, border: "1px solid var(--line)", padding: "0 10px", background: "var(--card)", color: "var(--ink)" };
-const button: CSSProperties = { minHeight: 42, border: 0, borderRadius: 9, padding: "0 14px", background: "var(--accent)", color: "white", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 };
-const iconButton: CSSProperties = { border: 0, background: "transparent", color: "var(--ink)", padding: 8 };
+function BookPicker({
+  step, testament, otBooks, ntBooks, currentBookId, currentChapter,
+  onChangeTestament, onPickBook, onBackToBooks, onPickChapter, onClose,
+}: {
+  step: PickerStep;
+  testament: Testament;
+  otBooks: Book[];
+  ntBooks: Book[];
+  currentBookId: number;
+  currentChapter: number;
+  onChangeTestament: (t: Testament) => void;
+  onPickBook: (bookId: number) => void;
+  onBackToBooks: () => void;
+  onPickChapter: (chapter: number) => void;
+  onClose: () => void;
+}) {
+  const list = testament === "OT" ? otBooks : ntBooks;
+  const currentBook = [...otBooks, ...ntBooks].find((b) => b.book_id === currentBookId);
+
+  return (
+    <ModalBackdrop onClose={onClose} style={{ zIndex: 200, alignItems: "flex-end" }}>
+      <div onClick={(e) => e.stopPropagation()} style={sheetStyle}>
+        <div style={sheetHeaderStyle}>
+          {step === "chapter" ? (
+            <button onClick={onBackToBooks} style={sheetBackButtonStyle}><ChevronLeft size={18} /> 책 목록</button>
+          ) : (
+            <h2 style={sheetTitleStyle}>책 선택</h2>
+          )}
+          <button onClick={onClose} style={sheetCloseStyle} aria-label="닫기"><X size={18} /></button>
+        </div>
+
+        {step === "book" && (
+          <>
+            <div style={testamentTabRowStyle}>
+              <button
+                onClick={() => onChangeTestament("OT")}
+                style={{ ...testamentTabStyle, ...(testament === "OT" ? testamentTabActiveStyle : {}) }}
+              >
+                구약 <span style={testamentCountStyle}>{otBooks.length}</span>
+              </button>
+              <button
+                onClick={() => onChangeTestament("NT")}
+                style={{ ...testamentTabStyle, ...(testament === "NT" ? testamentTabActiveStyle : {}) }}
+              >
+                신약 <span style={testamentCountStyle}>{ntBooks.length}</span>
+              </button>
+            </div>
+            <div style={sheetScrollStyle}>
+              <div style={bookGridStyle}>
+                {list.map((b) => (
+                  <button
+                    key={b.book_id}
+                    onClick={() => onPickBook(b.book_id)}
+                    style={{ ...gridItemStyle, ...(b.book_id === currentBookId ? gridItemActiveStyle : {}) }}
+                  >
+                    {b.name_ko}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {step === "chapter" && currentBook && (
+          <>
+            <div style={chapterPickerHeadStyle}>{currentBook.name_ko}</div>
+            <div style={sheetScrollStyle}>
+              <div style={chapterGridStyle}>
+                {Array.from({ length: currentBook.chapters }, (_, i) => i + 1).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => onPickChapter(c)}
+                    style={{ ...gridItemStyle, ...chapterItemStyle, ...(c === currentChapter ? gridItemActiveStyle : {}) }}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </ModalBackdrop>
+  );
+}
+
+const pageStyle: CSSProperties = { minHeight: "100vh", background: "var(--bg)" };
+
+const headerStyle: CSSProperties = {
+  minHeight: 60,
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "0 14px",
+  borderBottom: "1px solid var(--hairline)",
+  background: "var(--surface)",
+  position: "sticky",
+  top: 0,
+  zIndex: 10,
+};
+
+const iconButtonStyle: CSSProperties = { border: 0, background: "transparent", color: "var(--ink)", padding: 8, cursor: "pointer" };
+
+const wrapStyle: CSSProperties = { maxWidth: 760, margin: "0 auto", padding: 14 };
+
+const pickerTriggerStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  width: "100%",
+  padding: "12px 14px",
+  marginBottom: 10,
+  background: "var(--surface)",
+  border: "1px solid var(--hairline-strong)",
+  borderRadius: 10,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+const testamentBadgeStyle: CSSProperties = {
+  fontSize: 10.5,
+  fontWeight: 800,
+  color: "var(--accent)",
+  background: "var(--accent-soft)",
+  padding: "3px 8px",
+  borderRadius: 999,
+  flexShrink: 0,
+};
+
+const pickerTriggerLabelStyle: CSSProperties = { fontSize: 15, fontWeight: 800, color: "var(--ink)" };
+
+const readerCardStyle: CSSProperties = {
+  background: "var(--surface)",
+  border: "1px solid var(--hairline)",
+  borderRadius: 14,
+  padding: 16,
+  touchAction: "pan-y",
+};
+
+const chapterNavStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  marginBottom: 12,
+};
+
+const navButtonStyle: CSSProperties = {
+  display: "grid",
+  placeItems: "center",
+  width: 36,
+  height: 36,
+  flexShrink: 0,
+  border: "1px solid var(--hairline-strong)",
+  background: "var(--card)",
+  color: "var(--ink-mid)",
+  borderRadius: 8,
+  cursor: "pointer",
+};
+
+const chapterTitleWrapStyle: CSSProperties = {
+  flex: 1,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 7,
+  minWidth: 0,
+};
+
+const chapterTitleStyle: CSSProperties = { margin: 0, fontSize: 17, fontWeight: 800, color: "var(--ink)", whiteSpace: "nowrap" };
+
+const verseListStyle: CSSProperties = { minHeight: 120 };
+
+const verseRowStyle: CSSProperties = { lineHeight: 1.9, margin: "0 0 12px", fontSize: 15, color: "var(--ink)" };
+
+const verseNumStyle: CSSProperties = {
+  display: "inline-flex",
+  minWidth: 20,
+  color: "var(--accent)",
+  fontWeight: 800,
+  marginRight: 8,
+};
+
+const swipeHintStyle: CSSProperties = {
+  textAlign: "center",
+  fontSize: 11,
+  color: "var(--ink-faint)",
+  marginTop: 4,
+};
+
+const sheetStyle: CSSProperties = {
+  width: "100%",
+  maxWidth: 520,
+  maxHeight: "82vh",
+  background: "var(--card)",
+  borderRadius: "16px 16px 0 0",
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+};
+
+const sheetHeaderStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+  padding: "14px 16px",
+  borderBottom: "1px solid var(--hairline)",
+};
+
+const sheetTitleStyle: CSSProperties = { margin: 0, fontSize: 15, fontWeight: 800, color: "var(--ink)" };
+
+const sheetBackButtonStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 2,
+  fontSize: 13,
+  fontWeight: 700,
+  color: "var(--ink-mid)",
+  background: "transparent",
+  border: 0,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  padding: 0,
+};
+
+const sheetCloseStyle: CSSProperties = {
+  display: "grid",
+  placeItems: "center",
+  width: 28,
+  height: 28,
+  background: "var(--surface)",
+  color: "var(--ink-mid)",
+  border: "1px solid var(--hairline-strong)",
+  borderRadius: 999,
+  cursor: "pointer",
+};
+
+const testamentTabRowStyle: CSSProperties = { display: "flex", gap: 8, padding: "12px 16px 0" };
+
+const testamentTabStyle: CSSProperties = {
+  flex: 1,
+  padding: "9px 0",
+  borderRadius: 8,
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: "var(--hairline-strong)",
+  background: "var(--surface)",
+  color: "var(--ink-soft)",
+  fontSize: 13,
+  fontWeight: 800,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+const testamentTabActiveStyle: CSSProperties = {
+  background: "var(--accent-soft)",
+  borderColor: "var(--accent-line)",
+  color: "var(--accent-strong)",
+};
+
+const testamentCountStyle: CSSProperties = { fontSize: 11, opacity: 0.7, marginLeft: 3 };
+
+const sheetScrollStyle: CSSProperties = { padding: 16, overflowY: "auto" };
+
+const bookGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 };
+
+const chapterGridStyle: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 };
+
+const gridItemStyle: CSSProperties = {
+  padding: "10px 4px",
+  borderRadius: 8,
+  borderWidth: 1,
+  borderStyle: "solid",
+  borderColor: "var(--hairline-strong)",
+  background: "var(--surface)",
+  color: "var(--ink)",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontFamily: "inherit",
+  textAlign: "center",
+};
+
+const chapterItemStyle: CSSProperties = { padding: "10px 0" };
+
+const gridItemActiveStyle: CSSProperties = {
+  background: "var(--accent)",
+  borderColor: "var(--accent)",
+  color: "#fff",
+};
+
+const chapterPickerHeadStyle: CSSProperties = {
+  padding: "12px 16px 0",
+  fontSize: 13,
+  fontWeight: 800,
+  color: "var(--ink-soft)",
+};
