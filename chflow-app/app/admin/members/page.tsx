@@ -84,6 +84,7 @@ function AdminMembersPage() {
   const [filterPasture, setFilterPasture] = useState(searchParams.get("pasture") || "");
   const [memberStatus, setMemberStatus] = useState<"active" | "inactive" | "all">("active");
   const [accountState, setAccountState] = useState<"active" | "withdrawn" | "all">("active");
+  const [appMembership, setAppMembership] = useState<"all" | "joined" | "not_joined">("all");
   const [showChildren, setShowChildren] = useState(true);
   const [showParents, setShowParents] = useState(true);
 
@@ -104,7 +105,7 @@ function AdminMembersPage() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
 
-  const doSearch = useCallback(async (p: number, q: string, plain: string, grass: string, past: string, status: "active" | "inactive" | "all", account: "active" | "withdrawn" | "all", showCh: boolean, showPa: boolean) => {
+  const doSearch = useCallback(async (p: number, q: string, plain: string, grass: string, past: string, status: "active" | "inactive" | "all", account: "active" | "withdrawn" | "all", appStatus: "all" | "joined" | "not_joined", showCh: boolean, showPa: boolean) => {
     setLoading(true);
     const { data, error } = await supabase.rpc("admin_search_members_paged", {
       p_query: q || null,
@@ -117,6 +118,7 @@ function AdminMembersPage() {
       p_show_parents: showPa,
       p_member_status: status,
       p_account_state: account,
+      p_app_membership: appStatus,
     });
     if (!error && data) {
       setMembers(data);
@@ -142,12 +144,12 @@ function AdminMembersPage() {
       const initGrass = searchParams.get("grassland") || "";
       const initPast = searchParams.get("pasture") || "";
       const initQuery = searchParams.get("q") || "";
-      doSearch(1, initQuery, initPlain, initGrass, initPast, "active", "active", true, true);
+      doSearch(1, initQuery, initPlain, initGrass, initPast, "active", "active", "all", true, true);
     })();
   }, [doSearch, router, searchParams]);
 
-  const runSearch = () => { setPage(1); doSearch(1, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, showChildren, showParents); };
-  const goPage = (p: number) => { setPage(p); doSearch(p, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, showChildren, showParents); };
+  const runSearch = () => { setPage(1); doSearch(1, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, appMembership, showChildren, showParents); };
+  const goPage = (p: number) => { setPage(p); doSearch(p, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, appMembership, showChildren, showParents); };
 
   // 평원 목록 (dirTree에서 동적, 미지정 평원도 자동 노출)
   const plainOptions = useMemo(() => {
@@ -217,7 +219,7 @@ function AdminMembersPage() {
       if (relErr) { alert(`회원은 수정됐으나 부모 관계 등록 실패: ${relErr.message}`); }
     }
     setEditing(null);
-    doSearch(page, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, showChildren, showParents);
+    doSearch(page, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, appMembership, showChildren, showParents);
   };
 
   const handleDelete = async () => {
@@ -225,7 +227,7 @@ function AdminMembersPage() {
     const { error } = await supabase.rpc("admin_delete_member", { p_member_id: deleting.id });
     if (error) { alert(`삭제 실패: ${error.message}`); return; }
     setDeleting(null);
-    doSearch(page, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, showChildren, showParents);
+    doSearch(page, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, appMembership, showChildren, showParents);
   };
 
   if (!authChecked) {
@@ -293,7 +295,7 @@ function AdminMembersPage() {
                 const v = e.target.value as "active" | "inactive" | "all";
                 setMemberStatus(v);
                 setPage(1);
-                doSearch(1, query, filterPlain, filterGrassland, filterPasture, v, accountState, showChildren, showParents);
+                doSearch(1, query, filterPlain, filterGrassland, filterPasture, v, accountState, appMembership, showChildren, showParents);
               }}
               style={{ ...selectStyle, minWidth: 130 }}>
               <option value="active">현재 회원</option>
@@ -305,17 +307,29 @@ function AdminMembersPage() {
                 const v = e.target.value as "active" | "withdrawn" | "all";
                 setAccountState(v);
                 setPage(1);
-                doSearch(1, query, filterPlain, filterGrassland, filterPasture, memberStatus, v, showChildren, showParents);
+                doSearch(1, query, filterPlain, filterGrassland, filterPasture, memberStatus, v, appMembership, showChildren, showParents);
               }}
               style={{ ...selectStyle, minWidth: 130 }}>
               <option value="active">정상 계정</option>
               <option value="withdrawn">탈퇴 회원</option>
               <option value="all">계정 전체</option>
             </select>
+            <select value={appMembership}
+              onChange={(e) => {
+                const v = e.target.value as "all" | "joined" | "not_joined";
+                setAppMembership(v);
+                setPage(1);
+                doSearch(1, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, v, showChildren, showParents);
+              }}
+              style={{ ...selectStyle, minWidth: 140 }}>
+              <option value="all">앱 가입 전체</option>
+              <option value="joined">앱 가입 회원만</option>
+              <option value="not_joined">앱 미가입 회원만</option>
+            </select>
             <button onClick={runSearch} disabled={loading} style={{ ...btnPrimary, display: "inline-flex", alignItems: "center", gap: 6 }}>
               {loading ? "조회 중..." : <><Search size={14} strokeWidth={1.8} /> 검색</>}
             </button>
-            <button onClick={() => { setQuery(""); setFilterPlain(""); setFilterGrassland(""); setFilterPasture(""); setMemberStatus("active"); setAccountState("active"); setShowChildren(true); setShowParents(true); setPage(1); doSearch(1, "", "", "", "", "active", "active", true, true); }}
+            <button onClick={() => { setQuery(""); setFilterPlain(""); setFilterGrassland(""); setFilterPasture(""); setMemberStatus("active"); setAccountState("active"); setAppMembership("all"); setShowChildren(true); setShowParents(true); setPage(1); doSearch(1, "", "", "", "", "active", "active", "all", true, true); }}
               style={btnGhost}>초기화</button>
           </div>
           <div style={{ display: "flex", gap: 16, marginTop: 10, alignItems: "center", fontSize: 12, color: "var(--ink-mid)" }}>
@@ -327,7 +341,7 @@ function AdminMembersPage() {
                   const v = e.target.checked;
                   setShowParents(v);
                   setPage(1);
-                  doSearch(1, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, showChildren, v);
+                  doSearch(1, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, appMembership, showChildren, v);
                 }}
               />
               부모 보기
@@ -340,7 +354,7 @@ function AdminMembersPage() {
                   const v = e.target.checked;
                   setShowChildren(v);
                   setPage(1);
-                  doSearch(1, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, v, showParents);
+                  doSearch(1, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, appMembership, v, showParents);
                 }}
               />
               자녀 보기
@@ -452,7 +466,7 @@ function AdminMembersPage() {
           plainOptions={plainOptions}
           plainLabel={plainLabel}
           onClose={() => setCreating(false)}
-          onCreated={() => { setCreating(false); doSearch(page, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, showChildren, showParents); }}
+          onCreated={() => { setCreating(false); doSearch(page, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, appMembership, showChildren, showParents); }}
         />
       )}
 
@@ -461,7 +475,7 @@ function AdminMembersPage() {
         <MemberCardModal
           memberId={cardMemberId}
           onClose={() => setCardMemberId(null)}
-          onChanged={() => doSearch(page, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, showChildren, showParents)}
+          onChanged={() => doSearch(page, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, appMembership, showChildren, showParents)}
         />
       )}
 
@@ -472,7 +486,7 @@ function AdminMembersPage() {
       {importing && (
         <ImportMembersModal
           onClose={() => setImporting(false)}
-          onApplied={() => doSearch(page, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, showChildren, showParents)}
+          onApplied={() => doSearch(page, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, appMembership, showChildren, showParents)}
         />
       )}
     </div>
