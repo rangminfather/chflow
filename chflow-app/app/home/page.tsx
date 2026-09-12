@@ -363,22 +363,25 @@ export default function HomePage() {
         .menu-row { display: contents; }
         .menu-tile { display: none; flex-direction: column; align-items: center; text-align: center; gap: 6px; width: 100%; }
         .home-live-strip {
-          position: absolute; left: 9px; right: 9px; bottom: 7px; height: 17px;
+          position: absolute; left: 9px; right: 9px; bottom: 5px; height: 17px;
           display: flex; align-items: center; overflow: hidden;
           border-radius: 999px; padding: 0 7px;
           background: color-mix(in srgb, var(--danger) 11%, transparent);
           color: var(--danger); font-size: 8px; font-weight: 800; letter-spacing: 0.25px;
         }
         .home-live-ticker {
-          display: inline-flex; align-items: center; gap: 5px; min-width: max-content;
-          white-space: nowrap; animation: home-live-ticker 11s linear infinite;
+          display: inline-flex; align-items: center; min-width: max-content;
+          white-space: nowrap; animation: home-live-ticker 12s linear infinite;
+        }
+        .home-live-ticker-copy {
+          display: inline-flex; align-items: center; gap: 5px; padding-right: 32px;
         }
         .home-live-dot {
           width: 5px; height: 5px; flex: 0 0 auto; border-radius: 50%; background: currentColor;
         }
         @keyframes home-live-ticker {
-          from { transform: translateX(105%); }
-          to { transform: translateX(-105%); }
+          from { transform: translateX(0); }
+          to { transform: translateX(-33.3333%); }
         }
         @media (prefers-reduced-motion: reduce) {
           .home-live-ticker { animation: none; }
@@ -1115,7 +1118,6 @@ function CommonMenuSection({ isAdmin, livePreview, canUseFacility: facilityAllow
             router={router}
             compact={options.compact}
             live={groupId === "common" && m.id === "live" ? (isAdmin && livePreview ? true : liveOn) : undefined}
-            livePreview={groupId === "common" && m.id === "live" && isAdmin && livePreview}
             editing={editingFlag}
             menuHidden={m.hidden}
             dragging={draggingKey === `${groupId}:${m.id}`}
@@ -1300,12 +1302,11 @@ function CommonMenuSection({ isAdmin, livePreview, canUseFacility: facilityAllow
   );
 }
 
-function MenuCard({ menu, router, compact, live, livePreview, editing, menuHidden, onEdit, onDragHandle, dragging, cardRef }: {
+function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, onDragHandle, dragging, cardRef }: {
   menu: CommonMenu;
   router: RouterType;
   compact?: boolean;
   live?: boolean | null;
-  livePreview?: boolean;
   editing?: boolean;
   menuHidden?: boolean;
   onEdit?: () => void;
@@ -1408,7 +1409,7 @@ function MenuCard({ menu, router, compact, live, livePreview, editing, menuHidde
       title={onDragHandle ? "PC: 카드를 드래그 · 모바일: 길게 누른 뒤 드래그 · 탭하면 이름·숨김 수정" : undefined}
       style={{
         position: "relative",
-        minHeight: typeof live === "boolean" ? (compact ? 78 : 88) : (compact ? 58 : 68),
+        minHeight: typeof live === "boolean" ? (compact ? 96 : 104) : (compact ? 58 : 68),
         borderRadius: 14,
         background: "var(--card)",
         border: `1px solid ${dragging ? "var(--accent)" : "var(--hairline)"}`,
@@ -1487,7 +1488,11 @@ function MenuCard({ menu, router, compact, live, livePreview, editing, menuHidde
       {typeof live === "boolean" && (
         <div className="home-live-strip" role="status" aria-label={live ? "실시간 예배 진행 중" : "실시간 예배 없음"}>
           {live ? (
-            <span className="home-live-ticker"><span className="home-live-dot" />{livePreview ? "LIVE 미리보기 · 알림 없이 화면만 확인 중입니다 · " : "LIVE · "}지금 실시간 예배가 진행 중입니다 · 예배에 참여하세요</span>
+            <span className="home-live-ticker">
+              {[0, 1, 2].map((copy) => (
+                <span className="home-live-ticker-copy" key={copy}><span className="home-live-dot" />LIVE · 지금 실시간 예배가 진행 중입니다 · 예배에 참여하세요</span>
+              ))}
+            </span>
           ) : (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="home-live-dot" />OFF AIR · 현재 실시간 예배가 없습니다</span>
           )}
