@@ -192,12 +192,23 @@ export default function AdminLiveStatusPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [livePreview, setLivePreview] = useState(false);
   // 렌더 중 Date.now() 를 부르지 않기 위해 조회 시각을 상태로 들고 간다
   const [nowMs, setNowMs] = useState(0);
   const loadInFlightRef = useRef(false);
   // 자동 새로고침이 '더 보기'로 펼쳐 둔 범위·필터를 되돌리지 않도록 최신 값을 참조로 읽는다
   const viewRef = useRef({ filterKey, limit, periodKey, fromDate, toDate });
   viewRef.current = { filterKey, limit, periodKey, fromDate, toDate };
+
+  useEffect(() => {
+    try { setLivePreview(window.sessionStorage.getItem("chflow-live-preview") === "1"); } catch {}
+  }, []);
+
+  const toggleLivePreview = () => {
+    const next = !livePreview;
+    try { window.sessionStorage.setItem("chflow-live-preview", next ? "1" : "0"); } catch {}
+    setLivePreview(next);
+  };
 
   const load = useCallback(async (isRefresh = false) => {
     if (loadInFlightRef.current || document.visibilityState !== "visible") return;
@@ -349,6 +360,10 @@ export default function AdminLiveStatusPage() {
           <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>실시간 예배 점검</div>
           <div style={{ fontSize: 11, color: "var(--ink-soft)", marginTop: 1 }}>감지·알림이 정상인지 확인</div>
         </div>
+        <button onClick={toggleLivePreview} style={{ ...btnStyle, fontSize: 11, color: livePreview ? "var(--danger)" : undefined }} aria-pressed={livePreview}>
+          <Radio size={14} strokeWidth={1.9} />
+          <span style={{ marginLeft: 4 }}>{livePreview ? "LIVE 미리보기 끄기" : "LIVE 미리보기"}</span>
+        </button>
         <button onClick={() => load(true)} disabled={refreshing} style={btnStyle} aria-label="새로고침">
           <RefreshCw size={15} strokeWidth={1.9} style={refreshing ? { opacity: 0.45 } : undefined} />
         </button>

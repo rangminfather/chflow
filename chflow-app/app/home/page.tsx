@@ -249,6 +249,7 @@ export default function HomePage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
   const [showExitToast, setShowExitToast] = useState(false);
+  const [livePreview, setLivePreview] = useState(false);
   // 관리자가 바꾼 메인메뉴 이름·순서·숨김 (전 성도 공통) — 실패 시 기본 메뉴 그대로
   const [menuConfig, setMenuConfig] = useState<HomeMenuConfig>(EMPTY_HOME_MENU_CONFIG);
 
@@ -265,6 +266,7 @@ export default function HomePage() {
       }
       setUser(profile);
       setAuthChecked(true);
+      try { setLivePreview(window.sessionStorage.getItem("chflow-live-preview") === "1"); } catch {}
 
       // 일일 방문 기록은 GlobalNotifications(전역)에서 처리 — 어떤 경로로 들어와도 집계됨
 
@@ -481,6 +483,7 @@ export default function HomePage() {
 
             <CommonMenuSection
               isAdmin={isAdmin}
+              livePreview={livePreview}
               canUseFacility={canUseFacility(user.sub_role, user.role)}
               canEditMenu={user.role === "admin"}
               router={router}
@@ -892,8 +895,9 @@ function MyMokjangSection({ user }: { user: UserInfo }) {
 // =============================================================
 // 3) 공통 메뉴
 // =============================================================
-function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMenu, router, menuConfig, onMenuConfigChange }: {
+function CommonMenuSection({ isAdmin, livePreview, canUseFacility: facilityAllowed, canEditMenu, router, menuConfig, onMenuConfigChange }: {
   isAdmin: boolean;
+  livePreview: boolean;
   /** 시설 사용신청 자격 — 없으면 그 카드를 아예 띄우지 않는다 */
   canUseFacility: boolean;
   canEditMenu: boolean;
@@ -1110,7 +1114,8 @@ function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMe
             menu={m}
             router={router}
             compact={options.compact}
-            live={groupId === "common" && m.id === "live" ? liveOn : undefined}
+            live={groupId === "common" && m.id === "live" ? (isAdmin && livePreview ? true : liveOn) : undefined}
+            livePreview={groupId === "common" && m.id === "live" && isAdmin && livePreview}
             editing={editingFlag}
             menuHidden={m.hidden}
             dragging={draggingKey === `${groupId}:${m.id}`}
@@ -1295,11 +1300,12 @@ function CommonMenuSection({ isAdmin, canUseFacility: facilityAllowed, canEditMe
   );
 }
 
-function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, onDragHandle, dragging, cardRef }: {
+function MenuCard({ menu, router, compact, live, livePreview, editing, menuHidden, onEdit, onDragHandle, dragging, cardRef }: {
   menu: CommonMenu;
   router: RouterType;
   compact?: boolean;
   live?: boolean | null;
+  livePreview?: boolean;
   editing?: boolean;
   menuHidden?: boolean;
   onEdit?: () => void;
@@ -1481,7 +1487,7 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
       {typeof live === "boolean" && (
         <div className="home-live-strip" role="status" aria-label={live ? "실시간 예배 진행 중" : "실시간 예배 없음"}>
           {live ? (
-            <span className="home-live-ticker"><span className="home-live-dot" />LIVE · 지금 실시간 예배가 진행 중입니다 · 예배에 참여하세요</span>
+            <span className="home-live-ticker"><span className="home-live-dot" />{livePreview ? "LIVE 미리보기 · 알림 없이 화면만 확인 중입니다 · " : "LIVE · "}지금 실시간 예배가 진행 중입니다 · 예배에 참여하세요</span>
           ) : (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="home-live-dot" />OFF AIR · 현재 실시간 예배가 없습니다</span>
           )}
