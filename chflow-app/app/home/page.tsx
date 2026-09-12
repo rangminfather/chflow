@@ -360,7 +360,27 @@ export default function HomePage() {
         /* 공통메뉴 카드의 두 레이아웃(가로 행 / 세로 타일) — 기본은 항상 "행" */
         .menu-row { display: contents; }
         .menu-tile { display: none; flex-direction: column; align-items: center; text-align: center; gap: 6px; width: 100%; }
-        .menu-tile-badge { display: none; }
+        .home-live-strip {
+          position: absolute; left: 9px; right: 9px; bottom: 7px; height: 17px;
+          display: flex; align-items: center; overflow: hidden;
+          border-radius: 999px; padding: 0 7px;
+          background: color-mix(in srgb, var(--danger) 11%, transparent);
+          color: var(--danger); font-size: 8px; font-weight: 800; letter-spacing: 0.25px;
+        }
+        .home-live-ticker {
+          display: inline-flex; align-items: center; gap: 5px; min-width: max-content;
+          white-space: nowrap; animation: home-live-ticker 11s linear infinite;
+        }
+        .home-live-dot {
+          width: 5px; height: 5px; flex: 0 0 auto; border-radius: 50%; background: currentColor;
+        }
+        @keyframes home-live-ticker {
+          from { transform: translateX(105%); }
+          to { transform: translateX(-105%); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .home-live-ticker { animation: none; }
+        }
         /* 내 사역·목장의 두 레이아웃(풀와이드 목록 / 가로 스크롤 칩) — 기본은 항상 "목록" */
         .ministry-list, .pasture-list { display: contents; }
         .ministry-chip-mobile, .pasture-chip-mobile { display: none; }
@@ -376,7 +396,6 @@ export default function HomePage() {
           /* 편집모드(관리자)에서는 모바일에서도 기존 행/목록 그대로 — 드래그·수정 UI 보존 */
           .home-menu-grid:not(.editing) .menu-row { display: none !important; }
           .home-menu-grid:not(.editing) .menu-tile { display: flex !important; }
-          .home-menu-grid:not(.editing) .menu-tile-badge { display: inline-flex !important; }
           .ministry-list:not(.editing) { display: none !important; }
           .pasture-list:not(.editing) { display: none !important; }
           .ministry-chip-mobile, .pasture-chip-mobile { display: flex !important; }
@@ -1383,7 +1402,7 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
       title={onDragHandle ? "PC: 카드를 드래그 · 모바일: 길게 누른 뒤 드래그 · 탭하면 이름·숨김 수정" : undefined}
       style={{
         position: "relative",
-        minHeight: compact ? 58 : 68,
+        minHeight: typeof live === "boolean" ? (compact ? 78 : 88) : (compact ? 58 : 68),
         borderRadius: 14,
         background: "var(--card)",
         border: `1px solid ${dragging ? "var(--accent)" : "var(--hairline)"}`,
@@ -1430,25 +1449,6 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
             }}>{menu.label}</div>
           </SafeGrow>
           {/* 방송 상태 표시등 — 글씨 아래가 아니라 카드 오른쪽 끝, 세로 중앙에 둔다 */}
-          {typeof live === "boolean" && (
-            <span style={{
-              flexShrink: 0, alignSelf: "center",
-              display: "inline-flex", alignItems: "center", gap: 4,
-              padding: "3px 8px", borderRadius: 999,
-              background: live
-                ? "color-mix(in srgb, var(--success) 16%, transparent)"
-                : "color-mix(in srgb, var(--danger) 14%, transparent)",
-              color: live ? "var(--success)" : "var(--danger)",
-              fontSize: 9, fontWeight: 800, letterSpacing: 0.6, whiteSpace: "nowrap",
-            }}>
-              <span style={{
-                width: 6, height: 6, borderRadius: "50%",
-                background: live ? "var(--success)" : "var(--danger)",
-                boxShadow: live ? "0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent)" : "none",
-              }} />
-              {live ? "ON AIR" : "OFF AIR"}
-            </span>
-          )}
           {editing && menuHidden && (
             <span className="safe-shrink-0" style={{
               alignSelf: "center", display: "inline-flex", alignItems: "center", gap: 3,
@@ -1479,21 +1479,13 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
 
       {/* LIVE 배지 (모바일 그리드 타일 전용) — 카드 자체의 우상단에 딱 붙여 표시한다 */}
       {typeof live === "boolean" && (
-        <span className="menu-tile-badge" style={{
-          position: "absolute", top: 6, right: 6,
-          alignItems: "center", gap: 3,
-          padding: "1.5px 5px", borderRadius: 999,
-          background: "var(--card)",
-          border: `1.5px solid ${live ? "var(--success)" : "var(--danger)"}`,
-          boxShadow: live ? "0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent)" : "none",
-          whiteSpace: "nowrap",
-        }}>
-          <span style={{
-            width: 5, height: 5, borderRadius: "50%",
-            background: live ? "var(--success)" : "var(--danger)",
-          }} />
-          <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: 0.3, color: live ? "var(--success)" : "var(--danger)" }}>LIVE</span>
-        </span>
+        <div className="home-live-strip" role="status" aria-label={live ? "실시간 예배 진행 중" : "실시간 예배 없음"}>
+          {live ? (
+            <span className="home-live-ticker"><span className="home-live-dot" />LIVE · 지금 실시간 예배가 진행 중입니다 · 예배에 참여하세요</span>
+          ) : (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="home-live-dot" />OFF AIR · 현재 실시간 예배가 없습니다</span>
+          )}
+        </div>
       )}
     </SafeCard>
   );
