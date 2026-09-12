@@ -322,7 +322,7 @@ function AdminMembersPage() {
                 doSearch(1, query, filterPlain, filterGrassland, filterPasture, memberStatus, accountState, v, showChildren, showParents);
               }}
               style={{ ...selectStyle, minWidth: 140 }}>
-              <option value="all">앱 가입 전체</option>
+              <option value="all">회원 전체</option>
               <option value="joined">앱 가입 회원만</option>
               <option value="not_joined">앱 미가입 회원만</option>
             </select>
