@@ -363,11 +363,16 @@ export default function HomePage() {
         .menu-row { display: contents; }
         .menu-tile { display: none; flex-direction: column; align-items: center; text-align: center; gap: 6px; width: 100%; }
         .home-live-strip {
-          position: absolute; left: 9px; right: 9px; bottom: 5px; height: 17px;
+          position: absolute; left: 0; right: 0; bottom: 0; height: 19px;
           display: flex; align-items: center; overflow: hidden;
-          border-radius: 999px; padding: 0 7px;
-          background: color-mix(in srgb, var(--danger) 11%, transparent);
-          color: var(--danger); font-size: 8px; font-weight: 800; letter-spacing: 0.25px;
+          border-radius: 0; padding: 0 10px;
+          background: color-mix(in srgb, var(--success) 15%, transparent);
+          color: var(--success); font-size: 8px; font-weight: 800; letter-spacing: 0.25px;
+        }
+        .home-live-off-indicator {
+          position: absolute; left: 10px; bottom: 7px;
+          display: inline-flex; align-items: center; gap: 5px;
+          color: var(--danger); font-size: 8px; font-weight: 800; letter-spacing: 0.35px;
         }
         .home-live-ticker {
           display: inline-flex; align-items: center; min-width: max-content;
@@ -1420,6 +1425,7 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
         userSelect: onDragHandle ? "none" : undefined,
         WebkitUserSelect: onDragHandle ? "none" : undefined,
         WebkitTouchCallout: onDragHandle ? "none" : undefined,
+        overflow: "hidden",
       }}
       onMouseOver={(e) => {
         if (dragging) return;
@@ -1486,17 +1492,19 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
 
       {/* LIVE 배지 (모바일 그리드 타일 전용) — 카드 자체의 우상단에 딱 붙여 표시한다 */}
       {typeof live === "boolean" && (
-        <div className="home-live-strip" role="status" aria-label={live ? "실시간 예배 진행 중" : "실시간 예배 없음"}>
+        <>
           {live ? (
+            <div className="home-live-strip" role="status" aria-label="실시간 예배 진행 중">
             <span className="home-live-ticker">
               {[0, 1, 2].map((copy) => (
                 <span className="home-live-ticker-copy" key={copy}><span className="home-live-dot" />LIVE · 지금 실시간 예배가 진행 중입니다 · 예배에 참여하세요</span>
               ))}
             </span>
+            </div>
           ) : (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span className="home-live-dot" />OFF AIR · 현재 실시간 예배가 없습니다</span>
+            <div className="home-live-off-indicator" role="status" aria-label="실시간 예배 없음"><span className="home-live-dot" />LIVE</div>
           )}
-        </div>
+        </>
       )}
     </SafeCard>
   );
