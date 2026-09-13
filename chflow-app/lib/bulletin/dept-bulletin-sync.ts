@@ -11,6 +11,7 @@ import {
   extractAttachments,
   extractDateFromTitle,
   hasPdfPreviewImage,
+  isElementaryJointBulletin,
   matchesDept,
   metaContent,
   parseBoardList,
@@ -306,7 +307,16 @@ export function syncDeptBulletinFor(deptKey: string): Promise<DeptSyncOutcome> {
   const promise = (async () => {
     const admin = adminClient();
     const listHtml = await workerEucKr("/bbs/zboard.php?id=samusil&page=1");
-    return syncOneDept(admin, listHtml, dept);
+    const outcome = await syncOneDept(admin, listHtml, dept);
+
+    // 초등1·2부 연합주보는 한 부서에서 처음 발견해도 두 부서에 함께 보관한다.
+    // 다른 부서 주보를 추가로 탐색하지 않고 같은 UMS 목록과 같은 게시글만 재사용한다.
+    if (outcome.latest && isElementaryJointBulletin(outcome.latest.title)) {
+      const counterpartKey = dept.key === "초등1부" ? "초등2부" : dept.key === "초등2부" ? "초등1부" : null;
+      const counterpart = counterpartKey ? SYNC_DEPTS.find((candidate) => candidate.key === counterpartKey) : null;
+      if (counterpart) await syncOneDept(admin, listHtml, counterpart);
+    }
+    return outcome;
   })().finally(() => {
     singleDeptInFlight.delete(deptKey);
   });

@@ -46,6 +46,11 @@ export async function readCommonBulletinFields(
     if (!payload.bulletin?.id || !payload.file_url) return { status: "error", fields: {}, error: "OCR 원본을 찾지 못했습니다." };
 
     const { createWorker } = await import("tesseract.js");
+    // 주보 파일 저장소는 인증 헤더가 필요하다. URL만 OCR 워커에 넘기면
+    // 워커가 인증 없이 요청해 401이 나므로, 먼저 인증된 Blob으로 받아 인식한다.
+    const sourceResponse = await request(payload.file_url, token, { cache: "no-store" });
+    if (!sourceResponse.ok) return { status: "error", fields: {}, error: "OCR 주보 원본을 불러오지 못했습니다." };
+    const source = await sourceResponse.blob();
     const worker = await createWorker(["kor", "eng"], 1, {
       logger: (message) => {
         if (message.status === "recognizing text") onOcrProgress?.(Math.round(message.progress * 100));
@@ -53,7 +58,7 @@ export async function readCommonBulletinFields(
     });
     let text = "";
     try {
-      const result = await worker.recognize(payload.file_url);
+      const result = await worker.recognize(source);
       text = result.data.text.trim();
     } finally {
       await worker.terminate();

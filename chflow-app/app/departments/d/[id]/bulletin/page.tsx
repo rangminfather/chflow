@@ -54,6 +54,7 @@ type DeptBulletinResponse = {
   latest: DeptBulletinItem | null;
   items: DeptBulletinItem[];
   error?: string;
+  retry_scheduled?: boolean;
 };
 
 function formatDate(value: string | null) {
@@ -86,7 +87,7 @@ export default function DepartmentBulletinPage() {
   const [error, setError] = useState("");
   const [showList, setShowList] = useState(false);
 
-  const loadBulletins = async (accessToken: string, name: string) => {
+  const loadBulletins = async (accessToken: string, name: string, retryAttempt = 0): Promise<void> => {
     setError("");
     const res = await fetch(`/api/dept-bulletin/latest?dept=${encodeURIComponent(name)}`, {
       cache: "no-store",
@@ -98,6 +99,12 @@ export default function DepartmentBulletinPage() {
     }
     setItems(data.items || []);
     setSelected(data.latest || data.items?.[0] || null);
+    // 첫 요청이 수집을 시작했다면, 화면이 직접 재조회한다.
+    // 수집 요청은 DB의 부서·주차별 잠금으로 한 번만 실행되므로 여러 사용자가 동시에 열어도 UMS 호출은 늘지 않는다.
+    if (data.retry_scheduled && retryAttempt < 3) {
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      return loadBulletins(accessToken, name, retryAttempt + 1);
+    }
   };
 
   useEffect(() => {
