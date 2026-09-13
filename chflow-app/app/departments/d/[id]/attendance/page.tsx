@@ -374,10 +374,10 @@ export default function AttendancePage() {
   const getCell = (studentId: string, date: string): AttendRow | undefined =>
     attMap[studentId]?.[date];
 
-  const attendanceTotals = useMemo(() => {
-    const totals = { students: students.length, attend: 0, absent: 0, excused: 0, missed: 0, unrecorded: 0 };
-    students.forEach((student) => {
-      sundays.forEach((date) => {
+  const weeklyAttendanceTotals = useMemo(() => (
+    sundays.map((date, index) => {
+      const totals = { date, week: index + 1, attend: 0, absent: 0, excused: 0, missed: 0, unrecorded: 0 };
+      students.forEach((student) => {
         const status = attMap[student.id]?.[date]?.attend_status || "";
         if (status === "출") totals.attend += 1;
         else if (status === "결") totals.absent += 1;
@@ -385,9 +385,9 @@ export default function AttendancePage() {
         else if (status === "빠") totals.missed += 1;
         else totals.unrecorded += 1;
       });
-    });
-    return totals;
-  }, [attMap, students, sundays]);
+      return totals;
+    })
+  ), [attMap, students, sundays]);
 
   const cycleStatus = async (studentId: string, date: string) => {
     const cell = getCell(studentId, date);
@@ -681,24 +681,27 @@ export default function AttendancePage() {
         </div>
 
         {viewMode === "attendance" && (
-          <section style={{ ...cardStyle, marginBottom: 16 }} aria-label={`${year}년 ${month}월 출결 합계`}>
-            <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 800, color: "var(--ink)" }}>
-              {year}년 {month}월 출결 합계
-              <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 600, color: "var(--ink-faint)" }}>학생 × 주일 기준</span>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(86px, 1fr))", gap: 8 }}>
-              {[
-                { label: "전체 학생", value: attendanceTotals.students, color: "var(--ink)" },
-                { label: "출석", value: attendanceTotals.attend, color: "var(--success)" },
-                { label: "결석", value: attendanceTotals.absent, color: "var(--danger)" },
-                { label: "출석인정", value: attendanceTotals.excused, color: "var(--accent)" },
-                { label: "빠짐", value: attendanceTotals.missed, color: "var(--warning)" },
-                { label: "미기록", value: attendanceTotals.unrecorded, color: "var(--ink-faint)" },
-              ].map((item) => (
-                <div key={item.label} style={{ border: "1px solid var(--hairline)", borderRadius: 10, background: "var(--surface)", padding: "9px 10px" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)" }}>{item.label}</div>
-                  <div style={{ marginTop: 2, fontSize: 20, fontWeight: 900, color: item.color }}>{item.value}</div>
-                </div>
+          <section style={{ ...cardStyle, marginBottom: 16 }} aria-label={`${year}년 ${month}월 주차별 출결 통계`}>
+            <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 800, color: "var(--ink)" }}>주차별 출결 통계</div>
+            <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
+              {weeklyAttendanceTotals.map((week) => (
+                <article key={week.date} style={{ minWidth: 156, flex: "1 0 156px", border: "1px solid var(--hairline)", borderRadius: 10, background: "var(--surface)", padding: "9px 10px" }}>
+                  <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 900, color: "var(--ink)" }}>{week.week}주 <span style={{ fontWeight: 600, color: "var(--ink-faint)" }}>({formatMD(week.date)})</span></div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px 4px", textAlign: "center" }}>
+                    {[
+                      { label: "출석", value: week.attend, color: "var(--success)" },
+                      { label: "결석", value: week.absent, color: "var(--danger)" },
+                      { label: "인정", value: week.excused, color: "var(--accent)" },
+                      { label: "빠짐", value: week.missed, color: "var(--warning)" },
+                      { label: "미기록", value: week.unrecorded, color: "var(--ink-faint)" },
+                    ].map((item) => (
+                      <div key={item.label}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-soft)" }}>{item.label}</div>
+                        <div style={{ marginTop: 1, fontSize: 16, fontWeight: 900, color: item.color }}>{item.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </article>
               ))}
             </div>
           </section>
