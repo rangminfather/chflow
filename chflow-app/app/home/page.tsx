@@ -406,6 +406,8 @@ export default function HomePage() {
           /* 편집모드(관리자)에서는 모바일에서도 기존 행/목록 그대로 — 드래그·수정 UI 보존 */
           .home-menu-grid:not(.editing) .menu-row { display: none !important; }
           .home-menu-grid:not(.editing) .menu-tile { display: flex !important; }
+          .home-menu-grid:not(.editing) .home-live-card { min-height: 96px !important; }
+          .home-menu-grid.editing .home-live-card { min-height: 104px !important; }
           .ministry-list:not(.editing) { display: none !important; }
           .pasture-list:not(.editing) { display: none !important; }
           .ministry-chip-mobile, .pasture-chip-mobile { display: flex !important; }
@@ -1404,6 +1406,7 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
 
   const card = (
     <SafeCard
+      className={typeof live === "boolean" ? "home-live-card" : undefined}
       onClick={handleClick}
       padding={compact ? 12 : 14}
       onPointerDown={onDragHandle ? handlePointerDown : undefined}
@@ -1414,7 +1417,7 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
       title={onDragHandle ? "PC: 카드를 드래그 · 모바일: 길게 누른 뒤 드래그 · 탭하면 이름·숨김 수정" : undefined}
       style={{
         position: "relative",
-        minHeight: typeof live === "boolean" ? (compact ? 96 : 104) : (compact ? 58 : 68),
+        minHeight: compact ? 58 : 68,
         borderRadius: 14,
         background: "var(--card)",
         border: `1px solid ${dragging ? "var(--accent)" : "var(--hairline)"}`,
