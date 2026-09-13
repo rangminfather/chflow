@@ -398,6 +398,8 @@ export default function MyClassPage() {
           mgmt_status: data.mgmt_status,
           grade: data.grade || null,
           school_name: data.school_name || null,
+          parent_contacts: data.parent_contacts,
+          notes: data.notes || null,
         },
         member: {
           id: data.member_id,
@@ -405,8 +407,6 @@ export default function MyClassPage() {
           birth_date: data.birth_date || null,
           gender: data.gender || null,
           address: data.address || null,
-          parent_contacts: data.parent_contacts,
-          notes: data.notes || null,
         },
         family: familyDraft
           .map((entry) => ({ name: entry.name.trim(), relation: entry.relation, phone: entry.phone.trim() }))
