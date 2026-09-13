@@ -53,7 +53,7 @@ export default function PastureMembersPage() {
   if (!authChecked) return <main style={{ minHeight: "100vh" }}><LoadingView full /></main>;
 
   return (
-    <PastureShell eyebrow="목장" title="구성원" chip={`${households.length}가정`}>
+    <PastureShell eyebrow="목장" title="구성원" chip={`${households.length}가정`} backHref="/pasture" backLabel="목장">
       {loading ? (
         <div style={cardStyle}><LoadingView /></div>
       ) : error ? (

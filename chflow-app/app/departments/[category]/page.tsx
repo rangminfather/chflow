@@ -325,7 +325,7 @@ export default function CategoryPage() {
           <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>{category}</div>
           <div style={{ fontSize: 10, color: T.textMuted }}>가입할 부서를 선택하세요</div>
         </div>
-        <button onClick={() => router.push("/departments")} style={{
+        <button onClick={() => router.push("/home")} style={{
           padding: "7px 14px", background: T.bgPage, border: `1px solid ${T.border}`,
           borderRadius: 8, fontSize: 12, color: T.textMuted, cursor: "pointer",
           fontFamily: "inherit", whiteSpace: "nowrap",

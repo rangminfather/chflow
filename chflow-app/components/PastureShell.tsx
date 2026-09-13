@@ -11,12 +11,17 @@ export function PastureShell({
   title,
   chip,
   actions,
+  backHref = "/home",
+  backLabel = "홈",
   children,
 }: {
   eyebrow?: string;
   title: string;
   chip?: string;
   actions?: React.ReactNode;
+  /** Explicit parents keep WebView back navigation from skipping menu levels. */
+  backHref?: string;
+  backLabel?: string;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -27,11 +32,11 @@ export function PastureShell({
           <button
             className="app-header-back"
             type="button"
-            onClick={() => router.back()}
-            aria-label="뒤로가기"
+            onClick={() => router.push(backHref)}
+            aria-label={`${backLabel}으로`}
             style={{ ...iconButtonStyle, width: "auto", padding: "0 12px", whiteSpace: "nowrap" }}
           >
-            ← 뒤로
+            ← {backLabel}
           </button>
           <HeaderLogo />
           <div style={{ minWidth: 0, flex: 1 }}>

@@ -105,12 +105,13 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const deptKey = url.searchParams.get("dept") || "";
     const issueDate = url.searchParams.get("date") || "";
+    const allowSync = url.searchParams.get("sync") !== "0";
     if (!deptKey || !/^\d{4}-\d{2}-\d{2}$/.test(issueDate)) {
       return NextResponse.json({ ok: false, error: "Invalid bulletin request" }, { status: 400 });
     }
     let bulletin = await loadBulletinForDept(deptKey, issueDate);
     // 주보보기를 먼저 열지 않았더라도 공통 파이프라인의 첫 요청이 수집을 시도한다.
-    if (!bulletin) {
+    if (!bulletin && allowSync) {
       await syncDeptBulletinFor(deptKey);
       bulletin = await loadBulletinForDept(deptKey, issueDate);
     }

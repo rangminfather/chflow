@@ -61,6 +61,8 @@ export default function PastureIntroductionPage() {
       eyebrow={hierarchy || "목장"}
       title={pasture ? `${pasture.pasture_name}목장` : "목장 소개"}
       chip={pasture?.mission_area ? `선교후원 ${pasture.mission_area}` : undefined}
+      backHref="/pasture/explore"
+      backLabel="목장탐방"
     >
       {loading ? (
         <div style={cardStyle}><LoadingView /></div>

@@ -994,7 +994,7 @@ export default function DepartmentDetailPage() {
               </div>
             </div>
           </div>
-          <button className="dept-page-home-button" onClick={() => router.push("/home")} style={backBtnStyle}>← 홈</button>
+          <button className="dept-page-home-button" onClick={() => router.push(`/departments/${encodeURIComponent(dept.category)}`)} style={backBtnStyle}>← 부서 선택</button>
         </div>
 
         {/* Welcome Card */}

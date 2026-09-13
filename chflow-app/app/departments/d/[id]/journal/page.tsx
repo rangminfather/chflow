@@ -8,7 +8,11 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { NotebookPen, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
 import YmdSelect from "@/components/YmdSelect";
-import { readCommonBulletinFields } from "@/lib/bulletin/client-extraction";
+import {
+  checkCommonBulletinAvailability,
+  readCommonBulletinFields,
+  type CommonBulletinAvailability,
+} from "@/lib/bulletin/client-extraction";
 
 /** 일지 날짜에서 고를 수 있는 연도 범위 — 지난해 일지 수정까지 허용 */
 const JOURNAL_MIN_YEAR = new Date().getFullYear() - 1;
@@ -155,6 +159,7 @@ export default function JournalPage() {
   const [prefillAttempt, setPrefillAttempt] = useState(0);   // 1..MAX
   const [prefillStatus, setPrefillStatus] = useState<"idle" | "trying" | "waiting" | "done" | "failed">("idle");
   const [prefillLastError, setPrefillLastError] = useState<string>("");
+  const [bulletinAvailability, setBulletinAvailability] = useState<CommonBulletinAvailability | "checking">("checking");
   const prefillCancelRef = useState<{ cancelled: boolean }>({ cancelled: false })[0];
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
@@ -462,6 +467,22 @@ export default function JournalPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.date, isNew, selected?.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!deptName || !/^\d{4}-\d{2}-\d{2}$/.test(form.date)) {
+      setBulletinAvailability("error");
+      return;
+    }
+    setBulletinAvailability("checking");
+    void (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || cancelled) return;
+      const status = await checkCommonBulletinAvailability(session.access_token, deptName, form.date);
+      if (!cancelled) setBulletinAvailability(status);
+    })();
+    return () => { cancelled = true; };
+  }, [deptName, form.date]);
+
   const updateClassCell = (idx: number, key: "class_no" | ClassMetricKey, val: string) => {
     setForm((f) => {
       const next = f.class_stats.map((r) => ({ ...r }));
@@ -648,7 +669,11 @@ export default function JournalPage() {
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {canPrefill && (
                     <button onClick={handlePrefill} disabled={prefilling} style={{ ...prefillBtnStyle, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      {prefilling ? "불러오는 중..." : <><FileText size={14} strokeWidth={1.8} /> 주보에서 불러오기</>}
+                      {prefilling ? "불러오는 중..." : bulletinAvailability === "stored"
+                        ? <><FileText size={14} strokeWidth={1.8} /> 저장된 주보에서 불러오기</>
+                        : bulletinAvailability === "checking"
+                          ? <><FileText size={14} strokeWidth={1.8} /> 주보 확인 중...</>
+                          : <><FileText size={14} strokeWidth={1.8} /> 주보에서 불러오기</>}
                     </button>
                   )}
                   {!isNew && (

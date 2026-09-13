@@ -100,6 +100,8 @@ export default function PastureScheduleDetailPage() {
       eyebrow="목장 일정"
       title={head ? formatMeetingDate(head.meets_on) : "일정"}
       chip={head?.status === "draft" ? "임시저장" : head?.status === "cancelled" ? "취소됨" : undefined}
+      backHref="/pasture"
+      backLabel="목장"
     >
       {loading ? (
         <div style={cardStyle}><LoadingView /></div>

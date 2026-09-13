@@ -20,10 +20,32 @@ type ExtractionPayload = {
   error?: string;
 };
 
+export type CommonBulletinAvailability = "stored" | "missing" | "error";
+
 async function request(url: string, token: string, init?: RequestInit) {
   const headers = new Headers(init?.headers);
   headers.set("Authorization", `Bearer ${token}`);
   return fetch(url, { ...init, headers });
+}
+
+/**
+ * Checks only the common stored-bulletin cache.  It deliberately never triggers
+ * an UMS request, so the journal can explain which source will be used first.
+ */
+export async function checkCommonBulletinAvailability(
+  token: string,
+  deptKey: string,
+  issueDate: string,
+): Promise<CommonBulletinAvailability> {
+  try {
+    const query = new URLSearchParams({ dept: deptKey, date: issueDate, sync: "0" });
+    const response = await request(`/api/dept-bulletin/extraction?${query}`, token, { cache: "no-store" });
+    const payload = await response.json() as ExtractionPayload;
+    if (!response.ok || !payload.ok) return "error";
+    return payload.status === "missing" ? "missing" : "stored";
+  } catch {
+    return "error";
+  }
 }
 
 /**

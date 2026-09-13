@@ -13,7 +13,10 @@ const cspPolicy = [
   "object-src 'none'",
   "frame-ancestors 'self'",
   "form-action 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://t1.daumcdn.net https://*.daumcdn.net",
+  // Tesseract OCR worker is loaded inside a same-origin Blob worker, which imports
+  // its runtime from jsDelivr.  Allow that runtime explicitly so image bulletins
+  // can be extracted in the browser.
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://t1.daumcdn.net https://*.daumcdn.net https://cdn.jsdelivr.net",
   "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
   "font-src 'self' data: https://cdn.jsdelivr.net",
   "img-src 'self' data: blob: https://*.supabase.co https://*.daumcdn.net https://*.r2.cloudflarestorage.com https://i.ytimg.com https://chflow-vod.rangminfather.workers.dev",

@@ -156,6 +156,8 @@ function PastureCalendarContent() {
       eyebrow={home?.pasture_name ? `${home.pasture_name} 목장` : "목장"}
       title="달력"
       chip={`${cursor.getFullYear()}년 ${cursor.getMonth() + 1}월`}
+      backHref="/pasture"
+      backLabel="목장"
     >
       {/* 모드 */}
       <div style={tabRowStyle}>
