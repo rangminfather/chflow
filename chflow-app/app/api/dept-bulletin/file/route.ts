@@ -62,6 +62,7 @@ function detectContentType(buf: Uint8Array, fileName: string | null) {
   const ext = fileName?.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
   if (buf[0] === 0x50 && buf[1] === 0x4b) {
     if (ext === "pptx") return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    if (ext === "xlsx") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     if (ext === "hwpx") return "application/vnd.hancom.hwpx";
     return "application/zip";
   }

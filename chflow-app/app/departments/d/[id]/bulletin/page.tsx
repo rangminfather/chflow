@@ -7,6 +7,7 @@ import { List, RefreshCw, X } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
 import PdfCanvasViewer from "@/components/PdfCanvasViewer";
 import PptxCanvasViewer from "@/components/PptxCanvasViewer";
+import ExcelCanvasViewer from "@/components/ExcelCanvasViewer";
 import HwpPreviewViewer from "@/components/HwpPreviewViewer";
 import ImageCanvasViewer from "@/components/ImageCanvasViewer";
 import { supabase } from "@/lib/supabase";
@@ -21,7 +22,7 @@ type DeptBulletinItem = {
   url: string;
   pdf_url: string;
   file_name: string | null;
-  file_kind: "pdf" | "pptx" | "hwp" | "image" | "unknown";
+  file_kind: "pdf" | "pptx" | "xlsx" | "hwp" | "image" | "unknown";
   file_fn: number;
   file_url: string;
   stored: boolean;
@@ -33,6 +34,9 @@ type DeptBulletinItem = {
 function BulletinFileViewer({ item }: { item: DeptBulletinItem }) {
   if (item.file_kind === "pptx" && item.file_url) {
     return <PptxCanvasViewer key={item.file_url} url={item.file_url} fallbackUrl={item.url} />;
+  }
+  if (item.file_kind === "xlsx" && item.file_url) {
+    return <ExcelCanvasViewer key={item.file_url} url={item.file_url} fallbackUrl={item.url} />;
   }
   if (item.file_kind === "hwp" && item.file_url) {
     return <HwpPreviewViewer key={item.file_url} downloadUrl={item.file_url} fallbackUrl={item.url} />;

@@ -9,12 +9,13 @@ export const SAMUSIL_VIEW_BASE = "http://www.ums.or.kr/bbs/zboard.php";
 // 부서 주보 파일 유형 표준 체계 — 어떤 부서가 어떤 형식으로 올려도 유형별 뷰어가 대응한다.
 //  pdf → PDF 캔버스 뷰어 / pptx → 슬라이드 렌더링 / hwp·hwpx → 본문 구조 리메이크 /
 //  image → 이미지 뷰어 / unknown → PDF 시도 후 원문 링크
-export type DeptFileKind = "pdf" | "pptx" | "hwp" | "image" | "unknown";
+export type DeptFileKind = "pdf" | "pptx" | "xlsx" | "hwp" | "image" | "unknown";
 
 // 여러 첨부가 있으면 충실도 높은 쪽 우선
 const FILE_KIND_PRIORITY: Record<DeptFileKind, number> = {
-  pdf: 4,
-  pptx: 3,
+  pdf: 5,
+  pptx: 4,
+  xlsx: 3,
   image: 2,
   hwp: 1,
   unknown: 0,
@@ -181,6 +182,7 @@ export function fileKindOf(fileName: string | null): DeptFileKind {
   const ext = fileName?.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
   if (ext === "pdf") return "pdf";
   if (ext === "pptx") return "pptx";
+  if (ext === "xlsx") return "xlsx";
   if (ext === "hwp" || ext === "hwpx") return "hwp";
   if (ext && ["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) return "image";
   return "unknown";

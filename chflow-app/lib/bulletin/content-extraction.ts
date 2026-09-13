@@ -1,12 +1,14 @@
 import JSZip from "jszip";
+import { Workbook } from "exceljs";
 import { extractText, getDocumentProxy } from "unpdf";
-import { parseHwpBlocks, type HwpBlock } from "@/lib/bulletin/hwp-parse";
-import { parseHwpxBlocks } from "@/lib/bulletin/hwpx-parse";
+import { parseHwpBlocks, type HwpBlock } from "./hwp-parse";
+import { parseHwpxBlocks } from "./hwpx-parse";
+import { assertSafeZipMetadata } from "./attachment-limits";
 import {
   normText,
   parseDeptBulletinFields,
   type DeptBulletinFields,
-} from "@/lib/bulletin/dept-bulletin-fields";
+} from "./dept-bulletin-fields";
 
 export type BulletinTextExtraction = {
   text: string;
@@ -52,6 +54,25 @@ async function extractPptxText(file: Uint8Array) {
   return texts.filter(Boolean).join("\n");
 }
 
+async function extractXlsxText(file: Uint8Array) {
+  // XLSX is a ZIP container. Validate its expansion metadata before ExcelJS opens it.
+  const archive = await JSZip.loadAsync(file);
+  assertSafeZipMetadata(archive);
+  const workbook = new Workbook();
+  const load = workbook.xlsx.load.bind(workbook.xlsx) as unknown as (data: Uint8Array) => Promise<unknown>;
+  await load(file);
+  const lines: string[] = [];
+  for (const worksheet of workbook.worksheets) {
+    lines.push(worksheet.name);
+    worksheet.eachRow({ includeEmpty: false }, (row) => {
+      const values = Array.from({ length: Math.min(row.cellCount, 30) }, (_, index) => row.getCell(index + 1).text)
+        .filter(Boolean);
+      if (values.length) lines.push(values.join(" | "));
+    });
+  }
+  return lines.join("\n");
+}
+
 function extensionOf(path: string) {
   return path.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() || "";
 }
@@ -65,6 +86,7 @@ export async function extractNativeBulletinText(file: Uint8Array, path: string):
   let text = "";
   if (extension === "pdf") text = await extractPdfText(file);
   else if (extension === "pptx") text = await extractPptxText(file);
+  else if (extension === "xlsx") text = await extractXlsxText(file);
   else if (extension === "hwp") text = flattenBlocks(parseHwpBlocks(Buffer.from(file)));
   else if (extension === "hwpx") text = flattenBlocks(await parseHwpxBlocks(file));
   else throw new Error("unsupported_bulletin_file_type");
