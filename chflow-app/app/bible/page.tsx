@@ -20,11 +20,28 @@ const SWIPE_MIN_DISTANCE = 60;
 // 1(기본) ~ 5(가장 크게) — 50대 이상 사용자를 위한 본문 글자 크기 (px)
 const VERSE_FONT_SIZES = [15, 17, 19, 22, 25];
 const VERSE_FONT_LEVEL_KEY = "bible-verse-font-level";
+const LAST_LOCATION_KEY_PREFIX = "bible-last-location";
+
+type SavedBibleLocation = { bookId: number; chapter: number };
 
 function loadVerseFontLevel(): number {
   if (typeof window === "undefined") return 1;
   const saved = Number(window.localStorage.getItem(VERSE_FONT_LEVEL_KEY));
   return saved >= 1 && saved <= 5 ? saved : 1;
+}
+
+function loadLastBibleLocation(storageKey: string): SavedBibleLocation | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(storageKey) || "") as Partial<SavedBibleLocation>;
+    const bookId = Number(saved.bookId);
+    const chapter = Number(saved.chapter);
+    return Number.isInteger(bookId) && bookId > 0 && Number.isInteger(chapter) && chapter > 0
+      ? { bookId, chapter }
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 // 원문에 "<천지 창조>" 처럼 절 맨 앞에 소제목이 붙어 있으면 본문과 붙어 나오지 않도록
@@ -50,6 +67,7 @@ export default function BiblePage() {
   const [pickerTestament, setPickerTestament] = useState<Testament>("OT");
   const [slide, setSlide] = useState<"in-from-left" | "in-from-right" | null>(null);
   const [verseFontLevel, setVerseFontLevelState] = useState(1);
+  const [locationStorageKey, setLocationStorageKey] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setVerseFontLevelState(loadVerseFontLevel()); }, []);
@@ -73,13 +91,29 @@ export default function BiblePage() {
       const { data } = await supabase.rpc("list_bible_books");
       const list = (Array.isArray(data) ? data : []) as Book[];
       setBooks(list);
-      if (list[0]) { setBookId(list[0].book_id); setPickerTestament(list[0].testament); }
+      const storageKey = `${LAST_LOCATION_KEY_PREFIX}:${session.user.id}`;
+      const savedLocation = loadLastBibleLocation(storageKey);
+      const savedBook = savedLocation ? list.find((item) => item.book_id === savedLocation.bookId) : null;
+      const initialBook = savedBook || list[0];
+      if (initialBook) {
+        setBookId(initialBook.book_id);
+        setChapter(savedBook && savedLocation ? Math.min(savedLocation.chapter, savedBook.chapters) : 1);
+        setPickerTestament(initialBook.testament);
+      }
+      setLocationStorageKey(storageKey);
 
       const { data: versionRows } = await supabase.rpc("list_bible_versions");
       const versions = parseBibleVersions(versionRows);
       setVersion(versions.find((v) => v.code === DEFAULT_BIBLE_VERSION) ?? null);
     })();
   }, [router]);
+
+  useEffect(() => {
+    if (!locationStorageKey || !book || chapter < 1) return;
+    try {
+      window.localStorage.setItem(locationStorageKey, JSON.stringify({ bookId, chapter } satisfies SavedBibleLocation));
+    } catch { /* 저장소 사용 불가 시 현재 읽기는 계속 가능 */ }
+  }, [book, bookId, chapter, locationStorageKey]);
 
   useEffect(() => {
     if (!book) return;
