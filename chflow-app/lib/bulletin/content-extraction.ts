@@ -7,6 +7,7 @@ import { assertSafeZipMetadata } from "./attachment-limits";
 import {
   normText,
   parseDeptBulletinFields,
+  parseOcrDeptBulletinFields,
   type DeptBulletinFields,
 } from "./dept-bulletin-fields";
 
@@ -100,9 +101,14 @@ export async function extractNativeBulletinText(file: Uint8Array, path: string):
 }
 
 export function extractOcrBulletinText(text: string): BulletinTextExtraction {
+  const compactFields = parseDeptBulletinFields(normText(text));
+  const ocrFields = parseOcrDeptBulletinFields(text);
   return {
     text,
-    fields: parseDeptBulletinFields(normText(text)),
+    fields: {
+      ...compactFields,
+      ...Object.fromEntries(Object.entries(ocrFields).filter(([, value]) => Boolean(value))),
+    },
     method: "ocr",
     needsOcr: false,
   };

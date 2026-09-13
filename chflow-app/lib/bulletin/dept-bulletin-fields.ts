@@ -60,3 +60,31 @@ export function parseDeptBulletinFields(text: string): DeptBulletinFields {
     twoPartActivity: between(scope, "2부행사:", "다음주기도") || between(scope, "2부행사", "다음주기도"),
   };
 }
+
+/**
+ * Image OCR keeps line boundaries but often drops the fixed labels used by the
+ * native-file parser.  Recover the common worship-order values directly from
+ * those lines before falling back to the compact-label parser above.
+ */
+export function parseOcrDeptBulletinFields(rawText: string): DeptBulletinFields {
+  const cleanOcrValue = (value: string) => value
+    .replace(/[─━—–\-_=.]{2,}/g, " ")
+    .replace(/^[\s:：|]+|[\s:：|]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const lineValue = (pattern: RegExp) => {
+    const value = rawText.match(pattern)?.[1] || "";
+    return cleanOcrValue(value);
+  };
+  const scripture = rawText.match(/성경봉독\s*([^\n]*?\d+\s*장\s*\d+(?:\s*[~∼\-]\s*\d+)?\s*절)/)?.[1] || "";
+  const sermon = rawText.match(/강론\s*([^\n]*?)\s+(김[가-힣]{1,4}(?:(?:전도사|목사|강도사|권사|집사|교육사)님?|선생님))/);
+
+  return {
+    leader: lineValue(/안내\s*[:：]?\s*([^\n©@]+)/i),
+    praise: lineValue(/(?:^|\n)\s*찬양\s*[-─━—–_=.\s]*([^\n]+)/m),
+    scripture: cleanOcrValue(scripture),
+    sermonTitle: cleanOcrValue(sermon?.[1] || ""),
+    preacher: cleanOcrValue(sermon?.[2] || ""),
+    twoPartActivity: lineValue(/행사\s*[:：]\s*([^\n]+)/i),
+  };
+}
