@@ -22,6 +22,7 @@ import {
   CircleCheck, CircleAlert, CircleHelp, Lock, Newspaper, CalendarDays, History, X, Menu,
 } from "lucide-react";
 import HeaderLogo from "@/components/HeaderLogo";
+import { readCommonBulletinFields } from "@/lib/bulletin/client-extraction";
 import { supabase } from "@/lib/supabase";
 import { LoadingView } from "@/components/StatusViews";
 import { fillMissingWorshipGuideMessage } from "@/lib/worshipGuideMessage";
@@ -356,6 +357,7 @@ export default function WorshipGuidePage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [refreshingBulletins, setRefreshingBulletins] = useState(false);
   const autoRefreshedRef = useRef(false);
+  const deptKeyRef = useRef("");
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -444,20 +446,14 @@ export default function WorshipGuidePage() {
   // ── 주보 텍스트 수집 (초등1부 주보 / 교회주보) ──
   const fetchDeptBulletin = useCallback(async (token: string, date: string): Promise<BulletinFetch> => {
     try {
-      const res = await fetchWithFreshAuth(`/api/dept-bulletin/latest?dept=${encodeURIComponent("초등1부")}`, token, {
-        cache: "no-store",
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || "초등1부 주보 조회 실패");
-      type Item = { issue_date: string | null; pdf_url?: string | null };
-      const item = ((data.items || []) as Item[]).find((i) => i.issue_date === date && i.pdf_url);
-      if (!item?.pdf_url) return { status: "missing" };
-      const text = await extractPdfText(item.pdf_url, 1, 3);
-      return text
-        ? { status: "ready", text, fields: parseDeptBulletinFields(text), url: item.pdf_url }
-        : { status: "notext", url: item.pdf_url };
-    } catch {
-      return { status: "error", detail: "초등1부 주보 확인 중 오류" };
+      const common = await readCommonBulletinFields(token, deptKeyRef.current, date);
+      if (common.status === "ready") {
+        return { status: "ready", text: "", fields: common.fields, url: common.fileUrl || "" };
+      }
+      if (common.status === "missing") return { status: "missing" };
+      return { status: "error", detail: common.error || "Bulletin parsing failed" };
+    } catch (error) {
+      return { status: "error", detail: error instanceof Error ? error.message : "Bulletin parsing failed" };
     }
   }, []);
 
@@ -560,6 +556,9 @@ export default function WorshipGuidePage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.replace("/login"); return; }
     const token = session.access_token;
+
+    const { data: deptInfo } = await supabase.rpc("get_department_info", { p_dept_id: deptId });
+    deptKeyRef.current = (deptInfo as { name?: string }[] | null)?.[0]?.name || "";
 
     const [guideResp, classResp, teacherResp, themeResp, planResp] = await Promise.all([
       supabase.rpc("worship_guide_get", { p_dept_id: deptId, p_sunday: date }),

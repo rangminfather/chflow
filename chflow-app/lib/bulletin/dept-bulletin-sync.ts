@@ -51,7 +51,7 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const BUCKET = "bulletins";
 const UMS_MARKER = "UMS samusil no:";
 const BOARD_URL = "http://www.ums.or.kr/bbs/zboard.php?id=samusil";
-const SUPPORTED_EXTENSIONS = new Set(["pdf", "pptx", "hwp", "hwpx", "jpg", "jpeg"]);
+const SUPPORTED_EXTENSIONS = new Set(["pdf", "pptx", "hwp", "hwpx", "jpg", "jpeg", "png"]);
 
 // 수집 대상 부서와 저장 폴더.
 // 영아부는 사무실 게시판에 주보를 올리지 않아 매번 "게시글 없음"으로 건너뛴다
@@ -186,6 +186,7 @@ const CONTENT_TYPES: Record<string, string> = {
   hwpx: "application/vnd.hancom.hwpx",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
+  png: "image/png",
 };
 
 async function syncOneDept(

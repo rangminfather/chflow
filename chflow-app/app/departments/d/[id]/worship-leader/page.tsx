@@ -20,9 +20,8 @@ import {
 } from "@/lib/worshipLeaderScript";
 import {
   type DeptBulletinFields,
-  normText,
-  parseDeptBulletinFields,
 } from "@/lib/bulletin/dept-bulletin-fields";
+import { readCommonBulletinFields } from "@/lib/bulletin/client-extraction";
 import { correctNamesIn } from "@/lib/bulletin/name-correction";
 
 type ClassRow = { class_no: string };
@@ -109,34 +108,11 @@ function ScriptEditor({ label, value, onChange }: { label: string; value: string
 }
 
 /** 주보 PDF 에서 글자를 뽑는다 (예배안내 화면과 같은 방식) */
-async function extractPdfText(url: string, fromPage: number, toPage: number): Promise<string> {
-  const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-  const doc = await pdfjs.getDocument({ url }).promise;
-  let text = "";
-  const last = Math.min(doc.numPages, toPage);
-  for (let page = Math.max(1, fromPage); page <= last; page += 1) {
-    const content = await (await doc.getPage(page)).getTextContent();
-    text += content.items.map((item) => ("str" in item ? item.str : "")).join(" ") + " ";
-  }
-  return normText(text);
-}
-
 /** 그 주일 초등1부 주보에서 예배순서 값을 읽는다. 없으면 빈 객체. */
-async function readBulletinFields(token: string, sunday: string): Promise<DeptBulletinFields> {
-  try {
-    const response = await fetchWithAuth(`/api/dept-bulletin/latest?dept=${encodeURIComponent("초등1부")}`, token);
-    const data = await response.json();
-    if (!response.ok || !data.ok) return {};
-    type Item = { issue_date: string | null; pdf_url?: string | null };
-    const item = ((data.items || []) as Item[]).find((row) => row.issue_date === sunday && row.pdf_url);
-    if (!item?.pdf_url) return {};
-    const text = await extractPdfText(item.pdf_url, 1, 3);
-    return text ? parseDeptBulletinFields(text) : {};
-  } catch {
-    // 주보를 못 읽어도 나머지 출처로 계속 간다
-    return {};
-  }
+async function readBulletinFields(token: string, deptKey: string, sunday: string): Promise<DeptBulletinFields> {
+  const common = await readCommonBulletinFields(token, deptKey, sunday);
+  if (common.status === "ready") return common.fields;
+  return {};
 }
 
 async function fetchWithAuth(url: string, token: string) {
@@ -277,6 +253,8 @@ export default function WorshipLeaderPage() {
       router.replace("/login");
       return;
     }
+    const { data: deptInfo } = await supabase.rpc("get_department_info", { p_dept_id: deptId });
+    const deptKey = (deptInfo as { name?: string }[] | null)?.[0]?.name || "";
 
     const [guideResponse, classResponse, planResponse, bulletinFields] = await Promise.all([
       supabase.rpc("worship_guide_get", { p_dept_id: deptId, p_sunday: date }),
@@ -284,7 +262,7 @@ export default function WorshipLeaderPage() {
       fetchWithAuth(`/api/edu/monthly-plans/bulletin-import?dept_id=${deptId}&date=${date}`, session.access_token)
         .then(async (response) => ({ status: response.status, ...(await response.json()) }))
         .catch(() => null),
-      readBulletinFields(session.access_token, date),
+      deptKey ? readBulletinFields(session.access_token, deptKey, date) : Promise.resolve({} as DeptBulletinFields),
     ]);
 
     if (guideResponse.error) {

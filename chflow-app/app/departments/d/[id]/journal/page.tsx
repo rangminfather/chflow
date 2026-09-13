@@ -8,6 +8,7 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { NotebookPen, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
 import YmdSelect from "@/components/YmdSelect";
+import { readCommonBulletinFields } from "@/lib/bulletin/client-extraction";
 
 /** 일지 날짜에서 고를 수 있는 연도 범위 — 지난해 일지 수정까지 허용 */
 const JOURNAL_MIN_YEAR = new Date().getFullYear() - 1;
@@ -311,7 +312,7 @@ export default function JournalPage() {
 
   const handlePrefill = async () => {
     const key = DEPT_PREFILL_KEY[deptName];
-    if (!key) {
+    if (!deptName) {
       showToast("이 부서는 아직 자동 불러오기를 지원하지 않습니다");
       return;
     }
@@ -330,6 +331,49 @@ export default function JournalPage() {
         setPrefillStatus("idle");
         setPrefillAttempt(0);
       }, 800);
+      return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { router.replace("/login"); return; }
+    const common = await readCommonBulletinFields(
+      session.access_token,
+      deptName,
+      form.date,
+      (progress) => {
+        if (!prefillCancelRef.cancelled) {
+          setPrefillStatus("trying");
+          setPrefillLastError(`OCR processing... ${progress}%`);
+        }
+      },
+    );
+    if (prefillCancelRef.cancelled) return;
+    if (common.status === "ready") {
+      applyPrefillData({
+        source_date: form.date,
+        scripture: common.fields.scripture,
+        leader: common.fields.leader,
+        preacher: common.fields.preacher,
+        sermon_title: common.fields.sermonTitle,
+        prayer_lead: common.fields.prayer,
+        praise: common.fields.praise,
+        events: common.fields.twoPartActivity,
+      });
+      setPrefillStatus("done");
+      showToast(common.method === "ocr" ? "OCR bulletin imported - review and save" : "Bulletin imported - review and save");
+      setTimeout(() => { setPrefilling(false); setPrefillStatus("idle"); setPrefillAttempt(0); }, 800);
+      return;
+    }
+    if (common.status === "error") {
+      setPrefillLastError(common.error || "Bulletin parsing failed");
+      setPrefillStatus("failed");
+      setPrefilling(false);
+      return;
+    }
+    if (!key) {
+      setPrefillLastError("No stored bulletin was found for this department and date.");
+      setPrefillStatus("failed");
+      setPrefilling(false);
       return;
     }
 
@@ -537,7 +581,7 @@ export default function JournalPage() {
   if (!authChecked) return <LoadingView full />;
 
   const showForm = isNew || selected;
-  const canPrefill = !!showForm && !!DEPT_PREFILL_KEY[deptName];
+  const canPrefill = !!showForm && !!deptName;
   const organization = buildOrganization(executives);
   const offeringTotal = offeringSum(form.offering_details);
 

@@ -54,8 +54,24 @@ export function titleKeywordsFor(deptKey: string): string[] {
   return stem && stem !== deptKey ? [deptKey, stem] : [deptKey];
 }
 
+/**
+ * 연합예배 주보는 "초등1 2초원 연합예배" 처럼 부서 명칭 사이에
+ * 공백이 들어가는 경우가 있다. 단순 `includes("초등1")`만으로는
+ * 초등1·초등2부 모두에서 찾지 못하므로, 두 부서가 공유하는 주보로 인식한다.
+ */
+export function isElementaryJointBulletin(title: string) {
+  const compact = title.replace(/\s+/g, "");
+  return compact.includes("주보")
+    && compact.includes("초등")
+    && compact.includes("연합")
+    && /(?:초등1\D*2|초등2\D*1)/.test(compact);
+}
+
 export function matchesDept(title: string, keywords: string[]) {
-  return title.includes("주보") && keywords.some((k) => title.includes(k));
+  if (!title.includes("주보")) return false;
+  if (keywords.some((k) => title.includes(k))) return true;
+  const isElementaryDept = keywords.some((keyword) => keyword === "초등1" || keyword === "초등2");
+  return isElementaryDept && isElementaryJointBulletin(title);
 }
 
 export function decodeHtml(value: string) {
