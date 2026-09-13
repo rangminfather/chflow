@@ -19,6 +19,12 @@ type FamilyPayload = {
   phone?: string | null;
 };
 
+type ParentContact = {
+  relation?: string | null;
+  name?: string | null;
+  phone?: string | null;
+};
+
 type FamilyUpdatePayload = FamilyPayload & {
   relative_id?: string | null;
   kind?: string | null;
@@ -34,6 +40,8 @@ interface SaveBody {
     grade?: string | null;
     mgmt_status?: MgmtStatus;
     school_name?: string | null;
+    parent_contacts?: ParentContact[] | null;
+    notes?: string | null;
   };
   member?: {
     id: string | null;
@@ -60,6 +68,17 @@ function createAdminClient() {
 function cleanText(value: unknown) {
   const text = typeof value === "string" ? value.trim() : "";
   return text.length > 0 ? text : null;
+}
+
+function cleanParentContacts(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => ({
+      relation: cleanText((item as ParentContact | null)?.relation) || "보호자",
+      name: cleanText((item as ParentContact | null)?.name) || "",
+      phone: cleanText((item as ParentContact | null)?.phone) || "",
+    }))
+    .filter((item) => item.name || item.phone);
 }
 
 function relationToKindRole(relation: string | null | undefined) {
@@ -344,6 +363,8 @@ export async function POST(req: NextRequest) {
         gender,
         address: cleanText(memberBody.address),
       } : {}),
+      parent_contacts: cleanParentContacts(body.student.parent_contacts),
+      notes: cleanText(body.student.notes),
     })
     .eq("id", body.student_id)
     .eq("department_id", body.dept_id);

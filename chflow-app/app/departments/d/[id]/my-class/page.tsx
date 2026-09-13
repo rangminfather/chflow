@@ -35,6 +35,8 @@ interface StudentRow {
   birth_date: string | null;
   gender: string | null;
   address: string | null;
+  parent_contacts: ParentContact[] | null;
+  notes: string | null;
   photo_url: string | null;
 }
 
@@ -62,7 +64,15 @@ interface EditableStudent {
   birth_date: string;
   gender: string;
   address: string;
+  parent_contacts: ParentContact[];
+  notes: string;
   photo_url: string | null;
+}
+
+interface ParentContact {
+  relation: string;
+  name: string;
+  phone: string;
 }
 
 interface FamilyRow {
@@ -233,7 +243,7 @@ export default function MyClassPage() {
 
     const { data: studentRows, error: studentErr } = await supabase
       .from("edu_students")
-      .select("id, department_id, student_no, name, student_type, mgmt_status, grade, grade_year, class_no, school_name, is_active, order_no, member_id, teacher_id, phone, birth_date, gender, address, photo_url")
+      .select("id, department_id, student_no, name, student_type, mgmt_status, grade, grade_year, class_no, school_name, is_active, order_no, member_id, teacher_id, phone, birth_date, gender, address, parent_contacts, notes, photo_url")
       .eq("department_id", deptId)
       .eq("is_active", true)
       .order("order_no", { ascending: true })
@@ -279,6 +289,8 @@ export default function MyClassPage() {
         birth_date: member?.birth_date || student.birth_date || "",
         gender: member?.gender || student.gender || "",
         address: member?.address || student.address || "",
+        parent_contacts: normalizeParentContacts(student.parent_contacts),
+        notes: student.notes || "",
         photo_url: member?.photo_url || student.photo_url || null,
       };
     });
@@ -393,6 +405,8 @@ export default function MyClassPage() {
           birth_date: data.birth_date || null,
           gender: data.gender || null,
           address: data.address || null,
+          parent_contacts: data.parent_contacts,
+          notes: data.notes || null,
         },
         family: familyDraft
           .map((entry) => ({ name: entry.name.trim(), relation: entry.relation, phone: entry.phone.trim() }))
@@ -840,6 +854,9 @@ export default function MyClassPage() {
                   <InfoField label="본인연락처" editMode={editMode} value={draft.phone ? formatPhone(draft.phone) : "미등록"}>
                     <input value={draft.phone} onChange={(event) => updateDraft("phone", event.target.value)} placeholder="010-0000-0000" className={inputClass} />
                   </InfoField>
+                  <InfoField label="부모님 연락처" editMode={editMode} value={parentContactsLabel(draft.parent_contacts)}>
+                    <ParentContactsEditor contacts={draft.parent_contacts} onChange={(parent_contacts) => updateDraft("parent_contacts", parent_contacts)} />
+                  </InfoField>
                   <InfoField label="생년월일" editMode={editMode} value={draft.birth_date || "미등록"}>
                     <BirthDateSelect
                       value={draft.birth_date}
@@ -851,6 +868,9 @@ export default function MyClassPage() {
                   </InfoField>
                   <InfoField label="주소" editMode={editMode} value={draft.address || "미등록"}>
                     <input value={draft.address} onChange={(event) => updateDraft("address", event.target.value)} className={inputClass} />
+                  </InfoField>
+                  <InfoField label="비고" editMode={editMode} value={draft.notes || "미등록"}>
+                    <textarea value={draft.notes} onChange={(event) => updateDraft("notes", event.target.value)} maxLength={1000} rows={3} placeholder="특이사항을 기록하세요" className={`${inputClass} resize-y`} />
                   </InfoField>
                 </div>
 
@@ -1285,6 +1305,56 @@ function InfoField({ label, value, editMode, children }: { label: string; value:
       <div className="min-h-11 rounded-md border border-hairline bg-card px-3 py-2 text-[16px] font-bold leading-7 text-ink">{value}</div>
     </div>
   );
+}
+
+function ParentContactsEditor({ contacts, onChange }: { contacts: ParentContact[]; onChange: (next: ParentContact[]) => void }) {
+  const update = (index: number, key: keyof ParentContact, value: string) => {
+    onChange(contacts.map((contact, i) => (i === index ? { ...contact, [key]: value } : contact)));
+  };
+
+  return (
+    <div className="space-y-2">
+      {contacts.map((contact, index) => (
+        <div key={index} className="grid grid-cols-[76px_1fr_1fr_36px] gap-1.5 max-sm:grid-cols-1">
+          <select value={contact.relation} onChange={(event) => update(index, "relation", event.target.value)} className={inputClass}>
+            <option value="부">부</option>
+            <option value="모">모</option>
+            <option value="보호자">보호자</option>
+            <option value="기타">기타</option>
+          </select>
+          <input value={contact.name} onChange={(event) => update(index, "name", event.target.value)} placeholder="이름(선택)" className={inputClass} />
+          <input value={contact.phone} onChange={(event) => update(index, "phone", formatPhone(event.target.value))} placeholder="010-0000-0000" className={inputClass} />
+          <button type="button" aria-label="부모님 연락처 삭제" onClick={() => onChange(contacts.filter((_, i) => i !== index))} className="inline-flex h-11 w-9 items-center justify-center rounded-md border border-hairline bg-card text-ink-faint max-sm:w-full">
+            <X size={14} strokeWidth={2.2} />
+          </button>
+        </div>
+      ))}
+      <button type="button" onClick={() => onChange([...contacts, { relation: "부", name: "", phone: "" }])} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-hairline bg-card px-3 text-[13px] font-extrabold text-ink-soft">
+        <Plus size={14} strokeWidth={2.4} /> 부모님 연락처 추가
+      </button>
+    </div>
+  );
+}
+
+function normalizeParentContacts(value: unknown): ParentContact[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
+      return {
+        relation: typeof row.relation === "string" && row.relation ? row.relation : "보호자",
+        name: typeof row.name === "string" ? row.name : "",
+        phone: typeof row.phone === "string" ? row.phone : "",
+      };
+    })
+    .filter((contact) => contact.name || contact.phone);
+}
+
+function parentContactsLabel(contacts: ParentContact[]) {
+  if (contacts.length === 0) return "미등록";
+  return contacts
+    .map((contact) => [contact.relation, contact.name, contact.phone ? formatPhone(contact.phone) : ""].filter(Boolean).join(" "))
+    .join(" · ");
 }
 
 function normalizeStudentType(value: string | null | undefined) {
