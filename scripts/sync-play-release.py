@@ -259,20 +259,10 @@ def main() -> None:
         fail("could not read public latest_android_build; refusing to redeploy blindly")
 
     env_action = "env already current"
-    if play_version > current_version:
+    if play_version != current_version:
         update_vercel_latest(env_id, play_version)
         env_action = f"updated env to {play_version}"
         print(f"Updated Vercel LATEST_ANDROID_BUILD from {current_version} to {play_version}.")
-
-    if public_version > play_version:
-        print(f"No-op: public latest_android_build {public_version} is ahead of Play {play_version}; leaving it alone.")
-        write_summary(
-            play_version,
-            current_version,
-            public_version,
-            "no-op; public value is ahead of Play",
-        )
-        return
 
     if public_version != play_version:
         print(

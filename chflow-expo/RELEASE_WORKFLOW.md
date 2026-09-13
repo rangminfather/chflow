@@ -44,7 +44,8 @@ on demand), reads the production track, and detects a `completed` release with
 no `userFraction`, which represents a 100% rollout. It then:
 
 1. Reads the production `LATEST_ANDROID_BUILD` variable from Vercel.
-2. Updates that variable only when the Play versionCode is greater.
+2. Updates that variable whenever it differs from the Play versionCode
+   (in either direction).
 3. Leaves `MIN_ANDROID_BUILD` untouched.
 4. Calls the Vercel Deploy Hook so the new environment value is deployed.
 5. Verifies `https://smartms.kr/api/app-config` for up to five minutes.
@@ -99,9 +100,11 @@ on the repository's default branch. Register the secrets before merging, then:
 If `/api/app-config` cannot be read, the sync job fails without redeploying so
 the next scheduled run can retry with an observable public state. If the
 public value differs from Play, every later run retries the Deploy Hook even
-when the Vercel environment variable already contains the Play version. If the
-public value is ahead of Play during a staged rollout or manual update, sync
-leaves the newer public value alone and does not attempt to roll it back.
+when the Vercel environment variable already contains the Play version. If
+the public value differs from the fully released Play production version in
+either direction, sync restores the Vercel value to the Play version and
+redeploys. This prevents an uploaded draft or an EAS remote counter from
+advertising a build that users cannot install.
 
 ## Preflight before the first EAS cloud release
 
