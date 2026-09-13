@@ -5,6 +5,8 @@ import {
   defaultRoleForGrade,
   resolveRoleLabel,
   isTeacherRosterGrade,
+  isExecutiveRole,
+  executiveGradeForRole,
   isStandardRole,
   roleOptionsByGrade,
   ROLE_OPTIONS,
@@ -44,6 +46,38 @@ describe("isReplaceableRole", () => {
     expect(isReplaceableRole("Leader")).toBe(true);
     expect(isReplaceableRole("총무")).toBe(false);
     expect(isReplaceableRole("부감")).toBe(false);
+  });
+});
+
+describe("isExecutiveRole", () => {
+  it("0~2등급 표준 직책은 임원", () => {
+    for (const r of ["전도사", "교육사", "부장", "부부장", "총무", "부총무", "서기", "부서기", "회계", "부회계"]) {
+      expect(isExecutiveRole(r)).toBe(true);
+    }
+  });
+
+  it("직접입력 직책도 임원으로 본다", () => {
+    expect(isExecutiveRole("임원")).toBe(true);
+    expect(isExecutiveRole("부감")).toBe(true);
+  });
+
+  it("교사·학부모·빈 값·레거시 라벨은 임원이 아니다", () => {
+    expect(isExecutiveRole("교사")).toBe(false);
+    expect(isExecutiveRole("학부모")).toBe(false);
+    expect(isExecutiveRole("")).toBe(false);
+    expect(isExecutiveRole(null)).toBe(false);
+    expect(isExecutiveRole("teacher")).toBe(false);
+    expect(isExecutiveRole("member")).toBe(false);
+  });
+});
+
+describe("executiveGradeForRole", () => {
+  it("표준 직책은 해당 등급, 직접입력은 임원(2)", () => {
+    expect(executiveGradeForRole("부장")).toBe(1);
+    expect(executiveGradeForRole("총무")).toBe(2);
+    expect(executiveGradeForRole("전도사")).toBe(0);
+    expect(executiveGradeForRole("임원")).toBe(2);
+    expect(executiveGradeForRole("부감")).toBe(2);
   });
 });
 

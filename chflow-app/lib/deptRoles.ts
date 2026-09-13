@@ -91,6 +91,23 @@ export function resolveRoleLabel(grade: number, current: string | null | undefin
   return g === grade ? cur : defaultRoleForGrade(grade);
 }
 
+/**
+ * 임원(운영진)으로 볼 직책인지 — 부서 구성원 "임원진" 목록 기준.
+ *  · 표준 직책은 grade 0~2 (전도사·부장·부부장·총무·서기·회계 등)만 임원
+ *  · 목록에 없는 직접입력 직책("임원", "부감" 등)도 임원으로 본다
+ *  · 교사·학부모·빈 값·레거시 영문 라벨은 임원이 아니다
+ */
+export function isExecutiveRole(role: string | null | undefined): boolean {
+  if (isReplaceableRole(role)) return false;
+  const grade = roleGrade(role);
+  return grade === null ? true : grade <= 2;
+}
+
+/** 직책만 있고 등급이 없는 명부(edu_teachers)에서 정렬용 등급을 만든다 — 직접입력은 임원(2) 취급 */
+export function executiveGradeForRole(role: string | null | undefined): number {
+  return roleGrade(role) ?? 2;
+}
+
 /** 교사 출석 대상 등급인지 (학부모 grade 4 는 교사 명단에 넣지 않는다) */
 export function isTeacherRosterGrade(grade: number | null | undefined): boolean {
   return typeof grade === "number" && grade >= 0 && grade <= 3;

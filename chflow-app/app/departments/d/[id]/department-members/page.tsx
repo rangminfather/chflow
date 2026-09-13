@@ -10,7 +10,9 @@ import { gradeFieldLabel } from "@/lib/eduAge";
 import { classGradePrefix, isClassGradeIndependent } from "@/lib/eduClassLabel";
 
 interface ExecutiveRow {
-  user_id: string;
+  /** 계정 있는 임원은 user_id, 교사 명부에만 있는 임원은 "teacher:<id>" */
+  id: string;
+  user_id: string | null;
   name: string;
   role: string;
   grade: number;
@@ -175,7 +177,7 @@ export default function DepartmentMembersPage() {
               ) : (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {sortedExecutives.map((member) => (
-                    <div key={member.user_id} className="flex items-center gap-3 rounded-xl border border-[var(--hairline)] bg-[var(--card)] px-4 py-3 shadow-sm">
+                    <div key={member.id} className="flex items-center gap-3 rounded-xl border border-[var(--hairline)] bg-[var(--card)] px-4 py-3 shadow-sm">
                       <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--bg-soft)] text-[var(--ink-soft)]">
                         <UserRound size={17} />
                       </div>

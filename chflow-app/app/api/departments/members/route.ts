@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { executiveGradeForRole, isExecutiveRole } from "@/lib/deptRoles";
 
 export const runtime = "nodejs";
 
@@ -62,15 +63,25 @@ export async function GET(request: NextRequest) {
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data: executiveRows, error: executiveError } = await admin
-    .from("department_members")
-    .select("user_id, member_role, grade")
-    .eq("department_id", departmentId)
-    .eq("status", "approved")
-    .lte("grade", 2)
-    .order("grade", { ascending: true });
-  if (executiveError) {
-    return NextResponse.json({ ok: false, error: executiveError.message }, { status: 500 });
+  const [{ data: executiveRows, error: executiveError }, { data: teacherRows, error: teacherError }] = await Promise.all([
+    admin
+      .from("department_members")
+      .select("user_id, member_role, grade")
+      .eq("department_id", departmentId)
+      .eq("status", "approved")
+      .lte("grade", 2)
+      .order("grade", { ascending: true }),
+    // 앱 계정 없이 교사 명부에만 등록된 임원도 구성원 안내에 나와야 한다
+    // (department_members 는 계정이 있어야 생기므로 미가입 임원이 통째로 빠졌다)
+    admin
+      .from("edu_teachers")
+      .select("id, user_id, name, teacher_role, order_no")
+      .eq("department_id", departmentId)
+      .eq("is_active", true)
+      .order("order_no", { ascending: true }),
+  ]);
+  if (executiveError || teacherError) {
+    return NextResponse.json({ ok: false, error: executiveError?.message || teacherError?.message }, { status: 500 });
   }
 
   const userIds = [...new Set((executiveRows || []).map((row) => row.user_id).filter(Boolean))];
@@ -93,11 +104,27 @@ export async function GET(request: NextRequest) {
   }
 
   const executives = (executiveRows || []).map((row) => ({
+    id: row.user_id,
     user_id: row.user_id,
     name: names.get(row.user_id) || "이름 미등록",
     role: displayRole(row.member_role, row.grade),
     grade: row.grade,
   }));
+
+  // 교사 명부(edu_teachers)의 임원 중 위 목록에 없는 사람 — 계정 미가입자가 대부분이다.
+  // 계정이 있는 사람은 department_members 쪽이 권한 기준이므로 그쪽을 남기고 여기서는 건너뛴다.
+  const linkedUserIds = new Set(executives.map((row) => row.user_id).filter(Boolean));
+  for (const row of teacherRows || []) {
+    if (!isExecutiveRole(row.teacher_role)) continue;
+    if (row.user_id && linkedUserIds.has(row.user_id)) continue;
+    executives.push({
+      id: `teacher:${row.id}`,
+      user_id: row.user_id,
+      name: row.name?.trim() || "이름 미등록",
+      role: (row.teacher_role || "").trim(),
+      grade: executiveGradeForRole(row.teacher_role),
+    });
+  }
   const classes = (classResult.data || []).map((row: Record<string, unknown>) => ({
     class_no: row.class_no,
     grade_year: row.grade_year,
