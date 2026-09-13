@@ -26,7 +26,15 @@ type StudentPayload = {
   birth_date?: string | null;
   gender?: string | null;
   address?: string | null;
+  parent_contacts?: ParentContact[] | null;
+  notes?: string | null;
   family?: FamilyPayload[];
+};
+
+type ParentContact = {
+  relation?: string | null;
+  name?: string | null;
+  phone?: string | null;
 };
 
 type FamilyPayload = {
@@ -77,6 +85,17 @@ function cleanNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function cleanParentContacts(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => ({
+      relation: cleanText((item as ParentContact | null)?.relation) || "부모",
+      name: cleanText((item as ParentContact | null)?.name) || "",
+      phone: cleanText((item as ParentContact | null)?.phone) || "",
+    }))
+    .filter((item) => item.name || item.phone);
 }
 
 function normalizeStudentType(value: unknown): StudentType {
@@ -199,6 +218,8 @@ async function saveOne(
     birth_date: string | null;
     phone: string | null;
     address: string | null;
+    parent_contacts: ReturnType<typeof cleanParentContacts>;
+    notes: string | null;
     teacher_id: string | null;
     is_active: boolean;
     member_id?: string | null;
@@ -216,6 +237,8 @@ async function saveOne(
     birth_date: cleanText(payload.birth_date),
     phone: cleanText(payload.phone),
     address: cleanText(payload.address),
+    parent_contacts: cleanParentContacts(payload.parent_contacts),
+    notes: cleanText(payload.notes),
     teacher_id: teacherId,
     is_active: true,
   };
