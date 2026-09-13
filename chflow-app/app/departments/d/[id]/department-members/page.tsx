@@ -6,6 +6,8 @@ import { ChevronLeft, type LucideIcon, School, ShieldCheck, UserRound, Users } f
 import HeaderLogo from "@/components/HeaderLogo";
 import { EmptyState, LoadingView } from "@/components/StatusViews";
 import { supabase } from "@/lib/supabase";
+import { gradeFieldLabel } from "@/lib/eduAge";
+import { classGradePrefix, isClassGradeIndependent } from "@/lib/eduClassLabel";
 
 interface ExecutiveRow {
   user_id: string;
@@ -17,6 +19,7 @@ interface ExecutiveRow {
 interface ClassRow {
   class_no: string;
   grade_year: number | null;
+  in_registry?: boolean | null;
   label: string | null;
   teacher_name: string | null;
   assistant_teacher_name: string | null;
@@ -32,15 +35,17 @@ interface DirectoryResponse {
 
 type TabId = "executives" | "classes";
 
-const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
-  { id: "executives", label: "임원진", icon: ShieldCheck },
-  { id: "classes", label: "학년·반별 담임", icon: School },
+// 탭 이름은 부서에 따라 달라진다 — 반이 나이와 독립 편성이면 "반별 담임"
+const TABS: { id: TabId; icon: LucideIcon }[] = [
+  { id: "executives", icon: ShieldCheck },
+  { id: "classes", icon: School },
 ];
 
-function classNameOf(row: ClassRow) {
+function classNameOf(deptName: string, row: ClassRow, gradeIndependent: boolean) {
   const className = row.label?.trim()
     || (row.class_no.endsWith("반") ? row.class_no : `${row.class_no}반`);
-  return row.grade_year == null ? className : `${row.grade_year}학년 · ${className}`;
+  const prefix = classGradePrefix(deptName, row.grade_year, gradeIndependent);
+  return prefix ? `${prefix} · ${className}` : className;
 }
 
 export default function DepartmentMembersPage() {
@@ -53,6 +58,12 @@ export default function DepartmentMembersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<TabId>("executives");
+
+  // 반이 나이와 무관하게 편성된 부서(유아부 목장반 등) — 반 등록부 기준 판정
+  const gradeIndependent = useMemo(() => isClassGradeIndependent(classes), [classes]);
+  const classTabLabel = gradeIndependent
+    ? "반별 담임"
+    : `${gradeFieldLabel(departmentName)}·반별 담임`;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,7 +119,7 @@ export default function DepartmentMembersPage() {
           </div>
           <div>
             <h1 className="text-xl font-extrabold">{departmentName} 구성원</h1>
-            <p className="mt-0.5 text-sm text-[var(--ink-soft)]">임원진과 학년·반별 담임 안내</p>
+            <p className="mt-0.5 text-sm text-[var(--ink-soft)]">임원진과 {classTabLabel} 안내</p>
           </div>
         </div>
 
@@ -145,7 +156,7 @@ export default function DepartmentMembersPage() {
                     }`}
                   >
                     <TabIcon size={16} strokeWidth={1.9} className="shrink-0" />
-                    <span className="truncate">{tab.label}</span>
+                    <span className="truncate">{tab.id === "executives" ? "임원진" : classTabLabel}</span>
                     <span className="shrink-0 text-xs font-bold tabular-nums">{count}</span>
                   </button>
                 );
@@ -191,7 +202,7 @@ export default function DepartmentMembersPage() {
                 <div className="space-y-2">
                   {classes.map((classRow) => (
                     <div key={classRow.class_no} className="rounded-xl border border-[var(--hairline)] bg-[var(--card)] px-4 py-3 shadow-sm sm:flex sm:items-center sm:justify-between">
-                      <div className="text-sm font-extrabold">{classNameOf(classRow)}</div>
+                      <div className="text-sm font-extrabold">{classNameOf(departmentName, classRow, gradeIndependent)}</div>
                       <div className="mt-2 flex flex-wrap gap-2 sm:mt-0 sm:justify-end">
                         {classRow.teacher_name ? (
                           <span className="rounded-full bg-[var(--success-soft)] px-3 py-1.5 text-xs font-bold text-[var(--success)]">담임 {classRow.teacher_name} 선생님</span>

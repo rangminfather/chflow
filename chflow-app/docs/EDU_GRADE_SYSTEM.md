@@ -1,6 +1,6 @@
 # 교육부서 학년/나이 체계 · 연속 진급 체인 (설계 기준)
 
-기준일: 2026-07-12 · 관련 코드: `chflow-app/lib/eduAge.ts` (프론트 단일 진실) · DB `edu_grade_unit()`, `promote_preview/finalize`
+기준일: 2026-09-13 · 관련 코드: `chflow-app/lib/eduAge.ts` (학년/나이 단위 단일 진실) · `chflow-app/lib/eduClassLabel.ts` (반 편성 축 단일 진실) · DB `edu_grade_unit()`, `promote_preview/finalize`
 
 ## 1. 진급 체인 (departments.grade_year_min/max, next_dept_id)
 
@@ -30,17 +30,42 @@
 - 나이 기반 부서는 반(목장)이 나이와 독립 — 나이 선택이 반 선택을 제한하지 않고, 담임 새친구 등록은 항상 담임 반으로 편입.
 - 표기: 화면·`grade` 문자열 모두 "N세"/"N학년" (`gradeText`, DB `edu_grade_unit`).
 
+## 3-1. 반 편성 축 (학년 종속 / 학년 독립)
+
+`edu_students.grade_year`(학년·나이)와 **반 편성은 별개의 축**이다.
+
+| 편성 | 부서 | `edu_classes.grade_year` | 반 이름 | 라벨 |
+|---|---|---|---|---|
+| 학년 종속 | 초등1·2부 | 1~6 | `1-1` … `6-4` | `1학년 1-1반` |
+| **학년 독립** | 유아부(목장반) | **NULL** | `1목장` … | `1목장반` (나이 접두 없음) |
+
+- 판정은 **부서명 하드코딩이 아니라 반 등록부**(`edu_classes` / `list_dept_classes_full`)로 한다 —
+  등록된 반이 전부 `grade_year IS NULL` 이면 그 부서는 학년 독립 편성이다.
+  구현: `lib/eduClassLabel.ts`의 `isClassGradeIndependent()` · `classGradePrefix()` · `classGroupKeyOf()`.
+- 학년 독립 편성 부서에서 **반 라벨·그룹 키·정렬 키에 나이를 넣으면 한 목장이 나이별로 쪼개진다**
+  (유아부 3개 반이 "4세 1목장반 / 5세 1목장반 …" 5개 그룹으로 보이던 버그, 2026-09-13 수정).
+- 통계 화면의 주차별 표는 학년 독립 편성 부서에서 **반 열 + 나이 열을 함께** 보여 준다.
+
 ## 4. 수정 시 반드시 함께 고칠 곳
 
 부서명 하드코딩 기반이므로 부서 개편(이름 변경·범위 조정·부서 추가) 시 아래를 **한 세트로** 수정:
 
-1. `chflow-app/lib/eduAge.ts` — `AGE_DEPTS`(나이 기반 부서·옵션), `PRESCHOOL_DEPTS`(어린이집 라벨)
+1. `chflow-app/lib/eduAge.ts` — `AGE_DEPTS`(나이 기반 부서·옵션), `SCHOOL_FIELD`(어린이집 라벨)
 2. DB `edu_grade_unit(p_dept_name)` 함수 — '세'/'학년' 분기 부서 목록
 3. `departments.grade_year_min/max, next_dept_id` — 진급 체인
 4. 기존 학생 데이터의 `grade_year`/`birth_date`/`grade` 문자열 정합성
+
+반 라벨·집계 화면은 `lib/eduClassLabel.ts` 를 거쳐야 한다 (직접 `N학년` 문자열을 만들지 말 것):
+
+- 출결통계 `app/departments/d/[id]/attendance-stats/page.tsx`
+- 출석부·달란트체크 `app/departments/d/[id]/attendance/page.tsx`
+- 참여현황 `app/departments/d/[id]/participation-check/page.tsx`
+- 성경퀴즈 달란트 `app/departments/d/[id]/quiz-talent/page.tsx`
+- 부서 구성원 `app/departments/d/[id]/department-members/page.tsx` (+ `app/api/departments/members/route.ts` 가 `in_registry` 를 내려줘야 판정 가능)
 
 ## 5. 이력
 
 - 2026-07-11: 유아부 나이(4·5세) 기반 등록 도입, 기존 5명 1·2학년→4·5세 변환
 - 2026-07-12: 전 교육부서 연속 진급 체인 구성, 유치부 이믿음 1→6세 변환
 - 2026-07-13: 영아부 공식 3~4세/운영 1~4세로 보강, 유니게학교 1~2세 미운영 표시, 영아부→유아부 승계 시 "영아부에도 유지" 병행 등록 규칙 추가
+- 2026-09-13: 반 편성 축(§3-1) 분리, `lib/eduClassLabel.ts` 신설. 출결통계·출석부·참여현황·성경퀴즈·부서구성원의 `N학년` 하드코딩 제거 (불편신고 #29)

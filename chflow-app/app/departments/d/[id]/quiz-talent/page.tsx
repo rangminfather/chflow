@@ -7,6 +7,7 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView } from "@/components/StatusViews";
 import { ClipboardCheck, Lock, Info, Save } from "lucide-react";
 import YmdSelect from "@/components/YmdSelect";
+import { CLASS_NAME_COLLATOR, classGradePrefix, isClassGradeIndependent, type ClassRegistryRow } from "@/lib/eduClassLabel";
 
 /** 시험일에서 고를 수 있는 연도 범위 — 지난해 기록 수정까지 허용 */
 const QUIZ_MIN_YEAR = new Date().getFullYear() - 1;
@@ -53,6 +54,8 @@ export default function QuizTalentPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [classMeta, setClassMeta] = useState<Record<string, ClassMeta>>({});
   const [records, setRecords] = useState<QuizRecord[]>([]);
+  const [deptName, setDeptName] = useState("");
+  const [classRows, setClassRows] = useState<ClassRegistryRow[]>([]);
   const [inputs, setInputs] = useState<Record<string, string>>({}); // student_id -> 맞은개수(문자열)
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
@@ -64,6 +67,9 @@ export default function QuizTalentPage() {
   }, []);
 
   const canEdit = myGrade !== null && myGrade <= 2;
+
+  // 반이 나이와 무관하게 편성된 부서(유아부 목장반 등) — 반 등록부 기준 판정
+  const gradeIndependent = useMemo(() => isClassGradeIndependent(classRows), [classRows]);
 
   useEffect(() => {
     (async () => {
@@ -77,11 +83,16 @@ export default function QuizTalentPage() {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [{ data: roster }, metaResp, { data: recs }] = await Promise.all([
+    const [{ data: roster }, metaResp, { data: recs }, deptResp, classResp] = await Promise.all([
       supabase.rpc("edu_list_students", { p_dept_id: deptId }),
       supabase.from("edu_students").select("id, class_no, grade_year").eq("department_id", deptId),
       supabase.rpc("edu_quiz_talent_list", { p_dept_id: deptId, p_year: year, p_month: month }),
+      supabase.rpc("get_department_info", { p_dept_id: deptId }),
+      supabase.rpc("list_dept_classes_full", { p_dept_id: deptId }),
     ]);
+
+    setDeptName(typeof deptResp.data?.[0]?.name === "string" ? deptResp.data[0].name : "");
+    setClassRows((classResp.data || []) as ClassRegistryRow[]);
 
     const list = ((roster || []) as Student[])
       .filter((s) => s.is_active)
@@ -123,19 +134,18 @@ export default function QuizTalentPage() {
       const m = classMeta[s.id];
       const gy = m?.grade_year ?? null;
       const cls = m?.class_no ?? null;
-      const label = gy != null && cls
-        ? `${gy}학년 ${cls}반`
-        : cls
-          ? `${cls}반`
-          : s.teacher_name
-            ? `${s.teacher_name} 선생님 반`
-            : "반 미배정";
-      const sortKey = `${gy ?? 99}_${cls ?? "zz"}_${s.teacher_name ?? "zz"}`;
+      const prefix = classGradePrefix(deptName, gy, gradeIndependent);
+      const label = cls
+        ? (prefix ? `${prefix} ${cls}반` : `${cls}반`)
+        : s.teacher_name
+          ? `${s.teacher_name} 선생님 반`
+          : "반 미배정";
+      const sortKey = `${gradeIndependent ? 0 : (gy ?? 99)}_${cls ?? "zz"}_${s.teacher_name ?? "zz"}`;
       if (!byKey[label]) byKey[label] = { label, sortKey, students: [] };
       byKey[label].students.push(s);
     });
-    return Object.values(byKey).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-  }, [students, classMeta]);
+    return Object.values(byKey).sort((a, b) => CLASS_NAME_COLLATOR.compare(a.sortKey, b.sortKey));
+  }, [students, classMeta, deptName, gradeIndependent]);
 
   const enteredCount = useMemo(
     () => Object.values(inputs).filter((v) => Number(v) > 0).length,

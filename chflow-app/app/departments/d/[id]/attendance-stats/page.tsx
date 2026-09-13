@@ -7,6 +7,8 @@ import HeaderLogo from "@/components/HeaderLogo";
 import { supabase } from "@/lib/supabase";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { BarChart3, CalendarRange, ChevronLeft, ChevronRight, GraduationCap, Lock, UserCheck } from "lucide-react";
+import { gradeFieldLabel, gradeText } from "@/lib/eduAge";
+import { CLASS_NAME_COLLATOR, classGradePrefix, isClassGradeIndependent, type ClassRegistryRow } from "@/lib/eduClassLabel";
 
 interface AttendRow {
   student_id: string;
@@ -72,6 +74,7 @@ const STATUS_META = [
 ];
 
 const UNASSIGNED = "반 미배정";
+const UNASSIGNED_KEY = "미배정";
 const ABSENTEE = "장기결석";
 
 export default function AttendanceStatsPage() {
@@ -96,6 +99,12 @@ export default function AttendanceStatsPage() {
   const [teacherRows, setTeacherRows] = useState<TeacherAttendRow[]>([]);
   const [studentMeta, setStudentMeta] = useState<Record<string, StudentMeta>>({});
   const [newFriends, setNewFriends] = useState<NewFriendRow[]>([]);
+  const [deptName, setDeptName] = useState("");
+  const [classRows, setClassRows] = useState<ClassRegistryRow[]>([]);
+
+  // 유아부 목장반처럼 반이 나이와 무관하게 편성된 부서인지 — 반 등록부 기준으로 판정한다.
+  // 이 경우 반 라벨·그룹 키에 나이를 넣으면 한 목장이 나이별로 쪼개져 보인다.
+  const gradeIndependent = useMemo(() => isClassGradeIndependent(classRows), [classRows]);
 
   const months = useMemo(() => {
     const list: number[] = [];
@@ -117,7 +126,9 @@ export default function AttendanceStatsPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [metaResp, friendsResp, ...monthResults] = await Promise.all([
+    const [deptResp, classResp, metaResp, friendsResp, ...monthResults] = await Promise.all([
+      supabase.rpc("get_department_info", { p_dept_id: deptId }),
+      supabase.rpc("list_dept_classes_full", { p_dept_id: deptId }),
       supabase
         .from("edu_students")
         .select("id, class_no, grade_year, order_no, student_no, mgmt_status, gender, member_id")
@@ -132,6 +143,9 @@ export default function AttendanceStatsPage() {
         supabase.rpc("edu_get_teacher_attendance", { p_dept_id: deptId, p_year: year, p_month: m }),
       ]),
     ]);
+
+    setDeptName(typeof deptResp.data?.[0]?.name === "string" ? deptResp.data[0].name : "");
+    setClassRows((classResp.data || []) as ClassRegistryRow[]);
 
     const metaMap: Record<string, StudentMeta> = {};
     ((metaResp.data || []) as StudentMeta[]).forEach((meta) => { metaMap[meta.id] = meta; });
@@ -219,8 +233,10 @@ export default function AttendanceStatsPage() {
         stat = {
           id: row.student_id,
           name: row.student_name,
-          classLabel: classLabel(meta),
-          orderKey: (meta?.grade_year ?? 99) * 1_000_000 + (meta?.order_no ?? 999) * 1000 + (meta?.student_no ?? 999),
+          classLabel: classLabel(deptName, meta, gradeIndependent),
+          // 학년 독립 편성 부서는 나이가 정렬을 끌고 가지 않도록 학년 자리를 비운다
+          orderKey: (gradeIndependent ? 0 : (meta?.grade_year ?? 99)) * 1_000_000
+            + (meta?.order_no ?? 999) * 1000 + (meta?.student_no ?? 999),
           isAbsentee: meta?.mgmt_status === ABSENTEE,
           counts: { 출: 0, 인: 0, 빠: 0, 결: 0 },
           present: 0,
@@ -236,7 +252,7 @@ export default function AttendanceStatsPage() {
       if (status === "출" || status === "인") stat.present += 1;
     });
     return Array.from(map.values());
-  }, [studentRows, studentMeta]);
+  }, [studentRows, studentMeta, deptName, gradeIndependent]);
 
   // 학생별 출석(출/인) 날짜 셋 — 월별·주차별 파생용
   const presentDates = useMemo(() => {
@@ -326,16 +342,32 @@ export default function AttendanceStatsPage() {
     });
   }, [monthSundays, presentDates, studentMeta, newFriends, enrolledCount, todayKey]);
 
-  // 주차별 학년·성별 출석 현황 (해당 월)
+  // 주차별 학년(나이)·성별 출석 현황 (해당 월)
   const gradeList = useMemo(() => {
     const set = new Set<number>();
     rosterAll.forEach((m) => { if (m.grade_year) set.add(m.grade_year); });
     return Array.from(set).sort((a, b) => a - b);
   }, [rosterAll]);
 
+  // 반별 열 — 학년 독립 편성 부서에서만 쓴다 (나이 열과 나란히 함께 보여 준다)
+  const classList = useMemo(() => {
+    if (!gradeIndependent) return [] as string[];
+    const set = new Set<string>();
+    rosterAll.forEach((m) => {
+      if (m.mgmt_status === ABSENTEE) return;
+      set.add(m.class_no?.trim() || UNASSIGNED_KEY);
+    });
+    return Array.from(set).sort((a, b) => {
+      if (a === UNASSIGNED_KEY) return 1;
+      if (b === UNASSIGNED_KEY) return -1;
+      return CLASS_NAME_COLLATOR.compare(a, b);
+    });
+  }, [rosterAll, gradeIndependent]);
+
   const weekBreakdown = useMemo(() => {
     return monthSundays.map((date, i) => {
       const byGrade: Record<number, number> = {};
+      const byClass: Record<string, number> = {};
       let male = 0;
       let female = 0;
       presentDates.forEach((dates, studentId) => {
@@ -343,11 +375,13 @@ export default function AttendanceStatsPage() {
         const meta = studentMeta[studentId];
         if (meta?.mgmt_status === ABSENTEE) return;
         if (meta?.grade_year) byGrade[meta.grade_year] = (byGrade[meta.grade_year] || 0) + 1;
+        const cls = meta?.class_no?.trim() || UNASSIGNED_KEY;
+        byClass[cls] = (byClass[cls] || 0) + 1;
         const g = normalizeGender(meta?.gender);
         if (g === "남") male += 1;
         else if (g === "여") female += 1;
       });
-      return { date, label: `${i + 1}주차`, future: date > todayKey, byGrade, male, female };
+      return { date, label: `${i + 1}주차`, future: date > todayKey, byGrade, byClass, male, female };
     });
   }, [monthSundays, presentDates, studentMeta, todayKey]);
 
@@ -396,7 +430,7 @@ export default function AttendanceStatsPage() {
         if (b.label === ABSENTEE) return -1;
         if (a.label === UNASSIGNED) return 1;
         if (b.label === UNASSIGNED) return -1;
-        return a.label.localeCompare(b.label, "ko");
+        return CLASS_NAME_COLLATOR.compare(a.label, b.label);
       });
   }, [studentStats, statusByDate, detailSet]);
 
@@ -596,16 +630,21 @@ export default function AttendanceStatsPage() {
                 ))}
               </div>
 
-              {/* 주차별 학년·성별 출석 현황 */}
+              {/* 주차별 반·학년(나이)·성별 출석 현황 */}
               <div className="border-t border-hairline px-3 pb-3 pt-2.5">
-                <div className="mb-2 text-[13px] font-extrabold text-ink-soft">주차별 학년·성별 출석 현황</div>
+                <div className="mb-2 text-[13px] font-extrabold text-ink-soft">
+                  주차별 {gradeIndependent ? "반·" : ""}{gradeFieldLabel(deptName)}·성별 출석 현황
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[420px] border-collapse text-[12.5px]">
                     <thead>
                       <tr className="border-b border-hairline text-ink-faint">
                         <th className="px-2 py-1.5 text-left font-bold">주차</th>
+                        {classList.map((cls) => (
+                          <th key={`cls-${cls}`} className="px-2 py-1.5 text-center font-bold">{classColumnLabel(cls)}</th>
+                        ))}
                         {gradeList.map((grade) => (
-                          <th key={grade} className="px-2 py-1.5 text-center font-bold">{grade}학년</th>
+                          <th key={grade} className="px-2 py-1.5 text-center font-bold">{gradeText(deptName, grade)}</th>
                         ))}
                         <th className="px-2 py-1.5 text-center font-bold">남</th>
                         <th className="px-2 py-1.5 text-center font-bold">여</th>
@@ -615,6 +654,9 @@ export default function AttendanceStatsPage() {
                       {weekBreakdown.map((week) => (
                         <tr key={week.date} className="border-b border-hairline last:border-b-0" style={{ opacity: week.future ? 0.5 : 1 }}>
                           <td className="px-2 py-1.5 font-extrabold text-ink">{week.label} <span className="text-[11px] font-bold text-ink-faint">{shortDate(week.date)}</span></td>
+                          {classList.map((cls) => (
+                            <td key={`cls-${cls}`} className="px-2 py-1.5 text-center font-bold text-ink-soft">{week.byClass[cls] || 0}</td>
+                          ))}
                           {gradeList.map((grade) => (
                             <td key={grade} className="px-2 py-1.5 text-center font-bold text-ink-soft">{week.byGrade[grade] || 0}</td>
                           ))}
@@ -830,9 +872,15 @@ function yearOptions(currentYear: number) {
   return list;
 }
 
-function classLabel(meta: StudentMeta | undefined) {
+function classLabel(deptName: string, meta: StudentMeta | undefined, gradeIndependent: boolean) {
   if (!meta?.class_no) return UNASSIGNED;
-  return `${meta.grade_year ? `${meta.grade_year}학년 ` : ""}${meta.class_no}반`;
+  const prefix = classGradePrefix(deptName, meta.grade_year, gradeIndependent);
+  return `${prefix ? `${prefix} ` : ""}${meta.class_no}반`;
+}
+
+function classColumnLabel(classNo: string) {
+  if (classNo === UNASSIGNED_KEY) return UNASSIGNED;
+  return classNo.endsWith("반") ? classNo : `${classNo}반`;
 }
 
 function normalizeGender(value: string | null | undefined): "남" | "여" | null {

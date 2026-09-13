@@ -13,6 +13,7 @@ import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { ClipboardList, BookOpen, Medal, RotateCcw, Search, X } from "lucide-react";
+import { classGradePrefix, isClassGradeIndependent, type ClassRegistryRow } from "@/lib/eduClassLabel";
 import {
   type TalentReset,
   type HalfOption,
@@ -105,9 +106,13 @@ const SYSTEM_AUTO_KEYS = new Set(["attendance", "prayer", "church_school", "wors
 const PROMOTION_KEY = "new_friend_promotion";
 const CLASS_COLLATOR = new Intl.Collator("ko", { numeric: true, sensitivity: "base" });
 
-function classLabel(row: { grade_year: number | null; class_no: string | null }): string {
-  const grade = row.grade_year ? `${row.grade_year}학년 ` : "";
-  return `${grade}${row.class_no || "미배정"}반`;
+function classLabel(
+  deptName: string,
+  row: { grade_year: number | null; class_no: string | null },
+  gradeIndependent: boolean,
+): string {
+  const prefix = classGradePrefix(deptName, row.grade_year, gradeIndependent);
+  return `${prefix ? `${prefix} ` : ""}${row.class_no || "미배정"}반`;
 }
 
 function classGroupKey(
@@ -159,6 +164,7 @@ export default function AttendancePage() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const viewMode: "attendance" | "talent" = pathname.endsWith("/talent-check") ? "talent" : "attendance";
   const [deptName, setDeptName] = useState("");
+  const [classRows, setClassRows] = useState<ClassRegistryRow[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [attData, setAttData] = useState<AttendRow[]>([]);
   const [rules, setRules] = useState<TalentRule[]>([]);
@@ -208,9 +214,16 @@ export default function AttendancePage() {
   }, [deptId]);
 
   const loadDepartment = useCallback(async () => {
-    const { data } = await supabase.rpc("get_department_info", { p_dept_id: deptId });
+    const [{ data }, classResp] = await Promise.all([
+      supabase.rpc("get_department_info", { p_dept_id: deptId }),
+      supabase.rpc("list_dept_classes_full", { p_dept_id: deptId }),
+    ]);
     setDeptName(typeof data?.[0]?.name === "string" ? data[0].name : "");
+    setClassRows((classResp.data || []) as ClassRegistryRow[]);
   }, [deptId]);
+
+  // 반이 나이와 무관하게 편성된 부서(유아부 목장반 등) — 반 등록부 기준 판정
+  const gradeIndependent = useMemo(() => isClassGradeIndependent(classRows), [classRows]);
 
   const loadStudents = useCallback(async () => {
     const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
@@ -715,7 +728,7 @@ export default function AttendancePage() {
               {readyList.map((row) => (
                 <div key={row.new_friend_id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{row.name}</span>
-                  <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>{classLabel(row)}</span>
+                  <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>{classLabel(deptName, row, gradeIndependent)}</span>
                   <span style={{ fontSize: 12, color: "var(--ink-soft)" }}>출석 {row.attend_count}회 · 4주 등반 대상</span>
                   <button
                     onClick={() => confirmPromotion(row)}
@@ -737,7 +750,7 @@ export default function AttendancePage() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {upcomingList.map((row) => (
                 <span key={row.new_friend_id} style={{ fontSize: 12, fontWeight: 700, color: "var(--warning)", background: "var(--card)", border: "1px solid color-mix(in srgb, var(--warning) 30%, transparent)", borderRadius: 14, padding: "3px 10px" }}>
-                  {row.name} <span style={{ color: "var(--ink-faint)", fontWeight: 600 }}>· {classLabel(row)}</span>
+                  {row.name} <span style={{ color: "var(--ink-faint)", fontWeight: 600 }}>· {classLabel(deptName, row, gradeIndependent)}</span>
                 </span>
               ))}
             </div>
@@ -849,9 +862,9 @@ export default function AttendancePage() {
               </thead>
               <tbody>
                 {(() => {
-                  // 유아부 목장은 나이와 독립된 편성이므로 나이별로 같은 목장을
-                  // 반복하지 않고 목장 번호 기준으로 한 번만 묶어 표시한다.
-                  const groupByClassOnly = deptName.trim() === "유아부";
+                  // 유아부 목장처럼 반이 나이와 독립된 편성이면 나이별로 같은 반을
+                  // 반복하지 않고 반 이름 기준으로 한 번만 묶어 표시한다.
+                  const groupByClassOnly = gradeIndependent;
                   const sorted = [...students].sort((a, b) => compareStudents(a, b, groupByClassOnly));
                   const colSpan = 2 + sundays.length + (viewMode === "attendance" ? 3 : 2);
                   let lastGroup = "__init__";

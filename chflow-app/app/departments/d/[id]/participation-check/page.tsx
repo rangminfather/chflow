@@ -13,6 +13,8 @@ import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { LoadingView } from "@/components/StatusViews";
 import { ChevronLeft, ChevronRight, ClipboardCopy, Copy, History, Lock, Save, Trash2, X } from "lucide-react";
+import { gradeFieldLabel, gradeText } from "@/lib/eduAge";
+import { classGradePrefix, isClassGradeIndependent, type ClassRegistryRow } from "@/lib/eduClassLabel";
 
 interface StudentRow {
   student_id: string;
@@ -86,12 +88,18 @@ function genderLabel(value: string | null | undefined) {
   return "";
 }
 
-/** 반 이름. class_no 가 이미 "3-1"처럼 학년을 담고 있으면 학년을 앞에 또 붙이지 않는다. */
-function classLabel(row: { grade_year: number | null; class_no: string | null }) {
+/** 반 이름. class_no 가 이미 "3-1"처럼 학년을 담고 있으면 학년을 앞에 또 붙이지 않는다.
+ *  반이 나이와 독립 편성된 부서(유아부 목장반 등)는 아예 나이를 붙이지 않는다. */
+function classLabel(
+  deptName: string,
+  row: { grade_year: number | null; class_no: string | null },
+  gradeIndependent: boolean,
+) {
   const classNo = row.class_no?.trim();
-  if (!classNo) return row.grade_year ? `${row.grade_year}학년 미배정` : "반 미배정";
+  const prefix = classGradePrefix(deptName, row.grade_year, gradeIndependent);
+  if (!classNo) return prefix ? `${prefix} 미배정` : "반 미배정";
   if (row.grade_year && classNo.startsWith(`${row.grade_year}-`)) return `${classNo}반`;
-  return row.grade_year ? `${row.grade_year}학년 ${classNo}반` : `${classNo}반`;
+  return prefix ? `${prefix} ${classNo}반` : `${classNo}반`;
 }
 
 /** 직책 표기 — 그냥 "교사"는 굳이 적지 않는다(부장·임원·전도사 등만 표시) */
@@ -123,8 +131,8 @@ function parseCount(value: string) {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
-/** 학년별 표 — 학년 · 남 · 여 · 계 + 합계. 한 줄로 길게 늘어나 잘리지 않게 표로 고정한다. */
-function GradeStatTable({ rows, total, emptyLabel }: { rows: GradeTally[]; total: Tally; emptyLabel: string }) {
+/** 학년(나이)별 표 — 단위 · 남 · 여 · 계 + 합계. 한 줄로 길게 늘어나 잘리지 않게 표로 고정한다. */
+function GradeStatTable({ rows, total, emptyLabel, deptName }: { rows: GradeTally[]; total: Tally; emptyLabel: string; deptName: string }) {
   if (rows.length === 0) {
     return <div style={emptyLineStyle}>{emptyLabel}</div>;
   }
@@ -132,7 +140,7 @@ function GradeStatTable({ rows, total, emptyLabel }: { rows: GradeTally[]; total
     <table style={tableStyle}>
       <thead>
         <tr>
-          <th style={{ ...thStyle, textAlign: "left" }}>학년</th>
+          <th style={{ ...thStyle, textAlign: "left" }}>{gradeFieldLabel(deptName)}</th>
           <th style={thStyle}>남</th>
           <th style={thStyle}>여</th>
           <th style={thStyle}>계</th>
@@ -141,7 +149,7 @@ function GradeStatTable({ rows, total, emptyLabel }: { rows: GradeTally[]; total
       <tbody>
         {rows.map((r) => (
           <tr key={r.grade}>
-            <td style={{ ...tdStyle, textAlign: "left", fontWeight: 600 }}>{r.grade}학년</td>
+            <td style={{ ...tdStyle, textAlign: "left", fontWeight: 600 }}>{gradeText(deptName, r.grade)}</td>
             <td style={tdStyle}>{r.male}</td>
             <td style={tdStyle}>{r.female}</td>
             <td style={{ ...tdStyle, fontWeight: 700, color: "var(--ink)" }}>{r.total}</td>
@@ -184,6 +192,7 @@ export default function ParticipationCheckPage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
   const [deptName, setDeptName] = useState("");
+  const [classRows, setClassRows] = useState<ClassRegistryRow[]>([]);
   const [date, setDate] = useState(() => toISO(new Date()));
   const [sessionNo, setSessionNo] = useState(1);
   const [students, setStudents] = useState<StudentRow[]>([]);
@@ -200,6 +209,9 @@ export default function ParticipationCheckPage() {
   const [memoDraft, setMemoDraft] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
 
+  // 반이 나이와 무관하게 편성된 부서(유아부 목장반 등) — 반 등록부 기준 판정
+  const gradeIndependent = useMemo(() => isClassGradeIndependent(classRows), [classRows]);
+
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2800);
@@ -207,14 +219,16 @@ export default function ParticipationCheckPage() {
 
   const load = useCallback(async (targetDate: string, targetSession: number) => {
     setLoading(true);
-    const [deptResp, listResp, teacherResp] = await Promise.all([
+    const [deptResp, classResp, listResp, teacherResp] = await Promise.all([
       supabase.rpc("get_department_info", { p_dept_id: deptId }),
+      supabase.rpc("list_dept_classes_full", { p_dept_id: deptId }),
       supabase.rpc("edu_participation_list", { p_dept_id: deptId, p_check_date: targetDate, p_session_no: targetSession }),
       supabase.rpc("edu_participation_teacher_list", { p_dept_id: deptId, p_check_date: targetDate, p_session_no: targetSession }),
     ]);
     if (!deptResp.error && deptResp.data && deptResp.data.length > 0) {
       setDeptName(deptResp.data[0].name || "");
     }
+    setClassRows((classResp.data || []) as ClassRegistryRow[]);
     if (listResp.error) {
       if (listResp.error.message.includes("권한")) {
         setAuthorized(false);
@@ -589,14 +603,14 @@ export default function ParticipationCheckPage() {
     if (attend.rows.length === 0) {
       lines.push("  등록된 학생이 없습니다");
     } else {
-      attend.rows.forEach((r) => lines.push(`  ${r.grade}학년 ${r.total}명 (남${r.male}·여${r.female})`));
+      attend.rows.forEach((r) => lines.push(`  ${gradeText(deptName, r.grade)} ${r.total}명 (남${r.male}·여${r.female})`));
     }
     lines.push("");
     lines.push(`■ 새친구 — 총 ${newFriend.total.total}명 (남${newFriend.total.male}·여${newFriend.total.female})`);
     if (newFriend.total.total === 0) {
       lines.push("  없음");
     } else {
-      newFriend.rows.forEach((r) => lines.push(`  ${r.grade}학년 ${r.total}명 (남${r.male}·여${r.female})`));
+      newFriend.rows.forEach((r) => lines.push(`  ${gradeText(deptName, r.grade)} ${r.total}명 (남${r.male}·여${r.female})`));
     }
     lines.push("");
     lines.push(`■ 교사 출석 — ${teacherStats.present}/${teacherStats.total}명`);
@@ -607,7 +621,7 @@ export default function ParticipationCheckPage() {
     } else {
       rosterClassGroups.forEach(({ head, present }) => {
         const teacher = head.teacher_name ? ` (${teacherLabelWithStatus(head.teacher_name)})` : "";
-        lines.push(`· ${classLabel(head)}${teacher} ${present.length}명`);
+        lines.push(`· ${classLabel(deptName, head, gradeIndependent)}${teacher} ${present.length}명`);
         if (present.length === 0) {
           lines.push("  - 참석 체크된 학생 없음");
         }
@@ -721,11 +735,11 @@ export default function ParticipationCheckPage() {
             {/* 통계 */}
             <section style={cardStyle}>
               <div style={cardTitleStyle}>학생 출석 <span style={cardTitleSubStyle}>참석 체크 기준</span></div>
-              <GradeStatTable rows={attend.rows} total={attend.total} emptyLabel="등록된 학생이 없습니다" />
+              <GradeStatTable rows={attend.rows} total={attend.total} emptyLabel="등록된 학생이 없습니다" deptName={deptName} />
 
               <div style={cardDividerStyle} />
               <div style={cardTitleStyle}>새친구 <span style={cardTitleSubStyle}>학생이 데려온 인원</span></div>
-              <GradeStatTable rows={newFriend.rows} total={newFriend.total} emptyLabel="등록된 학생이 없습니다" />
+              <GradeStatTable rows={newFriend.rows} total={newFriend.total} emptyLabel="등록된 학생이 없습니다" deptName={deptName} />
 
               <div style={cardDividerStyle} />
               <div style={inlineStatStyle}>
@@ -749,7 +763,7 @@ export default function ParticipationCheckPage() {
                       <div key={classNo}>
                         <div style={rosterGroupTitleStyle}>
                           <span>
-                            {classLabel(head)}
+                            {classLabel(deptName, head, gradeIndependent)}
                             {head.teacher_name && (
                               <>
                                 {` · ${head.teacher_name} 선생님`}
@@ -846,7 +860,7 @@ export default function ParticipationCheckPage() {
                 return (
                   <section key={classNo} style={cardStyle}>
                     <div style={cardTitleStyle}>
-                      {classLabel(head)}
+                      {classLabel(deptName, head, gradeIndependent)}
                       <span style={cardTitleSubStyle}>
                         {head.teacher_name ? `${head.teacher_name} 선생님 · ` : ""}참석 {presentCount}/{rows.length}
                       </span>

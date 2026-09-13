@@ -101,6 +101,7 @@ export async function GET(request: NextRequest) {
   const classes = (classResult.data || []).map((row: Record<string, unknown>) => ({
     class_no: row.class_no,
     grade_year: row.grade_year,
+    in_registry: row.in_registry,
     label: row.label,
     teacher_name: row.teacher_name,
     assistant_teacher_name: row.assistant_teacher_name,
