@@ -151,6 +151,14 @@ export default function BiblePage() {
     setPickerOpen(true);
   }
 
+  // "1장"을 누르면 책 목록을 거치지 않고 현재 책의 장 목록부터 연다
+  function openChapterPicker() {
+    if (!book) return;
+    setPickerTestament(book.testament);
+    setPickerStep("chapter");
+    setPickerOpen(true);
+  }
+
   return (
     <main style={pageStyle}>
       <style>{`
@@ -183,7 +191,7 @@ export default function BiblePage() {
               <div style={chapterTitleWrapStyle}>
                 <BookText size={16} style={{ color: "var(--accent)", flexShrink: 0 }} />
                 <button onClick={openPicker} style={titleBookNameStyle}>{book?.name_ko ?? "…"}</button>
-                <span style={titleChapterStyle}>{chapter}장</span>
+                <button onClick={openChapterPicker} style={titleChapterStyle}>{chapter}장</button>
                 {loading && <Spinner size={14} />}
               </div>
               <button onClick={nextChapter} disabled={!hasNext} style={{ ...navButtonStyle, opacity: hasNext ? 1 : 0.3 }} aria-label="다음 장">
@@ -517,8 +525,8 @@ const chapterTitleWrapStyle: CSSProperties = {
   minWidth: 0,
 };
 
-// 책 이름은 눌러서 책 선택으로 바로 이어지는 버튼이다 — "창세기"와 "1장" 사이를
-// 눈에 띄게 띄워 둘이 별개(책 이름=탭 가능 / 장=현재 위치 표시)임을 드러낸다.
+// 책 이름은 눌러서 책 선택으로, 장은 눌러서 장 선택으로 이어지는 버튼이다 —
+// "창세기"와 "1장" 사이를 눈에 띄게 띄워 둘이 별개임을 드러낸다.
 const titleBookNameStyle: CSSProperties = {
   margin: 0,
   padding: 0,
@@ -536,10 +544,19 @@ const titleBookNameStyle: CSSProperties = {
 };
 
 const titleChapterStyle: CSSProperties = {
+  margin: 0,
   marginLeft: 10,
+  padding: 0,
   fontSize: 17,
   fontWeight: 800,
   color: "var(--ink)",
+  textDecoration: "underline",
+  textUnderlineOffset: 3,
+  textDecorationColor: "var(--accent-line)",
+  background: "transparent",
+  border: 0,
+  cursor: "pointer",
+  fontFamily: "inherit",
   whiteSpace: "nowrap",
 };
 
