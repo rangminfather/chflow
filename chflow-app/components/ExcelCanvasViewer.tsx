@@ -45,7 +45,7 @@ export default function ExcelCanvasViewer({ url, fallbackUrl }: { url: string; f
     </div>}
     <div style={{ overflow: "auto", border: "1px solid var(--line)", borderRadius: 8 }}>
       <table style={{ borderCollapse: "collapse", fontSize: 12, minWidth: "100%" }}><tbody>
-        {sheet.rows.map((row, rowIndex) => <tr key={rowIndex}>{Array.from({ length: columnCount }, (_, columnIndex) => <td key={columnIndex} style={{ whiteSpace: "pre-wrap", minWidth: 72, padding: "7px 9px", borderRight: "1px solid var(--line)", borderBottom: "1px solid var(--line)", background: rowIndex === 0 ? "var(--bg-soft)" : "white", fontWeight: rowIndex === 0 ? 700 : 400 }}>{row[columnIndex] || ""}</td>)}</tr>)}
+        {sheet.rows.map((row, rowIndex) => <tr key={rowIndex}>{Array.from({ length: columnCount }, (_, columnIndex) => <td key={columnIndex} style={{ whiteSpace: "pre-wrap", minWidth: 72, padding: "7px 9px", borderRight: "1px solid var(--line)", borderBottom: "1px solid var(--line)", background: rowIndex === 0 ? "var(--bg-soft)" : "var(--card)", fontWeight: rowIndex === 0 ? 700 : 400 }}>{row[columnIndex] || ""}</td>)}</tr>)}
       </tbody></table>
     </div>
     {sheet.rows.length >= 200 && <p style={{ fontSize: 12, color: "var(--ink-soft)" }}>미리보기는 처음 200행까지 표시합니다.</p>}
