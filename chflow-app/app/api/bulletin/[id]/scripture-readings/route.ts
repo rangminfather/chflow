@@ -17,6 +17,9 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   const { data, error } = await db.from("bulletin_scripture_readings")
     .select("id,service_type,raw_reference,normalized_label,sort_order")
     .eq("bulletin_id", id).eq("status", "verified").order("service_type").order("sort_order");
+  // The feature code can be deployed before its additive migration. Keep the
+  // bulletin viewer fail-open only for PostgREST's explicit missing-table code.
+  if (error?.code === "PGRST205") return NextResponse.json({ ok: true, readings: [] });
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, readings: data || [] });
 }

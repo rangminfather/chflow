@@ -82,7 +82,7 @@ function AdminMembersPage() {
   const [filterPlain, setFilterPlain] = useState(searchParams.get("plain") || "");
   const [filterGrassland, setFilterGrassland] = useState(searchParams.get("grassland") || "");
   const [filterPasture, setFilterPasture] = useState(searchParams.get("pasture") || "");
-  const [memberStatus, setMemberStatus] = useState<"active" | "inactive" | "all">("active");
+  const [memberStatus, setMemberStatus] = useState<"active" | "inactive" | "transferred" | "all">("active");
   const [accountState, setAccountState] = useState<"active" | "withdrawn" | "all">("active");
   const [appMembership, setAppMembership] = useState<"all" | "joined" | "not_joined">("all");
   const [showChildren, setShowChildren] = useState(true);
@@ -105,7 +105,7 @@ function AdminMembersPage() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
 
-  const doSearch = useCallback(async (p: number, q: string, plain: string, grass: string, past: string, status: "active" | "inactive" | "all", account: "active" | "withdrawn" | "all", appStatus: "all" | "joined" | "not_joined", showCh: boolean, showPa: boolean) => {
+  const doSearch = useCallback(async (p: number, q: string, plain: string, grass: string, past: string, status: "active" | "inactive" | "transferred" | "all", account: "active" | "withdrawn" | "all", appStatus: "all" | "joined" | "not_joined", showCh: boolean, showPa: boolean) => {
     setLoading(true);
     const { data, error } = await supabase.rpc("admin_search_members_paged", {
       p_query: q || null,
@@ -292,7 +292,7 @@ function AdminMembersPage() {
             </select>
             <select value={memberStatus}
               onChange={(e) => {
-                const v = e.target.value as "active" | "inactive" | "all";
+                const v = e.target.value as "active" | "inactive" | "transferred" | "all";
                 setMemberStatus(v);
                 setPage(1);
                 doSearch(1, query, filterPlain, filterGrassland, filterPasture, v, accountState, appMembership, showChildren, showParents);
@@ -300,6 +300,7 @@ function AdminMembersPage() {
               style={{ ...selectStyle, minWidth: 130 }}>
               <option value="active">현재 회원</option>
               <option value="inactive">분리보관</option>
+              <option value="transferred">이명</option>
               <option value="all">전체</option>
             </select>
             <select value={accountState}
@@ -409,6 +410,12 @@ function AdminMembersPage() {
                     <td style={{ ...tdStyle, whiteSpace: "nowrap", color: "var(--ink-mid)" }}>{m.home_phone || "-"}</td>
                     <td style={{ ...tdStyle, color: "var(--ink-soft)", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.address || "-"}</td>
                     <td style={tdStyle}>
+                      {m.status === "transferred" && (
+                        <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, background: "var(--danger-soft)", color: "var(--danger)", marginRight: 4 }}>이명</span>
+                      )}
+                      {m.status === "inactive" && (
+                        <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, background: "var(--hairline)", color: "var(--ink-soft)", marginRight: 4 }}>분리보관</span>
+                      )}
                       <span style={{
                         padding: "2px 8px", borderRadius: 4, fontSize: 10,
                         background: m.has_account ? "var(--success-soft)" : "var(--warning-soft)",
@@ -515,6 +522,21 @@ interface HouseholdMember {
   is_child: boolean;
 }
 
+interface StatusHistoryItem {
+  id: string;
+  old_status: string | null;
+  new_status: string;
+  reason: string | null;
+  changed_by_name: string;
+  changed_at: string;
+}
+
+const MEMBER_STATUS_LABELS: Record<string, string> = {
+  active: "현재 회원",
+  inactive: "분리보관",
+  transferred: "이명",
+};
+
 function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSave, onClose }: {
   member: Member;
   setMember: (m: Member) => void;
@@ -529,6 +551,21 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
   const [moveGrass, setMoveGrass] = useState(member.grassland_name || "");
   const [movePast, setMovePast] = useState(member.pasture_name || "");
   const [moveError, setMoveError] = useState("");
+
+  // 회원 상태(현재 회원 / 분리보관 / 이명) — 변경 시 기록이 함께 남는다
+  const [status, setStatus] = useState<"active" | "inactive" | "transferred">(
+    (member.status as "active" | "inactive" | "transferred") || "active"
+  );
+  const [statusReason, setStatusReason] = useState("");
+  const [statusHistory, setStatusHistory] = useState<StatusHistoryItem[]>([]);
+  const [statusError, setStatusError] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.rpc("admin_list_member_status_history", { p_member_id: member.id });
+      if (data) setStatusHistory(data);
+    })();
+  }, [member.id]);
 
   // 주소 / 가족 단위 이동 state
   const [address, setAddress] = useState(member.address || "");
@@ -617,8 +654,18 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setMoveError("");
+    setStatusError("");
+
+    if (status !== member.status) {
+      const { error: statusErr } = await supabase.rpc("admin_set_member_status", {
+        p_member_id: member.id,
+        p_status: status,
+        p_reason: status === "transferred" ? (statusReason.trim() || null) : null,
+      });
+      if (statusErr) { setStatusError(`상태 변경 실패: ${statusErr.message}`); return; }
+    }
 
     // 자녀 체크 + 부모 선택 시 관계 등록 정보
     const parentInfo: Pick<MoveTarget, "add_parent_id" | "add_parent_role"> = {};
@@ -861,6 +908,39 @@ function EditModal({ member, setMember, dirTree, plainOptions, plainLabel, onSav
           {moveError && (
             <div style={{ marginTop: 8, padding: 8, background: "var(--danger-soft)", border: "1px solid var(--danger-soft)", borderRadius: 6, fontSize: 11, color: "var(--danger)", display: "flex", alignItems: "center", gap: 6 }}>
               <AlertTriangle size={14} strokeWidth={1.8} style={{ flexShrink: 0 }} /> {moveError}
+            </div>
+          )}
+        </div>
+
+        {/* 회원 상태 (현재 회원 / 분리보관 / 이명) */}
+        <div style={{ marginTop: 12, padding: 12, background: "var(--surface)", borderRadius: 10, border: "1px solid var(--hairline)" }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--ink)", marginBottom: 8 }}>회원 상태</div>
+          <select value={status} onChange={(e) => setStatus(e.target.value as "active" | "inactive" | "transferred")}
+            style={{ ...inputStyle, marginBottom: status === "transferred" ? 8 : 0 }}>
+            <option value="active">현재 회원</option>
+            <option value="inactive">분리보관</option>
+            <option value="transferred">이명 (다른 교회로 이동)</option>
+          </select>
+          {status === "transferred" && (
+            <input value={statusReason} onChange={(e) => setStatusReason(e.target.value)}
+              placeholder="이명 사유 / 이동한 교회 (선택)" style={{ ...inputStyle }} />
+          )}
+          {statusError && (
+            <div style={{ marginTop: 8, padding: 8, background: "var(--danger-soft)", border: "1px solid var(--danger-soft)", borderRadius: 6, fontSize: 11, color: "var(--danger)", display: "flex", alignItems: "center", gap: 6 }}>
+              <AlertTriangle size={14} strokeWidth={1.8} style={{ flexShrink: 0 }} /> {statusError}
+            </div>
+          )}
+          {statusHistory.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-mid)", marginBottom: 4 }}>상태 변경 이력</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 120, overflowY: "auto" }}>
+                {statusHistory.map((h) => (
+                  <div key={h.id} style={{ fontSize: 10, color: "var(--ink-soft)" }}>
+                    {new Date(h.changed_at).toLocaleString("ko-KR")} · {MEMBER_STATUS_LABELS[h.old_status || ""] || h.old_status || "-"} → {MEMBER_STATUS_LABELS[h.new_status] || h.new_status}
+                    {h.reason ? ` (${h.reason})` : ""} · {h.changed_by_name}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
