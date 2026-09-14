@@ -303,6 +303,8 @@ const pdfFrameWrapStyle: React.CSSProperties = {
 const viewerStackStyle: React.CSSProperties = {
   position: "relative",
   width: "100%",
+  display: "flex",
+  flexDirection: "column",
 };
 
 const pdfFallbackStyle: React.CSSProperties = {

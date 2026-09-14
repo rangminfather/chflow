@@ -69,7 +69,7 @@ export default function BulletinScripturePanel({ bulletinId }: { bulletinId: str
   return (
     <>
       <style>{responsiveCss}</style>
-      <div style={triggerRowStyle}>
+      <div className="bulletin-scripture-trigger-row" style={triggerRowStyle}>
         <button type="button" className="bulletin-scripture-trigger" onClick={() => setSheetOpen(true)} style={triggerStyle}>
           <BookOpen size={17} strokeWidth={2} />
           <span>성경봉독{ordered.length ? ` ${ordered.length}` : ""}</span>
@@ -127,6 +127,7 @@ export default function BulletinScripturePanel({ bulletinId }: { bulletinId: str
 
 const responsiveCss = `
 @media(max-width:720px){
+  .bulletin-scripture-trigger-row{order:-1;margin-top:0!important;margin-bottom:10px!important}
   .bulletin-scripture-sheet{width:100%!important;max-width:none!important;border-radius:18px 18px 0 0!important;max-height:82dvh!important}
 }
 @media(min-width:721px){
