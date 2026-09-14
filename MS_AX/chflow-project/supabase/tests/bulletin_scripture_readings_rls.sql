@@ -55,7 +55,7 @@ select pg_temp.assert_true(exists (
 ), 'verified partial index exists');
 
 select pg_temp.assert_true((
-  select count(*) = 3 from pg_policies
+  select count(*) from pg_policies
   where schemaname = 'public'
     and tablename = 'bulletin_scripture_readings'
 ) = 3, 'all three RLS policies exist');
