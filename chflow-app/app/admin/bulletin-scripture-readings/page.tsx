@@ -20,11 +20,35 @@ export default function Page() {
   const ocr = async () => { if (!selected) return; setBusy(true); setNotice("1페이지 OCR 분석 중입니다…"); try {
     const { data: { session } } = await supabase.auth.getSession(); const file = await fetch(`/api/storage/bulletins/${selected.pdf_url}?stream=1`, { headers: { Authorization: `Bearer ${session?.access_token || ""}` } }); if (!file.ok) throw new Error("PDF를 불러오지 못했습니다.");
     const pdfjs = await import("pdfjs-dist"); pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"; const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise; const page = await doc.getPage(1); const base = page.getViewport({ scale: 1 }); const viewport = page.getViewport({ scale: Math.min(2.25, 1800 / base.width) }); const canvas = document.createElement("canvas"); canvas.width = Math.floor(viewport.width); canvas.height = Math.floor(viewport.height); const ctx = canvas.getContext("2d"); if (!ctx) throw new Error("OCR canvas 생성 실패"); await page.render({ canvas, canvasContext: ctx, viewport }).promise;
-    const { createWorker } = await import("tesseract.js"); const worker = await createWorker(["kor", "eng"], 1); const result = await worker.recognize(canvas); await worker.terminate(); type Word = { text: string; bbox: { x0: number; y0: number; x1: number; y1: number } }; const words = (result.data as unknown as { words?: Word[] }).words || [];
-    // Reconstruct visual lines from OCR bounding boxes, then relate a scripture anchor to its preceding service heading. No fixed pixel layout is used.
-    const lines = words.reduce<Array<{ y: number; words: Word[] }>>((all, word) => { const existing = all.find((line) => Math.abs(line.y - word.bbox.y0) < 18); if (existing) existing.words.push(word); else all.push({ y: word.bbox.y0, words: [word] }); return all; }, []).sort((a, b) => a.y - b.y).map((line) => line.words.sort((a, b) => a.bbox.x0 - b.bbox.x0).map((word) => word.text).join(" "));
-    const service = (text: string): BulletinServiceType | null => /주일.*(?:오전|1\s*부|2\s*부|3\s*부)/.test(text) ? "sunday_morning" : /(?:주일.*(?:오후|4\s*부)|4\s*부.*예배)/.test(text) ? "sunday_afternoon" : /수요.*(?:오전|1\s*부)/.test(text) ? "wednesday_morning" : /수요.*(?:오후|저녁|2\s*부)/.test(text) ? "wednesday_evening" : null;
-    const candidates: Candidate[] = []; for (let i = 0; i < lines.length; i += 1) { if (!/성경\s*봉독/.test(lines[i])) continue; const heading = [...lines.slice(0, i)].reverse().find(service); const serviceType = heading ? service(heading) : null; const raw = `${lines[i]} ${lines[i + 1] || ""}`.match(/([가-힣0-9]+\s*\d{1,3}\s*(?::|장\s*)\s*\d{1,3}\s*(?:절)?\s*(?:[-~∼]\s*\d{1,3}\s*(?:절)?)?)/)?.[1]; if (serviceType && raw) candidates.push({ serviceType, rawReference: raw.replace(/장\s*/g, ":").replace(/절/g, "").replace(/[~∼]/g, "-").replace(/\s+/g, " ").trim(), confidence: .68 }); }
+    const { createWorker, PSM } = await import("tesseract.js"); const worker = await createWorker(["kor", "eng"], 1);
+    // Tesseract v7 does not include word boxes unless the blocks output is explicitly requested.
+    // Sparse-text mode preserves the separate columns in the first-page order of service.
+    await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT }); const result = await worker.recognize(canvas, {}, { blocks: true }); await worker.terminate();
+    type Box = { x0: number; y0: number; x1: number; y1: number }; type OcrLine = { text: string; bbox: Box; confidence: number };
+    const blocks = (result.data as unknown as { blocks?: Array<{ paragraphs?: Array<{ lines?: OcrLine[] }> }> }).blocks || [];
+    const lines = blocks.flatMap((block) => (block.paragraphs || []).flatMap((paragraph) => paragraph.lines || [])).filter((line) => line.text.trim());
+    // Prefer a service-heading anchor and relative geometry. The final fallback is only used for
+    // an OCR layout that has lost its heading, and all candidates are still NKRV-validated server-side.
+    const service = (text: string): BulletinServiceType | null => /수요\s*오전/.test(text) ? "wednesday_morning" : /수요\s*(?:오후|저녁)/.test(text) ? "wednesday_evening" : /(?:주일.*오전|[123]\s*부.*오전)/.test(text) ? "sunday_morning" : /(?:주일.*오후|4\s*부.*예배|예배.*오후)/.test(text) ? "sunday_afternoon" : null;
+    const headers = lines.flatMap((line) => { const type = service(line.text); return type ? [{ ...line, type }] : []; });
+    const scriptureAnchors = lines.filter((line) => /[성섬]경.*(?:봉독|강론)/.test(line.text));
+    const referenceVariants = (text: string) => [...text.matchAll(/([가-힣]{1,10})\s*(\d[\d\s:.-]{1,14})/g)].flatMap((match) => {
+      const book = match[1]; const range = match[2].replace(/\s+/g, "").replace(/[~∼]/g, "-").replace(/[).]+$/g, "");
+      if (/:/.test(range)) return [`${book} ${range}`];
+      const compact = range.match(/^(\d{2,6})-(\d{1,3})$/); if (!compact) return [];
+      // OCR can omit the colon (2310-13). Send only plausible split variants; NKRV validation
+      // on the server rejects every invalid split before a pending row is written.
+      return Array.from({ length: compact[1].length - 1 }, (_, index) => `${book} ${compact[1].slice(0, index + 1)}:${compact[1].slice(index + 1)}-${compact[2]}`);
+    });
+    const candidates: Candidate[] = [];
+    for (const line of lines) {
+      if (!scriptureAnchors.some((anchor) => Math.abs(anchor.bbox.y0 - line.bbox.y0) < 45)) continue;
+      for (const rawReference of referenceVariants(line.text)) {
+      const centerX = (line.bbox.x0 + line.bbox.x1) / 2; const centerY = (line.bbox.y0 + line.bbox.y1) / 2;
+      const heading = headers.filter((item) => item.bbox.y0 <= line.bbox.y1).sort((a, b) => (Math.abs(((a.bbox.x0 + a.bbox.x1) / 2) - centerX) + Math.abs(a.bbox.y0 - centerY) * .25) - (Math.abs(((b.bbox.x0 + b.bbox.x1) / 2) - centerX) + Math.abs(b.bbox.y0 - centerY) * .25))[0];
+        if (heading) candidates.push({ serviceType: heading.type, rawReference, confidence: Math.min(.9, .55 + line.confidence / 200) });
+      }
+    }
     const saved = await call("/api/admin/bulletin-scripture-readings", { method: "POST", body: JSON.stringify({ action: "save_ocr_candidates", bulletin_id: selected.id, candidates }) }); const json = await saved.json(); setNotice(saved.ok ? `OCR 분석 완료: ${json.saved}개 후보 저장` : json.error); await load(selected.id);
   } catch (error) { setNotice(error instanceof Error ? error.message : "OCR 분석 실패"); } finally { setBusy(false); } };
   const verify = async (type: BulletinServiceType) => { if (!selected || !manual[type]?.trim()) return; setBusy(true); const res = await call("/api/admin/bulletin-scripture-readings", { method: "POST", body: JSON.stringify({ action: "save_reading", bulletin_id: selected.id, reading: { serviceType: type, rawReference: manual[type], status: "verified" } }) }); const json = await res.json(); setNotice(res.ok && json.ok ? "검증 및 저장했습니다." : json.error || "저장 실패"); await load(selected.id); setBusy(false); };
