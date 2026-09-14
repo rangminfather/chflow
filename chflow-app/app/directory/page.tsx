@@ -686,7 +686,7 @@ function DirectoryProfileModal({
                 label="생년월일"
                 value={member.birth_date}
                 badge={canQuickEdit && (
-                  <span style={tagStyle("var(--info-soft)", "var(--info)")} title="관리자만 볼 수 있는 항목입니다">
+                  <span style={{ ...tagStyle("var(--info-soft)", "var(--info)"), whiteSpace: "nowrap" }} title="관리자만 볼 수 있는 항목입니다">
                     관리자 전용
                   </span>
                 )}
@@ -998,12 +998,10 @@ function InfoLine({ label, value, phoneActions, badge }: { label: string; value:
   const actionPhone = normalizeDialNumber(phoneActions);
   return (
     <div style={infoLineStyle}>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-        {label}
-        {badge}
-      </span>
+      <span>{label}</span>
       <strong style={infoValueStyle}>
         <span style={{ minWidth: 0, overflowWrap: "anywhere", wordBreak: "keep-all" }}>{value}</span>
+        {badge}
         {actionPhone && (
           <span className="directory-mobile-phone-actions" style={mobilePhoneActionsStyle}>
             <a href={`tel:${actionPhone}`} aria-label="전화걸기" title="전화걸기" style={mobilePhoneActionStyle}>
