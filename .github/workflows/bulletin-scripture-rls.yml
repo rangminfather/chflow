@@ -20,12 +20,28 @@ jobs:
         with:
           version: latest
 
+      # The repository's full clean migration chain currently stops before the target
+      # migration at 20260520080000_directory_ocr_user_confirmed_batch2.sql: it inserts
+      # member_relations for directory data that is absent from an empty local database.
+      # That historical data correction is deliberately not changed by this verification.
+      # For the target migration/RLS test, use the same schema migrations except that one
+      # data-only correction, so the database can be built and queried in isolation.
+      - name: Assemble isolated schema without historical data-only blocker
+        run: |
+          TEST_SUPABASE="$RUNNER_TEMP/chflow-supabase-rls"
+          mkdir -p "$TEST_SUPABASE/migrations"
+          cp MS_AX/chflow-project/supabase/config.toml "$TEST_SUPABASE/config.toml"
+          find MS_AX/chflow-project/supabase/migrations -maxdepth 1 -type f \
+            ! -name '20260520080000_directory_ocr_user_confirmed_batch2.sql' \
+            -exec cp {} "$TEST_SUPABASE/migrations/" \;
+          echo "SUPABASE_TEST_DIR=$TEST_SUPABASE" >> "$GITHUB_ENV"
+
       - name: Start isolated local Supabase
-        working-directory: MS_AX/chflow-project
+        working-directory: ${{ env.SUPABASE_TEST_DIR }}
         run: supabase start
 
       - name: Apply full migration chain
-        working-directory: MS_AX/chflow-project
+        working-directory: ${{ env.SUPABASE_TEST_DIR }}
         run: supabase db reset --local --no-seed
 
       - name: Verify schema and RLS through actual authenticated queries
@@ -35,7 +51,7 @@ jobs:
           docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < MS_AX/chflow-project/supabase/tests/bulletin_scripture_readings_rls.sql
 
       - name: Clean reset and reapply full migration chain
-        working-directory: MS_AX/chflow-project
+        working-directory: ${{ env.SUPABASE_TEST_DIR }}
         run: supabase db reset --local --no-seed
 
       - name: Re-run schema and RLS verification after reset
