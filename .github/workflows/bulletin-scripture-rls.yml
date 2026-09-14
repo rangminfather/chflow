@@ -21,8 +21,9 @@ jobs:
           version: latest
 
       # The repository's full clean migration chain currently stops before the target
-      # migration at historical directory OCR correction files: they insert member_relations
-      # for directory data that is absent from an empty local database.
+      # migration at historical directory OCR correction files and local-only pg_cron jobs:
+      # the former insert member_relations for absent directory data, while the latter require
+      # the pg_cron extension that this local config does not provision.
       # That historical data correction is deliberately not changed by this verification.
       # For the target migration/RLS test, use the same schema migrations except that one
       # data-only correction, so the database can be built and queried in isolation.
@@ -35,6 +36,8 @@ jobs:
           find MS_AX/chflow-project/supabase/migrations -maxdepth 1 -type f \
             ! -name '20260520080000_directory_ocr_user_confirmed_batch2.sql' \
             ! -name '20260520120000_directory_ocr_manual_pdf_mdb_corrections.sql' \
+            ! -name '20260708190000_usage_resource_watch.sql' \
+            ! -name '20260817090000_usage_diagnostics_v2.sql' \
             -exec cp {} "$TEST_SUPABASE/migrations/" \;
           echo "SUPABASE_TEST_DIR=$TEST_PROJECT" >> "$GITHUB_ENV"
 
