@@ -76,7 +76,8 @@ insert into public.bulletins (id, title, sunday_date) values
   ('00000000-0000-0000-0000-000000000201', 'RLS fixture bulletin', date '2026-09-13');
 
 insert into public.bible_books (book_id, osis_code, testament, book_order, name_ko, name_en, chapters)
-values (1, 'Gen', 'OT', 1, '창세기', 'Genesis', 50);
+values (1, 'Gen', 'OT', 1, '창세기', 'Genesis', 50)
+on conflict (book_id) do nothing;
 
 insert into public.bulletin_scripture_readings (
   bulletin_id, service_type, book_id, chapter_start, verse_start, chapter_end, verse_end,
