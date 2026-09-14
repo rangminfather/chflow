@@ -21,8 +21,8 @@ jobs:
           version: latest
 
       # The repository's full clean migration chain currently stops before the target
-      # migration at 20260520080000_directory_ocr_user_confirmed_batch2.sql: it inserts
-      # member_relations for directory data that is absent from an empty local database.
+      # migration at historical directory OCR correction files: they insert member_relations
+      # for directory data that is absent from an empty local database.
       # That historical data correction is deliberately not changed by this verification.
       # For the target migration/RLS test, use the same schema migrations except that one
       # data-only correction, so the database can be built and queried in isolation.
@@ -34,6 +34,7 @@ jobs:
           cp MS_AX/chflow-project/supabase/config.toml "$TEST_SUPABASE/config.toml"
           find MS_AX/chflow-project/supabase/migrations -maxdepth 1 -type f \
             ! -name '20260520080000_directory_ocr_user_confirmed_batch2.sql' \
+            ! -name '20260520120000_directory_ocr_manual_pdf_mdb_corrections.sql' \
             -exec cp {} "$TEST_SUPABASE/migrations/" \;
           echo "SUPABASE_TEST_DIR=$TEST_PROJECT" >> "$GITHUB_ENV"
 
