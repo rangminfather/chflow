@@ -630,6 +630,7 @@ function DirectoryProfileModal({
       p_spouse_name: next.has("spouse_name") ? next.get("spouse_name") : null,
       p_gender: next.has("gender") ? next.get("gender") : null,
       p_is_child: next.has("is_child") ? next.get("is_child") : null,
+      p_birth_date: next.has("birth_date") ? next.get("birth_date") : null,
       p_household_id: null,
       p_split_pasture_id: null,
       p_clear_household: false,
@@ -680,7 +681,17 @@ function DirectoryProfileModal({
             />
             <InfoLine label="배우자" value={member.spouse_name || "없음"} />
             <InfoLine label="성별" value={genderText(member.gender)} />
-            {member.birth_date && <InfoLine label="생년월일" value={member.birth_date} />}
+            {member.birth_date && (
+              <InfoLine
+                label="생년월일"
+                value={member.birth_date}
+                badge={canQuickEdit && (
+                  <span style={tagStyle("var(--info-soft)", "var(--info)")} title="관리자만 볼 수 있는 항목입니다">
+                    관리자 전용
+                  </span>
+                )}
+              />
+            )}
             <InfoLine label="소속" value={locationText(member)} />
             {member.address && <InfoLine label="주소" value={member.address} />}
           </div>
@@ -803,6 +814,15 @@ function DirectoryProfileModal({
                     <option value="F">여</option>
                   </select>
                 </label>
+                <div style={quickEditFieldStyle}>
+                  <span style={quickEditLabelStyle}>생년월일</span>
+                  <BirthDateSelect
+                    value={quickEditDraft.birth_date}
+                    onChange={(value) => setQuickEditDraft((draft) => ({ ...draft, birth_date: value }))}
+                    selectStyle={quickEditInputStyle}
+                    hint={`동일 (현재: ${displayText(member.birth_date)}) — 연·월·일을 모두 선택해야 저장됩니다.`}
+                  />
+                </div>
                 <label style={quickEditFieldStyle}>
                   <span style={quickEditLabelStyle}>자녀 여부</span>
                   <select
@@ -974,11 +994,14 @@ function Avatar({ member, size }: { member: { name: string; photo_url: string | 
   );
 }
 
-function InfoLine({ label, value, phoneActions }: { label: string; value: string; phoneActions?: string }) {
+function InfoLine({ label, value, phoneActions, badge }: { label: string; value: string; phoneActions?: string; badge?: React.ReactNode }) {
   const actionPhone = normalizeDialNumber(phoneActions);
   return (
     <div style={infoLineStyle}>
-      <span>{label}</span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        {label}
+        {badge}
+      </span>
       <strong style={infoValueStyle}>
         <span style={{ minWidth: 0, overflowWrap: "anywhere", wordBreak: "keep-all" }}>{value}</span>
         {actionPhone && (
