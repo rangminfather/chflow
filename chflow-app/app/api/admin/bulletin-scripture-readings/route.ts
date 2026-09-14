@@ -21,7 +21,7 @@ async function actor(req: NextRequest) {
   const { data: profile } = await admin.from("profiles").select("role").eq("id", auth.user.id).maybeSingle();
   return ["admin", "office", "pastor"].includes(profile?.role || "") ? { userDb, admin, userId: auth.user.id } : null;
 }
-async function saveCandidates(admin: any, bulletinId: string, candidates: Candidate[], source: "pdf_text" | "ocr", userId: string) {
+async function saveCandidates(admin: any, bulletinId: string, candidates: Candidate[], source: "pdf_text" | "ocr") {
   const rows = [];
   for (const candidate of candidates) {
     try {
@@ -29,8 +29,11 @@ async function saveCandidates(admin: any, bulletinId: string, candidates: Candid
       rows.push({ bulletin_id: bulletinId, service_type: candidate.serviceType, book_id: valid.bookId, chapter_start: valid.chapterStart, verse_start: valid.verseStart, chapter_end: valid.chapterEnd, verse_end: valid.verseEnd, raw_reference: candidate.rawReference, normalized_label: valid.normalizedLabel, source, confidence: candidate.confidence, status: "pending", sort_order: 0, verified_at: null, verified_by: null, updated_at: new Date().toISOString() });
     } catch { /* invalid candidates are intentionally not auto-saved */ }
   }
-  if (rows.length) await admin.from("bulletin_scripture_readings").upsert(rows, { onConflict: "bulletin_id,service_type,sort_order" });
-  return rows.length;
+  if (rows.length) {
+    const { error } = await admin.from("bulletin_scripture_readings").upsert(rows, { onConflict: "bulletin_id,service_type,sort_order" });
+    if (error) throw new Error(error.message);
+  }
+  return rows;
 }
 
 export async function GET(req: NextRequest) {
@@ -56,12 +59,12 @@ export async function POST(req: NextRequest) {
     const doc = await getDocumentProxy(new Uint8Array(await file.data.arrayBuffer()));
     const result = await extractText(doc);
     const firstPage = Array.isArray(result.text) ? result.text[0] || "" : "";
-    const saved = await saveCandidates(session.admin, bulletinId, findBulletinScriptureCandidates(firstPage), "pdf_text", session.userId);
-    return NextResponse.json({ ok: true, native_text: firstPage, saved, needs_ocr: saved < 4 });
+    const rows = await saveCandidates(session.admin, bulletinId, findBulletinScriptureCandidates(firstPage), "pdf_text");
+    return NextResponse.json({ ok: true, native_text: firstPage, saved: rows.length, accepted: rows.map((row) => row.service_type), needs_ocr: rows.length < 4 });
   }
   if (body.action === "save_ocr_candidates" && Array.isArray(body.candidates)) {
-    const saved = await saveCandidates(session.admin, bulletinId, body.candidates, "ocr", session.userId);
-    return NextResponse.json({ ok: true, saved });
+    const rows = await saveCandidates(session.admin, bulletinId, body.candidates, "ocr");
+    return NextResponse.json({ ok: true, saved: rows.length, accepted: rows.map((row) => row.service_type) });
   }
   if (body.action === "save_reading" && body.reading) {
     let valid;

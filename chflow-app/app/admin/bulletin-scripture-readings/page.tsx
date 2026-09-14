@@ -90,8 +90,9 @@ export default function Page() {
       const extraction = extractSpatialScriptureCandidates(lines); setDiagnostic(extraction.lines);
       const response = await call("/api/admin/bulletin-scripture-readings", { method: "POST", body: JSON.stringify({ action: "save_ocr_candidates", bulletin_id: selected.id, candidates: extraction.candidates }) });
       const json = await response.json(); if (!response.ok) throw new Error(json.error || "OCR 후보 저장 실패");
-      await loadReadings(selected.id);
-      const found = new Set(extraction.candidates.map((candidate) => candidate.serviceType));
+      const next = await loadReadings(selected.id);
+      const accepted = new Set<BulletinServiceType>((json.accepted || []) as BulletinServiceType[]);
+      const found = new Set(next.filter((reading) => reading.status === "verified" || (reading.source === "ocr" && accepted.has(reading.service_type))).map((reading) => reading.service_type));
       setResults(Object.fromEntries(BULLETIN_SERVICE_TYPES.map((type) => [type, found.has(type) ? { kind: "success", message: "OCR 분석 성공" } : { kind: "failed", message: "OCR 분석 실패 · 직접 입력 필요" }])));
       setNeedsOcr(false); setNotice(found.size === 4 ? "OCR 분석 4/4 성공 · 적용할 항목을 선택하세요." : `OCR 분석 ${found.size}/4 · 실패 항목은 직접 입력하세요.`);
     } catch (error) { setNotice(error instanceof Error ? error.message : "OCR 분석 실패"); }
