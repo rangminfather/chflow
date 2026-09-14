@@ -1,30 +1,137 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ScanText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { BULLETIN_SERVICE_LABELS, BULLETIN_SERVICE_TYPES, type BulletinServiceType } from "@/lib/bulletin/scripture-parser";
+import { extractSpatialScriptureCandidates, type OcrLine } from "@/lib/bulletin/scripture-ocr-spatial";
 
 type Bulletin = { id: string; title: string; sunday_date: string; pdf_url: string };
 type Reading = { service_type: BulletinServiceType; raw_reference: string; normalized_label: string | null; source: string; confidence: number; status: string };
-type Candidate = { serviceType: BulletinServiceType; rawReference: string; confidence: number };
-type Line = { text: string; bbox: { x0: number; y0: number; x1: number; y1: number }; confidence: number };
+type ResultState = { kind: "success" | "failed" | "applied" | "submitted"; message: string };
 
-async function call(path: string, init?: RequestInit) { const { data: { session } } = await supabase.auth.getSession(); return fetch(path, { ...init, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}`, ...init?.headers } }); }
-function service(text: string): BulletinServiceType | null { if (/수요\s*오전/.test(text)) return "wednesday_morning"; if (/수요\s*(?:오후|저녁)/.test(text)) return "wednesday_evening"; if (/(?:주일.*오전|[123]\s*부.*오전)/.test(text)) return "sunday_morning"; if (/(?:주일.*오후|4\s*부.*예배|예배.*오후)/.test(text)) return "sunday_afternoon"; return null; }
-function refs(text: string) { return [...text.matchAll(/([가-힣]{1,10})\s*(\d[\d\s:.-]{1,14})/g)].flatMap((m) => { const r = m[2].replace(/\s+/g, "").replace(/[~–—]/g, "-"); if (r.includes(":")) return [`${m[1]} ${r}`]; const p = r.match(/^(\d{2,6})-(\d{1,3})$/); return p ? Array.from({ length: p[1].length - 1 }, (_, i) => `${m[1]} ${p[1].slice(0, i + 1)}:${p[1].slice(i + 1)}-${p[2]}`) : []; }); }
-function candidates(lines: Line[]): Candidate[] { const heads = lines.flatMap((line) => { const type = service(line.text); return type ? [{ ...line, type }] : []; }); const best = new Map<BulletinServiceType, Candidate>(); for (const anchor of lines.filter((line) => /성\s*경\s*봉\s*독/.test(line.text))) { const ax = (anchor.bbox.x0 + anchor.bbox.x1) / 2; const head = heads.filter((h) => h.bbox.y0 <= anchor.bbox.y1 + 40).sort((a, b) => (Math.abs((a.bbox.x0 + a.bbox.x1) / 2 - ax) + Math.abs(a.bbox.y0 - anchor.bbox.y0) * .25) - (Math.abs((b.bbox.x0 + b.bbox.x1) / 2 - ax) + Math.abs(b.bbox.y0 - anchor.bbox.y0) * .25))[0]; if (!head) continue; for (const line of lines) { const dy = line.bbox.y0 - anchor.bbox.y0; if (dy < -35 || dy > 145 || Math.abs((line.bbox.x0 + line.bbox.x1) / 2 - ax) > 330) continue; for (const rawReference of refs(line.text)) { const value = { serviceType: head.type, rawReference, confidence: Math.min(.9, .55 + line.confidence / 200) }; if (!best.has(value.serviceType) || value.confidence > best.get(value.serviceType)!.confidence) best.set(value.serviceType, value); } } } return [...best.values()]; }
+async function call(path: string, init?: RequestInit) {
+  const { data: { session } } = await supabase.auth.getSession();
+  return fetch(path, { ...init, headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token || ""}`, ...init?.headers } });
+}
 
 export default function Page() {
-  const router = useRouter(); const [bulletins, setBulletins] = useState<Bulletin[]>([]); const [selected, setSelected] = useState<Bulletin | null>(null); const [readings, setReadings] = useState<Reading[]>([]); const [values, setValues] = useState<Partial<Record<BulletinServiceType, string>>>({}); const [busy, setBusy] = useState(false); const [notice, setNotice] = useState("");
-  const load = async (id?: string) => { const res = await call(`/api/admin/bulletin-scripture-readings${id ? `?bulletin_id=${id}` : ""}`); const json = await res.json(); if (!res.ok) throw new Error(json.error || "불러오기 실패"); if (!id) setBulletins(json.bulletins || []); else { const next = json.readings || []; setReadings(next); setValues(Object.fromEntries(next.map((r: Reading) => [r.service_type, r.raw_reference]))); } };
-  useEffect(() => { void (async () => { const { data } = await supabase.rpc("get_my_status"); if (!data?.[0] || !["admin", "office", "pastor"].includes(data[0].role)) { router.replace("/home"); return; } try { await load(); } catch (e) { setNotice(e instanceof Error ? e.message : "불러오기 실패"); } })(); }, [router]);
-  const select = async (item: Bulletin) => { setSelected(item); setReadings([]); setValues({}); setNotice(""); try { await load(item.id); } catch (e) { setNotice(e instanceof Error ? e.message : "불러오기 실패"); } };
-  const ocr = async () => { if (!selected) return; setBusy(true); setNotice("주보 1페이지 OCR 분석 중입니다…"); try { const { data: { session } } = await supabase.auth.getSession(); const file = await fetch(`/api/storage/bulletins/${selected.pdf_url}?stream=1`, { headers: { Authorization: `Bearer ${session?.access_token || ""}` } }); if (!file.ok) throw new Error("PDF를 불러오지 못했습니다."); const pdfjs = await import("pdfjs-dist"); pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"; const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise; const page = await doc.getPage(1); const base = page.getViewport({ scale: 1 }); const viewport = page.getViewport({ scale: Math.min(2.25, 1800 / base.width) }); const canvas = document.createElement("canvas"); canvas.width = Math.floor(viewport.width); canvas.height = Math.floor(viewport.height); const ctx = canvas.getContext("2d"); if (!ctx) throw new Error("OCR canvas 생성 실패"); await page.render({ canvas, canvasContext: ctx, viewport }).promise; const { createWorker, PSM } = await import("tesseract.js"); const worker = await createWorker(["kor", "eng"], 1); await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT }); const result = await worker.recognize(canvas, {}, { blocks: true }); await worker.terminate(); const blocks = (result.data as unknown as { blocks?: Array<{ paragraphs?: Array<{ lines?: Line[] }> }> }).blocks || []; const lines = blocks.flatMap((b) => (b.paragraphs || []).flatMap((p) => p.lines || [])).filter((line) => line.text.trim()); const res = await call("/api/admin/bulletin-scripture-readings", { method: "POST", body: JSON.stringify({ action: "save_ocr_candidates", bulletin_id: selected.id, candidates: candidates(lines) }) }); const json = await res.json(); if (!res.ok) throw new Error(json.error || "OCR 후보 저장 실패"); await load(selected.id); setNotice(`OCR 분석 완료: ${json.saved}개 후보가 입력칸에 반영되었습니다.`); } catch (e) { setNotice(e instanceof Error ? e.message : "OCR 분석 실패"); } finally { setBusy(false); } };
-  const native = async () => { if (!selected) return; setBusy(true); try { const res = await call("/api/admin/bulletin-scripture-readings", { method: "POST", body: JSON.stringify({ action: "analyze_native", bulletin_id: selected.id }) }); const json = await res.json(); if (!res.ok) throw new Error(json.error || "텍스트 분석 실패"); await load(selected.id); setNotice(`텍스트 분석 완료: ${json.saved}개 후보가 입력칸에 반영되었습니다.${json.needs_ocr ? " OCR fallback을 실행합니다." : ""}`); if (json.needs_ocr) await ocr(); } catch (e) { setNotice(e instanceof Error ? e.message : "텍스트 분석 실패"); } finally { setBusy(false); } };
-  const verify = async (type: BulletinServiceType) => { const rawReference = values[type]?.trim(); if (!selected || !rawReference) { setNotice(`${BULLETIN_SERVICE_LABELS[type]} 본문을 입력하세요.`); return; } setBusy(true); try { const res = await call("/api/admin/bulletin-scripture-readings", { method: "POST", body: JSON.stringify({ action: "save_reading", bulletin_id: selected.id, reading: { serviceType: type, rawReference, status: "verified" } }) }); const json = await res.json(); if (!res.ok || !json.ok) throw new Error(json.error || "검증 후 저장 실패"); await load(selected.id); setNotice(`${BULLETIN_SERVICE_LABELS[type]} 본문을 검증하고 저장했습니다.`); } catch (e) { setNotice(e instanceof Error ? e.message : "검증 후 저장 실패"); } finally { setBusy(false); } };
-  const byType = new Map(readings.map((r) => [r.service_type, r]));
-  return <main style={page}><style>{`@media(max-width:720px){.grid{grid-template-columns:1fr!important}.actions{display:grid!important;grid-template-columns:1fr 1fr;gap:8px}.reading{grid-template-columns:1fr auto!important}.reading label,.reading input,.reading small{grid-column:1/-1}}`}</style><header style={head}><button onClick={() => router.push("/home")} style={back}><ArrowLeft size={18}/></button><div><h1 style={{ margin: 0, fontSize: 21 }}>주보 성경봉독 관리</h1><small>후보는 확인 전까지 성도에게 보이지 않습니다.</small></div></header><div className="grid" style={grid}><section style={card}><b>최근 주보</b>{bulletins.map((item) => <button key={item.id} onClick={() => void select(item)} style={{ ...itemButton, ...(selected?.id === item.id ? { background: "var(--accent-soft)" } : {}) }}>{item.sunday_date}<br/><small>{item.title}</small></button>)}</section><section style={card}>{selected ? <><b>{selected.sunday_date} 주보</b><p className="actions" style={{ display: "flex", gap: 8 }}><button disabled={busy} onClick={() => void native()} style={primary}><ScanText size={16}/>텍스트 분석</button><button disabled={busy} onClick={() => void ocr()} style={secondary}>1페이지 OCR 분석</button></p>{notice && <p role="status" style={{ fontSize: 13 }}>{notice}</p>}<h2 style={{ fontSize: 15 }}>분석 결과 확인 및 저장</h2>{BULLETIN_SERVICE_TYPES.map((type) => { const reading = byType.get(type); return <div className="reading" key={type} style={readingStyle}><label style={{ fontWeight: 700 }}>{BULLETIN_SERVICE_LABELS[type]}</label><input value={values[type] || ""} onChange={(e) => setValues({ ...values, [type]: e.target.value })} placeholder="예: 출애굽기 23:10-13" style={input}/><small>{reading ? `${reading.status} · ${reading.source} · confidence ${reading.confidence}` : "인식 실패 — 직접 입력하세요."}</small><button disabled={busy} onClick={() => void verify(type)} style={secondary}>검증 후 저장</button></div>; })}</> : <p>왼쪽에서 주보를 선택하세요.</p>}</section></div></main>;
+  const router = useRouter();
+  const panelRef = useRef<HTMLElement>(null);
+  const [bulletins, setBulletins] = useState<Bulletin[]>([]);
+  const [selected, setSelected] = useState<Bulletin | null>(null);
+  const [readings, setReadings] = useState<Reading[]>([]);
+  const [values, setValues] = useState<Partial<Record<BulletinServiceType, string>>>({});
+  const [results, setResults] = useState<Partial<Record<BulletinServiceType, ResultState>>>({});
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [needsOcr, setNeedsOcr] = useState(false);
+  const [diagnostic, setDiagnostic] = useState<string[]>([]);
+
+  const loadReadings = async (id: string) => {
+    const response = await call(`/api/admin/bulletin-scripture-readings?bulletin_id=${id}`);
+    const json = await response.json();
+    if (!response.ok) throw new Error(json.error || "분석 결과를 불러오지 못했습니다.");
+    const next = (json.readings || []) as Reading[];
+    setReadings(next);
+    setValues(Object.fromEntries(next.map((reading) => [reading.service_type, reading.raw_reference])));
+    return next;
+  };
+
+  useEffect(() => {
+    void (async () => {
+      const { data } = await supabase.rpc("get_my_status");
+      if (!data?.[0] || !["admin", "office", "pastor"].includes(data[0].role)) { router.replace("/home"); return; }
+      const response = await call("/api/admin/bulletin-scripture-readings");
+      const json = await response.json();
+      if (response.ok) setBulletins(json.bulletins || []); else setNotice(json.error || "최근 주보를 불러오지 못했습니다.");
+    })();
+  }, [router]);
+
+  const runNative = async (bulletin: Bulletin) => {
+    setBusy(true); setNotice("텍스트 분석 중입니다…"); setNeedsOcr(false);
+    try {
+      const response = await call("/api/admin/bulletin-scripture-readings", { method: "POST", body: JSON.stringify({ action: "analyze_native", bulletin_id: bulletin.id }) });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "텍스트 분석 실패");
+      const next = await loadReadings(bulletin.id);
+      const found = new Set(next.filter((reading) => reading.source === "pdf_text" || reading.status === "verified").map((reading) => reading.service_type));
+      setResults(Object.fromEntries(BULLETIN_SERVICE_TYPES.map((type) => [type, found.has(type) ? { kind: "success", message: "텍스트 분석 성공" } : { kind: "failed", message: "텍스트 분석 실패" }])));
+      setNeedsOcr(json.needs_ocr || found.size < 4);
+      setNotice(found.size < 4 ? `텍스트 분석 ${found.size}/4 · 실패 항목을 OCR로 분석하시겠습니까?` : "텍스트 분석 4/4 성공 · 적용할 항목을 선택하세요.");
+    } catch (error) { setResults(Object.fromEntries(BULLETIN_SERVICE_TYPES.map((type) => [type, { kind: "failed", message: "텍스트 분석 실패" }]))); setNeedsOcr(true); setNotice(error instanceof Error ? error.message : "텍스트 분석 실패"); }
+    finally { setBusy(false); }
+  };
+
+  const selectBulletin = async (bulletin: Bulletin) => {
+    setSelected(bulletin); setReadings([]); setValues({}); setResults({}); setDiagnostic([]); setNeedsOcr(false);
+    requestAnimationFrame(() => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    await runNative(bulletin);
+  };
+
+  const runOcr = async () => {
+    if (!selected) return;
+    setBusy(true); setNotice("주보 1페이지 OCR 분석 중입니다…");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const file = await fetch(`/api/storage/bulletins/${selected.pdf_url}?stream=1`, { headers: { Authorization: `Bearer ${session?.access_token || ""}` } });
+      if (!file.ok) throw new Error("PDF를 불러오지 못했습니다.");
+      const pdfjs = await import("pdfjs-dist"); pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+      const document = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+      const page = await document.getPage(1); const base = page.getViewport({ scale: 1 }); const viewport = page.getViewport({ scale: Math.min(2.25, 1800 / base.width) });
+      const canvas = window.document.createElement("canvas"); canvas.width = Math.floor(viewport.width); canvas.height = Math.floor(viewport.height);
+      const context = canvas.getContext("2d"); if (!context) throw new Error("OCR canvas 생성 실패");
+      await page.render({ canvas, canvasContext: context, viewport }).promise;
+      const { createWorker, PSM } = await import("tesseract.js"); const worker = await createWorker(["kor", "eng"], 1);
+      await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT }); const output = await worker.recognize(canvas, {}, { blocks: true }); await worker.terminate();
+      const blocks = (output.data as unknown as { blocks?: Array<{ paragraphs?: Array<{ lines?: OcrLine[] }> }> }).blocks || [];
+      const lines = blocks.flatMap((block) => (block.paragraphs || []).flatMap((paragraph) => paragraph.lines || [])).filter((line) => line.text.trim());
+      const extraction = extractSpatialScriptureCandidates(lines); setDiagnostic(extraction.lines);
+      const response = await call("/api/admin/bulletin-scripture-readings", { method: "POST", body: JSON.stringify({ action: "save_ocr_candidates", bulletin_id: selected.id, candidates: extraction.candidates }) });
+      const json = await response.json(); if (!response.ok) throw new Error(json.error || "OCR 후보 저장 실패");
+      await loadReadings(selected.id);
+      const found = new Set(extraction.candidates.map((candidate) => candidate.serviceType));
+      setResults(Object.fromEntries(BULLETIN_SERVICE_TYPES.map((type) => [type, found.has(type) ? { kind: "success", message: "OCR 분석 성공" } : { kind: "failed", message: "OCR 분석 실패 · 직접 입력 필요" }])));
+      setNeedsOcr(false); setNotice(found.size === 4 ? "OCR 분석 4/4 성공 · 적용할 항목을 선택하세요." : `OCR 분석 ${found.size}/4 · 실패 항목은 직접 입력하세요.`);
+    } catch (error) { setNotice(error instanceof Error ? error.message : "OCR 분석 실패"); }
+    finally { setBusy(false); }
+  };
+
+  const apply = (type: BulletinServiceType) => {
+    if (!values[type]?.trim()) { setResults((old) => ({ ...old, [type]: { kind: "failed", message: "적용할 본문이 없습니다." } })); return; }
+    setResults((old) => ({ ...old, [type]: { kind: "applied", message: "적용됨 · 제출 대기" } }));
+  };
+
+  const submit = async () => {
+    if (!selected) return;
+    const targets = BULLETIN_SERVICE_TYPES.filter((type) => results[type]?.kind === "applied");
+    if (!targets.length) { setNotice("먼저 각 항목의 적용 버튼을 눌러주세요."); return; }
+    setBusy(true); let success = 0;
+    for (const type of targets) {
+      try {
+        const response = await call("/api/admin/bulletin-scripture-readings", { method: "POST", body: JSON.stringify({ action: "save_reading", bulletin_id: selected.id, reading: { serviceType: type, rawReference: values[type], status: "verified" } }) });
+        const json = await response.json();
+        if (!response.ok || !json.ok) throw new Error(json.error || "저장 실패");
+        success += 1; setResults((old) => ({ ...old, [type]: { kind: "submitted", message: "✓ 제출 및 저장 완료" } }));
+      } catch (error) { setResults((old) => ({ ...old, [type]: { kind: "failed", message: error instanceof Error ? error.message : "저장 실패" } })); }
+    }
+    await loadReadings(selected.id); setNotice(`${success}/${targets.length}개 항목 제출 완료`); setBusy(false);
+  };
+
+  const byType = new Map(readings.map((reading) => [reading.service_type, reading]));
+  return <main style={page}><style>{mobileCss}</style><header style={head}><button onClick={() => router.push("/home")} style={back}><ArrowLeft size={18}/></button><div><h1 style={{ margin: 0, fontSize: 21 }}>주보 성경봉독 관리</h1><small>주보 선택 시 텍스트 분석이 자동 실행됩니다.</small></div></header><div className="scripture-grid" style={grid}><section style={card}><b>최근 주보</b>{bulletins.map((item) => <button key={item.id} onClick={() => void selectBulletin(item)} style={{ ...itemButton, ...(selected?.id === item.id ? { background: "var(--accent-soft)" } : {}) }}>{item.sunday_date}<br/><small>{item.title}</small></button>)}</section><section ref={panelRef} style={card}>{selected ? <><b>{selected.sunday_date} 주보</b><p className="actions"><button disabled={busy} onClick={() => void runNative(selected)} style={primary}><ScanText size={16}/>텍스트 재분석</button>{needsOcr && <button disabled={busy} onClick={() => void runOcr()} style={secondary}>텍스트 실패 항목 OCR 분석</button>}</p><p role="status" style={{ fontWeight: 700 }}>{busy ? "처리 중… " : ""}{notice}</p>{diagnostic.length > 0 && <details><summary>OCR 진단 결과 보기</summary><pre style={diagnosticStyle}>{diagnostic.join("\n")}</pre></details>}<h2 style={{ fontSize: 15 }}>분석 결과 적용 및 제출</h2>{BULLETIN_SERVICE_TYPES.map((type) => { const reading = byType.get(type); const state = results[type]; const done = state?.kind === "submitted" || reading?.status === "verified"; return <div className="reading" key={type} style={{ ...readingStyle, background: done ? "color-mix(in srgb, #16803c 10%, transparent)" : undefined }}><label style={{ fontWeight: 800 }}>{BULLETIN_SERVICE_LABELS[type]}</label><input value={values[type] || ""} onChange={(event) => { setValues({ ...values, [type]: event.target.value }); setResults((old) => ({ ...old, [type]: { kind: "success", message: "직접 입력 · 적용 필요" } })); }} placeholder="예: 출애굽기 23:10-13" style={input}/><small style={{ color: done ? "#16803c" : state?.kind === "failed" ? "#b42318" : undefined, fontWeight: 700 }}>{done ? `✓ 저장 완료 · ${reading?.normalized_label || values[type]}` : state?.message || "분석 대기"}</small><button disabled={busy || done || !values[type]?.trim()} onClick={() => apply(type)} style={secondary}>{state?.kind === "applied" ? "적용됨" : done ? "저장됨" : "적용"}</button></div>; })}<button disabled={busy || !BULLETIN_SERVICE_TYPES.some((type) => results[type]?.kind === "applied")} onClick={() => void submit()} style={{ ...primary, marginTop: 14 }}>적용 항목 제출</button></> : <p>주보를 선택하세요.</p>}</section></div></main>;
 }
-const page: React.CSSProperties = { maxWidth: 1080, margin: "0 auto", padding: 20, color: "var(--ink)" }; const head: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }; const back: React.CSSProperties = { border: "1px solid var(--hairline)", background: "var(--surface)", borderRadius: 8, width: 36, height: 36, display: "grid", placeItems: "center", cursor: "pointer" }; const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(220px,.8fr) minmax(0,2fr)", gap: 16 }; const card: React.CSSProperties = { background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: 12, padding: 15, minWidth: 0 }; const itemButton: React.CSSProperties = { width: "100%", textAlign: "left", background: "transparent", border: 0, borderBottom: "1px solid var(--hairline)", padding: "12px 4px", cursor: "pointer", color: "var(--ink)", fontFamily: "inherit" }; const primary: React.CSSProperties = { border: 0, borderRadius: 8, background: "var(--accent)", color: "#fff", padding: "9px 12px", fontWeight: 800, cursor: "pointer", display: "inline-flex", gap: 6, alignItems: "center" }; const secondary: React.CSSProperties = { border: "1px solid var(--hairline)", borderRadius: 7, background: "var(--surface)", padding: "7px 9px", cursor: "pointer", fontWeight: 700 }; const input: React.CSSProperties = { minWidth: 0, border: "1px solid var(--hairline)", borderRadius: 7, padding: "7px 9px", fontFamily: "inherit" }; const readingStyle: React.CSSProperties = { borderTop: "1px solid var(--hairline)", padding: "10px 0", display: "grid", gridTemplateColumns: "110px minmax(180px,1fr) auto", gap: 7, alignItems: "center" };
+
+const mobileCss = `@media(max-width:720px){.scripture-grid{grid-template-columns:minmax(0,1fr)!important}.actions{display:grid;gap:8px}.reading{grid-template-columns:minmax(0,1fr) auto!important}.reading label,.reading input,.reading small{grid-column:1/-1}}`;
+const page: React.CSSProperties = { maxWidth: 1080, margin: "0 auto", padding: 20, color: "var(--ink)" };
+const head: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, marginBottom: 18 };
+const back: React.CSSProperties = { border: "1px solid var(--hairline)", background: "var(--surface)", borderRadius: 8, width: 36, height: 36, display: "grid", placeItems: "center", cursor: "pointer" };
+const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(220px,.8fr) minmax(0,2fr)", gap: 16 };
+const card: React.CSSProperties = { background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: 12, padding: 15, minWidth: 0 };
+const itemButton: React.CSSProperties = { width: "100%", textAlign: "left", background: "transparent", border: 0, borderBottom: "1px solid var(--hairline)", padding: "12px 4px", cursor: "pointer", color: "var(--ink)", fontFamily: "inherit" };
+const primary: React.CSSProperties = { border: 0, borderRadius: 8, background: "var(--accent)", color: "#fff", padding: "9px 12px", fontWeight: 800, cursor: "pointer", display: "inline-flex", gap: 6, alignItems: "center", justifyContent: "center" };
+const secondary: React.CSSProperties = { border: "1px solid var(--hairline)", borderRadius: 7, background: "var(--surface)", padding: "7px 9px", cursor: "pointer", fontWeight: 700 };
+const input: React.CSSProperties = { minWidth: 0, border: "1px solid var(--hairline)", borderRadius: 7, padding: "9px", fontFamily: "inherit" };
+const readingStyle: React.CSSProperties = { borderTop: "1px solid var(--hairline)", padding: "12px 6px", display: "grid", gridTemplateColumns: "110px minmax(180px,1fr) auto", gap: 8, alignItems: "center", borderRadius: 8 };
+const diagnosticStyle: React.CSSProperties = { whiteSpace: "pre-wrap", fontSize: 11, maxHeight: 320, overflow: "auto", background: "var(--surface-muted)", padding: 10, borderRadius: 8 };
