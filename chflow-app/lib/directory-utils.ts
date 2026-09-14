@@ -18,6 +18,7 @@ export type QuickEditDraft = {
   clearSpouseName: boolean;
   gender: "" | "M" | "F";
   is_child: "" | "true" | "false";
+  birth_date: string;
 };
 
 export type DirectoryQuickEditMember = {
@@ -29,6 +30,7 @@ export type DirectoryQuickEditMember = {
   spouse_name: string | null;
   gender: string | null;
   is_child: boolean | null;
+  birth_date?: string | null;
 };
 
 export type QuickEditChange = {
@@ -42,7 +44,7 @@ export type QuickEditChange = {
 export const emptyQuickEditDraft: QuickEditDraft = {
   name: "", phone: "", clearPhone: false, home_phone: "", clearHomePhone: false,
   family_church: "", clearFamilyChurch: false, sub_role: "", clearSubRole: false,
-  spouse_name: "", clearSpouseName: false, gender: "", is_child: "",
+  spouse_name: "", clearSpouseName: false, gender: "", is_child: "", birth_date: "",
 };
 
 export function directoryDisplayText(value: string | null | boolean | undefined, fallback = "없음") {
@@ -137,6 +139,15 @@ export function buildQuickEditChanges(member: DirectoryQuickEditMember, draft: Q
     if (nextValue !== !!member.is_child) {
       changes.push({ key: "is_child", label: "자녀 여부", before: directoryChildText(member.is_child), after: directoryChildText(nextValue), nextValue });
     }
+  }
+  if (draft.birth_date && draft.birth_date !== (member.birth_date || "")) {
+    changes.push({
+      key: "birth_date",
+      label: "생년월일",
+      before: directoryDisplayText(member.birth_date),
+      after: directoryDisplayText(draft.birth_date),
+      nextValue: draft.birth_date,
+    });
   }
   return changes;
 }

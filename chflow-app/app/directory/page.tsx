@@ -630,6 +630,7 @@ function DirectoryProfileModal({
       p_spouse_name: next.has("spouse_name") ? next.get("spouse_name") : null,
       p_gender: next.has("gender") ? next.get("gender") : null,
       p_is_child: next.has("is_child") ? next.get("is_child") : null,
+      p_birth_date: next.has("birth_date") ? next.get("birth_date") : null,
       p_household_id: null,
       p_split_pasture_id: null,
       p_clear_household: false,
@@ -803,6 +804,15 @@ function DirectoryProfileModal({
                     <option value="F">여</option>
                   </select>
                 </label>
+                <div style={quickEditFieldStyle}>
+                  <span style={quickEditLabelStyle}>생년월일</span>
+                  <BirthDateSelect
+                    value={quickEditDraft.birth_date}
+                    onChange={(value) => setQuickEditDraft((draft) => ({ ...draft, birth_date: value }))}
+                    selectStyle={quickEditInputStyle}
+                    hint={`동일 (현재: ${displayText(member.birth_date)}) — 연·월·일을 모두 선택해야 저장됩니다.`}
+                  />
+                </div>
                 <label style={quickEditFieldStyle}>
                   <span style={quickEditLabelStyle}>자녀 여부</span>
                   <select
