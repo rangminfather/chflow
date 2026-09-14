@@ -39,16 +39,6 @@ export default function Page() {
     return next;
   };
 
-  useEffect(() => {
-    void (async () => {
-      const { data } = await supabase.rpc("get_my_status");
-      if (!data?.[0] || !["admin", "office", "pastor"].includes(data[0].role)) { router.replace("/home"); return; }
-      const response = await call("/api/admin/bulletin-scripture-readings");
-      const json = await response.json();
-      if (response.ok) setBulletins(json.bulletins || []); else setNotice(json.error || "최근 주보를 불러오지 못했습니다.");
-    })();
-  }, [router]);
-
   const runNative = async (bulletin: Bulletin) => {
     setBusy(true); setNotice("텍스트 분석 중입니다…"); setNeedsOcr(false);
     try {
@@ -69,6 +59,23 @@ export default function Page() {
     requestAnimationFrame(() => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     await runNative(bulletin);
   };
+
+  useEffect(() => {
+    void (async () => {
+      const { data } = await supabase.rpc("get_my_status");
+      if (!data?.[0] || !["admin", "office", "pastor"].includes(data[0].role)) { router.replace("/home"); return; }
+      const response = await call("/api/admin/bulletin-scripture-readings");
+      const json = await response.json();
+      if (!response.ok) { setNotice(json.error || "최근 주보를 불러오지 못했습니다."); return; }
+      const next = (json.bulletins || []) as Bulletin[];
+      setBulletins(next);
+      const requestedId = new URLSearchParams(window.location.search).get("bulletin_id");
+      const requested = requestedId ? next.find((bulletin) => bulletin.id === requestedId) : null;
+      if (requested) void selectBulletin(requested);
+    })();
+    // Initial admin authorization and deep-link selection only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router]);
 
   const runOcr = async () => {
     if (!selected) return;
