@@ -28,13 +28,14 @@ jobs:
       # data-only correction, so the database can be built and queried in isolation.
       - name: Assemble isolated schema without historical data-only blocker
         run: |
-          TEST_SUPABASE="$RUNNER_TEMP/chflow-supabase-rls"
+          TEST_PROJECT="$RUNNER_TEMP/chflow-rls-project"
+          TEST_SUPABASE="$TEST_PROJECT/supabase"
           mkdir -p "$TEST_SUPABASE/migrations"
           cp MS_AX/chflow-project/supabase/config.toml "$TEST_SUPABASE/config.toml"
           find MS_AX/chflow-project/supabase/migrations -maxdepth 1 -type f \
             ! -name '20260520080000_directory_ocr_user_confirmed_batch2.sql' \
             -exec cp {} "$TEST_SUPABASE/migrations/" \;
-          echo "SUPABASE_TEST_DIR=$TEST_SUPABASE" >> "$GITHUB_ENV"
+          echo "SUPABASE_TEST_DIR=$TEST_PROJECT" >> "$GITHUB_ENV"
 
       - name: Start isolated local Supabase
         working-directory: ${{ env.SUPABASE_TEST_DIR }}
