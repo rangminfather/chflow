@@ -21,6 +21,7 @@ interface ChapterMeta {
   id: string;
   title: string;
   intro: string | null;
+  adminOnly?: boolean;
 }
 
 interface Manifest {
@@ -86,6 +87,15 @@ export default function ManualPage() {
       })
       .catch(() => setManifest({ generatedAt: null, chapters: [], items: [] }));
   }, []);
+
+  // 관리자 여부가 확정된 뒤 숨겨진 장이 선택돼 있으면 첫 번째 노출 장으로 되돌린다.
+  useEffect(() => {
+    if (!manifest) return;
+    const visible = manifest.chapters.filter(ch => !ch.adminOnly || isAdmin);
+    if (visible.length > 0 && !visible.some(ch => ch.id === activeChapter)) {
+      setActiveChapter(visible[0].id);
+    }
+  }, [manifest, isAdmin, activeChapter]);
 
   useEffect(() => {
     function onScroll() {
@@ -265,7 +275,9 @@ export default function ManualPage() {
     );
   }
 
-  const { chapters, items } = manifest;
+  // 관리자 전용 장은 관리자(admin/office/pastor)에게만 보인다. 인쇄·PDF도 같은 기준을 따른다.
+  const chapters = manifest.chapters.filter(ch => !ch.adminOnly || isAdmin);
+  const items = manifest.items.filter(it => chapters.some(ch => ch.id === it.chapterId));
   const currentChapter = chapters.find(c => c.id === activeChapter) ?? null;
   const currentItems = items.filter(m => m.chapterId === activeChapter);
   const generatedDate = manifest.generatedAt

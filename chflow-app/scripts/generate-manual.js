@@ -64,23 +64,51 @@ const PERSONAL_DATA_PATHS = [
   '/attendance',
   '/attendance-stats',
   '/teacher-attendance',
-  '/talent-stats',
-  '/talent-feast',
+  '/talent',        // talent · talent-check · talent-stats · talent-feast 모두 학생 이름이 보인다
   '/quiz-talent',
   '/students-info',
   '/new-friend',
   '/teacher-assign',
   '/dept-approval',
   '/members-grade',
+  '/department-members',
+  '/participation-check',
+  // 실제 성도 이름이 그대로 보이는 화면 — 목장탐방(목자·목녀 카드)과 관리자 교적 목록
+  '/pasture/explore',
+  '/admin/members',
+  '/admin/pending',
+  '/admin/dept-pending',
+  '/admin/dept-staff',
+  '/admin/photo-review',
 ];
 
 /** 공개 매뉴얼 캡처에 실사용자 이름·전화번호·이메일이 남지 않게 DOM 복사본만 마스킹 */
 async function maskPersonalData(page, url) {
   if (!PERSONAL_DATA_PATHS.some((pathPart) => url.includes(pathPart))) return;
   await page.evaluate(() => {
+    // UI 라벨은 마스킹하지 않는다 — 사람 이름만 가리는 것이 목적이다.
     const keep = new Set([
       '홈', '부서홈', '검색', '교사', '학부모', '남', '여', '출석', '결석', '예정',
       '전체', '저장', '취소', '삭제', '복구', '승인', '거절', '등록', '수정', '조회',
+      // 목장·교적 화면 라벨
+      '평원', '초원', '목장', '가정', '구성원', '목자', '목녀', '목원', '목부',
+      '이름', '성별', '자녀', '직분', '배우자', '주소', '작업', '회원', '비회원',
+      '탈퇴', '이명', '분리보관', '관리', '소개', '인원', '연락처', '휴대폰', '집전화',
+      '가입', '신청', '대기', '완료', '보기', '닫기', '확인', '추가', '변경', '설정',
+      '미정', '없음', '있음', '초기화', '이전', '다음', '더보기', '사진', '검수',
+      // 출결·달란트 화면 라벨
+      '주일', '주차', '오늘', '이번주', '지난주', '다음주', '달란트', '통장', '체크',
+      '펼쳐서', '접기', '합계', '점수', '항목', '기타', '사유', '수량', '잔액',
+      '성경책', '지참', '요절', '암송', '발표', '기도', '전도', '새친구', '등반',
+      '공과', '숙제', '주보', '인정', '마감', '페이지', '재편성', '학년', '학교',
+      '생일', '보호자', '아버지', '어머니', '부모', '담임', '부담임', '정담임',
+      // 부서·행정 화면 라벨
+      '임원진', '부장', '총무', '서기', '회계', '전도사', '교육사', '목사', '사모',
+      '명단', '목록', '현황', '통계', '기간', '시작', '종료', '날짜', '시간', '장소',
+      '식사', '가족', '동반', '준비물', '설명', '상태', '처리', '반려', '가능',
+      '어려움', '참석', '불참', '응답', '미응답', '알림', '편집', '뒤로', '문의',
+      '자료', '과별', '절기', '공지', '게시판', '첨부', '본문', '제목', '내용',
+      '가정교회', '샘플', '정상', '계정', '대상', '기준', '이력', '변경', '기록',
     ]);
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     let node;
@@ -97,6 +125,15 @@ async function maskPersonalData(page, url) {
       }
       if (next !== original) textNode.textContent = next;
     }
+
+    // 성도가 올린 사진(Supabase 스토리지 이미지)은 얼굴이 그대로 남으므로 흐리게 처리한다.
+    // 앱 로고·아이콘은 로컬 경로라 영향을 받지 않는다.
+    document.querySelectorAll('img').forEach((img) => {
+      const src = img.getAttribute('src') || '';
+      if (/\/api\/storage\/|\/storage\/v1\/|supabase|\/avatars\//.test(src)) {
+        img.style.filter = 'blur(10px)';
+      }
+    });
   });
 }
 
@@ -106,7 +143,8 @@ async function doLogin(page, account) {
   await page.fill('#login-username', account.username);
   await page.fill('#login-password', account.password);
   await page.click('.login-submit');
-  await page.waitForURL('**/home', { timeout: 15000 });
+  // 운영 환경에서 로그인 후 홈 진입까지 20초 이상 걸리는 경우가 있어 넉넉히 대기한다.
+  await page.waitForURL('**/home', { timeout: 90000 });
 }
 
 /** .env.local 에서 Supabase 접속 정보 로드 */
@@ -411,9 +449,23 @@ async function main() {
 
       try {
         if (step.url) {
-          await page.goto(BASE_URL + step.url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-          await page.waitForTimeout(3000);
+          await page.goto(BASE_URL + step.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+          // 목록·PDF·외부 연동 화면은 3초로는 "불러오는 중"이 그대로 찍힌다.
+          await page.waitForTimeout(step.wait ?? 5000);
           await maskPersonalData(page, step.url);
+        }
+
+        // 모달을 열어야 보이는 기능(예: 회원 상태·이명 처리)은 actions 로 조작한 뒤 찍는다.
+        // 저장 버튼은 절대 누르지 않는다 — 화면을 여는 동작만 허용한다.
+        if (Array.isArray(step.actions)) {
+          for (const action of step.actions) {
+            if (action.fill) await page.fill(action.fill, action.value ?? '');
+            else if (action.select) await page.selectOption(action.select, action.value);
+            else if (action.click) await page.click(action.click, { timeout: 15000 });
+            else if (action.scrollTo) await page.locator(action.scrollTo).first().scrollIntoViewIfNeeded();
+            if (action.wait) await page.waitForTimeout(action.wait);
+          }
+          await maskPersonalData(page, step.url || '');
         }
 
         if (step.highlight) {
@@ -453,7 +505,13 @@ async function main() {
 
   // manifest.json 저장 (챕터 소개 + 생성일 포함)
   const manifestPath = path.join(OUTPUT_DIR, 'manifest.json');
-  const chaptersMeta = steps.chapters.map(c => ({ id: c.id, title: c.title, intro: c.intro || null }));
+  // adminOnly 장은 매뉴얼 화면에서 관리자(admin/office/pastor)에게만 보인다.
+  const chaptersMeta = steps.chapters.map(c => ({
+    id: c.id,
+    title: c.title,
+    intro: c.intro || null,
+    adminOnly: !!c.adminOnly,
+  }));
   fs.writeFileSync(manifestPath, JSON.stringify({
     generatedAt: new Date().toISOString(),
     chapters: chaptersMeta,
