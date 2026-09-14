@@ -64,7 +64,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, saved });
   }
   if (body.action === "save_reading" && body.reading) {
-    const valid = await validateNkrvReference(session.admin, body.reading.rawReference);
+    let valid;
+    try { valid = await validateNkrvReference(session.admin, body.reading.rawReference); }
+    catch (error) { return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "성경 본문 검증 실패" }, { status: 400 }); }
     const status = body.reading.status || "pending";
     const row = { bulletin_id: bulletinId, service_type: body.reading.serviceType, book_id: valid.bookId, chapter_start: valid.chapterStart, verse_start: valid.verseStart, chapter_end: valid.chapterEnd, verse_end: valid.verseEnd, raw_reference: body.reading.rawReference, normalized_label: valid.normalizedLabel, source: "manual", confidence: 1, status, sort_order: 0, verified_at: status === "verified" ? new Date().toISOString() : null, verified_by: status === "verified" ? session.userId : null, updated_at: new Date().toISOString() };
     const { error } = await session.admin.from("bulletin_scripture_readings").upsert(row, { onConflict: "bulletin_id,service_type,sort_order" });
