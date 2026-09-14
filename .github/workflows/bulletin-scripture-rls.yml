@@ -1,0 +1,45 @@
+name: Bulletin scripture migration and RLS
+
+on:
+  push:
+    branches:
+      - test/bulletin-scripture-rls
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  local-supabase-rls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start isolated local Supabase
+        working-directory: MS_AX/chflow-project
+        run: supabase start
+
+      - name: Apply full migration chain
+        working-directory: MS_AX/chflow-project
+        run: supabase db reset --local --no-seed
+
+      - name: Verify schema and RLS through actual authenticated queries
+        run: |
+          DB_CONTAINER="$(docker ps --filter 'name=supabase_db_' --format '{{.Names}}' | head -n 1)"
+          test -n "$DB_CONTAINER"
+          docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < MS_AX/chflow-project/supabase/tests/bulletin_scripture_readings_rls.sql
+
+      - name: Clean reset and reapply full migration chain
+        working-directory: MS_AX/chflow-project
+        run: supabase db reset --local --no-seed
+
+      - name: Re-run schema and RLS verification after reset
+        run: |
+          DB_CONTAINER="$(docker ps --filter 'name=supabase_db_' --format '{{.Names}}' | head -n 1)"
+          test -n "$DB_CONTAINER"
+          docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < MS_AX/chflow-project/supabase/tests/bulletin_scripture_readings_rls.sql
