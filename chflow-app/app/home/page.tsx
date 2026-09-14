@@ -118,7 +118,8 @@ const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "booking",  label: "예약 캘린더", icon: CalendarClock, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "" },
 ];
 
-const ADMIN_SYSTEM_MENU_IDS = new Set(["messenger-diagnostics", "usage-status", "live-status"]);
+ADMIN_EXTRA_MENUS.push({ id: "bulletin-scripture", label: "주보 성경봉독 관리", icon: BookOpen, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/bulletin-scripture-readings" });
+const ADMIN_SYSTEM_MENU_IDS = new Set(["messenger-diagnostics", "usage-status", "live-status", "bulletin-scripture"]);
 const ADMIN_MENU_GROUPS = [
   {
     id: "implemented",

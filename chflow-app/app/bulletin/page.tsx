@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ExternalLink, List, RefreshCw, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import PdfCanvasViewer from "@/components/PdfCanvasViewer";
+import BulletinScripturePanel from "@/components/BulletinScripturePanel";
 import { LoadingView } from "@/components/StatusViews";
 
 type BulletinItem = {
+  id?: string;
   no: number;
   title: string;
   volume: string | null;
@@ -171,6 +173,8 @@ export default function BulletinPage() {
                 </a>
               </section>
             )}
+
+            {latest.id && <BulletinScripturePanel bulletinId={latest.id} />}
 
             {showList && (
               <div style={listOverlayStyle} onClick={() => setShowList(false)}>

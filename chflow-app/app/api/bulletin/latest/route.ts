@@ -19,6 +19,7 @@ export const maxDuration = 60;
 export const preferredRegion = "icn1";
 
 type BulletinItem = {
+  id?: string;
   no: number;
   title: string;
   volume: string | null;
@@ -262,6 +263,7 @@ async function loadStoredItems(): Promise<BulletinItem[]> {
     }
 
     return {
+      id: row.id,
       no: sourceNo,
       title: row.title,
       volume: null,
