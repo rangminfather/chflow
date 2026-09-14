@@ -18,6 +18,12 @@ type Reading = {
 };
 
 const MANAGER_ROLES = new Set(["admin", "office", "pastor"]);
+const SERVICE_ORDER: Record<BulletinServiceType, number> = {
+  sunday_morning: 0,
+  sunday_afternoon: 1,
+  wednesday_morning: 2,
+  wednesday_evening: 3,
+};
 
 export default function BulletinScripturePanel({ bulletinId }: { bulletinId: string }) {
   const router = useRouter();
@@ -54,8 +60,8 @@ export default function BulletinScripturePanel({ bulletinId }: { bulletinId: str
 
   const recommended = getRecommendedBulletinService();
   const ordered = useMemo(
-    () => [...readings].sort((a, b) => Number(b.service_type === recommended) - Number(a.service_type === recommended) || a.service_type.localeCompare(b.service_type)),
-    [readings, recommended],
+    () => [...readings].sort((a, b) => SERVICE_ORDER[a.service_type] - SERVICE_ORDER[b.service_type] || a.sort_order - b.sort_order),
+    [readings],
   );
 
   if (!ordered.length && !canManage) return null;
@@ -63,10 +69,12 @@ export default function BulletinScripturePanel({ bulletinId }: { bulletinId: str
   return (
     <>
       <style>{responsiveCss}</style>
-      <button type="button" className="bulletin-scripture-trigger" onClick={() => setSheetOpen(true)} style={triggerStyle}>
-        <BookOpen size={17} strokeWidth={2} />
-        <span>성경봉독{ordered.length ? ` ${ordered.length}` : ""}</span>
-      </button>
+      <div style={triggerRowStyle}>
+        <button type="button" className="bulletin-scripture-trigger" onClick={() => setSheetOpen(true)} style={triggerStyle}>
+          <BookOpen size={17} strokeWidth={2} />
+          <span>성경봉독{ordered.length ? ` ${ordered.length}` : ""}</span>
+        </button>
+      </div>
 
       {sheetOpen && (
         <ModalBackdrop onClose={() => setSheetOpen(false)} style={backdropStyle}>
@@ -83,7 +91,7 @@ export default function BulletinScripturePanel({ bulletinId }: { bulletinId: str
               {ordered.length ? ordered.map((reading) => {
                 const isRecommended = reading.service_type === recommended;
                 return (
-                  <article key={reading.id} style={readingStyle}>
+                  <article key={reading.id} style={{ ...readingStyle, ...(isRecommended ? recommendedReadingStyle : null) }}>
                     <div style={readingMetaStyle}>
                       {isRecommended && <span style={recommendBadgeStyle}>추천</span>}
                       <span>{BULLETIN_SERVICE_LABELS[reading.service_type]}</span>
@@ -125,16 +133,18 @@ const responsiveCss = `
   .bulletin-scripture-sheet{width:min(520px,calc(100vw - 48px))!important;border-radius:16px!important;max-height:min(760px,calc(100vh - 64px))!important}
 }
 `;
-const triggerStyle: React.CSSProperties = { position: "absolute", right: 16, bottom: 20, zIndex: 25, minHeight: 42, padding: "0 15px", border: "1px solid color-mix(in srgb, var(--accent) 55%, transparent)", borderRadius: 999, background: "var(--accent)", color: "#fff", boxShadow: "0 8px 24px rgba(20,26,22,.28)", display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "inherit", fontWeight: 800, cursor: "pointer" };
+const triggerRowStyle: React.CSSProperties = { display: "flex", justifyContent: "flex-end", width: "100%", marginTop: 2, marginBottom: 12 };
+const triggerStyle: React.CSSProperties = { minHeight: 42, padding: "0 15px", border: "1px solid color-mix(in srgb, var(--accent) 55%, transparent)", borderRadius: 999, background: "var(--accent)", color: "#fff", boxShadow: "0 6px 18px rgba(20,26,22,.18)", display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "inherit", fontWeight: 800, cursor: "pointer" };
 const backdropStyle: React.CSSProperties = { zIndex: 180, alignItems: "flex-end", padding: 0 };
 const sheetStyle: React.CSSProperties = { width: "100%", maxWidth: 560, maxHeight: "82dvh", background: "var(--card)", borderRadius: "18px 18px 0 0", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 -10px 40px rgba(20,26,22,.25)" };
 const sheetHeaderStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "15px 16px", borderBottom: "1px solid var(--hairline)", flexShrink: 0 };
 const sheetSubtitleStyle: React.CSSProperties = { marginTop: 2, color: "var(--ink-soft)", fontSize: 12 };
 const iconButtonStyle: React.CSSProperties = { width: 34, height: 34, borderRadius: 999, border: "1px solid var(--hairline)", background: "var(--surface)", color: "var(--ink)", display: "grid", placeItems: "center", cursor: "pointer" };
 const readingListStyle: React.CSSProperties = { overflowY: "auto", padding: "4px 16px 14px" };
-const readingStyle: React.CSSProperties = { padding: "14px 0", borderBottom: "1px solid var(--hairline)" };
+const readingStyle: React.CSSProperties = { marginTop: 8, padding: 12, border: "1px solid var(--hairline)", borderRadius: 10, background: "var(--card)" };
+const recommendedReadingStyle: React.CSSProperties = { border: "2px solid #dc2626", background: "color-mix(in srgb, #dc2626 5%, var(--card))" };
 const readingMetaStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 7, color: "var(--ink-soft)", fontSize: 12, fontWeight: 700 };
-const recommendBadgeStyle: React.CSSProperties = { padding: "2px 7px", borderRadius: 999, background: "var(--accent-soft)", color: "var(--accent-strong)", fontSize: 10, fontWeight: 900 };
+const recommendBadgeStyle: React.CSSProperties = { padding: "2px 7px", borderRadius: 999, background: "#dc2626", color: "#fff", fontSize: 10, fontWeight: 900 };
 const referenceStyle: React.CSSProperties = { marginTop: 4, fontSize: 17, fontWeight: 800 };
 const passageButtonStyle: React.CSSProperties = { marginTop: 9, minHeight: 34, padding: "0 11px", border: 0, borderRadius: 8, background: "var(--accent)", color: "#fff", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontWeight: 800, fontFamily: "inherit" };
 const footerStyle: React.CSSProperties = { padding: "12px 16px calc(12px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--hairline)", background: "var(--surface)", flexShrink: 0 };
