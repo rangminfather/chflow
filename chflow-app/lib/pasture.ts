@@ -226,6 +226,7 @@ async function fetchPastureLeaders(pastureIds: string[]): Promise<Map<string, Pa
     .from("members")
     .select("id,name,family_church,photo_url,gender,household:households!inner(pasture_id)")
     .eq("is_child", false)
+    .eq("status", "active")
     .in("family_church", [...LEADER_ROLES])
     .in("household.pasture_id", pastureIds);
   if (error) throw error;
