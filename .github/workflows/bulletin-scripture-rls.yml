@@ -20,32 +20,26 @@ jobs:
         with:
           version: latest
 
-      # The repository's full clean migration chain currently stops before the target
-      # migration at historical directory OCR correction files and local-only pg_cron jobs:
-      # the former insert member_relations for absent directory data, while the latter require
-      # the pg_cron extension that this local config does not provision.
-      # That historical data correction is deliberately not changed by this verification.
-      # For the target migration/RLS test, use the same schema migrations except that one
-      # data-only correction, so the database can be built and queried in isolation.
-      - name: Assemble isolated schema without historical data-only blocker
+      # The complete historical chain cannot clean-reset: unrelated directory data corrections,
+      # pg_cron jobs, and usage snapshots depend on production-era data or services. Do not
+      # alter those migrations here. Build the exact minimum dependency chain for the target:
+      # profiles/bulletins/get_user_role, Bible books, then scripture readings.
+      - name: Assemble isolated minimum dependency migration chain
         run: |
           TEST_PROJECT="$RUNNER_TEMP/chflow-rls-project"
           TEST_SUPABASE="$TEST_PROJECT/supabase"
           mkdir -p "$TEST_SUPABASE/migrations"
           cp MS_AX/chflow-project/supabase/config.toml "$TEST_SUPABASE/config.toml"
-          find MS_AX/chflow-project/supabase/migrations -maxdepth 1 -type f \
-            ! -name '20260520080000_directory_ocr_user_confirmed_batch2.sql' \
-            ! -name '20260520120000_directory_ocr_manual_pdf_mdb_corrections.sql' \
-            ! -name '20260708190000_usage_resource_watch.sql' \
-            ! -name '20260817090000_usage_diagnostics_v2.sql' \
-            -exec cp {} "$TEST_SUPABASE/migrations/" \;
+          cp MS_AX/chflow-project/supabase/migrations/20260410000000_init_chflow.sql "$TEST_SUPABASE/migrations/"
+          cp MS_AX/chflow-project/supabase/migrations/20260709100000_bible_core.sql "$TEST_SUPABASE/migrations/"
+          cp MS_AX/chflow-project/supabase/migrations/20260914100000_bulletin_scripture_readings.sql "$TEST_SUPABASE/migrations/"
           echo "SUPABASE_TEST_DIR=$TEST_PROJECT" >> "$GITHUB_ENV"
 
       - name: Start isolated local Supabase
         working-directory: ${{ env.SUPABASE_TEST_DIR }}
         run: supabase start
 
-      - name: Apply full migration chain
+      - name: Apply target dependency migration chain
         working-directory: ${{ env.SUPABASE_TEST_DIR }}
         run: supabase db reset --local --no-seed
 
@@ -55,7 +49,7 @@ jobs:
           test -n "$DB_CONTAINER"
           docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < MS_AX/chflow-project/supabase/tests/bulletin_scripture_readings_rls.sql
 
-      - name: Clean reset and reapply full migration chain
+      - name: Clean reset and reapply target dependency chain
         working-directory: ${{ env.SUPABASE_TEST_DIR }}
         run: supabase db reset --local --no-seed
 
