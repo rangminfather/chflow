@@ -681,7 +681,17 @@ function DirectoryProfileModal({
             />
             <InfoLine label="배우자" value={member.spouse_name || "없음"} />
             <InfoLine label="성별" value={genderText(member.gender)} />
-            {member.birth_date && <InfoLine label="생년월일" value={member.birth_date} />}
+            {member.birth_date && (
+              <InfoLine
+                label="생년월일"
+                value={member.birth_date}
+                badge={canQuickEdit && (
+                  <span style={tagStyle("var(--info-soft)", "var(--info)")} title="관리자만 볼 수 있는 항목입니다">
+                    관리자 전용
+                  </span>
+                )}
+              />
+            )}
             <InfoLine label="소속" value={locationText(member)} />
             {member.address && <InfoLine label="주소" value={member.address} />}
           </div>
@@ -984,11 +994,14 @@ function Avatar({ member, size }: { member: { name: string; photo_url: string | 
   );
 }
 
-function InfoLine({ label, value, phoneActions }: { label: string; value: string; phoneActions?: string }) {
+function InfoLine({ label, value, phoneActions, badge }: { label: string; value: string; phoneActions?: string; badge?: React.ReactNode }) {
   const actionPhone = normalizeDialNumber(phoneActions);
   return (
     <div style={infoLineStyle}>
-      <span>{label}</span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        {label}
+        {badge}
+      </span>
       <strong style={infoValueStyle}>
         <span style={{ minWidth: 0, overflowWrap: "anywhere", wordBreak: "keep-all" }}>{value}</span>
         {actionPhone && (
