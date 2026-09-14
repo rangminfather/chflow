@@ -156,25 +156,26 @@ export default function BulletinPage() {
           <div style={loadingPanelStyle}>최신 주보 확인 중...</div>
         ) : latest ? (
           <>
-            {latest.pdf_url ? (
-              <section style={pdfFrameWrapStyle}>
-                <PdfCanvasViewer
-                  key={latest.pdf_url}
-                  url={latest.pdf_url}
-                  fallbackUrl={latest.pdf_url || latest.url}
-                />
-              </section>
-            ) : (
-              <section style={pdfFallbackStyle}>
-                <span>저장된 PDF가 없어 교회 홈페이지 원문으로 연결합니다.</span>
-                <a href={latest.url} target="_blank" rel="noopener noreferrer" style={openButtonStyle}>
-                  <span>원문 보기</span>
-                  <ExternalLink size={16} strokeWidth={1.8} />
-                </a>
-              </section>
-            )}
-
-            {latest.id && <BulletinScripturePanel bulletinId={latest.id} />}
+            <div style={viewerStackStyle}>
+              {latest.pdf_url ? (
+                <section style={pdfFrameWrapStyle}>
+                  <PdfCanvasViewer
+                    key={latest.pdf_url}
+                    url={latest.pdf_url}
+                    fallbackUrl={latest.pdf_url || latest.url}
+                  />
+                </section>
+              ) : (
+                <section style={pdfFallbackStyle}>
+                  <span>저장된 PDF가 없어 교회 홈페이지 원문으로 연결합니다.</span>
+                  <a href={latest.url} target="_blank" rel="noopener noreferrer" style={openButtonStyle}>
+                    <span>원문 보기</span>
+                    <ExternalLink size={16} strokeWidth={1.8} />
+                  </a>
+                </section>
+              )}
+              {latest.id && <BulletinScripturePanel key={latest.id} bulletinId={latest.id} />}
+            </div>
 
             {showList && (
               <div style={listOverlayStyle} onClick={() => setShowList(false)}>
@@ -297,6 +298,11 @@ const pdfFrameWrapStyle: React.CSSProperties = {
   background: "var(--card)",
   overflow: "hidden",
   marginBottom: 12,
+};
+
+const viewerStackStyle: React.CSSProperties = {
+  position: "relative",
+  width: "100%",
 };
 
 const pdfFallbackStyle: React.CSSProperties = {
