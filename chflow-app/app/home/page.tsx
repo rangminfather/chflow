@@ -7,6 +7,7 @@ import { photoThumb } from "@/lib/photo";
 import { getRoleImageByLabel } from "@/lib/roles";
 import HeaderLogo from "@/components/HeaderLogo";
 import DeptIcon from "@/components/DeptIcon";
+import UthPanel from "@/components/icons/UthIcon";
 import {
   type LucideIcon,
   BookOpen, BookText, Users, User, Lightbulb, Vote, Megaphone, CalendarDays,
@@ -102,6 +103,7 @@ const COMMON_MENUS: CommonMenu[] = [
 const ADMIN_EXTRA_MENUS: CommonMenu[] = [
   { id: "attendance", label: "교회 출석 현황", icon: MapPin, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/attendance", image: "/menu-icons/attendance.png" },
   { id: "attendance-settings", label: "자동출석 설정", icon: MapPin, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/attendance/settings", image: "/menu-icons/attendance-settings.png" },
+  { id: "heating", label: "온열패널조절", icon: UthPanel, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "비전센터 난방 원격제어", href: "/facility/heating" },
   { id: "vote",     label: "투표",        icon: Vote,          color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/vote" },
   { id: "messenger-reports", label: "메신저 신고", icon: MessagesSquare, color: "var(--brass)", bg: "color-mix(in srgb, var(--brass) 15%, transparent)", desc: "", href: "/admin/messenger-reports" },
   // 이메일 미등록 성도는 본인 재설정이 불가능해 관리자 초기화가 유일한 경로다 (화면 자체는 admin role 만 통과)
