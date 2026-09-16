@@ -16,6 +16,7 @@ export interface RoomDeviceView {
   online?: boolean;
   powerOn?: boolean;
   run?: boolean;
+  roomNo?: string;
 }
 
 interface Props {
@@ -129,9 +130,20 @@ export default function HeatingFloorPlan({ floor, deviceByRoom, selectedId, onSe
             ) : (
               <rect x={x} y={y} width={w} height={h} rx={hasDevice ? 4 : 2} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
             )}
-            <text x={cx} y={cy + (hasDevice ? -2 : 3)} textAnchor="middle" fontSize={fontSize} fill="var(--ink-mid)" style={{ pointerEvents: "none" }}>
-              {room.name}
-            </text>
+            {hasDevice && dv.roomNo ? (
+              <>
+                <text x={cx} y={cy - fontSize * 0.1} textAnchor="middle" fontSize={fontSize * 1.3} fontWeight={700} fill="var(--ink)" style={{ pointerEvents: "none" }}>
+                  {dv.roomNo}호
+                </text>
+                <text x={cx} y={cy + fontSize * 1.2} textAnchor="middle" fontSize={fontSize * 0.8} fill="var(--ink-mid)" style={{ pointerEvents: "none" }}>
+                  {room.name}
+                </text>
+              </>
+            ) : (
+              <text x={cx} y={cy + 3} textAnchor="middle" fontSize={fontSize} fill="var(--ink-faint)" style={{ pointerEvents: "none" }}>
+                {room.name}
+              </text>
+            )}
             {hasDevice && <circle cx={x + w - (useMm ? 10 : 9)} cy={y + (useMm ? 10 : 9)} r={useMm ? vbW / 120 : 4} fill={dot} stroke="var(--card)" strokeWidth={1.2} style={{ pointerEvents: "none" }} />}
           </g>
         );

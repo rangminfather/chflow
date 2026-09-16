@@ -147,6 +147,7 @@ export default function HeatingPage() {
         online: st?.online,
         powerOn: st?.state?.powerOn,
         run: st?.state?.run,
+        roomNo: d.roomNo,
       };
     }
     return map;
