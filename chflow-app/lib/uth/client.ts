@@ -170,11 +170,12 @@ export async function readStatus(
   return { state: value, port, frames };
 }
 
-/** Send a control command, then read back the resulting status. */
-export async function sendControl(
-  mac: string,
-  cmd: ControlCommand
-): Promise<{ before: DeviceState; after: DeviceState; sent: string; port: number; frames: string[] }> {
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+type ControlResult = { before: DeviceState; after: DeviceState; sent: string; port: number; frames: string[] };
+
+/** Core: read current status, compute a command from it, send, read back. */
+async function runControl(mac: string, compute: (before: DeviceState) => ControlCommand): Promise<ControlResult> {
   const port = await lookupPort(mac);
   const host = resolveHost(mac);
   const handshake = buildHandshake(mac);
@@ -187,7 +188,7 @@ export async function sendControl(
       else if (f.kind === "disconnect") throw new UthError(`disconnect code ${f.code}`, "control");
     }
     if (!before) throw new UthError("no status before control", "control");
-    const pkt = buildControl(before, cmd);
+    const pkt = buildControl(before, compute(before));
     send(pkt);
     let after: DeviceState | null = null;
     for (let i = 0; i < 4 && !after; i++) {
@@ -198,6 +199,23 @@ export async function sendControl(
     return { before, after, sent: hex(pkt) };
   });
   return { ...value, port, frames };
+}
+
+/** Send an explicit control command (power / setValue / lock). */
+export function sendControl(mac: string, cmd: ControlCommand): Promise<ControlResult> {
+  return runControl(mac, () => cmd);
+}
+
+/**
+ * Relative setpoint step (▲▼). Clamps by mode:
+ * modeType 0(온도) → [TL, TH]; modeType 1(단수) → [0, 8] (표시 1~9).
+ */
+export function sendStep(mac: string, dir: 1 | -1): Promise<ControlResult> {
+  return runControl(mac, (b) => {
+    const lo = b.modeType === 0 ? b.TL : 0;
+    const hi = b.modeType === 0 ? b.TH : 8;
+    return { setValue: clamp(b.sth + dir, lo, hi) };
+  });
 }
 
 /** Run tasks with a concurrency cap (multi-device status polling). */

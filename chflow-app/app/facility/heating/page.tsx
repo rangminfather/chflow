@@ -100,17 +100,17 @@ export default function HeatingPage() {
     else if (authReady && !token) setLoading(false);
   }, [authReady, token, loadAll]);
 
-  const power = useCallback(
-    async (deviceId: string, on: boolean) => {
+  const act = useCallback(
+    async (deviceId: string, payload: Record<string, unknown>, okMsg?: string) => {
       setBusy(deviceId);
       setNote(null);
       const j = await authFetch("/api/facility/thermostat/control", {
         method: "POST",
-        body: JSON.stringify({ deviceId, action: "power", on }),
+        body: JSON.stringify({ deviceId, ...payload }),
       });
       if (j.ok) {
         setStatuses((s) => ({ ...s, [deviceId]: { online: true, state: j.after, updatedAt: j.updatedAt } }));
-        setNote(`전원 ${on ? "켜짐" : "꺼짐"} 완료`);
+        if (okMsg) setNote(okMsg);
       } else {
         setNote(j.error || "제어 실패");
       }
@@ -235,11 +235,40 @@ export default function HeatingPage() {
                   {!s && <span className="text-[var(--ink-faint)]">{st?.error || "상태 없음"}</span>}
                 </div>
 
+                {s?.powerOn && d.controlEnabled && online && (
+                  <div className="mb-3 flex items-center justify-between rounded-xl border border-[var(--hairline)] px-3 py-2">
+                    <span className="text-sm text-[var(--ink-mid)]">{s.mode === "temp" ? "설정온도" : "난방단수"}</span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => act(d.id, { action: "step", dir: "down" })}
+                        className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--bg-soft)] text-lg font-bold text-[var(--ink)] disabled:opacity-40"
+                        aria-label="내리기"
+                      >
+                        −
+                      </button>
+                      <span className="min-w-[52px] text-center font-mono text-lg font-bold text-[var(--ink)]">
+                        {s.mode === "temp" ? `${s.setTemp}°C` : s.heatLevel}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={isBusy}
+                        onClick={() => act(d.id, { action: "step", dir: "up" })}
+                        className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--bg-soft)] text-lg font-bold text-[var(--ink)] disabled:opacity-40"
+                        aria-label="올리기"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex gap-2">
                   <button
                     type="button"
                     disabled={isBusy || !online || s?.powerOn === true || !d.controlEnabled}
-                    onClick={() => power(d.id, true)}
+                    onClick={() => act(d.id, { action: "power", on: true }, "전원 켜짐 완료")}
                     className="flex-1 rounded-xl bg-[var(--success)] px-4 py-2.5 text-sm font-bold text-[var(--card)] disabled:opacity-40"
                   >
                     {isBusy ? "처리중…" : "켜기"}
@@ -247,10 +276,19 @@ export default function HeatingPage() {
                   <button
                     type="button"
                     disabled={isBusy || !online || s?.powerOn === false || !d.controlEnabled}
-                    onClick={() => power(d.id, false)}
+                    onClick={() => act(d.id, { action: "power", on: false }, "전원 꺼짐 완료")}
                     className="flex-1 rounded-xl bg-[var(--bg-soft)] px-4 py-2.5 text-sm font-bold text-[var(--ink)] disabled:opacity-40"
                   >
                     {isBusy ? "처리중…" : "끄기"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isBusy || !online || !d.controlEnabled}
+                    onClick={() => act(d.id, { action: "lock", on: !s?.lock }, s?.lock ? "잠금 해제 완료" : "잠금 완료")}
+                    className="rounded-xl border border-[var(--hairline)] px-3 py-2.5 text-[var(--ink-mid)] disabled:opacity-40"
+                    aria-label={s?.lock ? "잠금 해제" : "잠금"}
+                  >
+                    <Lock size={16} />
                   </button>
                   <button
                     type="button"

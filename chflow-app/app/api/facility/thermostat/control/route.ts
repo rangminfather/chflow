@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authorize, tokenFrom } from "@/lib/uth/access";
 import { getDevice, toPublic } from "@/lib/uth/registry";
-import { sendControl, UthError } from "@/lib/uth/client";
+import { sendControl, sendStep, UthError } from "@/lib/uth/client";
 import { deriveDisplay, type ControlCommand } from "@/lib/uth/protocol";
 import { allow } from "@/lib/uth/throttle";
 
@@ -10,13 +10,13 @@ export const dynamic = "force-dynamic";
 export const preferredRegion = "icn1";
 export const maxDuration = 30;
 
-type Action = "power" | "setValue" | "lock";
+type Action = "power" | "setValue" | "lock" | "step";
 
 export async function POST(req: NextRequest) {
   const a = await authorize(tokenFrom(req));
   if (!a.ok) return NextResponse.json({ ok: false, error: a.error }, { status: a.status });
 
-  let body: { deviceId?: string; action?: Action; on?: boolean; value?: number };
+  let body: { deviceId?: string; action?: Action; on?: boolean; value?: number; dir?: "up" | "down" };
   try {
     body = await req.json();
   } catch {
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
   }
 
   const cmd: ControlCommand = {};
+  let stepDir: 1 | -1 | null = null;
   if (body.action === "power") {
     if (typeof body.on !== "boolean") return NextResponse.json({ ok: false, error: "on(boolean) 필요" }, { status: 400 });
     cmd.power = body.on;
@@ -45,12 +46,16 @@ export async function POST(req: NextRequest) {
   } else if (body.action === "lock") {
     if (typeof body.on !== "boolean") return NextResponse.json({ ok: false, error: "on(boolean) 필요" }, { status: 400 });
     cmd.lock = body.on;
+  } else if (body.action === "step") {
+    if (body.dir !== "up" && body.dir !== "down") return NextResponse.json({ ok: false, error: "dir(up/down) 필요" }, { status: 400 });
+    stepDir = body.dir === "up" ? 1 : -1;
   } else {
     return NextResponse.json({ ok: false, error: "알 수 없는 action" }, { status: 400 });
   }
 
   try {
-    const { before, after, sent } = await sendControl(device.mac, cmd);
+    const { before, after, sent } =
+      stepDir !== null ? await sendStep(device.mac, stepDir) : await sendControl(device.mac, cmd);
     // audit (interim: console; DB audit table is the church/productization step)
     console.log(
       `[UTH-AUDIT] user=${a.caller.name}(${a.caller.role}) device=${device.id}/${device.roomNo} action=${body.action} ` +
