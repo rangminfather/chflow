@@ -15,6 +15,7 @@
 
 import type { FacilityFloor, FacilityRoom, FacilityRoomKind } from "@/lib/facility/facility-map-config";
 import { formatCapacity } from "@/lib/facility/facility-map-config";
+import { floorKeyOf, floorOutline, roomPoly, bboxOf, polyPoints } from "@/lib/facility/facility-plan-geometry";
 
 type Props = {
   floor: FacilityFloor;
@@ -59,8 +60,30 @@ export default function FacilityRoomMap({
   selectedRoomIds,
   selectableIds,
 }: Props) {
-  const width = floor.planCols * CELL_W + PAD * 2;
-  const height = floor.planRows * CELL_H + PAD * 2;
+  // 실제 도면 폴리곤이 있으면 그 형상으로, 없으면 격자 사각형으로 그린다.
+  const floorKey = floorKeyOf(floor.rooms);
+  const outline = floorOutline(floorKey);
+  const usePoly = !!outline;
+
+  let vbX = 0;
+  let vbY = 0;
+  let vbW = floor.planCols * CELL_W + PAD * 2;
+  let vbH = floor.planRows * CELL_H + PAD * 2;
+  if (usePoly && outline) {
+    const all = [...outline];
+    for (const r of floor.rooms) {
+      const rp = roomPoly(r.id);
+      if (rp) all.push(...rp);
+    }
+    const b = bboxOf(all);
+    const m = 18;
+    vbX = b.minX - m;
+    vbY = b.minY - m;
+    vbW = b.maxX - b.minX + m * 2;
+    vbH = b.maxY - b.minY + m * 2;
+  }
+  const width = vbW;
+  const height = vbH;
 
   const allowed = selectableIds ? new Set(selectableIds) : null;
   const canPick = (room: FacilityRoom) => room.reservable && (allowed === null || allowed.has(room.id));
@@ -78,28 +101,51 @@ export default function FacilityRoomMap({
   return (
     <div>
       <svg
-        viewBox={`0 0 ${width} ${height}`}
+        viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
         role="img"
         aria-label={`${buildingName} ${floor.label} 평면도`}
         style={{ width: "100%", height: "auto", display: "block" }}
       >
         {/* 바닥판 — 평면도 한 장처럼 보이게 하는 테두리 */}
-        <rect
-          x={2}
-          y={2}
-          width={width - 4}
-          height={height - 4}
-          rx={10}
-          fill="color-mix(in srgb, var(--bg-soft) 45%, var(--card))"
-          stroke="var(--hairline)"
-          strokeWidth={1.2}
-        />
+        {usePoly && outline ? (
+          <polygon
+            points={polyPoints(outline)}
+            fill="color-mix(in srgb, var(--bg-soft) 45%, var(--card))"
+            stroke="var(--hairline)"
+            strokeWidth={1.4}
+            strokeLinejoin="round"
+          />
+        ) : (
+          <rect
+            x={2}
+            y={2}
+            width={width - 4}
+            height={height - 4}
+            rx={10}
+            fill="color-mix(in srgb, var(--bg-soft) 45%, var(--card))"
+            stroke="var(--hairline)"
+            strokeWidth={1.2}
+          />
+        )}
 
         {floor.rooms.map((room) => {
-          const x = PAD + room.plan.x * CELL_W;
-          const y = PAD + room.plan.y * CELL_H;
-          const w = room.plan.w * CELL_W - GAP;
-          const h = room.plan.h * CELL_H - GAP;
+          const rp = usePoly ? roomPoly(room.id) : null;
+          let x: number;
+          let y: number;
+          let w: number;
+          let h: number;
+          if (rp) {
+            const b = bboxOf(rp);
+            x = b.minX;
+            y = b.minY;
+            w = b.maxX - b.minX;
+            h = b.maxY - b.minY;
+          } else {
+            x = PAD + room.plan.x * CELL_W;
+            y = PAD + room.plan.y * CELL_H;
+            w = room.plan.w * CELL_W - GAP;
+            h = room.plan.h * CELL_H - GAP;
+          }
           const selected = picked.has(room.id);
           const pickable = canPick(room);
           const number = numbers.get(room.id);
@@ -129,19 +175,30 @@ export default function FacilityRoomMap({
 
           const body = (
             <>
-              <rect
-                className="facility-map-face"
-                x={x}
-                y={y}
-                width={w}
-                height={h}
-                rx={7}
-                fill={fill}
-                stroke={stroke}
-                strokeWidth={selected ? 2.2 : 1.2}
-                strokeDasharray={pickable ? undefined : "5 4"}
-              />
-              <rect className="facility-map-outline" x={x} y={y} width={w} height={h} rx={7} fill="none" stroke="none" />
+              {rp ? (
+                <polygon
+                  className="facility-map-face"
+                  points={polyPoints(rp)}
+                  fill={fill}
+                  stroke={stroke}
+                  strokeWidth={selected ? 2.2 : 1.2}
+                  strokeLinejoin="round"
+                  strokeDasharray={pickable ? undefined : "5 4"}
+                />
+              ) : (
+                <rect
+                  className="facility-map-face"
+                  x={x}
+                  y={y}
+                  width={w}
+                  height={h}
+                  rx={7}
+                  fill={fill}
+                  stroke={stroke}
+                  strokeWidth={selected ? 2.2 : 1.2}
+                  strokeDasharray={pickable ? undefined : "5 4"}
+                />
+              )}
 
               {/* 번호 — 아래 목록과 짝을 맞춘다 */}
               {badge && (

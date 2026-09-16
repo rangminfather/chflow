@@ -1,10 +1,11 @@
 "use client";
 
 import type { KeyboardEvent } from "react";
-import type { FacilityFloor, FacilityRoom } from "@/lib/facility/facility-map-config";
+import type { FacilityFloor } from "@/lib/facility/facility-map-config";
+import { floorKeyOf, floorOutline, roomPoly, bboxOf, polyPoints } from "@/lib/facility/facility-plan-geometry";
 
-// 격자 폴백 좌표(시설물신청 FacilityRoomMap 과 동일). 폴리곤(poly/outline)이 config 에
-// 들어오면 실제 도면 형상으로 자동 전환된다.
+// 격자 폴백 좌표(시설물신청 FacilityRoomMap 과 동일). 폴리곤 지오메트리가 있으면
+// 실제 도면 형상으로 자동 전환된다.
 const CELL_W = 60;
 const CELL_H = 48;
 const GAP = 4;
@@ -16,10 +17,6 @@ export interface RoomDeviceView {
   powerOn?: boolean;
   run?: boolean;
 }
-
-type Pt = { x: number; y: number };
-type RoomWithPoly = FacilityRoom & { poly?: Pt[] };
-type FloorWithOutline = FacilityFloor & { outline?: { points: Pt[] } };
 
 interface Props {
   floor: FacilityFloor;
@@ -37,41 +34,61 @@ function stateColor(dv: RoomDeviceView): { fill: string; stroke: string; dot: st
 }
 
 export default function HeatingFloorPlan({ floor, deviceByRoom, selectedId, onSelect }: Props) {
-  const outline = (floor as FloorWithOutline).outline?.points;
-  const useMm = !!outline && outline.length > 2;
+  const outline = floorOutline(floorKeyOf(floor.rooms));
+  const useMm = !!outline;
 
-  let vbW: number;
-  let vbH: number;
+  let vbX = 0;
+  let vbY = 0;
+  let vbW = floor.planCols * CELL_W + PAD * 2;
+  let vbH = floor.planRows * CELL_H + PAD * 2;
   if (useMm && outline) {
-    const xs = outline.map((p) => p.x);
-    const ys = outline.map((p) => p.y);
-    vbW = Math.max(...xs) + Math.min(...xs);
-    vbH = Math.max(...ys) + Math.min(...ys);
-  } else {
-    vbW = floor.planCols * CELL_W + PAD * 2;
-    vbH = floor.planRows * CELL_H + PAD * 2;
+    const all = [...outline];
+    for (const r of floor.rooms) {
+      const rp = roomPoly(r.id);
+      if (rp) all.push(...rp);
+    }
+    const b = bboxOf(all);
+    const m = 18;
+    vbX = b.minX - m;
+    vbY = b.minY - m;
+    vbW = b.maxX - b.minX + m * 2;
+    vbH = b.maxY - b.minY + m * 2;
   }
 
   return (
     <svg
-      viewBox={`0 0 ${vbW} ${vbH}`}
+      viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
       style={{ width: "100%", height: "auto", display: "block", touchAction: "manipulation" }}
       role="img"
       aria-label={`${floor.label} 난방 배치도`}
     >
       {useMm && outline && (
-        <polygon points={outline.map((p) => `${p.x},${p.y}`).join(" ")} fill="none" stroke="var(--ink)" strokeWidth={vbW / 340} strokeLinejoin="round" />
+        <polygon points={polyPoints(outline)} fill="color-mix(in srgb, var(--bg-soft) 45%, var(--card))" stroke="var(--ink)" strokeWidth={vbW / 340} strokeLinejoin="round" />
       )}
       {floor.rooms.map((room) => {
         const dv = deviceByRoom[room.id];
         const hasDevice = !!dv;
         const selected = selectedId === room.id;
-        const poly = (room as RoomWithPoly).poly;
+        const rp = useMm ? roomPoly(room.id) : null;
 
-        const x = PAD + room.plan.x * CELL_W;
-        const y = PAD + room.plan.y * CELL_H;
-        const w = room.plan.w * CELL_W - GAP;
-        const h = room.plan.h * CELL_H - GAP;
+        let x: number;
+        let y: number;
+        let w: number;
+        let h: number;
+        if (rp) {
+          const b = bboxOf(rp);
+          x = b.minX;
+          y = b.minY;
+          w = b.maxX - b.minX;
+          h = b.maxY - b.minY;
+        } else {
+          x = PAD + room.plan.x * CELL_W;
+          y = PAD + room.plan.y * CELL_H;
+          w = room.plan.w * CELL_W - GAP;
+          h = room.plan.h * CELL_H - GAP;
+        }
+        const cx = x + w / 2;
+        const cy = y + h / 2;
 
         let fill = "color-mix(in srgb, var(--ink) 5%, var(--card))";
         let stroke = "var(--hairline)";
@@ -85,25 +102,6 @@ export default function HeatingFloorPlan({ floor, deviceByRoom, selectedId, onSe
         let strokeWidth = selected ? 3 : hasDevice ? 2 : 1.2;
         if (selected) stroke = "var(--accent-strong)";
         if (useMm) strokeWidth *= vbW / 760;
-
-        // label + device-dot anchor
-        let cx: number;
-        let cy: number;
-        let dotX: number;
-        let dotY: number;
-        if (poly && useMm) {
-          const xs = poly.map((p) => p.x);
-          const ys = poly.map((p) => p.y);
-          cx = (Math.min(...xs) + Math.max(...xs)) / 2;
-          cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-          dotX = Math.max(...xs) - 14;
-          dotY = Math.min(...ys) + 14;
-        } else {
-          cx = x + w / 2;
-          cy = y + h / 2;
-          dotX = x + w - 9;
-          dotY = y + 9;
-        }
 
         const clickable = hasDevice;
         const fontSize = useMm ? vbW / 55 : h < 44 ? 9 : 11;
@@ -126,15 +124,15 @@ export default function HeatingFloorPlan({ floor, deviceByRoom, selectedId, onSe
               : {})}
             style={{ cursor: clickable ? "pointer" : "default" }}
           >
-            {poly && useMm ? (
-              <polygon points={poly.map((p) => `${p.x},${p.y}`).join(" ")} fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeLinejoin="round" />
+            {rp ? (
+              <polygon points={polyPoints(rp)} fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeLinejoin="round" />
             ) : (
               <rect x={x} y={y} width={w} height={h} rx={hasDevice ? 4 : 2} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
             )}
             <text x={cx} y={cy + (hasDevice ? -2 : 3)} textAnchor="middle" fontSize={fontSize} fill="var(--ink-mid)" style={{ pointerEvents: "none" }}>
               {room.name}
             </text>
-            {hasDevice && <circle cx={dotX} cy={dotY} r={useMm ? vbW / 120 : 4} fill={dot} stroke="var(--card)" strokeWidth={1.2} style={{ pointerEvents: "none" }} />}
+            {hasDevice && <circle cx={x + w - (useMm ? 10 : 9)} cy={y + (useMm ? 10 : 9)} r={useMm ? vbW / 120 : 4} fill={dot} stroke="var(--card)" strokeWidth={1.2} style={{ pointerEvents: "none" }} />}
           </g>
         );
       })}
