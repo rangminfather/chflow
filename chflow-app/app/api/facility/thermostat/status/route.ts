@@ -23,6 +23,10 @@ export async function POST(req: NextRequest) {
   const device = body.deviceId ? getDevice(body.deviceId) : null;
   if (!device) return NextResponse.json({ ok: false, error: "장비를 찾을 수 없습니다" }, { status: 404 });
 
+  if (!device.mac || device.planned) {
+    return NextResponse.json({ ok: true, device: toPublic(device), online: false, planned: true, state: null });
+  }
+
   if (!allow(`status:${device.id}`, 20, 60_000)) {
     return NextResponse.json({ ok: false, error: "요청이 너무 잦습니다" }, { status: 429 });
   }

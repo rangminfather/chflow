@@ -24,8 +24,8 @@ export async function POST(req: NextRequest) {
   }
   const device = body.deviceId ? getDevice(body.deviceId) : null;
   if (!device) return NextResponse.json({ ok: false, error: "장비를 찾을 수 없습니다" }, { status: 404 });
-  if (!device.controlEnabled) {
-    return NextResponse.json({ ok: false, error: "이 장비는 제어가 비활성화되어 있습니다" }, { status: 403 });
+  if (!device.mac || device.planned || !device.controlEnabled) {
+    return NextResponse.json({ ok: false, error: "아직 설치되지 않았거나 제어가 비활성화된 장비입니다" }, { status: 403 });
   }
 
   // per-device throttle: min gap + burst cap
