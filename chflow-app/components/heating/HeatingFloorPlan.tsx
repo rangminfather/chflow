@@ -105,7 +105,16 @@ export default function HeatingFloorPlan({ floor, deviceByRoom, selectedId, onSe
         if (useMm) strokeWidth *= vbW / 760;
 
         const clickable = hasDevice;
-        const fontSize = useMm ? vbW / 55 : h < 44 ? 9 : 11;
+        // 도면 형상으로 그릴 때는 방 크기에 맞춰 글자를 줄인다 — 코어(린넨실·E.S 등)가
+        // 작아서 한 크기로 쓰면 이름이 방 밖으로 삐져나온다.
+        const fontSize = useMm
+          ? Math.max(
+              Math.min(w / Math.max(room.name.length, 1) / 0.98, h * 0.32, vbW / 48),
+              vbW / 130,
+            )
+          : h < 44
+            ? 9
+            : 11;
 
         return (
           <g

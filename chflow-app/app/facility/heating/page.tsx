@@ -16,6 +16,7 @@ import { supabase } from "@/lib/supabase";
 import HeaderLogo from "@/components/HeaderLogo";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
 import { findFloor, type FacilityFloor } from "@/lib/facility/facility-map-config";
+import { formatRoomMetrics } from "@/lib/facility/facility-plan-geometry";
 import HeatingFloorPlan, { type RoomDeviceView } from "@/components/heating/HeatingFloorPlan";
 
 const BUILDING = "vision";
@@ -245,7 +246,10 @@ function DeviceCard({
             <span className="font-mono text-lg font-bold text-[var(--ink)]">{device.roomNo}호</span>
             <span className="text-sm text-[var(--ink-mid)]">{device.label}</span>
           </div>
-          {device.dept && <span className="text-xs text-[var(--ink-faint)]">{device.dept}</span>}
+          <div className="flex flex-wrap items-center gap-x-2 text-xs text-[var(--ink-faint)]">
+            {device.dept && <span>{device.dept}</span>}
+            {formatRoomMetrics(device.facilityId) && <span>{formatRoomMetrics(device.facilityId)}</span>}
+          </div>
         </div>
         {planned ? (
           <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-[var(--brass)]" style={{ background: "color-mix(in srgb, var(--brass) 16%, transparent)" }}>

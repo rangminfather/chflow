@@ -15,7 +15,14 @@
 
 import type { FacilityFloor, FacilityRoom, FacilityRoomKind } from "@/lib/facility/facility-map-config";
 import { formatCapacity } from "@/lib/facility/facility-map-config";
-import { floorKeyOf, floorOutline, roomPoly, bboxOf, polyPoints } from "@/lib/facility/facility-plan-geometry";
+import {
+  floorKeyOf,
+  floorOutline,
+  roomPoly,
+  bboxOf,
+  polyPoints,
+  formatRoomMetrics,
+} from "@/lib/facility/facility-plan-geometry";
 
 type Props = {
   floor: FacilityFloor;
@@ -150,6 +157,8 @@ export default function FacilityRoomMap({
           const pickable = canPick(room);
           const number = numbers.get(room.id);
           const capacity = formatCapacity(room);
+          // 도면에서 계산한 크기·면적 — 주 정보가 아니라 툴팁에만 붙인다
+          const metrics = formatRoomMetrics(room.id);
 
           const fill = pickable
             ? selected
@@ -243,7 +252,7 @@ export default function FacilityRoomMap({
           if (!pickable) {
             return (
               <g key={room.id}>
-                <title>{`${room.name} — 신청 대상이 아닙니다`}</title>
+                <title>{`${room.name} — 신청 대상이 아닙니다${metrics ? ` (${metrics})` : ""}`}</title>
                 {body}
               </g>
             );
@@ -265,12 +274,19 @@ export default function FacilityRoomMap({
                 }
               }}
             >
-              <title>{`${room.name}${capacity ? ` — ${capacity}` : ""}`}</title>
+              <title>{[room.name, capacity, metrics].filter(Boolean).join(" — ")}</title>
               {body}
             </g>
           );
         })}
       </svg>
+
+      {/* 도면 근거 한 줄 — 도면상 층·바닥높이·층고 (보조 정보) */}
+      {floor.note && (
+        <p style={{ margin: "8px 0 0", fontSize: 11.5, lineHeight: 1.6, color: "var(--ink-faint)", fontWeight: 500 }}>
+          {floor.note}
+        </p>
+      )}
 
       {/* 번호 목록 — 좁은 화면에서 평면도 글자가 작아도 여기서 고를 수 있다 */}
       {reservable.length > 0 && (
