@@ -23,6 +23,31 @@ const VERSE_FONT_LEVEL_KEY = "bible-verse-font-level";
 const LAST_LOCATION_KEY_PREFIX = "bible-last-location";
 
 type SavedBibleLocation = { bookId: number; chapter: number };
+type ChapterPayload = { ok?: boolean; rows?: Verse[]; error?: string };
+
+const CHAPTER_CACHE_LIMIT = 12;
+const chapterCache = new Map<string, Verse[]>();
+const chapterPrefetches = new Map<string, Promise<void>>();
+
+function chapterCacheKey(bookId: number, chapter: number) {
+  return `NKRV:${bookId}:${chapter}`;
+}
+
+function getCachedChapter(key: string) {
+  const rows = chapterCache.get(key);
+  if (!rows) return null;
+  chapterCache.delete(key);
+  chapterCache.set(key, rows);
+  return rows;
+}
+
+function cacheChapter(key: string, rows: Verse[]) {
+  chapterCache.set(key, rows);
+  if (chapterCache.size > CHAPTER_CACHE_LIMIT) {
+    const oldest = chapterCache.keys().next().value;
+    if (oldest !== undefined) chapterCache.delete(oldest);
+  }
+}
 
 function loadVerseFontLevel(): number {
   if (typeof window === "undefined") return 1;
@@ -68,7 +93,9 @@ export default function BiblePage() {
   const [slide, setSlide] = useState<"in-from-left" | "in-from-right" | null>(null);
   const [verseFontLevel, setVerseFontLevelState] = useState(1);
   const [locationStorageKey, setLocationStorageKey] = useState("");
+  const [accessToken, setAccessToken] = useState("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const chapterRequestRef = useRef<AbortController | null>(null);
 
   useEffect(() => { setVerseFontLevelState(loadVerseFontLevel()); }, []);
 
@@ -88,7 +115,11 @@ export default function BiblePage() {
     void (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { router.replace("/login"); return; }
-      const { data } = await supabase.rpc("list_bible_books");
+      setAccessToken(session.access_token);
+      const [{ data }, { data: versionRows }] = await Promise.all([
+        supabase.rpc("list_bible_books"),
+        supabase.rpc("list_bible_versions"),
+      ]);
       const list = (Array.isArray(data) ? data : []) as Book[];
       setBooks(list);
       const storageKey = `${LAST_LOCATION_KEY_PREFIX}:${session.user.id}`;
@@ -101,8 +132,6 @@ export default function BiblePage() {
         setPickerTestament(initialBook.testament);
       }
       setLocationStorageKey(storageKey);
-
-      const { data: versionRows } = await supabase.rpc("list_bible_versions");
       const versions = parseBibleVersions(versionRows);
       setVersion(versions.find((v) => v.code === DEFAULT_BIBLE_VERSION) ?? null);
     })();
@@ -121,7 +150,73 @@ export default function BiblePage() {
   }, [book]);
 
   useEffect(() => {
-    if (!book) return;
+    if (!book || !accessToken) return;
+    const key = chapterCacheKey(book.book_id, chapter);
+    const cached = getCachedChapter(key);
+    chapterRequestRef.current?.abort();
+    const controller = new AbortController();
+    chapterRequestRef.current = controller;
+    let active = true;
+
+    const fetchChapter = async (targetChapter: number, signal?: AbortSignal) => {
+      const targetKey = chapterCacheKey(book.book_id, targetChapter);
+      const fromCache = getCachedChapter(targetKey);
+      if (fromCache) return fromCache;
+      const response = await fetch(`/api/bible/reference?bookId=${book.book_id}&chapter=${targetChapter}`, {
+        headers: { Authorization: `Bearer ${accessToken}` }, signal,
+      });
+      const payload = await response.json() as ChapterPayload;
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "성경 본문을 불러오지 못했습니다.");
+      const rows = payload.rows || [];
+      cacheChapter(targetKey, rows);
+      return rows;
+    };
+
+    const prefetchChapter = (targetChapter: number) => {
+      if (targetChapter < 1 || targetChapter > book.chapters) return;
+      const targetKey = chapterCacheKey(book.book_id, targetChapter);
+      if (getCachedChapter(targetKey) || chapterPrefetches.has(targetKey)) return;
+      const prefetch = fetchChapter(targetChapter)
+        .then(() => undefined)
+        .catch(() => undefined)
+        .finally(() => chapterPrefetches.delete(targetKey));
+      chapterPrefetches.set(targetKey, prefetch);
+    };
+
+    void (async () => {
+      const startedAt = performance.now();
+      if (cached) {
+        setVerses(cached);
+        setLoading(false);
+        setError("");
+      } else {
+        setLoading(true);
+        setError("");
+        try {
+          const rows = await fetchChapter(chapter, controller.signal);
+          if (!active) return;
+          setVerses(rows);
+        } catch (error) {
+          if (!active || (error instanceof DOMException && error.name === "AbortError")) return;
+          setError(error instanceof Error ? error.message : "성경 본문을 불러오지 못했습니다.");
+        } finally {
+          if (active) setLoading(false);
+        }
+      }
+      if (!active) return;
+      performance.measure(cached ? "bible:chapter:memory-cache" : "bible:chapter:network", { start: startedAt, end: performance.now() });
+      prefetchChapter(chapter - 1);
+      prefetchChapter(chapter + 1);
+    })();
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [accessToken, book, chapter]);
+
+  useEffect(() => {
+    if (!book || accessToken) return;
     void (async () => {
       setLoading(true); setError("");
       const { data: { session } } = await supabase.auth.getSession();
