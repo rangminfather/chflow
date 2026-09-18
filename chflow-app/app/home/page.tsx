@@ -1507,7 +1507,7 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
             </span>
             </div>
           ) : (
-            <div className="home-live-off-indicator" role="status" aria-label="실시간 예배 없음"><span className="home-live-dot" />LIVE OFF</div>
+            <div className="home-live-off-indicator" role="status" aria-label="실시간 예배 없음"><span className="home-live-dot" />OFF AIR</div>
           )}
         </>
       )}
