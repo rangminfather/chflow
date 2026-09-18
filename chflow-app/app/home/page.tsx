@@ -372,8 +372,8 @@ export default function HomePage() {
           color: var(--success); font-size: 8px; font-weight: 800; letter-spacing: 0.25px;
         }
         .home-live-off-indicator {
-          position: absolute; left: 10px; bottom: 7px;
-          display: inline-flex; align-items: center; gap: 5px;
+          position: absolute; left: 0; right: 0; bottom: 7px;
+          display: flex; align-items: center; justify-content: center; gap: 5px;
           color: var(--danger); font-size: 8px; font-weight: 800; letter-spacing: 0.35px;
         }
         .home-live-ticker {
@@ -1507,7 +1507,7 @@ function MenuCard({ menu, router, compact, live, editing, menuHidden, onEdit, on
             </span>
             </div>
           ) : (
-            <div className="home-live-off-indicator" role="status" aria-label="실시간 예배 없음"><span className="home-live-dot" />LIVE</div>
+            <div className="home-live-off-indicator" role="status" aria-label="실시간 예배 없음"><span className="home-live-dot" />LIVE OFF</div>
           )}
         </>
       )}
