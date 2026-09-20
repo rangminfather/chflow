@@ -257,8 +257,6 @@ export default function JournalPage() {
     sermon_title?: string;
     prayer_lead?: string;
     praise?: string;
-    joint_activity?: string;
-    lesson_content?: string;
     events?: string;
   }) => {
     setForm((f) => ({
@@ -271,8 +269,6 @@ export default function JournalPage() {
       sermon_title: d.sermon_title || f.sermon_title,
       prayer_lead: d.prayer_lead || f.prayer_lead,
       praise: d.praise || f.praise,
-      joint_activity: d.joint_activity || f.joint_activity,
-      lesson_content: d.lesson_content || f.lesson_content,
       events: d.events || f.events,
     }));
   };
@@ -310,7 +306,6 @@ export default function JournalPage() {
       prayer_lead: draft.prayerClass,
       praise,
       events: draft.twoPartActivity,
-      lesson_content: [draft.lessonNum ? `${draft.lessonNum}과` : "", draft.versePassage].filter(Boolean).join(" / "),
     });
     return true;
   };
@@ -356,6 +351,7 @@ export default function JournalPage() {
     if (common.status === "ready") {
       applyPrefillData({
         source_date: form.date,
+        edu_topic: common.fields.topic,
         scripture: common.fields.scripture,
         leader: common.fields.leader,
         preacher: common.fields.preacher,
@@ -738,7 +734,7 @@ export default function JournalPage() {
                   type="text"
                   value={form.edu_topic}
                   onChange={(e) => setForm((f) => ({ ...f, edu_topic: e.target.value }))}
-                  placeholder="주보 헤더의 주제"
+                  placeholder="주보 주제제창"
                   style={inputStyle}
                 />
               </FormRow>
@@ -809,29 +805,8 @@ export default function JournalPage() {
                 />
               </FormRow>
 
-              {/* 9) 합동 */}
-              <FormRow label="합동">
-                <input
-                  type="text"
-                  value={form.joint_activity}
-                  onChange={(e) => setForm((f) => ({ ...f, joint_activity: e.target.value }))}
-                  placeholder="합동 내용"
-                  style={inputStyle}
-                />
-              </FormRow>
-
-              {/* 10) 공과내용 */}
-              <FormRow label="공과내용">
-                <textarea
-                  value={form.lesson_content}
-                  onChange={(e) => setForm((f) => ({ ...f, lesson_content: e.target.value }))}
-                  placeholder="공과 내용을 입력하세요"
-                  rows={3}
-                  style={{ ...inputStyle, resize: "vertical" }}
-                />
-              </FormRow>
-
-              {/* 11) 행사 */}
+              {/* 9) 행사 — 합동·공과내용은 일지에서 쓰지 않아 입력란을 두지 않는다
+                     (기존 일지에 저장된 값은 건드리지 않고 그대로 보관) */}
               <FormRow label="행사">
                 <input
                   type="text"

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normText, parseDeptBulletinFields } from "./dept-bulletin-fields";
+import { normText, parseBulletinTopic, parseDeptBulletinFields } from "./dept-bulletin-fields";
 
 // 2026-09-06 초등1부 주보에서 실제로 뽑은 글자 (공백 정리 전 원문 형태)
 const REAL_2026_09_06 = `주일예배순서
@@ -36,6 +36,20 @@ describe("초등1부 주보 예배순서 추출", () => {
     expect(fields.praise).toContain("신예슬");
     expect(fields.leader).toContain("부장");
     expect(fields.prayer).toBe("김정권장로님");
+  });
+
+  it("주제제창 칸에서 그 주의 주제를 뽑는다 (원문을 주면 띄어쓰기 유지)", () => {
+    const withRaw = parseDeptBulletinFields(normText(REAL_2026_09_06), REAL_2026_09_06);
+    expect(withRaw.topic).toBe("하나님의 안경으로 세상을 바라보는 어린이");
+  });
+
+  it("원문이 없으면 압축본에서라도 주제를 뽑는다", () => {
+    expect(fields.topic).toBe("하나님의안경으로세상을바라보는어린이");
+  });
+
+  it("주제제창 칸이 없으면 머리글의 '주제 :' 를 쓴다", () => {
+    const header = "초등1부 주보\n주제 : 하나님의 안경으로 세상을 바라보는 어린이 (히11:3)\n주일예배순서";
+    expect(parseBulletinTopic(normText(header), header)).toBe("하나님의 안경으로 세상을 바라보는 어린이");
   });
 
   it("2부 활동을 뽑는다", () => {

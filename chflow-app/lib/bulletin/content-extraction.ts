@@ -94,14 +94,14 @@ export async function extractNativeBulletinText(file: Uint8Array, path: string):
 
   return {
     text,
-    fields: parseDeptBulletinFields(normText(text)),
+    fields: parseDeptBulletinFields(normText(text), text),
     method: "native",
     needsOcr: false,
   };
 }
 
 export function extractOcrBulletinText(text: string): BulletinTextExtraction {
-  const compactFields = parseDeptBulletinFields(normText(text));
+  const compactFields = parseDeptBulletinFields(normText(text), text);
   const ocrFields = parseOcrDeptBulletinFields(text);
   return {
     text,
@@ -112,4 +112,16 @@ export function extractOcrBulletinText(text: string): BulletinTextExtraction {
     method: "ocr",
     needsOcr: false,
   };
+}
+
+/**
+ * 이미 저장해 둔 주보 원문에서 필드를 다시 만든다.
+ * 추출 결과는 주보당 한 번만 저장되므로, 파서가 좋아져도 캐시가 옛 값을
+ * 붙들고 있으면 새 항목(주제 등)이 영영 비어 있게 된다.
+ */
+export function bulletinFieldsFromText(text: string, method: "native" | "ocr"): DeptBulletinFields {
+  if (!text.trim()) return {};
+  return method === "ocr"
+    ? extractOcrBulletinText(text).fields
+    : parseDeptBulletinFields(normText(text), text);
 }

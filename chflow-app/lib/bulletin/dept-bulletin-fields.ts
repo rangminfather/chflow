@@ -20,7 +20,8 @@ export type DeptBulletinFieldKey =
   | "scripture"
   | "sermonTitle"
   | "preacher"
-  | "twoPartActivity";
+  | "twoPartActivity"
+  | "topic";
 
 export type DeptBulletinFields = Partial<Record<DeptBulletinFieldKey, string>>;
 
@@ -40,8 +41,37 @@ function between(text: string, start: string, end: string) {
   return cleanBulletinValue(text.slice(valueStart, to));
 }
 
-/** 초등1부 주보 2쪽의 고정된 예배순서 라벨 사이에서 실제 값을 추출한다. */
-export function parseDeptBulletinFields(text: string): DeptBulletinFields {
+/** "다 같 이", "회중", "인도자" 처럼 담당 표기가 값 뒤에 붙어 나오는 것을 떼어낸다 */
+function stripAssignee(value: string) {
+  return value.replace(/(?:다\s*같\s*이|회중|인도자)\s*$/, "").trim();
+}
+
+/**
+ * 그 주의 주제 — 주일예배순서의 "주제제창" 칸에 적힌 글이 주제다.
+ * 공백을 없앤 글자에서 뽑으면 "하나님의안경으로..." 처럼 다 붙어버리므로
+ * 줄이 살아 있는 원문에서 먼저 찾고, 실패할 때만 압축본으로 넘어간다.
+ * 주제제창 칸이 없는 주보는 머리글의 "주제 : ..." 를 쓴다.
+ */
+export function parseBulletinTopic(compact: string, rawText?: string) {
+  if (rawText) {
+    const line =
+      rawText.match(/주제제창[\s:：─━_]*([^\n]+)/)?.[1] ||
+      rawText.match(/주제\s*[:：]\s*([^\n(]+)/)?.[1];
+    const value = line ? stripAssignee(cleanBulletinValue(line)) : "";
+    if (value) return value;
+  }
+  return (
+    stripAssignee(between(compact, "주제제창", "찬양/헌금")) ||
+    stripAssignee(between(compact, "주제제창", "찬양"))
+  );
+}
+
+/**
+ * 초등1부 주보 2쪽의 고정된 예배순서 라벨 사이에서 실제 값을 추출한다.
+ * 공백·줄바꿈이 살아 있는 원문(rawText)을 같이 주면 주제처럼 띄어쓰기가
+ * 살아 있어야 읽히는 값을 원문 기준으로 뽑는다.
+ */
+export function parseDeptBulletinFields(text: string, rawText?: string): DeptBulletinFields {
   const start = text.indexOf("주일예배순서");
   const scope = start >= 0 ? text.slice(start) : text;
   const sermon = between(scope, "강론", "주기도문");
@@ -58,6 +88,8 @@ export function parseDeptBulletinFields(text: string): DeptBulletinFields {
     sermonTitle: cleanBulletinValue(sermonTitle),
     preacher: cleanBulletinValue(preacher),
     twoPartActivity: between(scope, "2부행사:", "다음주기도") || between(scope, "2부행사", "다음주기도"),
+    // 주제는 머리글(예배순서 앞)에도 있을 수 있어 자른 scope 가 아니라 전문에서 찾는다
+    topic: parseBulletinTopic(text, rawText),
   };
 }
 

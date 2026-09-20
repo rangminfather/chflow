@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { extractNativeBulletinText, extractOcrBulletinText } from "@/lib/bulletin/content-extraction";
+import { bulletinFieldsFromText, extractNativeBulletinText, extractOcrBulletinText } from "@/lib/bulletin/content-extraction";
 import { syncDeptBulletinFor } from "@/lib/bulletin/dept-bulletin-sync";
 import { r2 } from "@/lib/r2";
 
@@ -118,7 +118,16 @@ export async function GET(request: NextRequest) {
     if (!bulletin?.pdf_url) return NextResponse.json({ ok: true, status: "missing" });
 
     const cached = await cachedExtraction(bulletin.id);
-    if (cached) return response(bulletin, { status: "ready", fields: cached.fields, method: cached.extraction_method });
+    if (cached) {
+      // 저장본은 원문이 진짜고 fields 는 거기서 뽑은 값이다.
+      // 파서가 바뀌어도 옛 캐시가 남지 않게 원문에서 다시 뽑는다.
+      const fields = bulletinFieldsFromText(cached.extracted_text || "", cached.extraction_method);
+      return response(bulletin, {
+        status: "ready",
+        fields: Object.keys(fields).length ? fields : cached.fields,
+        method: cached.extraction_method,
+      });
+    }
     if (isImagePath(bulletin.pdf_url)) return response(bulletin, { status: "ocr_required" });
 
     const file = await r2.from(BUCKET).download(bulletin.pdf_url);
