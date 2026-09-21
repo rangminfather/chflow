@@ -12,7 +12,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import HeaderLogo from "@/components/HeaderLogo";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { LoadingView, EmptyState } from "@/components/StatusViews";
-import { ClipboardList, BookOpen, Medal, RotateCcw, Search, X } from "lucide-react";
+import { ClipboardList, BookOpen, Medal, MoonStar, RotateCcw, Search, X } from "lucide-react";
 import { classGradePrefix, isClassGradeIndependent, type ClassRegistryRow } from "@/lib/eduClassLabel";
 import {
   type TalentReset,
@@ -35,6 +35,7 @@ interface Student {
   class_no?: string | null;
   grade_year?: number | null;
   teacher_name?: string | null;
+  mgmt_status?: string | null;
 }
 
 interface AttendRow {
@@ -105,6 +106,13 @@ const CIRCLED = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", 
 const SYSTEM_AUTO_KEYS = new Set(["attendance", "prayer", "church_school", "worship", "lesson", "bible"]);
 const PROMOTION_KEY = "new_friend_promotion";
 const CLASS_COLLATOR = new Intl.Collator("ko", { numeric: true, sensitivity: "base" });
+// 장기결석 — 담임 출결체크 명단·알림에서는 제외되지만, 이 화면에서는
+// 반별 맨 아래에 흐리게 남겨 두어 임원이 해제할 수 있게 한다.
+const ABSENTEE = "장기결석";
+
+function isAbsentee(s: { mgmt_status?: string | null }): boolean {
+  return s.mgmt_status === ABSENTEE;
+}
 
 function classLabel(
   deptName: string,
@@ -142,6 +150,10 @@ function compareStudents(a: Student, b: Student, groupByClassOnly: boolean): num
 
   const classDiff = compareClassNo(a.class_no, b.class_no);
   if (classDiff !== 0) return classDiff;
+
+  // 장기결석 학생은 같은 반 안에서 맨 아래로
+  const absenteeDiff = Number(isAbsentee(a)) - Number(isAbsentee(b));
+  if (absenteeDiff !== 0) return absenteeDiff;
 
   const orderDiff = (a.order_no ?? 0) - (b.order_no ?? 0);
   if (orderDiff !== 0) return orderDiff;
@@ -191,6 +203,9 @@ export default function AttendancePage() {
   const [resetModal, setResetModal] = useState(false); // 상반기/하반기 선택 모달
   const [myGrade, setMyGrade] = useState(99);
 
+  // 장기결석 처리/해제 진행 중인 학생 id
+  const [mgmtBusy, setMgmtBusy] = useState("");
+
   // 출결 이력 모달
   const [histStudent, setHistStudent] = useState<Student | null>(null);
   const [histRows, setHistRows] = useState<HistoryRow[]>([]);
@@ -228,20 +243,21 @@ export default function AttendancePage() {
   const loadStudents = useCallback(async () => {
     const { data } = await supabase.rpc("edu_list_students", { p_dept_id: deptId });
     const baseList = (data || []) as Student[];
-    // class_no/grade_year 보강 (RPC 가 그 두 필드 반환 안 함)
+    // class_no/grade_year 보강 (RPC 가 그 두 필드 반환 안 함) + 장기결석 여부
     const { data: meta } = await supabase
       .from("edu_students")
-      .select("id, class_no, grade_year")
+      .select("id, class_no, grade_year, mgmt_status")
       .eq("department_id", deptId)
       .eq("is_active", true);
-    const metaMap: Record<string, { class_no: string | null; grade_year: number | null }> = {};
-    (meta || []).forEach((m: { id: string; class_no: string | null; grade_year: number | null }) => {
-      metaMap[m.id] = { class_no: m.class_no, grade_year: m.grade_year };
+    const metaMap: Record<string, { class_no: string | null; grade_year: number | null; mgmt_status: string | null }> = {};
+    (meta || []).forEach((m: { id: string; class_no: string | null; grade_year: number | null; mgmt_status: string | null }) => {
+      metaMap[m.id] = { class_no: m.class_no, grade_year: m.grade_year, mgmt_status: m.mgmt_status };
     });
     setStudents(baseList.map((s) => ({
       ...s,
       class_no: metaMap[s.id]?.class_no ?? null,
       grade_year: metaMap[s.id]?.grade_year ?? null,
+      mgmt_status: metaMap[s.id]?.mgmt_status ?? s.mgmt_status ?? null,
     })));
   }, [deptId]);
 
@@ -581,6 +597,34 @@ export default function AttendancePage() {
     return { count, points };
   };
 
+  // ── 장기결석 처리 / 해제 (부서 임원 이상) ──
+  const toggleMgmtStatus = async (s: Student) => {
+    const toAbsent = !isAbsentee(s);
+    const ok = await confirm(
+      toAbsent
+        ? `${s.name} 학생을 장기결석 처리하시겠습니까?\n\n· 담임 출석체크 명단과 알림(등반예정·미출석) 대상에서 제외됩니다.\n· 출석·달란트 기록은 그대로 보존되며, 해제하면 다시 나타납니다.`
+        : `${s.name} 학생의 장기결석을 해제하시겠습니까?\n\n담임 출석체크 명단과 알림 대상에 다시 포함됩니다.`
+    );
+    if (!ok) return;
+
+    setMgmtBusy(s.id);
+    const { error } = await supabase.rpc("edu_set_mgmt_status", {
+      p_dept_id: deptId,
+      p_student_id: s.id,
+      p_status: toAbsent ? ABSENTEE : "정상",
+    });
+    setMgmtBusy("");
+
+    if (error) { showToast(`처리 실패: ${error.message}`); return; }
+    setHistStudent((current) => (
+      current && current.id === s.id
+        ? { ...current, mgmt_status: toAbsent ? ABSENTEE : "정상" }
+        : current
+    ));
+    await loadStudents();
+    showToast(toAbsent ? "장기결석 처리되었습니다" : "장기결석이 해제되었습니다");
+  };
+
   // ── 출결 이력 모달 ──
   const openHistory = (s: Student) => {
     setHistStudent(s);
@@ -869,10 +913,16 @@ export default function AttendancePage() {
                   const colSpan = 2 + sundays.length + (viewMode === "attendance" ? 3 : 2);
                   let lastGroup = "__init__";
                   const rows: React.ReactNode[] = [];
+                  // 반별 인원은 재적(장기결석 제외) 기준으로 세고, 장기결석은 따로 표기
                   const groupCounts = new Map<string, number>();
+                  const groupAbsentees = new Map<string, number>();
                   sorted.forEach((student) => {
                     const key = classGroupKey(student, groupByClassOnly);
-                    groupCounts.set(key, (groupCounts.get(key) ?? 0) + 1);
+                    if (isAbsentee(student)) {
+                      groupAbsentees.set(key, (groupAbsentees.get(key) ?? 0) + 1);
+                    } else {
+                      groupCounts.set(key, (groupCounts.get(key) ?? 0) + 1);
+                    }
                   });
                   sorted.forEach((s) => {
                     const group = classGroupKey(s, groupByClassOnly);
@@ -881,6 +931,7 @@ export default function AttendancePage() {
                       const teacherName = s.teacher_name || "—";
                       const className = s.class_no || "미배정";
                       const count = groupCounts.get(group) ?? 0;
+                      const absenteeCount = groupAbsentees.get(group) ?? 0;
                       rows.push(
                         <tr key={`g-${group}`}>
                           <td colSpan={colSpan} style={{
@@ -892,13 +943,20 @@ export default function AttendancePage() {
                             borderTop: "2px solid var(--accent-line)",
                             borderBottom: "1px solid var(--accent-line)",
                           }}>
-                            <BookOpen size={13} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> {className}반 <span style={{ color: "var(--ink-soft)", fontWeight: 600, fontSize: 11, marginLeft: 8 }}>· 담임 {teacherName} · {count}명</span>
+                            <BookOpen size={13} strokeWidth={1.8} style={{ verticalAlign: "-2px", marginRight: 4 }} /> {className}반 <span style={{ color: "var(--ink-soft)", fontWeight: 600, fontSize: 11, marginLeft: 8 }}>· 담임 {teacherName} · {count}명{absenteeCount > 0 ? ` · 장기결석 ${absenteeCount}명` : ""}</span>
                           </td>
                         </tr>
                       );
                     }
                     rows.push(
-                      <tr key={s.id} className="att-student-row" style={{ borderBottom: "1px solid var(--bg-soft)" }}>
+                      <tr
+                        key={s.id}
+                        className="att-student-row"
+                        style={{
+                          borderBottom: "1px solid var(--bg-soft)",
+                          ...(isAbsentee(s) ? { opacity: 0.55, background: "var(--bg-soft)" } : null),
+                        }}
+                      >
                         <td style={{ textAlign: "center", padding: 3, fontWeight: 700 }}>{s.student_no ?? ""}</td>
                         <td style={{ padding: "3px 6px", whiteSpace: "nowrap" }}>
                           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
@@ -909,6 +967,16 @@ export default function AttendancePage() {
                             >
                               {s.name}
                             </button>
+                            {isAbsentee(s) && (
+                              <span style={{
+                                fontSize: 9, padding: "1px 4px", borderRadius: 4,
+                                background: "var(--warning-soft)",
+                                color: "var(--warning)",
+                                fontWeight: 700,
+                              }}>
+                                장기결석
+                              </span>
+                            )}
                             {s.id in newFriendMap && (
                               <span style={{
                                 fontSize: 9, padding: "1px 4px", borderRadius: 4,
@@ -1174,11 +1242,38 @@ export default function AttendancePage() {
       {histStudent && (
         <ModalBackdrop onClose={() => setHistStudent(null)}>
           <div style={{ background: "var(--card)", borderRadius: 16, padding: 20, width: "min(560px, 100%)", maxHeight: "85dvh", overflowY: "auto", boxSizing: "border-box" }}>
-            <div style={{ display: "flex", alignItems: "center", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
               <div style={{ fontSize: 15, fontWeight: 800, color: "var(--ink)" }}>
                 {histStudent.name} 출결 이력
               </div>
-              <button onClick={() => setHistStudent(null)} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--ink-soft)", padding: 4 }}>
+              {isAbsentee(histStudent) && (
+                <span style={{
+                  fontSize: 10, padding: "2px 6px", borderRadius: 5, fontWeight: 800,
+                  background: "var(--warning-soft)", color: "var(--warning)",
+                }}>
+                  장기결석
+                </span>
+              )}
+              {/* 장기결석 처리·해제는 부서 임원 이상(등급 0~2)만 — RPC 에서도 같은 기준으로 막는다 */}
+              {myGrade <= 2 && (
+                <button
+                  onClick={() => toggleMgmtStatus(histStudent)}
+                  disabled={mgmtBusy === histStudent.id}
+                  style={{
+                    marginLeft: "auto",
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "6px 10px", borderRadius: 8, cursor: "pointer",
+                    fontSize: 11, fontWeight: 800, fontFamily: "inherit",
+                    border: `1px solid ${isAbsentee(histStudent) ? "var(--warning)" : "var(--hairline)"}`,
+                    background: isAbsentee(histStudent) ? "var(--warning-soft)" : "var(--card)",
+                    color: isAbsentee(histStudent) ? "var(--warning)" : "var(--ink-soft)",
+                  }}
+                >
+                  <MoonStar size={13} strokeWidth={2} />
+                  {mgmtBusy === histStudent.id ? "처리 중…" : isAbsentee(histStudent) ? "장기결석 해제" : "장기결석 처리"}
+                </button>
+              )}
+              <button onClick={() => setHistStudent(null)} style={{ marginLeft: myGrade <= 2 ? 0 : "auto", background: "none", border: "none", cursor: "pointer", color: "var(--ink-soft)", padding: 4 }}>
                 <X size={18} strokeWidth={2} />
               </button>
             </div>
