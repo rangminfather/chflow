@@ -71,6 +71,10 @@
 - PL/pgSQL RETURNS TABLE에서 ORDER BY: 반드시 alias 한정 (`merged.col_name`)
 - 가족 관계 필터: `member_relations` + 목장 동일성 조건 (`is_child` 플래그 단독 사용 금지)
 - **교육부서 학년/나이 체계·진급 체인: `chflow-app/docs/EDU_GRADE_SYSTEM.md` 필독** — `edu_students.grade_year`는 부서마다 의미가 다름(영아·유아·유치·청소년=세는나이, 초등=학년). 학생 등록·진급·출생연도 로직은 `lib/eduAge.ts` + DB `edu_grade_unit()` 기준, 부서 개편 시 문서의 "함께 고칠 곳" 체크
+- **public 스키마에 `CREATE TABLE` 하는 모든 마이그레이션은 같은 마이그레이션 안에서 필요한 Data API GRANT를 명시해야 한다.** (2026-10-30부터 Supabase가 신규 테이블 자동 부여를 중단 — 없으면 PostgREST에서 42501) 작성법·역할별 판단 기준은 `MS_AX/chflow-project/supabase/migrations/_GRANT_TEMPLATE.md`
+  - 코드가 실제로 쓰는 역할·동작에만 부여 (CRUD 전체 일괄 부여 금지, anon은 비로그인 접근 경로가 있을 때만)
+  - RPC 전용 테이블은 테이블 GRANT 없이 `grant execute on function`만
+  - 기존 테이블에 소급 GRANT 금지 (과거 `revoke`가 되살아남)
 
 ## 가입 플로우
 - 성인: 이름 + 본인 핸드폰 필수
