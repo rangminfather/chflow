@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "chflow-app/**"
+      # 마이그레이션만 바꾼 PR 도 검증이 돌아야 한다 (lint:migrations).
+      - "MS_AX/chflow-project/supabase/migrations/**"
       - ".github/workflows/web-quality.yml"
   push:
     branches:
@@ -11,6 +13,8 @@ on:
       - codex/android-play-update
     paths:
       - "chflow-app/**"
+      # 마이그레이션만 바꾼 PR 도 검증이 돌아야 한다 (lint:migrations).
+      - "MS_AX/chflow-project/supabase/migrations/**"
       - ".github/workflows/web-quality.yml"
 
 permissions:
@@ -37,6 +41,7 @@ jobs:
           cache-dependency-path: chflow-app/package-lock.json
       - run: npm ci
       - run: npm run lint:baseline
+      - run: npm run lint:migrations
       - run: npm run test:unit
       - run: npm run typecheck
       - run: npm run build
