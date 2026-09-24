@@ -142,6 +142,29 @@ const DEPT_PREFILL_KEY: Record<string, string> = {
   "초등1부": "초등1부",
 };
 
+/* ── 부서별 서식 ──────────────────────────────────────────────
+   부서마다 일지에 적는 항목이 다르다(예: 유아부는 "합동"을 쓰고 초등1부는 안 쓴다).
+   어떤 칸을 보일지는 DB(edu_journal_field_settings)가 정하고, 화면은 그대로 따른다.
+   설정이 없으면 전부 보인다 — 서버 RPC 가 기본값 true 로 채워서 준다.
+   숨긴 칸의 기존 저장값은 그대로 두고 저장 때 다시 돌려보낸다(데이터 보존). */
+const JOURNAL_FIELD_LABELS: { key: string; label: string }[] = [
+  { key: "edu_topic",       label: "주제" },
+  { key: "scripture",       label: "본문 (성경)" },
+  { key: "leader",          label: "인도자" },
+  { key: "preacher",        label: "설교자" },
+  { key: "sermon_title",    label: "설교제목" },
+  { key: "prayer_lead",     label: "기도" },
+  { key: "praise",          label: "찬양" },
+  { key: "joint_activity",  label: "합동" },
+  { key: "lesson_content",  label: "공과내용" },
+  { key: "events",          label: "행사" },
+  { key: "class_stats",     label: "반별 출결표" },
+  { key: "sunday_stats",    label: "주일통계" },
+  { key: "offering",        label: "헌금" },
+  { key: "volunteers",      label: "봉사" },
+  { key: "prayer_requests", label: "기도제목" },
+];
+
 export default function JournalPage() {
   const router = useRouter();
   const { confirm } = useConfirm();
@@ -167,6 +190,11 @@ export default function JournalPage() {
   const [recorderName, setRecorderName] = useState("");
   const [executives, setExecutives] = useState<ExecutiveRow[]>([]);
   const [sundayStats, setSundayStats] = useState<SundayStatRow[]>([]);
+  // 설정을 읽어오기 전에는 전부 보이는 것으로 둔다 (읽기 실패해도 종전 화면 그대로)
+  const [fieldVisible, setFieldVisible] = useState<Record<string, boolean>>({});
+  const [canEditFields, setCanEditFields] = useState(false);
+  const [savingField, setSavingField] = useState<string>("");
+  const shows = (key: string) => fieldVisible[key] !== false;
 
   const MAX_PREFILL_ATTEMPTS = 5;
   const RETRY_DELAYS_MS = [0, 5000, 8000, 10000, 12000]; // 1차~5차 시도 직전 대기
@@ -192,9 +220,30 @@ export default function JournalPage() {
         setExecutives([]);
       }
       setAuthChecked(true);
+      await loadFieldSettings();
       await loadList();
     })();
   }, []);
+
+  const loadFieldSettings = async () => {
+    const { data, error } = await supabase.rpc("edu_get_journal_fields", { p_dept_id: deptId });
+    if (error || !data) return;   // 실패하면 기본값(전부 표시) 유지
+    const rows = data as { field_key: string; is_visible: boolean; can_edit: boolean }[];
+    setFieldVisible(Object.fromEntries(rows.map((row) => [row.field_key, row.is_visible])));
+    setCanEditFields(rows[0]?.can_edit === true);
+  };
+
+  const toggleField = async (key: string, next: boolean) => {
+    setSavingField(key);
+    const { error } = await supabase.rpc("edu_set_journal_field", {
+      p_dept_id: deptId,
+      p_field_key: key,
+      p_visible: next,
+    });
+    setSavingField("");
+    if (error) { showToast("서식 설정 실패: " + error.message); return; }
+    setFieldVisible((current) => ({ ...current, [key]: next }));
+  };
 
   const loadList = async () => {
     setLoading(true);
@@ -257,6 +306,7 @@ export default function JournalPage() {
     sermon_title?: string;
     prayer_lead?: string;
     praise?: string;
+    lesson_content?: string;
     events?: string;
   }) => {
     setForm((f) => ({
@@ -269,6 +319,7 @@ export default function JournalPage() {
       sermon_title: d.sermon_title || f.sermon_title,
       prayer_lead: d.prayer_lead || f.prayer_lead,
       praise: d.praise || f.praise,
+      lesson_content: d.lesson_content || f.lesson_content,
       events: d.events || f.events,
     }));
   };
@@ -306,6 +357,7 @@ export default function JournalPage() {
       prayer_lead: draft.prayerClass,
       praise,
       events: draft.twoPartActivity,
+      lesson_content: [draft.lessonNum ? `${draft.lessonNum}과` : "", draft.versePassage].filter(Boolean).join(" / "),
     });
     return true;
   };
@@ -710,6 +762,33 @@ export default function JournalPage() {
                 </div>
               </details>
 
+              {/* 부서별 서식 — 임원진만. 우리 부서가 안 쓰는 칸을 꺼둔다. */}
+              {canEditFields && (
+                <details style={{ marginBottom: 16, border: "1px solid var(--hairline)", borderRadius: 10, overflow: "hidden" }}>
+                  <summary style={{ padding: "11px 12px", cursor: "pointer", fontSize: 12, fontWeight: 800, color: "var(--ink)", background: "var(--bg-soft)" }}>
+                    서식 설정 (우리 부서가 쓰는 항목)
+                  </summary>
+                  <div style={{ padding: 12 }}>
+                    <div style={{ fontSize: 11, color: "var(--ink-soft)", marginBottom: 10, lineHeight: 1.6 }}>
+                      끈 항목은 이 부서의 일지 화면에서만 사라집니다. 이미 저장된 내용은 지워지지 않습니다.
+                    </div>
+                    <div style={{ display: "grid", gap: 6 }}>
+                      {JOURNAL_FIELD_LABELS.map(({ key, label }) => (
+                        <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--ink)", cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={shows(key)}
+                            disabled={savingField === key}
+                            onChange={(e) => void toggleField(key, e.target.checked)}
+                          />
+                          <span style={{ opacity: shows(key) ? 1 : 0.55 }}>{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </details>
+              )}
+
               {/* 1) 날짜 */}
               <FormRow label="날짜">
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -729,7 +808,7 @@ export default function JournalPage() {
               </FormRow>
 
               {/* 2) 주제 */}
-              <FormRow label="주제">
+              <FormRow label="주제" when={shows("edu_topic")}>
                 <input
                   type="text"
                   value={form.edu_topic}
@@ -740,7 +819,7 @@ export default function JournalPage() {
               </FormRow>
 
               {/* 3) 본문 (성경) */}
-              <FormRow label="본문 (성경)">
+              <FormRow label="본문 (성경)" when={shows("scripture")}>
                 <input
                   type="text"
                   value={form.scripture}
@@ -751,7 +830,7 @@ export default function JournalPage() {
               </FormRow>
 
               {/* 4) 인도자 */}
-              <FormRow label="인도자">
+              <FormRow label="인도자" when={shows("leader")}>
                 <input
                   type="text"
                   value={form.leader}
@@ -762,7 +841,7 @@ export default function JournalPage() {
               </FormRow>
 
               {/* 5) 설교자 */}
-              <FormRow label="설교자">
+              <FormRow label="설교자" when={shows("preacher")}>
                 <input
                   type="text"
                   value={form.preacher}
@@ -773,7 +852,7 @@ export default function JournalPage() {
               </FormRow>
 
               {/* 6) 설교제목 */}
-              <FormRow label="설교제목">
+              <FormRow label="설교제목" when={shows("sermon_title")}>
                 <input
                   type="text"
                   value={form.sermon_title}
@@ -784,7 +863,7 @@ export default function JournalPage() {
               </FormRow>
 
               {/* 7) 기도 */}
-              <FormRow label="기도">
+              <FormRow label="기도" when={shows("prayer_lead")}>
                 <input
                   type="text"
                   value={form.prayer_lead}
@@ -795,7 +874,7 @@ export default function JournalPage() {
               </FormRow>
 
               {/* 8) 찬양 */}
-              <FormRow label="찬양">
+              <FormRow label="찬양" when={shows("praise")}>
                 <input
                   type="text"
                   value={form.praise}
@@ -805,9 +884,30 @@ export default function JournalPage() {
                 />
               </FormRow>
 
-              {/* 9) 행사 — 합동·공과내용은 일지에서 쓰지 않아 입력란을 두지 않는다
-                     (기존 일지에 저장된 값은 건드리지 않고 그대로 보관) */}
-              <FormRow label="행사">
+              {/* 9) 합동 */}
+              <FormRow label="합동" when={shows("joint_activity")}>
+                <input
+                  type="text"
+                  value={form.joint_activity}
+                  onChange={(e) => setForm((f) => ({ ...f, joint_activity: e.target.value }))}
+                  placeholder="합동 내용"
+                  style={inputStyle}
+                />
+              </FormRow>
+
+              {/* 10) 공과내용 */}
+              <FormRow label="공과내용" when={shows("lesson_content")}>
+                <textarea
+                  value={form.lesson_content}
+                  onChange={(e) => setForm((f) => ({ ...f, lesson_content: e.target.value }))}
+                  placeholder="공과 내용을 입력하세요"
+                  rows={3}
+                  style={{ ...inputStyle, resize: "vertical" }}
+                />
+              </FormRow>
+
+              {/* 11) 행사 */}
+              <FormRow label="행사" when={shows("events")}>
                 <input
                   type="text"
                   value={form.events}
@@ -817,7 +917,8 @@ export default function JournalPage() {
                 />
               </FormRow>
 
-              {/* 11.5) 반별 출결표 */}
+              {/* 11.5) 반별 출결표 — 표를 끈 부서도 집계(stat_enrolled 등)는 그대로 돈다 */}
+              {shows("class_stats") && (
               <div style={{ marginBottom: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)" }}>반별 출결</div>
@@ -897,18 +998,21 @@ export default function JournalPage() {
 
                 <button onClick={addClassRow} style={{ ...addRowBtnStyle, marginTop: 8 }}>+ 반 추가</button>
               </div>
+              )}
 
               {/* 12) 주일통계 */}
+              {shows("sunday_stats") && (
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 8 }}>주일통계</div>
                 <SundayStatsTable rows={sundayStats} />
               </div>
+              )}
 
               {/* 13) 헌금 */}
               {/* 금액은 자릿수를 눈으로 확인하기 쉽도록 천 단위 콤마를 붙여 보여준다.
                   type="number" 는 콤마가 들어간 값을 표시하지 못해 text + inputMode="numeric" 으로 둔다.
                   (인원수 입력들은 콤마가 필요 없어 그대로 number 를 쓴다) */}
-              <FormRow label="헌금 (원)">
+              <FormRow label="헌금 (원)" when={shows("offering")}>
                 <div style={{ display: "grid", gap: 8 }}>
                   {([
                     ["tithe", "십일조"],
@@ -932,7 +1036,7 @@ export default function JournalPage() {
               </FormRow>
 
               {/* 14) 봉사 */}
-              <FormRow label="봉사">
+              <FormRow label="봉사" when={shows("volunteers")}>
                 <input
                   type="text"
                   value={form.volunteers}
@@ -943,7 +1047,7 @@ export default function JournalPage() {
               </FormRow>
 
               {/* 15) 기도제목 */}
-              <FormRow label="기도제목">
+              <FormRow label="기도제목" when={shows("prayer_requests")}>
                 <textarea
                   value={form.prayer_requests}
                   onChange={(e) => setForm((f) => ({ ...f, prayer_requests: e.target.value }))}
@@ -1042,7 +1146,9 @@ export default function JournalPage() {
   );
 }
 
-function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
+/** when={false} 이면 통째로 빠진다 — 부서별 서식에서 끈 항목용 */
+function FormRow({ label, children, when = true }: { label: string; children: React.ReactNode; when?: boolean }) {
+  if (!when) return null;
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-soft)", marginBottom: 4 }}>{label}</div>
