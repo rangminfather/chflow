@@ -22,6 +22,31 @@ type ExtractionPayload = {
 
 export type CommonBulletinAvailability = "stored" | "missing" | "error";
 
+/**
+ * 글자층이 없는 PDF 를 OCR 하려면 쪽을 먼저 그림으로 그려야 한다.
+ * tesseract 는 PDF 를 못 읽고 이미지만 받는다.
+ * 예배순서는 앞쪽에 있으므로 앞 몇 쪽만 본다 (전 쪽을 돌리면 너무 느리다).
+ */
+async function renderPdfPages(blob: Blob, maxPages = 3): Promise<HTMLCanvasElement[]> {
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+  const canvases: HTMLCanvasElement[] = [];
+  for (let pageNo = 1; pageNo <= Math.min(doc.numPages, maxPages); pageNo++) {
+    const page = await doc.getPage(pageNo);
+    // 원본 크기로 그리면 한글 인식률이 크게 떨어져 2배로 키운다
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const context = canvas.getContext("2d");
+    if (!context) continue;
+    await page.render({ canvas, canvasContext: context, viewport }).promise;
+    canvases.push(canvas);
+  }
+  return canvases;
+}
+
 async function request(url: string, token: string, init?: RequestInit) {
   const headers = new Headers(init?.headers);
   headers.set("Authorization", `Bearer ${token}`);
@@ -68,6 +93,7 @@ export async function readCommonBulletinFields(
     if (!payload.bulletin?.id || !payload.file_url) return { status: "error", fields: {}, error: "OCR 원본을 찾지 못했습니다." };
 
     const { createWorker } = await import("tesseract.js");
+    const isPdf = /\.pdf(?:\?|$)/i.test(payload.file_url);
     // 주보 파일 저장소는 인증 헤더가 필요하다. URL만 OCR 워커에 넘기면
     // 워커가 인증 없이 요청해 401이 나므로, 먼저 인증된 Blob으로 받아 인식한다.
     const sourceResponse = await request(payload.file_url, token, { cache: "no-store" });
@@ -80,8 +106,18 @@ export async function readCommonBulletinFields(
     });
     let text = "";
     try {
-      const result = await worker.recognize(source);
-      text = result.data.text.trim();
+      if (isPdf) {
+        const pages = await renderPdfPages(source);
+        const parts: string[] = [];
+        for (const page of pages) {
+          const result = await worker.recognize(page);
+          parts.push(result.data.text.trim());
+        }
+        text = parts.filter(Boolean).join("\n");
+      } else {
+        const result = await worker.recognize(source);
+        text = result.data.text.trim();
+      }
     } finally {
       await worker.terminate();
     }

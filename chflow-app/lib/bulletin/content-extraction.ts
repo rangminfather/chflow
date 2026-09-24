@@ -78,7 +78,18 @@ function extensionOf(path: string) {
   return path.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() || "";
 }
 
-export async function extractNativeBulletinText(file: Uint8Array, path: string): Promise<BulletinTextExtraction> {
+/**
+ * 글자층이 이만큼도 안 나오면 "본문이 그림인 파일"로 본다.
+ * 유아부 주보(PDF)가 실측 30자 남짓 — 쪽 제목만 글자고 내용은 전부 그림이었다.
+ * 예배순서가 들어 있는 주보는 초등1부 실측 1,700자 이상이라 사이가 넉넉하다.
+ */
+const MIN_NATIVE_TEXT_LENGTH = 200;
+
+export async function extractNativeBulletinText(
+  file: Uint8Array,
+  path: string,
+  deptKey?: string,
+): Promise<BulletinTextExtraction> {
   const extension = extensionOf(path);
   if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(extension)) {
     return { text: "", fields: {}, method: "native", needsOcr: true };
@@ -92,16 +103,22 @@ export async function extractNativeBulletinText(file: Uint8Array, path: string):
   else if (extension === "hwpx") text = flattenBlocks(await parseHwpxBlocks(file));
   else throw new Error("unsupported_bulletin_file_type");
 
+  // 글자가 거의 안 나온 PDF 는 그림 주보다 → 브라우저 OCR 로 넘긴다.
+  // (pptx·hwpx 는 OCR 로 읽을 방법이 없어 그대로 둔다)
+  if (extension === "pdf" && text.trim().length < MIN_NATIVE_TEXT_LENGTH) {
+    return { text, fields: {}, method: "native", needsOcr: true };
+  }
+
   return {
     text,
-    fields: parseDeptBulletinFields(normText(text), text),
+    fields: parseDeptBulletinFields(normText(text), text, deptKey),
     method: "native",
     needsOcr: false,
   };
 }
 
-export function extractOcrBulletinText(text: string): BulletinTextExtraction {
-  const compactFields = parseDeptBulletinFields(normText(text), text);
+export function extractOcrBulletinText(text: string, deptKey?: string): BulletinTextExtraction {
+  const compactFields = parseDeptBulletinFields(normText(text), text, deptKey);
   const ocrFields = parseOcrDeptBulletinFields(text);
   return {
     text,
@@ -119,9 +136,13 @@ export function extractOcrBulletinText(text: string): BulletinTextExtraction {
  * 추출 결과는 주보당 한 번만 저장되므로, 파서가 좋아져도 캐시가 옛 값을
  * 붙들고 있으면 새 항목(주제 등)이 영영 비어 있게 된다.
  */
-export function bulletinFieldsFromText(text: string, method: "native" | "ocr"): DeptBulletinFields {
+export function bulletinFieldsFromText(
+  text: string,
+  method: "native" | "ocr",
+  deptKey?: string,
+): DeptBulletinFields {
   if (!text.trim()) return {};
   return method === "ocr"
-    ? extractOcrBulletinText(text).fields
-    : parseDeptBulletinFields(normText(text), text);
+    ? extractOcrBulletinText(text, deptKey).fields
+    : parseDeptBulletinFields(normText(text), text, deptKey);
 }

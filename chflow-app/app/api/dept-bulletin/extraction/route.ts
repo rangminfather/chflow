@@ -59,9 +59,14 @@ async function loadBulletinForDept(deptKey: string, issueDate: string) {
 }
 
 async function loadBulletinById(id: string) {
-  const { data, error } = await admin().from("bulletins").select("id,title,sunday_date,pdf_url").eq("id", id).maybeSingle();
+  const { data, error } = await admin().from("bulletins").select("id,title,sunday_date,pdf_url,content").eq("id", id).maybeSingle();
   if (error) throw new Error(error.message);
-  return data as BulletinRow | null;
+  return data as (BulletinRow & { content: string | null }) | null;
+}
+
+/** 수집할 때 content 에 남겨둔 "Dept bulletin: 초등1부" 표식에서 부서명을 되읽는다 */
+function deptKeyOf(content: string | null) {
+  return content?.match(/Dept bulletin:\s*(\S+)/)?.[1] || undefined;
 }
 
 async function cachedExtraction(bulletinId: string) {
@@ -121,7 +126,7 @@ export async function GET(request: NextRequest) {
     if (cached) {
       // 저장본은 원문이 진짜고 fields 는 거기서 뽑은 값이다.
       // 파서가 바뀌어도 옛 캐시가 남지 않게 원문에서 다시 뽑는다.
-      const fields = bulletinFieldsFromText(cached.extracted_text || "", cached.extraction_method);
+      const fields = bulletinFieldsFromText(cached.extracted_text || "", cached.extraction_method, deptKey);
       return response(bulletin, {
         status: "ready",
         fields: Object.keys(fields).length ? fields : cached.fields,
@@ -132,7 +137,7 @@ export async function GET(request: NextRequest) {
 
     const file = await r2.from(BUCKET).download(bulletin.pdf_url);
     if (file.error || !file.data) throw file.error || new Error("bulletin_file_missing");
-    const extraction = await extractNativeBulletinText(new Uint8Array(await file.data.arrayBuffer()), bulletin.pdf_url);
+    const extraction = await extractNativeBulletinText(new Uint8Array(await file.data.arrayBuffer()), bulletin.pdf_url, deptKey);
     if (extraction.needsOcr) return response(bulletin, { status: "ocr_required" });
     await saveExtraction(bulletin.id, extraction);
     return response(bulletin, { status: "ready", fields: extraction.fields, method: extraction.method });
@@ -151,10 +156,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "Invalid OCR result" }, { status: 400 });
     }
     const bulletin = await loadBulletinById(bulletinId);
-    if (!bulletin?.pdf_url || !isImagePath(bulletin.pdf_url)) {
+    // 그림 주보뿐 아니라 글자층이 없는 PDF 도 브라우저에서 OCR 해 보낸다
+    if (!bulletin?.pdf_url || !(isImagePath(bulletin.pdf_url) || /\.pdf$/i.test(bulletin.pdf_url))) {
       return NextResponse.json({ ok: false, error: "OCR source unavailable" }, { status: 404 });
     }
-    const extraction = extractOcrBulletinText(text);
+    const extraction = extractOcrBulletinText(text, deptKeyOf(bulletin.content));
     await saveExtraction(bulletin.id, extraction);
     return response(bulletin, { status: "ready", fields: extraction.fields, method: "ocr" });
   } catch (error) {

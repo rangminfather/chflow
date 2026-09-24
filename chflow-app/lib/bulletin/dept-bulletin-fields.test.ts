@@ -61,6 +61,12 @@ describe("초등1부 주보 예배순서 추출", () => {
     expect(raw.scripture).not.toBe("사무엘상31장3~5절");
   });
 
+  it("서식을 등록하지 않은 부서는 초등1부 서식으로 읽는다", () => {
+    const unknown = parseDeptBulletinFields(normText(REAL_2026_09_06), REAL_2026_09_06, "청소년부");
+    expect(unknown.scripture).toBe(fields.scripture);
+    expect(unknown.preacher).toBe(fields.preacher);
+  });
+
   it("주보 형식이 아니면 빈 값으로 돌려준다 (화면이 죽지 않게)", () => {
     const empty = parseDeptBulletinFields(normText("아무 관계 없는 글"));
     expect(empty.scripture).toBe("");
