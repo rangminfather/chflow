@@ -345,14 +345,27 @@ async function runSync(): Promise<JuboSyncResult> {
     const latest = parseLatestJubo(html);
     if (!latest) throw new Error("최신 주보 항목을 찾지 못했습니다");
 
+    // 같은 UMS 글 번호면 같은 주보다. 올린 사람이 제목 날짜를 나중에 고치는 일이 있어
+    // (2026-09 no.895: 09월 20일 → 27일) 날짜까지 조건에 넣으면 같은 주보가 두 번 들어간다.
     const { data: existing, error: existingError } = await admin
       .from("bulletins")
-      .select("id,pdf_url,content")
-      .eq("sunday_date", latest.issue_date)
-      .ilike("content", `%UMS jubo no: ${latest.no}%`)
+      .select("id,pdf_url,content,sunday_date,title")
+      // content 끝이 글 번호라 뒤에 % 를 붙이지 않는다(89 가 895 에 걸리지 않게).
+      .ilike("content", `%UMS jubo no: ${latest.no}`)
+      .order("created_at", { ascending: true })
+      .limit(1)
       .maybeSingle();
 
     if (existingError) throw new Error(existingError.message);
+    if (existing?.pdf_url && (existing.sunday_date !== latest.issue_date || existing.title !== latest.title)) {
+      const { error: updateError } = await admin
+        .from("bulletins")
+        .update({ sunday_date: latest.issue_date, title: latest.title })
+        .eq("id", existing.id);
+      if (updateError) throw new Error(updateError.message);
+      await logSync(admin, "skipped", { detail: `date_corrected:${existing.sunday_date}`, item_no: latest.no, issue_date: latest.issue_date });
+      return { ok: true, skipped: true, reason: "date_corrected", latest };
+    }
     if (existing?.pdf_url) {
       await logSync(admin, "skipped", { detail: "already_fetched", item_no: latest.no, issue_date: latest.issue_date });
       return { ok: true, skipped: true, reason: "already_fetched", latest };

@@ -49,7 +49,12 @@ const nextConfig: NextConfig = {
   // Vercel 함수 번들에 한글 폰트(.otf) 파일 포함시키기 (UMS 주보 PDF 생성용)
   outputFileTracingIncludes: {
     "/api/ums-bulletin-post/**": ["./lib/bulletin/**/*"],
+    // 주보 성경봉독 자동 판독: 서버에서 주보 1쪽을 그리는 네이티브 캔버스(pdfjs-dist 의 선택 의존성)
+    "/api/bulletin/sync": ["./node_modules/pdfjs-dist/node_modules/@napi-rs/**/*"],
+    "/api/admin/bulletin-scripture-readings": ["./node_modules/pdfjs-dist/node_modules/@napi-rs/**/*"],
   },
+  // pdfjs-dist 는 실행 시 createRequire 로 @napi-rs/canvas 를 찾으므로 번들하지 않고 node_modules 에서 불러온다.
+  serverExternalPackages: ["pdfjs-dist", "@napi-rs/canvas"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

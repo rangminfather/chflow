@@ -5,7 +5,7 @@ import { BookOpen, Settings, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ModalBackdrop from "@/components/ModalBackdrop";
 import { supabase } from "@/lib/supabase";
-import { BULLETIN_SERVICE_LABELS, type BulletinServiceType } from "@/lib/bulletin/scripture-parser";
+import { BULLETIN_SERVICE_TYPES, type BulletinServiceType } from "@/lib/bulletin/scripture-parser";
 import { getRecommendedBulletinService } from "@/lib/bulletin/scripture-recommendation";
 import ScripturePassageSheet from "./ScripturePassageSheet";
 
@@ -18,12 +18,41 @@ type Reading = {
 };
 
 const MANAGER_ROLES = new Set(["admin", "office", "pastor"]);
-const SERVICE_ORDER: Record<BulletinServiceType, number> = {
-  sunday_morning: 0,
-  sunday_afternoon: 1,
-  wednesday_morning: 2,
-  wednesday_evening: 3,
+const SUNDAY_PARTS: BulletinServiceType[] = ["sunday_1", "sunday_2", "sunday_3"];
+const PART_NUMBER: Partial<Record<BulletinServiceType, string>> = { sunday_1: "1", sunday_2: "2", sunday_3: "3" };
+const OTHER_LABELS: Partial<Record<BulletinServiceType, string>> = {
+  sunday_afternoon: "주일 오후예배",
+  wednesday_morning: "수요 오전예배",
+  wednesday_evening: "수요 저녁예배",
 };
+
+type ReadingGroup = { key: string; label: string; services: BulletinServiceType[]; readings: Reading[] };
+
+/** 주일 1·2·3부는 대개 같은 본문이라 같은 것끼리 한 장으로 묶는다(부마다 다른 주만 나뉜다). */
+function groupReadings(readings: Reading[]): ReadingGroup[] {
+  const bySlot = new Map<BulletinServiceType, Reading[]>();
+  for (const reading of [...readings].sort((a, b) => a.sort_order - b.sort_order)) {
+    bySlot.set(reading.service_type, [...(bySlot.get(reading.service_type) || []), reading]);
+  }
+  const text = (slot: BulletinServiceType) => (bySlot.get(slot) || []).map((row) => row.normalized_label || row.raw_reference).join(", ");
+  const groups: ReadingGroup[] = [];
+  for (const slot of BULLETIN_SERVICE_TYPES) {
+    const rows = bySlot.get(slot);
+    if (!rows?.length) continue;
+    const previous = groups.at(-1);
+    if (PART_NUMBER[slot] && previous && PART_NUMBER[previous.services[0]] && previous.services.at(-1) === SUNDAY_PARTS[SUNDAY_PARTS.indexOf(slot) - 1] && text(previous.services[0]) === text(slot)) {
+      previous.services.push(slot);
+      continue;
+    }
+    groups.push({ key: slot, label: "", services: [slot], readings: rows });
+  }
+  for (const group of groups) {
+    if (!PART_NUMBER[group.services[0]]) { group.label = OTHER_LABELS[group.services[0]] || ""; continue; }
+    const parts = group.services.map((slot) => PART_NUMBER[slot]).join("·");
+    group.label = group.services.length === SUNDAY_PARTS.length ? "주일 오전예배 (1·2·3부)" : `주일 ${parts}부예배`;
+  }
+  return groups;
+}
 
 export default function BulletinScripturePanel({ bulletinId }: { bulletinId: string }) {
   const router = useRouter();
@@ -59,10 +88,7 @@ export default function BulletinScripturePanel({ bulletinId }: { bulletinId: str
   }, [bulletinId]);
 
   const recommended = getRecommendedBulletinService();
-  const ordered = useMemo(
-    () => [...readings].sort((a, b) => SERVICE_ORDER[a.service_type] - SERVICE_ORDER[b.service_type] || a.sort_order - b.sort_order),
-    [readings],
-  );
+  const ordered = useMemo(() => groupReadings(readings), [readings]);
 
   if (!ordered.length && !canManage) return null;
 
@@ -88,18 +114,22 @@ export default function BulletinScripturePanel({ bulletinId }: { bulletinId: str
             </header>
 
             <div style={readingListStyle}>
-              {ordered.length ? ordered.map((reading) => {
-                const isRecommended = reading.service_type === recommended;
+              {ordered.length ? ordered.map((group) => {
+                const isRecommended = recommended != null && group.services.includes(recommended);
                 return (
-                  <article key={reading.id} style={{ ...readingStyle, ...(isRecommended ? recommendedReadingStyle : null) }}>
+                  <article key={group.key} style={{ ...readingStyle, ...(isRecommended ? recommendedReadingStyle : null) }}>
                     <div style={readingMetaStyle}>
                       {isRecommended && <span style={recommendBadgeStyle}>추천</span>}
-                      <span>{BULLETIN_SERVICE_LABELS[reading.service_type]}</span>
+                      <span>{group.label}</span>
                     </div>
-                    <div style={referenceStyle}>{reading.normalized_label || reading.raw_reference}</div>
-                    <button type="button" onClick={() => setOpened(reading)} style={passageButtonStyle}>
-                      <BookOpen size={15} /> 본문 보기
-                    </button>
+                    {group.readings.map((reading) => (
+                      <div key={reading.id}>
+                        <div style={referenceStyle}>{reading.normalized_label || reading.raw_reference}</div>
+                        <button type="button" onClick={() => setOpened(reading)} style={passageButtonStyle}>
+                          <BookOpen size={15} /> 본문 보기
+                        </button>
+                      </div>
+                    ))}
                   </article>
                 );
               }) : <div style={emptyStyle}>아직 저장된 성경봉독이 없습니다.</div>}
