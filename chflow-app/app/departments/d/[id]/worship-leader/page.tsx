@@ -8,6 +8,7 @@ import BibleAttribution from "@/components/BibleAttribution";
 import { LoadingView } from "@/components/StatusViews";
 import { supabase } from "@/lib/supabase";
 import { DEFAULT_BIBLE_VERSION, parseBibleVersions, type BibleVersion } from "@/lib/bible/versions";
+import { loadWorshipPassages } from "@/lib/bible/worship-passages";
 import {
   type BibleVerse,
   buildWorshipLeaderSections,
@@ -35,7 +36,7 @@ type CachedScript = {
   prayerClass?: string;
   verses?: BibleVerse[];
   normalizedScripture?: string;
-  testament?: "구약" | "신약";
+  testament?: "구약" | "신약" | "구약/신약";
   plan?: PlanInfo;
   savedAt?: string;
 };
@@ -135,13 +136,13 @@ export default function WorshipLeaderPage() {
   const [prayerClass, setPrayerClass] = useState("");
   const [verses, setVerses] = useState<BibleVerse[]>([]);
   const [normalizedScripture, setNormalizedScripture] = useState("");
-  const [testament, setTestament] = useState<"구약" | "신약" | undefined>();
+  const [testament, setTestament] = useState<"구약" | "신약" | "구약/신약" | undefined>();
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
   const [bibleVersion, setBibleVersion] = useState<BibleVersion | null>(null);
   // 한 번 만든 대본은 이 기기에 주일별로 남긴다 — 다시 들어올 때 즉시 뜨고,
   // 최신 값은 뒤에서 조용히 맞춘다 (주보 PDF 를 매번 새로 받으면 느리다)
-  const cacheKey = `worship-leader-cache:${deptId}:${sunday}`;
+  const cacheKey = `worship-leader-cache:v2:${deptId}:${sunday}`;
   const [editedContents, setEditedContents] = useState<Record<number, string>>({});
 
   // 고친 대본은 이 브라우저에 주일별로 남긴다.
@@ -195,7 +196,7 @@ export default function WorshipLeaderPage() {
     });
   }, [editStorageKey]);
 
-  /** 본문 표기 하나를 성경에서 찾아 화면에 채운다. 찾으면 true. */
+  /** 쉼표로 구분된 본문을 모두 찾아 화면에 채운다. 모두 찾으면 true. */
   const lookupScripture = useCallback(async (rawReference: string) => {
     const reference = normalizeBibleReference(rawReference);
     if (!reference) return false;
@@ -207,33 +208,28 @@ export default function WorshipLeaderPage() {
       return false;
     }
     try {
-      const response = await fetch(`/api/bible/reference?ref=${encodeURIComponent(reference)}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        cache: "no-store",
+      const result = await loadWorshipPassages(reference, async (part) => {
+        const response = await fetch(`/api/bible/reference?ref=${encodeURIComponent(part)}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store",
+        });
+        const payload = await response.json() as {
+          ok?: boolean;
+          normalizedLabel?: string;
+          bookId?: number;
+          rows?: BibleVerse[];
+          error?: string;
+        };
+        return { ...payload, ok: response.ok && payload.ok };
       });
-      const payload = await response.json() as {
-        ok?: boolean;
-        normalizedLabel?: string;
-        bookId?: number;
-        rows?: BibleVerse[];
-        error?: string;
-      };
-      if (response.ok && payload.ok && Array.isArray(payload.rows) && payload.rows.length) {
-        const rows = payload.rows;
-        setVerses(rows.map((row) => ({ chapter: row.chapter, verse: row.verse, endVerse: row.endVerse, text: row.text })));
-        setNormalizedScripture(payload.normalizedLabel || reference);
-        setTestament(Number(payload.bookId) <= 39 ? "구약" : "신약");
-        return true;
-      }
+      setVerses(result.rows);
+      setNormalizedScripture(result.normalizedLabel);
+      setTestament(result.testament);
+      return true;
+    } catch (error) {
       setVerses([]);
       setTestament(undefined);
-      const detail = payload.error ? ` (${payload.error})` : "";
-      setNotice(`"${rawReference}" 을(를) 성경에서 찾지 못했습니다. 표기를 확인해주세요.${detail}`);
-      return false;
-    } catch {
-      setVerses([]);
-      setTestament(undefined);
-      setNotice("개역개정 본문을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      setNotice(`개역개정 본문을 모두 불러오지 못했습니다. ${error instanceof Error ? error.message : "잠시 후 다시 시도해주세요."}`);
       return false;
     }
   }, [resetScriptureSectionEdit, router]);
