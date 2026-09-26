@@ -371,7 +371,6 @@ export default function WorshipLeaderPage() {
 
   useEffect(() => {
     // 저장해 둔 대본이 있으면 먼저 띄우고, 최신 값은 뒤에서 맞춘다.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void (async () => {
       let hadCache = false;
       try {
