@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, CheckCheck, ExternalLink, ScanText } from "lucide-react";
+import { Activity, ArrowLeft, CheckCheck, ExternalLink, ScanText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { BULLETIN_SERVICE_LABELS, BULLETIN_SERVICE_TYPES, type BulletinServiceType } from "@/lib/bulletin/scripture-parser";
@@ -10,6 +10,14 @@ type ExtractionStatus = "retry" | "done" | "review" | "failed";
 type Bulletin = { id: string; title: string; sunday_date: string; pdf_url: string; extraction_status: ExtractionStatus | null };
 type Reading = { service_type: BulletinServiceType; raw_reference: string; normalized_label: string | null; book_id: number | null; source: string; status: string; sort_order: number };
 type Extraction = { status: ExtractionStatus; attempts: number; model_results: Record<string, Partial<Record<BulletinServiceType, string[]>> & { error?: string }>; last_error: string | null; updated_at: string };
+
+type HealthWarning = { code: string; level: "action" | "watch"; message: string };
+type Run = {
+  bulletin_id: string | null; trigger: "cron" | "manual"; started_at: string; duration_ms: number; budget_ms: number; render_ms: number | null;
+  models: Array<{ model: string; ok: boolean; ms: number; status: number | string }>; result_status: ExtractionStatus | "deferred"; time_limited: boolean; note: string | null;
+};
+type Health = { warnings: HealthWarning[]; runs: Run[] };
+const RUN_STATUS_TEXT: Record<Run["result_status"], string> = { done: "완료", review: "확인 필요", retry: "재시도 대기", failed: "실패", deferred: "시간 부족으로 미룸" };
 
 const STATUS_TEXT: Record<ExtractionStatus, string> = { done: "자동 게시 완료", review: "확인 필요", retry: "재시도 대기", failed: "자동 판독 실패" };
 const STATUS_COLOR: Record<ExtractionStatus, string> = { done: "var(--success)", review: "var(--warning)", retry: "var(--ink-soft)", failed: "var(--danger)" };
@@ -34,6 +42,7 @@ export default function Page() {
   const [slotMessage, setSlotMessage] = useState<Partial<Record<BulletinServiceType, { ok: boolean; text: string }>>>({});
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [health, setHealth] = useState<Health | null>(null);
 
   const loadBulletins = async () => {
     const response = await call("/api/admin/bulletin-scripture-readings");
@@ -41,6 +50,7 @@ export default function Page() {
     if (!response.ok) { setNotice(json.error || "최근 주보를 불러오지 못했습니다."); return [] as Bulletin[]; }
     const next = (json.bulletins || []) as Bulletin[];
     setBulletins(next);
+    setHealth(json.health || null);
     return next;
   };
 
@@ -128,6 +138,24 @@ export default function Page() {
       <button onClick={() => router.push("/home")} style={back} aria-label="뒤로"><ArrowLeft size={18}/></button>
       <div><h1 style={{ margin: 0, fontSize: 21 }}>주보 성경봉독 관리</h1><small style={{ color: "var(--ink-soft)" }}>새 주보가 올라오면 AI 가 자동으로 읽어 게시합니다. 확인이 필요한 항목만 처리하세요.</small></div>
     </header>
+    {health && <section style={{ ...card, marginBottom: 16 }}>
+      <b style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Activity size={16}/>자동 판독 자가 진단</b>
+      {health.warnings.length === 0
+        ? <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--success)", fontWeight: 700 }}>최근 14일 실행 기록에서 조치가 필요한 신호가 없습니다.</p>
+        : <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>{health.warnings.map((warning) => <li key={warning.code} style={{ color: warning.level === "action" ? "var(--danger)" : "var(--warning)", fontWeight: 700, marginTop: 3 }}>{warning.level === "action" ? "조치 필요 · " : "지켜보기 · "}{warning.message}</li>)}</ul>}
+      {health.runs.length > 0 && <details style={{ marginTop: 8 }}>
+        <summary style={{ fontSize: 13 }}>최근 실행 기록 {health.runs.length}건 (소요 시간 / 쓸 수 있던 시간)</summary>
+        <div style={{ overflowX: "auto" }}><table style={runTable}><thead><tr><th style={runCell}>시각</th><th style={runCell}>방식</th><th style={runCell}>소요/여유</th><th style={runCell}>결과</th><th style={runCell}>모델별 응답</th></tr></thead><tbody>
+          {health.runs.map((run) => <tr key={run.started_at + (run.bulletin_id || "")}>
+            <td style={runCell}>{new Date(run.started_at).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
+            <td style={runCell}>{run.trigger === "cron" ? "자동" : "수동"}</td>
+            <td style={{ ...runCell, color: run.time_limited ? "var(--danger)" : undefined }}>{(run.duration_ms / 1000).toFixed(1)}초 / {(run.budget_ms / 1000).toFixed(0)}초{run.time_limited ? " · 시간 부족" : ""}</td>
+            <td style={runCell}>{RUN_STATUS_TEXT[run.result_status] || run.result_status}</td>
+            <td style={runCell}>{run.models.length ? run.models.map((item) => `${item.model.replace("gemini-", "")} ${item.ok ? "✓" : `✗${item.status}`} ${(item.ms / 1000).toFixed(1)}초`).join(" · ") : run.note || "-"}</td>
+          </tr>)}
+        </tbody></table></div>
+      </details>}
+    </section>}
     <div className="scripture-grid" style={grid}>
       <section className="scripture-card" style={card}>
         <b>최근 주보</b>
@@ -200,4 +228,6 @@ const secondary: React.CSSProperties = { border: "1px solid var(--hairline)", bo
 const linkButton: React.CSSProperties = { ...secondary, textDecoration: "none" };
 const input: React.CSSProperties = { minWidth: 0, border: "1px solid var(--hairline)", borderRadius: 7, padding: "9px", fontFamily: "inherit", background: "var(--card)", color: "var(--ink)" };
 const readingStyle: React.CSSProperties = { borderTop: "1px solid var(--hairline)", padding: "12px 6px", display: "grid", gridTemplateColumns: "110px minmax(180px,1fr) auto", gap: 8, alignItems: "center" };
+const runTable: React.CSSProperties = { borderCollapse: "collapse", fontSize: 12, marginTop: 6, minWidth: 560, width: "100%" };
+const runCell: React.CSSProperties = { borderTop: "1px solid var(--hairline)", padding: "5px 6px", textAlign: "left", verticalAlign: "top" };
 const diagnosticStyle: React.CSSProperties = { whiteSpace: "pre-wrap", fontSize: 11, maxHeight: 320, overflow: "auto", background: "var(--surface-muted)", padding: 10, borderRadius: 8 };

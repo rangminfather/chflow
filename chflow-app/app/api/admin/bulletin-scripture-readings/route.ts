@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isBulletinServiceType, splitScriptureReferences, type BulletinServiceType } from "@/lib/bulletin/scripture-parser";
 import { validateNkrvReference } from "@/lib/bulletin/scripture-validation";
-import { runScriptureExtraction } from "@/lib/bulletin/scripture-auto";
+import { loadScriptureHealth, runScriptureExtraction } from "@/lib/bulletin/scripture-auto";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -73,7 +73,8 @@ export async function GET(req: NextRequest) {
     ? await session.admin.from("bulletin_scripture_extractions").select("bulletin_id,status").in("bulletin_id", ids)
     : { data: [] };
   const statusById = new Map((states || []).map((row: { bulletin_id: string; status: string }) => [row.bulletin_id, row.status]));
-  return NextResponse.json({ ok: !error, bulletins: (data || []).map((row: { id: string }) => ({ ...row, extraction_status: statusById.get(row.id) ?? null })), error: error?.message });
+  const health = await loadScriptureHealth(session.admin);
+  return NextResponse.json({ ok: !error, bulletins: (data || []).map((row: { id: string }) => ({ ...row, extraction_status: statusById.get(row.id) ?? null })), health: { warnings: health.warnings, runs: health.runs.slice(0, 12) }, error: error?.message });
 }
 
 export async function POST(req: NextRequest) {

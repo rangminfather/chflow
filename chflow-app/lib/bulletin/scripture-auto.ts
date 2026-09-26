@@ -2,6 +2,7 @@ import { r2 } from "../r2";
 import { BULLETIN_SERVICE_TYPES, type BulletinServiceType } from "./scripture-parser";
 import { readScriptureWithGemini, renderBulletinFirstPage, scriptureModels, type ModelReading, type ScriptureSlots } from "./scripture-ai";
 import { validateNkrvReference, type ValidatedReference } from "./scripture-validation";
+import { assessScriptureHealth, type ExtractionRun, type HealthWarning } from "./scripture-health";
 
 // 주보 성경봉독 자동 추출 파이프라인.
 // 주보 수집 cron(금·토 6회)이 끝날 때마다 최근 주보 중 미완료 건을 처리한다.
@@ -57,16 +58,28 @@ function makeValidator(admin: AdminClient): Validator {
   };
 }
 
-/** 두 모델 응답을 받을 때까지 대체 모델을 순서대로 시도한다(남은 시간 안에서). */
-async function collectReadings(png: Buffer, deadline: number): Promise<ModelReading[]> {
+const MODEL_TIMEOUT_MS = 25_000;
+
+/**
+ * 두 모델 응답을 받을 때까지 대체 모델을 순서대로 시도한다(남은 시간 안에서).
+ * timeLimited: 함수 제한 시간 때문에 대체 모델을 못 부르거나 대기 시간을 줄여야 했던 경우 — 자가 진단 신호.
+ */
+async function collectReadings(png: Buffer, deadline: number): Promise<{ readings: ModelReading[]; timeLimited: boolean }> {
   const models = scriptureModels();
-  const timeoutFor = () => Math.max(5_000, Math.min(25_000, deadline - Date.now() - 2_000));
+  let timeLimited = false;
+  const timeoutFor = () => {
+    const allowed = Math.max(5_000, Math.min(MODEL_TIMEOUT_MS, deadline - Date.now() - 2_000));
+    if (allowed < MODEL_TIMEOUT_MS) timeLimited = true;
+    return allowed;
+  };
   const readings = await Promise.all(models.slice(0, 2).map((model) => readScriptureWithGemini(model, png, timeoutFor())));
   for (const model of models.slice(2)) {
-    if (readings.filter((reading) => reading.ok).length >= 2 || deadline - Date.now() < 10_000) break;
+    if (readings.filter((reading) => reading.ok).length >= 2) break;
+    if (deadline - Date.now() < 10_000) { timeLimited = true; break; }
     readings.push(await readScriptureWithGemini(model, png, timeoutFor()));
   }
-  return readings;
+  // 두 결과를 다 받았다면 시간이 빠듯했어도 판독에는 지장이 없었다.
+  return { readings, timeLimited: timeLimited && readings.filter((reading) => reading.ok).length < 2 };
 }
 
 async function saveOutcomes(admin: AdminClient, bulletinId: string, outcomes: SlotOutcome[]) {
@@ -106,17 +119,47 @@ async function saveOutcomes(admin: AdminClient, bulletinId: string, outcomes: Sl
   }
 }
 
-async function notifyStaff(admin: AdminClient, bulletinId: string, sundayDate: string, body: string) {
+async function notifyStaff(admin: AdminClient, title: string, body: string, linkUrl: string, metadata: Record<string, unknown>) {
   const { data: staff } = await admin.from("profiles").select("id").in("role", ["admin", "office", "pastor"]).eq("status", "active");
   const rows = (staff || []).map((user: { id: string }) => ({
     user_id: user.id,
     type: "ops_bulletin_sync_error",
-    title: "주보 성경봉독 확인 필요",
-    body: `${sundayDate} 주보: ${body}`,
-    link_url: `/admin/bulletin-scripture-readings?bulletin_id=${bulletinId}`,
-    metadata: { bulletin_id: bulletinId, event: "scripture_review" },
+    title,
+    body,
+    link_url: linkUrl,
+    metadata,
   }));
   if (rows.length) await admin.from("notifications").insert(rows);
+}
+
+type RunRecord = ExtractionRun & { bulletin_id: string; render_ms?: number | null; note?: string | null };
+export type StoredRun = ExtractionRun & { bulletin_id: string | null; render_ms: number | null; note: string | null };
+
+async function recordRun(admin: AdminClient, run: RunRecord) {
+  // 기록 실패가 판독 결과를 망치지 않게 오류는 삼킨다.
+  await admin.from("bulletin_scripture_extraction_runs").insert(run).then(() => undefined, () => undefined);
+}
+
+/** 최근 실행 기록과 자가 진단 결과. */
+export async function loadScriptureHealth(admin: AdminClient): Promise<{ warnings: HealthWarning[]; runs: StoredRun[] }> {
+  const { data } = await admin.from("bulletin_scripture_extraction_runs")
+    .select("bulletin_id,trigger,started_at,duration_ms,budget_ms,render_ms,models,result_status,time_limited,note")
+    .order("started_at", { ascending: false }).limit(30);
+  const runs = (data || []) as StoredRun[];
+  return { runs, warnings: assessScriptureHealth(runs, scriptureModels()) };
+}
+
+/** 설정을 바꿔야 하는 신호(action)는 종류별로 7일에 한 번만 관리자에게 알린다. */
+async function notifyHealthChanges(admin: AdminClient) {
+  const { warnings } = await loadScriptureHealth(admin);
+  const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  for (const warning of warnings.filter((item) => item.level === "action")) {
+    const { data: recent } = await admin.from("notifications").select("id")
+      .eq("type", "ops_bulletin_sync_error").contains("metadata", { event: "scripture_health", code: warning.code })
+      .gte("created_at", since).limit(1);
+    if (recent?.length) continue;
+    await notifyStaff(admin, "주보 성경봉독 자동 판독 점검 필요", warning.message, "/admin/bulletin-scripture-readings", { event: "scripture_health", code: warning.code });
+  }
 }
 
 export type ExtractionResult = { bulletinId: string; status: "retry" | "done" | "review" | "failed"; outcomes: SlotOutcome[]; errors: string[] };
@@ -125,18 +168,23 @@ export type ExtractionResult = { bulletinId: string; status: "retry" | "done" | 
  * 주보 1건 추출. force=true 는 관리자가 화면에서 누른 재추출 — 시도 횟수와 무관하게 돌고 알림은 보내지 않는다.
  */
 export async function runScriptureExtraction(admin: AdminClient, bulletinId: string, options: { deadline: number; force?: boolean }): Promise<ExtractionResult> {
+  const startedAt = Date.now();
   const { data: bulletin, error } = await admin.from("bulletins").select("id,sunday_date,pdf_url").eq("id", bulletinId).maybeSingle();
   if (error || !bulletin?.pdf_url) throw new Error(error?.message || "주보 PDF 를 찾지 못했습니다.");
   const { data: state } = await admin.from("bulletin_scripture_extractions").select("attempts,notified_at").eq("bulletin_id", bulletinId).maybeSingle();
   const attempts = (state?.attempts ?? 0) + 1;
 
   let readings: ModelReading[] = [];
+  let timeLimited = false;
+  let renderMs: number | null = null;
   let failure: string | null = null;
   try {
     const file = await r2.from("bulletins").download(bulletin.pdf_url);
     if (file.error || !file.data) throw new Error("주보 PDF 를 내려받지 못했습니다.");
+    const renderStartedAt = Date.now();
     const png = await renderBulletinFirstPage(new Uint8Array(await file.data.arrayBuffer()));
-    readings = await collectReadings(png, options.deadline);
+    renderMs = Date.now() - renderStartedAt;
+    ({ readings, timeLimited } = await collectReadings(png, options.deadline));
   } catch (caught) {
     failure = caught instanceof Error ? caught.message : "주보 판독 준비 실패";
   }
@@ -167,10 +215,23 @@ export async function runScriptureExtraction(admin: AdminClient, bulletinId: str
 
   if (shouldNotify) {
     const pending = outcomes.filter((outcome) => outcome.kind === "pending").length;
-    await notifyStaff(admin, bulletinId, bulletin.sunday_date, status === "failed"
-      ? "자동 판독에 실패했습니다. 직접 입력해 주세요."
-      : `자동 판독 중 ${pending || "일부"}개 예배 본문이 확인을 기다립니다.`);
+    const detail = status === "failed" ? "자동 판독에 실패했습니다. 직접 입력해 주세요." : `자동 판독 중 ${pending || "일부"}개 예배 본문이 확인을 기다립니다.`;
+    await notifyStaff(admin, "주보 성경봉독 확인 필요", `${bulletin.sunday_date} 주보: ${detail}`, `/admin/bulletin-scripture-readings?bulletin_id=${bulletinId}`, { bulletin_id: bulletinId, event: "scripture_review" });
   }
+
+  await recordRun(admin, {
+    bulletin_id: bulletinId,
+    trigger: options.force ? "manual" : "cron",
+    started_at: new Date(startedAt).toISOString(),
+    duration_ms: Date.now() - startedAt,
+    budget_ms: Math.max(0, options.deadline - startedAt),
+    render_ms: renderMs,
+    models: readings.map((reading) => ({ model: reading.model, ok: reading.ok, ms: reading.ms, status: reading.status, ...(reading.ok ? {} : { error: reading.error.slice(0, 200) }) })),
+    result_status: status,
+    time_limited: timeLimited,
+    note: failure,
+  });
+  await notifyHealthChanges(admin).catch(() => undefined);
   return { bulletinId, status, outcomes, errors };
 }
 
@@ -186,8 +247,17 @@ export async function processPendingScriptureExtractions(admin: AdminClient, opt
   const { data: states } = await admin.from("bulletin_scripture_extractions").select("bulletin_id,status").in("bulletin_id", ids);
   const finished = new Set((states || []).filter((row: { status: string }) => row.status !== "retry").map((row: { bulletin_id: string }) => row.bulletin_id));
   const results: ExtractionResult[] = [];
-  for (const id of ids.filter((value: string) => !finished.has(value))) {
-    if (options.deadline - Date.now() < 20_000) break;
+  const pending = ids.filter((value: string) => !finished.has(value));
+  for (const [index, id] of pending.entries()) {
+    if (options.deadline - Date.now() < 20_000) {
+      // 주보 수집 등으로 시간을 다 써서 판독을 시작도 못 한 경우 — "제한 시간을 늘려야 하는가" 의 핵심 신호.
+      const leftMs = Math.max(0, options.deadline - Date.now());
+      for (const deferredId of pending.slice(index)) {
+        await recordRun(admin, { bulletin_id: deferredId, trigger: "cron", started_at: new Date().toISOString(), duration_ms: 0, budget_ms: leftMs, models: [], result_status: "deferred", time_limited: true, note: `남은 시간 ${Math.round(leftMs / 1000)}초로 판독을 다음 cron 으로 미룸` });
+      }
+      await notifyHealthChanges(admin).catch(() => undefined);
+      break;
+    }
     results.push(await runScriptureExtraction(admin, id, { deadline: options.deadline }));
   }
   return results;

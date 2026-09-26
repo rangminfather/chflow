@@ -7,9 +7,10 @@ import { BULLETIN_SERVICE_TYPES, splitScriptureReferences, type BulletinServiceT
 
 export type ScriptureSlots = Record<BulletinServiceType, string[]>;
 
+/** status: HTTP 상태 코드, 또는 timeout(제한 시간 초과)·no_key·error. ms: 응답까지 걸린 시간(자가 진단용). */
 export type ModelReading =
-  | { model: string; ok: true; slots: ScriptureSlots }
-  | { model: string; ok: false; error: string; retryable: boolean };
+  | { model: string; ok: true; slots: ScriptureSlots; ms: number; status: number }
+  | { model: string; ok: false; error: string; retryable: boolean; ms: number; status: number | "timeout" | "no_key" | "error" };
 
 /** 두 모델이 교차 확인하므로 기본 2개 + 과부하 시 대체 모델. 모델 교체는 코드 수정 없이 env 로. */
 export function scriptureModels(): string[] {
@@ -50,7 +51,8 @@ export function parseModelSlots(json: unknown): ScriptureSlots {
 
 export async function readScriptureWithGemini(model: string, png: Buffer, timeoutMs: number): Promise<ModelReading> {
   const key = process.env.GEMINI_API_KEY;
-  if (!key) return { model, ok: false, error: "GEMINI_API_KEY 가 설정되지 않았습니다.", retryable: false };
+  if (!key) return { model, ok: false, error: "GEMINI_API_KEY 가 설정되지 않았습니다.", retryable: false, ms: 0, status: "no_key" };
+  const startedAt = Date.now();
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: "POST",
@@ -68,12 +70,13 @@ export async function readScriptureWithGemini(model: string, png: Buffer, timeou
     if (!response.ok) {
       // 503 과부하·429 한도 초과·5xx 는 다음 cron 에서 다시 시도할 가치가 있다.
       const retryable = response.status === 429 || response.status >= 500;
-      return { model, ok: false, error: `${response.status} ${payload.error?.message?.slice(0, 160) || "Gemini 오류"}`, retryable };
+      return { model, ok: false, error: `${response.status} ${payload.error?.message?.slice(0, 160) || "Gemini 오류"}`, retryable, ms: Date.now() - startedAt, status: response.status };
     }
     const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "";
-    return { model, ok: true, slots: parseModelSlots(JSON.parse(text)) };
+    return { model, ok: true, slots: parseModelSlots(JSON.parse(text)), ms: Date.now() - startedAt, status: response.status };
   } catch (error) {
-    return { model, ok: false, error: error instanceof Error ? error.message : "Gemini 호출 실패", retryable: true };
+    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    return { model, ok: false, error: error instanceof Error ? error.message : "Gemini 호출 실패", retryable: true, ms: Date.now() - startedAt, status: timedOut ? "timeout" : "error" };
   }
 }
 
