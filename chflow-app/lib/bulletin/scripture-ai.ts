@@ -14,7 +14,8 @@ export type ModelReading =
 /** 두 모델이 교차 확인하므로 기본 2개 + 과부하 시 대체 모델. 모델 교체는 코드 수정 없이 env 로. */
 export function scriptureModels(): string[] {
   const configured = (process.env.GEMINI_SCRIPTURE_MODELS || "").split(",").map((m) => m.trim()).filter(Boolean);
-  return configured.length ? configured : ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-3.5-flash-lite"];
+  // 순서 = 우선순위. 2026-09-27 운영 실측에서 3.5-flash 는 35초 무응답이 잦아 맨 뒤로 뺐다.
+  return configured.length ? configured : ["gemini-3.1-flash-lite", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.5-flash"];
 }
 
 const PROMPT = `이 이미지는 한국 교회 주보 1쪽입니다. 예배 순서표에서 "성경봉독" 본문을 읽어 JSON으로 답하세요.

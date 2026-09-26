@@ -60,7 +60,7 @@ function makeValidator(admin: AdminClient): Validator {
 /** 두 모델 응답을 받을 때까지 대체 모델을 순서대로 시도한다(남은 시간 안에서). */
 async function collectReadings(png: Buffer, deadline: number): Promise<ModelReading[]> {
   const models = scriptureModels();
-  const timeoutFor = () => Math.max(5_000, Math.min(35_000, deadline - Date.now() - 2_000));
+  const timeoutFor = () => Math.max(5_000, Math.min(25_000, deadline - Date.now() - 2_000));
   const readings = await Promise.all(models.slice(0, 2).map((model) => readScriptureWithGemini(model, png, timeoutFor())));
   for (const model of models.slice(2)) {
     if (readings.filter((reading) => reading.ok).length >= 2 || deadline - Date.now() < 10_000) break;
