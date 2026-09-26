@@ -168,7 +168,10 @@ export function parseOcrDeptBulletinFields(rawText: string): DeptBulletinFields 
     const value = rawText.match(pattern)?.[1] || "";
     return cleanOcrValue(value);
   };
-  const scripture = rawText.match(/성경봉독\s*([^\n]*?\d+\s*장\s*\d+(?:\s*[~∼\-]\s*\d+)?\s*절)/)?.[1] || "";
+  const scriptureScope = rawText.split(/성경\s*봉독/)[1]?.split(/강론|설교|주기도문|광고/)[0] || "";
+  const number = String.raw`\d+\s*(?:(?:장|편|[:：])\s*\d+)?\s*(?:절)?(?:\s*[-~∼～–—]\s*\d+\s*(?:(?:장|편|[:：])\s*\d+)?\s*(?:절)?)?`;
+  const book = String.raw`[가-힣]+\s*`;
+  const scripture = scriptureScope.match(new RegExp(`${book}${number}(?:\\s*[,，;；·]\\s*(?:${book})?${number})*`))?.[0] || "";
   const sermon = rawText.match(/강론\s*([^\n]*?)\s+(김[가-힣]{1,4}(?:(?:전도사|목사|강도사|권사|집사|교육사)님?|선생님))/);
 
   return {

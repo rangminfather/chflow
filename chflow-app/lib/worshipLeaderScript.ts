@@ -9,6 +9,7 @@ export type BibleVerse = {
   verse: number;
   endVerse?: number;
   text: string;
+  passageLabel?: string;
 };
 
 export function withoutWorshipLeaderSectionEdit(edits: Record<number, string>, sectionNumber: number) {
@@ -125,7 +126,8 @@ export function normalizeBibleReference(reference: string) {
   return reference
     .replace(/말씀/g, "")
     .replace(/[()（）]/g, "")
-    .replace(/[~～－–—]/g, "-")
+    .replace(/[~∼～－–—]/g, "-")
+    .replace(/：/g, ":")
     .replace(/(\d+)\s*(?:장|편)\s*/g, "$1:")
     .replace(/절/g, "")
     .replace(/\s*:\s*/g, ":")
@@ -147,7 +149,7 @@ export function buildWorshipLeaderSections(input: {
   prayerClass: string;
   scripture: string;
   normalizedScripture?: string;
-  testament?: "구약" | "신약";
+  testament?: "구약" | "신약" | "구약/신약";
   verses?: BibleVerse[];
   sermonTitle: string;
   preacher: string;
@@ -162,7 +164,7 @@ export function buildWorshipLeaderSections(input: {
   //   표기는 있는데 못 찾았다 → 성경 표기가 이상하다
   // 둘을 "성경 DB 오류" 하나로 뭉뚱그리면 엉뚱한 곳을 찾게 된다.
   const verseText = verses.length
-    ? verses.map((row) => `${row.endVerse ? `${row.verse}-${row.endVerse}` : row.verse}   ${row.text}`).join("\n")
+    ? verses.map((row) => `${row.passageLabel ? `\n${row.passageLabel}\n` : ""}${row.endVerse ? `${row.verse}-${row.endVerse}` : row.verse}   ${row.text}`).join("\n").trim()
     : reference
       ? `"${reference}" 을(를) 성경에서 찾지 못했습니다. 본문 표기를 확인해주세요.`
       : "이 주일의 말씀 본문이 아직 정해지지 않았습니다. 예배안내 또는 월간교육계획을 확인해주세요.";
